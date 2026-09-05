@@ -1,0 +1,155 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum KYCTier {
+  UNVERIFIED
+  TIER_1
+  TIER_2
+}
+
+enum KYCStatus {
+  NOT_STARTED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum LedgerEntryType {
+  DEPOSIT_CREDIT
+  SPEND_DEBIT
+  SPEND_REVERSAL
+  FEE_DEBIT
+}
+
+enum SpendStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  REVERSED
+}
+
+enum PaymentProviderId {
+  PAYSTACK
+  MONNIFY
+  SQUAD
+}
+
+enum ChainType {
+  SOLANA
+  EVM
+}
+
+model User {
+  id              String             @id @default(uuid())
+  privyUserId     String?            @unique
+  phoneNumber     String?            @unique
+  email           String?            @unique
+  kycTier         KYCTier            @default(UNVERIFIED)
+  kycStatus       KYCStatus          @default(NOT_STARTED)
+  pinHash         String?
+  wallets         Wallet[]
+  ledger          LedgerEntry[]
+  spends          SpendTransaction[]
+  virtualAccounts VirtualAccount[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+}
+
+model VirtualAccount {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountNumber String
+  accountName   String
+  bankName      String
+  bankCode      String
+  currency      String   @default("NGN")
+  provider      String
+  createdAt     DateTime @default(now())
+}
+
+
+model Wallet {
+  id           String    @id @default(uuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chain        String
+  address      String    @unique
+  tokenAddress String?
+  createdAt    DateTime  @default(now())
+}
+
+model LedgerEntry {
+  id                   String          @id @default(uuid())
+  userId               String
+  user                 User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type                 LedgerEntryType
+  amountUSDC           Decimal         @db.Decimal(18, 6)
+  resultingBalanceUSDC Decimal         @db.Decimal(18, 6)
+  referenceId          String
+  metadata             Json?
+  createdAt            DateTime        @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model SpendTransaction {
+  id                     String            @id @default(uuid())
+  userId                 String
+  user                   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reference              String            @unique
+  amountUSDC             Decimal           @db.Decimal(18, 6)
+  exchangeRateNGN        Decimal           @db.Decimal(18, 2)
+  amountNGN              Decimal           @db.Decimal(18, 2)
+  feeNGN                 Decimal           @db.Decimal(18, 2)
+  recipientBankCode      String
+  recipientAccountNumber String
+  recipientAccountName   String
+  payoutProvider         PaymentProviderId
+  status                 SpendStatus       @default(PENDING)
+  failureReason          String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  @@index([userId])
+  @@index([reference])
+}
+
+model ChainConfiguration {
+  id                    String    @id @default(uuid())
+  chainId               String    @unique
+  name                  String
+  type                  ChainType
+  rpcUrl                String
+  tokenContractAddress  String
+  confirmationThreshold Int       @default(12)
+  enabled               Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model ProviderConfiguration {
+  id        String            @id @default(uuid())
+  provider  PaymentProviderId @unique
+  name      String
+  enabled   Boolean           @default(true)
+  priority  Int               @default(1)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
+
+model RateFeedLog {
+  id           String   @id @default(uuid())
+  source       String
+  bidRate      Decimal  @db.Decimal(18, 2)
+  askRate      Decimal  @db.Decimal(18, 2)
+  blendedRate  Decimal  @db.Decimal(18, 2)
+  createdAt    DateTime @default(now())
+}

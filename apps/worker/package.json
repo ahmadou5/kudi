@@ -1,0 +1,23 @@
+{
+  "name": "@kudi/worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kudi/chains": "workspace:*",
+    "@kudi/database": "workspace:*",
+    "@kudi/payment-providers": "workspace:*",
+    "@kudi/types": "workspace:*",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.1",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "kudi-monorepo",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "dev:api": "pnpm --filter @kudi/api dev",
+    "dev:wallet": "pnpm --filter @kudi/wallet dev",
+    "dev:worker": "pnpm --filter @kudi/worker dev",
+    "dev:all": "turbo run dev --filter=@kudi/api --filter=@kudi/worker --filter=@kudi/wallet",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+  },
+
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "prettier": "^3.2.5",
+    "turbo": "^1.13.0",
+    "typescript": "^5.3.3"
+  },
+  "packageManager": "pnpm@8.15.3",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
