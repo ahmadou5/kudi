@@ -4,10 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
-    "build": "next build",
+    "build:deps": "pnpm --filter @kudi/types build && pnpm --filter @kudi/ui build && pnpm --filter @kudi/sdk build",
+    "build": "pnpm build:deps && next build",
     "start": "next start -p 3001",
     "lint": "next lint"
   },
+
   "dependencies": {
     "@kudi/sdk": "workspace:*",
     "@kudi/types": "workspace:*",
