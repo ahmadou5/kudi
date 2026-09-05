@@ -6,7 +6,7 @@
     "build:deps": "pnpm --filter @kudi/types build && pnpm --filter @kudi/chains build && pnpm --filter @kudi/database build && pnpm --filter @kudi/payment-providers build && pnpm --filter @kudi/kyc build && pnpm --filter @kudi/cards build && pnpm --filter @kudi/receipts build && pnpm --filter @kudi/sdk build",
     "build": "pnpm build:deps && tsup src/server.ts --format cjs,esm",
     "dev": "tsx watch src/server.ts",
-    "start": "node dist/server.js",
+    "start": "pnpm --filter @kudi/database db:generate && node dist/server.js",
     "lint": "tsc --noEmit"
   },
 

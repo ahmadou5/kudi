@@ -3,16 +3,22 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
+    "postinstall": "pnpm --filter @kudi/database db:generate",
+    "db:generate": "pnpm --filter @kudi/database db:generate",
+    "db:push": "pnpm --filter @kudi/database db:push",
     "dev": "turbo run dev",
     "dev:api": "pnpm --filter @kudi/api dev",
     "dev:wallet": "pnpm --filter @kudi/wallet dev",
     "dev:worker": "pnpm --filter @kudi/worker dev",
-    "dev:all": "turbo run dev --filter=@kudi/api --filter=@kudi/worker --filter=@kudi/wallet",
+    "dev:services": "turbo run dev --filter=@kudi/api --filter=@kudi/worker --filter=@kudi/web --filter=@kudi/admin",
+    "dev:all": "turbo run dev --filter=@kudi/api --filter=@kudi/worker --filter=@kudi/web --filter=@kudi/admin --filter=@kudi/wallet",
     "start": "pnpm --filter @kudi/api start",
     "start:api": "pnpm --filter @kudi/api start",
     "start:admin": "pnpm --filter @kudi/admin start",
     "start:web": "pnpm --filter @kudi/web start",
     "start:worker": "pnpm --filter @kudi/worker start",
+    "start:services": "turbo run start --filter=@kudi/api --filter=@kudi/worker --filter=@kudi/web --filter=@kudi/admin",
+    "start:all": "turbo run start --filter=@kudi/api --filter=@kudi/worker --filter=@kudi/web --filter=@kudi/admin",
     "lint": "turbo run lint",
 
     "format": "prettier --write \"**/*.{ts,tsx,md}\""
