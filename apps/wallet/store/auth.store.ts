@@ -29,6 +29,8 @@ export interface AuthState {
   pin: string;
 
   hydrate: () => Promise<void>;
+  sendPrivyOTP: (email: string) => Promise<{ success: boolean; error?: string }>;
+  verifyPrivyOTP: (email: string, code: string) => Promise<{ success: boolean; error?: string }>;
   loginWithPrivy: (privyPayload: {
     privyToken?: string;
     privyUserId: string;
@@ -118,6 +120,69 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     } catch (err) {
       console.error('Auth store hydration failed:', err);
       set({ isAuthenticated: false, isLoading: false });
+    }
+  },
+
+  sendPrivyOTP: async (email: string) => {
+    try {
+      console.log('[AuthStore] Sending Privy OTP to:', email);
+      const res = await sdk.sendPrivyOTP(email);
+      if (res && (res.success || res.sent)) {
+        return { success: true };
+      }
+      return { success: false, error: res?.error?.message || res?.message || 'Failed to send OTP code' };
+    } catch (err: any) {
+      console.error('[AuthStore] sendPrivyOTP error:', err);
+      return { success: false, error: err?.message || 'Failed to send OTP code' };
+    }
+  },
+
+  verifyPrivyOTP: async (email: string, code: string) => {
+    try {
+      set({ isLoading: true });
+      console.log('[AuthStore] Verifying Privy OTP for:', email);
+      const response = await sdk.verifyPrivyOTP(email, code);
+      console.log('[AuthStore] Verify OTP response:', response);
+
+      if (response && response.success && response.data) {
+        const { user, wallets, accessToken, refreshToken } = response.data;
+
+        await setSecureItem('kudi_access_token', accessToken);
+        if (refreshToken) await setSecureItem('kudi_refresh_token', refreshToken);
+        await setSecureItem('kudi_user', JSON.stringify(user));
+        if (wallets) await setSecureItem('kudi_wallets', JSON.stringify(wallets));
+
+        sdk.setAuthToken(accessToken);
+
+        set({
+          user,
+          wallets: wallets || [],
+          accessToken,
+          refreshToken,
+          isAuthenticated: true,
+          isUnlocked: true,
+          isLoading: false
+        });
+
+        try {
+          const { authStore } = require('../src/store/authStore');
+          authStore.login({
+            id: user.id,
+            email: user.email || `${user.id}@kudi.app`,
+            fullName: user.email ? user.email.split('@')[0] : 'Kudi User'
+          });
+        } catch (e) {}
+
+        return { success: true };
+      } else {
+        const errorMsg = response?.error?.message || response?.message || 'Invalid verification code';
+        set({ isLoading: false });
+        return { success: false, error: errorMsg };
+      }
+    } catch (err: any) {
+      console.error('[AuthStore] verifyPrivyOTP error:', err);
+      set({ isLoading: false });
+      return { success: false, error: err?.message || 'Network connection failed' };
     }
   },
 

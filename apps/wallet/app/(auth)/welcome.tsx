@@ -15,42 +15,78 @@ import { useAuthStore, AuthState } from '../../store/auth.store';
 
 export default function WelcomeScreen() {
   const palette = useAppPalette();
+  const sendPrivyOTP = useAuthStore((s: AuthState) => s.sendPrivyOTP);
+  const verifyPrivyOTP = useAuthStore((s: AuthState) => s.verifyPrivyOTP);
   const loginWithPrivy = useAuthStore((s: AuthState) => s.loginWithPrivy);
 
+  const [step, setStep] = useState<'email' | 'otp'>('email');
   const [email, setEmail] = useState('');
-  const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleAuthenticate = async (provider: string, userEmail?: string, name?: string) => {
+  const handleSendOTP = async () => {
     setErrorMsg(null);
-    setLoadingProvider(provider);
+    const targetEmail = email.trim().toLowerCase();
 
-    const targetEmail = (userEmail || email || `user_${provider.toLowerCase()}@kudi.app`).trim().toLowerCase();
-    
-    if (provider === 'Email' && (!targetEmail || !targetEmail.includes('@'))) {
+    if (!targetEmail || !targetEmail.includes('@')) {
       setErrorMsg('Please enter a valid email address');
-      setLoadingProvider(null);
       return;
     }
 
-    const privyUserId = `privy_usr_${provider.toLowerCase()}_${targetEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
-    const fullName = name || targetEmail.split('@')[0] || `${provider} User`;
+    setIsLoading(true);
+    console.log(`[Privy Auth] Sending OTP code to ${targetEmail}...`);
 
-    console.log(`[Auth] Authenticating via ${provider} for ${targetEmail}...`);
+    const res = await sendPrivyOTP(targetEmail);
+    setIsLoading(false);
+
+    if (res.success) {
+      setStep('otp');
+    } else {
+      setErrorMsg(res.error || 'Failed to send verification code. Please try again.');
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    setErrorMsg(null);
+    const code = otpCode.trim();
+
+    if (!code || code.length < 4) {
+      setErrorMsg('Please enter the verification code sent to your email');
+      return;
+    }
+
+    setIsLoading(true);
+    console.log(`[Privy Auth] Verifying OTP code for ${email}...`);
+
+    const res = await verifyPrivyOTP(email, code);
+    setIsLoading(false);
+
+    if (res.success) {
+      console.log('[Auth] Privy Email OTP authentication successful. Navigating to main dashboard...');
+      router.replace('/(tabs)');
+    } else {
+      setErrorMsg(res.error || 'Invalid verification code. Please check and try again.');
+    }
+  };
+
+  const handleDemoSkip = async () => {
+    setErrorMsg(null);
+    setIsLoading(true);
+    const demoEmail = `demo_${Date.now()}@kudi.app`;
+    const privyUserId = `privy_usr_demo_${Date.now()}`;
 
     const res = await loginWithPrivy({
       privyUserId,
-      email: targetEmail,
-      name: fullName
+      email: demoEmail,
+      name: 'Demo User'
     });
+    setIsLoading(false);
 
-    setLoadingProvider(null);
-
-    if (res && res.success) {
-      console.log('[Auth] Authentication successful. Navigating to (tabs)...');
+    if (res.success) {
       router.replace('/(tabs)');
     } else {
-      setErrorMsg(res.error || 'Authentication failed. Please check network connection.');
+      setErrorMsg('Demo sign in failed');
     }
   };
 
@@ -58,23 +94,37 @@ export default function WelcomeScreen() {
     <View style={[styles.screen, { backgroundColor: palette.bg }]}>
       {/* Top Bar */}
       <View style={styles.topBar}>
-        <TouchableOpacity
-          onPress={() => handleAuthenticate('Demo', `demo_${Date.now()}@kudi.app`, 'Demo User')}
-          style={[styles.skipPill, { backgroundColor: palette.card, borderColor: palette.border }]}
-          activeOpacity={0.7}
-          disabled={!!loadingProvider}
-        >
-          <Text style={[Typography.bodyBold, { color: palette.text }]}>Skip Login</Text>
-        </TouchableOpacity>
+        {step === 'otp' ? (
+          <TouchableOpacity
+            onPress={() => {
+              setStep('email');
+              setErrorMsg(null);
+            }}
+            style={[styles.backPill, { backgroundColor: palette.card, borderColor: palette.border }]}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={16} color={palette.text} />
+            <Text style={[Typography.bodyBold, { color: palette.text }]}>Back</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            onPress={handleDemoSkip}
+            style={[styles.skipPill, { backgroundColor: palette.card, borderColor: palette.border }]}
+            activeOpacity={0.7}
+            disabled={isLoading}
+          >
+            <Text style={[Typography.bodyBold, { color: palette.text }]}>Skip Login</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Main Headline & Hero Graphic */}
+      {/* Main Headline & Hero Visual */}
       <View style={styles.content}>
         <Text style={[Typography.displayLarge, styles.title, { color: palette.text }]}>
           Money,{"\n"}forever yours
         </Text>
         <Text style={[Typography.body, styles.subtitle, { color: palette.textSecondary }]}>
-          Deposit crypto. Spend instant Naira to any bank.
+          Self-custodied via Privy. Instant Naira payouts to any Nigerian bank.
         </Text>
 
         {/* Hero Visual Phone Illustration */}
@@ -91,7 +141,7 @@ export default function WelcomeScreen() {
         </View>
       </View>
 
-      {/* Auth Form Section */}
+      {/* Auth Section — Email OTP */}
       <View style={styles.authSection}>
         {errorMsg && (
           <Text style={[Typography.caption, { color: '#EF4444', textAlign: 'center', marginBottom: 4 }]}>
@@ -99,85 +149,103 @@ export default function WelcomeScreen() {
           </Text>
         )}
 
-        <View style={{ gap: 12 }}>
-          {/* Email Input */}
-          <TextInput
-            placeholder="Enter your email (e.g. name@example.com)"
-            placeholderTextColor={palette.textSecondary}
-            value={email}
-            onChangeText={(val) => {
-              setEmail(val);
-              if (errorMsg) setErrorMsg(null);
-            }}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={[
-              Typography.body,
-              styles.emailInput,
-              { backgroundColor: palette.card, color: palette.text, borderColor: palette.border }
-            ]}
-          />
+        {step === 'email' ? (
+          <View style={{ gap: 12 }}>
+            <Text style={[Typography.caption, { color: palette.textSecondary, textAlign: 'center' }]}>
+              Enter your email to receive a 6-digit Privy verification code
+            </Text>
 
-          {/* Continue with Email Button */}
-          <TouchableOpacity
-            onPress={() => handleAuthenticate('Email')}
-            style={[styles.authBtn, { backgroundColor: palette.text, borderColor: palette.text }]}
-            activeOpacity={0.8}
-            disabled={!!loadingProvider}
-          >
-            {loadingProvider === 'Email' ? (
-              <ActivityIndicator color={palette.bg} />
-            ) : (
-              <>
-                <Ionicons name="mail-outline" size={18} color={palette.bg} />
-                <Text style={[Typography.bodyBold, { color: palette.bg }]}>Continue with Email</Text>
-                <Ionicons name="arrow-forward" size={18} color={palette.bg} />
-              </>
-            )}
-          </TouchableOpacity>
+            {/* Email Input */}
+            <View style={[styles.inputWrapper, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <Ionicons name="mail-outline" size={20} color={palette.textSecondary} style={{ marginRight: 10 }} />
+              <TextInput
+                placeholder="Enter your email (e.g. name@example.com)"
+                placeholderTextColor={palette.textSecondary}
+                value={email}
+                onChangeText={(val) => {
+                  setEmail(val);
+                  if (errorMsg) setErrorMsg(null);
+                }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={[Typography.body, styles.inputField, { color: palette.text }]}
+              />
+            </View>
 
-          {/* Social Divider / Alternative Sign-in */}
-          <View style={styles.dividerRow}>
-            <View style={[styles.line, { backgroundColor: palette.border }]} />
-            <Text style={[Typography.caption, { color: palette.textSecondary }]}>or social sign in</Text>
-            <View style={[styles.line, { backgroundColor: palette.border }]} />
+            {/* Continue with Email OTP Button */}
+            <TouchableOpacity
+              onPress={handleSendOTP}
+              style={[styles.authBtn, { backgroundColor: palette.text, borderColor: palette.text }]}
+              activeOpacity={0.8}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color={palette.bg} />
+              ) : (
+                <>
+                  <Text style={[Typography.bodyBold, { color: palette.bg }]}>Send Verification Code</Text>
+                  <Ionicons name="arrow-forward" size={18} color={palette.bg} />
+                </>
+              )}
+            </TouchableOpacity>
           </View>
+        ) : (
+          <View style={{ gap: 12 }}>
+            <Text style={[Typography.caption, { color: palette.textSecondary, textAlign: 'center' }]}>
+              Enter the 6-digit code sent to <Text style={{ color: palette.text, fontWeight: '700' }}>{email}</Text>
+            </Text>
 
-          {/* Continue with Google */}
-          <TouchableOpacity
-            onPress={() => handleAuthenticate('Google', email || `user_google_${Date.now()}@gmail.com`, 'Google User')}
-            style={[styles.authBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
-            activeOpacity={0.8}
-            disabled={!!loadingProvider}
-          >
-            {loadingProvider === 'Google' ? (
-              <ActivityIndicator color={palette.text} />
-            ) : (
-              <>
-                <Ionicons name="logo-google" size={18} color={palette.text} />
-                <Text style={[Typography.bodyBold, { color: palette.text }]}>Continue with Google</Text>
-              </>
-            )}
-          </TouchableOpacity>
+            {/* OTP Code Input */}
+            <View style={[styles.inputWrapper, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <Ionicons name="key-outline" size={20} color={palette.textSecondary} style={{ marginRight: 10 }} />
+              <TextInput
+                placeholder="Enter 6-digit OTP code"
+                placeholderTextColor={palette.textSecondary}
+                value={otpCode}
+                onChangeText={(val) => {
+                  setOtpCode(val);
+                  if (errorMsg) setErrorMsg(null);
+                }}
+                keyboardType="number-pad"
+                maxLength={6}
+                style={[Typography.body, styles.inputField, { color: palette.text, letterSpacing: 4, fontWeight: '600' }]}
+              />
+            </View>
 
-          {/* Continue with Apple */}
-          <TouchableOpacity
-            onPress={() => handleAuthenticate('Apple', email || `user_apple_${Date.now()}@icloud.com`, 'Apple User')}
-            style={[styles.authBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
-            activeOpacity={0.8}
-            disabled={!!loadingProvider}
-          >
-            {loadingProvider === 'Apple' ? (
-              <ActivityIndicator color={palette.text} />
-            ) : (
-              <>
-                <Ionicons name="logo-apple" size={20} color={palette.text} />
-                <Text style={[Typography.bodyBold, { color: palette.text }]}>Continue with Apple</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
+            {/* Verify OTP Code Button */}
+            <TouchableOpacity
+              onPress={handleVerifyOTP}
+              style={[styles.authBtn, { backgroundColor: palette.text, borderColor: palette.text }]}
+              activeOpacity={0.8}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color={palette.bg} />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle-outline" size={20} color={palette.bg} />
+                  <Text style={[Typography.bodyBold, { color: palette.bg }]}>Verify & Sign In</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {/* Resend / Change Email Controls */}
+            <View style={styles.footerRow}>
+              <TouchableOpacity onPress={handleSendOTP} disabled={isLoading}>
+                <Text style={[Typography.caption, { color: palette.text, textDecorationLine: 'underline' }]}>
+                  Resend code
+                </Text>
+              </TouchableOpacity>
+              <Text style={[Typography.caption, { color: palette.textSecondary }]}>•</Text>
+              <TouchableOpacity onPress={() => { setStep('email'); setErrorMsg(null); }}>
+                <Text style={[Typography.caption, { color: palette.textSecondary, textDecorationLine: 'underline' }]}>
+                  Change email
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -185,11 +253,12 @@ export default function WelcomeScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, paddingHorizontal: 24, paddingVertical: 20, justifyContent: 'space-between' },
-  topBar: { alignItems: 'flex-end', paddingTop: 16 },
+  topBar: { flexDirection: 'row', justifyContent: 'flex-end', paddingTop: 16 },
   skipPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  backPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   content: { alignItems: 'center', marginVertical: 10 },
   title: { textAlign: 'center' },
-  subtitle: { textAlign: 'center', marginTop: 10, maxWidth: 300 },
+  subtitle: { textAlign: 'center', marginTop: 10, maxWidth: 320 },
   heroCard: {
     width: '100%',
     height: 180,
@@ -213,6 +282,18 @@ const styles = StyleSheet.create({
   phonePillRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
   phonePill: { width: 36, height: 16, borderRadius: 8, backgroundColor: '#334155' },
   authSection: { gap: 12, paddingBottom: 20 },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 54,
+    borderRadius: 27,
+    borderWidth: 1,
+    paddingHorizontal: 20
+  },
+  inputField: {
+    flex: 1,
+    height: '100%'
+  },
   authBtn: {
     flexDirection: 'row',
     height: 54,
@@ -223,20 +304,11 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 20
   },
-  emailInput: {
-    height: 54,
-    borderRadius: 27,
-    borderWidth: 1,
-    paddingHorizontal: 20
-  },
-  dividerRow: {
+  footerRow: {
     flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
     gap: 10,
-    marginVertical: 4
-  },
-  line: {
-    flex: 1,
-    height: 1
+    marginTop: 6
   }
 });

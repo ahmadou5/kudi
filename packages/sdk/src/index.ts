@@ -57,6 +57,24 @@ export class KudiSDK {
     return res.json();
   }
 
+  async sendPrivyOTP(email: string) {
+    const res = await fetch(`${this.baseUrl}/api/v1/auth/privy-send-otp`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ email })
+    });
+    return res.json();
+  }
+
+  async verifyPrivyOTP(email: string, code: string) {
+    const res = await fetch(`${this.baseUrl}/api/v1/auth/privy-verify-otp`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ email, code })
+    });
+    return res.json();
+  }
+
   async refreshToken(refreshToken: string) {
     const res = await fetch(`${this.baseUrl}/api/v1/auth/refresh`, {
       method: 'POST',

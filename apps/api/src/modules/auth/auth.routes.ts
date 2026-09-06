@@ -6,6 +6,8 @@ export async function authRoutes(
   controller: AuthController
 ) {
   server.post('/api/v1/auth/privy-authenticate', controller.authenticatePrivy);
+  server.post('/api/v1/auth/privy-send-otp', controller.sendPrivyOTP);
+  server.post('/api/v1/auth/privy-verify-otp', controller.verifyPrivyOTP);
   server.post('/api/v1/auth/refresh', controller.refreshToken);
   server.post('/api/v1/auth/pin/verify', controller.verifyPin);
   server.post('/api/v1/users/register', controller.registerUser);
