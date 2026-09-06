@@ -13,7 +13,11 @@ export class KudiSDK {
   private authToken: string | null = null;
 
   constructor(config: KudiClientConfig = { baseUrl: 'http://localhost:4000' }) {
-    this.baseUrl = config.baseUrl.replace(/\/$/, '');
+    let cleanUrl = (config?.baseUrl || '').trim().replace(/\/$/, '');
+    if (cleanUrl.startsWith('hhttps://')) {
+      cleanUrl = cleanUrl.replace('hhttps://', 'https://');
+    }
+    this.baseUrl = cleanUrl;
   }
 
   setAuthToken(token: string | null) {
@@ -43,7 +47,9 @@ export class KudiSDK {
     phoneNumber?: string;
     name?: string;
   }) {
-    const res = await fetch(`${this.baseUrl}/api/v1/auth/privy-authenticate`, {
+    const targetUrl = `${this.baseUrl}/api/v1/auth/privy-authenticate`;
+    console.log('[Kudi SDK] Fetching Privy auth URL:', targetUrl);
+    const res = await fetch(targetUrl, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)

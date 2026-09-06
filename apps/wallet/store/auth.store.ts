@@ -124,7 +124,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   loginWithPrivy: async (privyPayload) => {
     try {
       set({ isLoading: true });
+      console.log('[AuthStore] Calling Privy auth payload:', privyPayload);
       const response = await sdk.authenticatePrivy(privyPayload);
+      console.log('[AuthStore] Privy auth response:', response);
 
       if (response && response.success && response.data) {
         const { user, wallets, accessToken, refreshToken } = response.data;
@@ -153,7 +155,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         return { success: false, error: errorMsg };
       }
     } catch (err: any) {
-      console.error('Privy auth error:', err);
+      console.error('Privy auth error details:', err?.message, err?.stack || err);
       set({ isLoading: false });
       return { success: false, error: err?.message || 'Network connection failed' };
     }

@@ -3,8 +3,13 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 function getApiBaseUrl(): string {
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
+  let envUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envUrl) {
+    envUrl = envUrl.trim();
+    if (envUrl.startsWith('hhttps://')) {
+      envUrl = envUrl.replace('hhttps://', 'https://');
+    }
+    return envUrl;
   }
 
   // In Expo Go or development, extract the host machine IP address
@@ -28,6 +33,7 @@ function getApiBaseUrl(): string {
 }
 
 export const API_BASE_URL = getApiBaseUrl();
+console.log('[Kudi SDK] Target API_BASE_URL:', API_BASE_URL);
 
 // Export single shared SDK instance across the app
 export const sdk = new KudiSDK({
