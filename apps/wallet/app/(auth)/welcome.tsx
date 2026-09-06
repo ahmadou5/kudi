@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   TouchableOpacity,
   TextInput,
-  ActivityIndicator
+  ActivityIndicator,
+  Pressable,
+  Animated
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,14 +24,29 @@ export default function WelcomeScreen() {
   const [step, setStep] = useState<'email' | 'otp'>('email');
   const [email, setEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [resendTimer, setResendTimer] = useState(0);
+
+  const otpInputRef = useRef<TextInput>(null);
+
+  // Resend countdown timer logic
+  useEffect(() => {
+    let interval: any;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
 
   const handleSendOTP = async () => {
     setErrorMsg(null);
     const targetEmail = email.trim().toLowerCase();
 
-    if (!targetEmail || !targetEmail.includes('@')) {
+    if (!targetEmail || !targetEmail.includes('@') || !targetEmail.includes('.')) {
       setErrorMsg('Please enter a valid email address');
       return;
     }
@@ -42,17 +59,20 @@ export default function WelcomeScreen() {
 
     if (res.success) {
       setStep('otp');
+      setResendTimer(30);
+      setOtpCode('');
+      setTimeout(() => otpInputRef.current?.focus(), 150);
     } else {
       setErrorMsg(res.error || 'Failed to send verification code. Please try again.');
     }
   };
 
-  const handleVerifyOTP = async () => {
+  const handleVerifyOTP = async (codeToVerify?: string) => {
     setErrorMsg(null);
-    const code = otpCode.trim();
+    const code = (codeToVerify || otpCode).trim();
 
     if (!code || code.length < 4) {
-      setErrorMsg('Please enter the verification code sent to your email');
+      setErrorMsg('Please enter the full 6-digit verification code');
       return;
     }
 
@@ -67,6 +87,17 @@ export default function WelcomeScreen() {
       router.replace('/(tabs)');
     } else {
       setErrorMsg(res.error || 'Invalid verification code. Please check and try again.');
+    }
+  };
+
+  const handleOtpChange = (val: string) => {
+    const cleaned = val.replace(/[^0-9]/g, '').slice(0, 6);
+    setOtpCode(cleaned);
+    if (errorMsg) setErrorMsg(null);
+
+    // Auto-verify when 6th digit is entered
+    if (cleaned.length === 6 && !isLoading) {
+      handleVerifyOTP(cleaned);
     }
   };
 
@@ -99,6 +130,7 @@ export default function WelcomeScreen() {
             onPress={() => {
               setStep('email');
               setErrorMsg(null);
+              setOtpCode('');
             }}
             style={[styles.backPill, { backgroundColor: palette.card, borderColor: palette.border }]}
             activeOpacity={0.7}
@@ -144,9 +176,12 @@ export default function WelcomeScreen() {
       {/* Auth Section — Email OTP */}
       <View style={styles.authSection}>
         {errorMsg && (
-          <Text style={[Typography.caption, { color: '#EF4444', textAlign: 'center', marginBottom: 4 }]}>
-            {errorMsg}
-          </Text>
+          <View style={[styles.errorBanner, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+            <Ionicons name="alert-circle" size={16} color="#EF4444" />
+            <Text style={[Typography.caption, { color: '#EF4444', flex: 1 }]}>
+              {errorMsg}
+            </Text>
+          </View>
         )}
 
         {step === 'email' ? (
@@ -155,30 +190,58 @@ export default function WelcomeScreen() {
               Enter your email to receive a 6-digit Privy verification code
             </Text>
 
-            {/* Email Input */}
-            <View style={[styles.inputWrapper, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              <Ionicons name="mail-outline" size={20} color={palette.textSecondary} style={{ marginRight: 10 }} />
+            {/* Premium Email Input */}
+            <View
+              style={[
+                styles.inputWrapper,
+                {
+                  backgroundColor: palette.card,
+                  borderColor: isFocused ? palette.text : palette.border,
+                  borderWidth: isFocused ? 1.5 : 1
+                }
+              ]}
+            >
+              <Ionicons
+                name="mail-outline"
+                size={20}
+                color={isFocused ? palette.text : palette.textSecondary}
+                style={{ marginRight: 10 }}
+              />
               <TextInput
-                placeholder="Enter your email (e.g. name@example.com)"
+                placeholder="name@example.com"
                 placeholderTextColor={palette.textSecondary}
                 value={email}
                 onChangeText={(val) => {
                   setEmail(val);
                   if (errorMsg) setErrorMsg(null);
                 }}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
                 style={[Typography.body, styles.inputField, { color: palette.text }]}
               />
+              {email.length > 0 && (
+                <TouchableOpacity onPress={() => setEmail('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Ionicons name="close-circle" size={18} color={palette.textSecondary} />
+                </TouchableOpacity>
+              )}
             </View>
 
-            {/* Continue with Email OTP Button */}
+            {/* Send OTP Button */}
             <TouchableOpacity
               onPress={handleSendOTP}
-              style={[styles.authBtn, { backgroundColor: palette.text, borderColor: palette.text }]}
+              style={[
+                styles.authBtn,
+                {
+                  backgroundColor: palette.text,
+                  borderColor: palette.text,
+                  opacity: email.includes('@') && !isLoading ? 1 : 0.65
+                }
+              ]}
               activeOpacity={0.8}
-              disabled={isLoading}
+              disabled={isLoading || !email.includes('@')}
             >
               {isLoading ? (
                 <ActivityIndicator color={palette.bg} />
@@ -191,34 +254,67 @@ export default function WelcomeScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={{ gap: 12 }}>
+          <View style={{ gap: 14 }}>
             <Text style={[Typography.caption, { color: palette.textSecondary, textAlign: 'center' }]}>
               Enter the 6-digit code sent to <Text style={{ color: palette.text, fontWeight: '700' }}>{email}</Text>
             </Text>
 
-            {/* OTP Code Input */}
-            <View style={[styles.inputWrapper, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              <Ionicons name="key-outline" size={20} color={palette.textSecondary} style={{ marginRight: 10 }} />
+            {/* Segmented 6-Digit OTP Box UI */}
+            <Pressable onPress={() => otpInputRef.current?.focus()} style={styles.otpBoxesRow}>
+              {[0, 1, 2, 3, 4, 5].map((index) => {
+                const digit = otpCode[index] || '';
+                const isCurrentBox = otpCode.length === index;
+                const isFilled = digit !== '';
+
+                return (
+                  <View
+                    key={index}
+                    style={[
+                      styles.otpBox,
+                      {
+                        backgroundColor: palette.card,
+                        borderColor: isCurrentBox
+                          ? palette.text
+                          : isFilled
+                          ? palette.textSecondary
+                          : palette.border,
+                        borderWidth: isCurrentBox ? 2 : 1
+                      }
+                    ]}
+                  >
+                    <Text style={[Typography.title2, { color: palette.text, fontSize: 22, fontWeight: '700' }]}>
+                      {digit}
+                    </Text>
+                  </View>
+                );
+              })}
+
+              {/* Hidden TextInput for native keyboard capture */}
               <TextInput
-                placeholder="Enter 6-digit OTP code"
-                placeholderTextColor={palette.textSecondary}
+                ref={otpInputRef}
                 value={otpCode}
-                onChangeText={(val) => {
-                  setOtpCode(val);
-                  if (errorMsg) setErrorMsg(null);
-                }}
+                onChangeText={handleOtpChange}
                 keyboardType="number-pad"
                 maxLength={6}
-                style={[Typography.body, styles.inputField, { color: palette.text, letterSpacing: 4, fontWeight: '600' }]}
+                style={styles.hiddenTextInput}
+                caretHidden
+                autoFocus
               />
-            </View>
+            </Pressable>
 
-            {/* Verify OTP Code Button */}
+            {/* Verify Button */}
             <TouchableOpacity
-              onPress={handleVerifyOTP}
-              style={[styles.authBtn, { backgroundColor: palette.text, borderColor: palette.text }]}
+              onPress={() => handleVerifyOTP()}
+              style={[
+                styles.authBtn,
+                {
+                  backgroundColor: palette.text,
+                  borderColor: palette.text,
+                  opacity: otpCode.length === 6 && !isLoading ? 1 : 0.6
+                }
+              ]}
               activeOpacity={0.8}
-              disabled={isLoading}
+              disabled={isLoading || otpCode.length < 6}
             >
               {isLoading ? (
                 <ActivityIndicator color={palette.bg} />
@@ -232,13 +328,19 @@ export default function WelcomeScreen() {
 
             {/* Resend / Change Email Controls */}
             <View style={styles.footerRow}>
-              <TouchableOpacity onPress={handleSendOTP} disabled={isLoading}>
-                <Text style={[Typography.caption, { color: palette.text, textDecorationLine: 'underline' }]}>
-                  Resend code
+              {resendTimer > 0 ? (
+                <Text style={[Typography.caption, { color: palette.textSecondary }]}>
+                  Resend code in <Text style={{ color: palette.text, fontWeight: '700' }}>{resendTimer}s</Text>
                 </Text>
-              </TouchableOpacity>
+              ) : (
+                <TouchableOpacity onPress={handleSendOTP} disabled={isLoading}>
+                  <Text style={[Typography.caption, { color: palette.text, textDecorationLine: 'underline', fontWeight: '600' }]}>
+                    Resend code
+                  </Text>
+                </TouchableOpacity>
+              )}
               <Text style={[Typography.caption, { color: palette.textSecondary }]}>•</Text>
-              <TouchableOpacity onPress={() => { setStep('email'); setErrorMsg(null); }}>
+              <TouchableOpacity onPress={() => { setStep('email'); setErrorMsg(null); setOtpCode(''); }}>
                 <Text style={[Typography.caption, { color: palette.textSecondary, textDecorationLine: 'underline' }]}>
                   Change email
                 </Text>
@@ -282,16 +384,44 @@ const styles = StyleSheet.create({
   phonePillRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
   phonePill: { width: 36, height: 16, borderRadius: 8, backgroundColor: '#334155' },
   authSection: { gap: 12, paddingBottom: 20 },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginBottom: 4
+  },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     height: 54,
     borderRadius: 27,
-    borderWidth: 1,
     paddingHorizontal: 20
   },
   inputField: {
     flex: 1,
+    height: '100%'
+  },
+  otpBoxesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 6,
+    position: 'relative'
+  },
+  otpBox: {
+    width: 48,
+    height: 56,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  hiddenTextInput: {
+    position: 'absolute',
+    opacity: 0,
+    width: '100%',
     height: '100%'
   },
   authBtn: {
@@ -309,6 +439,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 10,
-    marginTop: 6
+    marginTop: 4
   }
 });
