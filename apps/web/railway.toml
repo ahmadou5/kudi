@@ -1,10 +1,16 @@
 [build]
 builder = "NIXPACKS"
-installCommand = "pnpm install"
 buildCommand = "pnpm --filter @kudi/web build"
-watchPatterns = ["/apps/web/**", "/packages/**"]
+watchPatterns = ["/apps/web/**"]
+buildEnvironment = "V3"
 
 [deploy]
+runtime = "V2"
+numReplicas = 1
 startCommand = "pnpm --filter @kudi/web start"
+sleepApplication = false
+useLegacyStacker = false
+ipv6EgressEnabled = false
+multiRegionConfig = { sfo = { numReplicas = 1 } }
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10

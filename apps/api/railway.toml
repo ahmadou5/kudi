@@ -1,12 +1,18 @@
 [build]
 builder = "NIXPACKS"
-installCommand = "pnpm install"
 buildCommand = "pnpm --filter @kudi/api build && pnpm --filter @kudi/database db:push"
-watchPatterns = ["/apps/api/**", "/packages/**"]
+watchPatterns = ["/apps/api/**"]
+buildEnvironment = "V3"
 
 [deploy]
+runtime = "V2"
+numReplicas = 1
 startCommand = "pnpm --filter @kudi/api start"
 healthcheckPath = "/api/v1/health"
-healthcheckTimeout = 30
+sleepApplication = false
+useLegacyStacker = false
+ipv6EgressEnabled = false
+multiRegionConfig = { sfo = { numReplicas = 1 } }
 restartPolicyType = "ON_FAILURE"
+healthcheckTimeout = 30
 restartPolicyMaxRetries = 10
