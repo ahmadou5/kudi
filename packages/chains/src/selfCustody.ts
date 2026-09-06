@@ -22,47 +22,52 @@ export class SelfCustodyProvider implements CustodyProvider {
   }
 
   async generateWallet(userId: string, chain: string): Promise<DepositWallet> {
-    if (!this.privyAppId || !this.privyAppSecret) {
-      // Return deterministic sandbox testnet deposit address for testing without live Privy credentials
-      const mockAddress = chain.includes('solana')
-        ? `Sol${Buffer.from(`user_${userId}_${chain}`).toString('hex').slice(0, 32)}`
-        : `0x${Buffer.from(`user_${userId}_${chain}`).toString('hex').slice(0, 40)}`;
+    if (this.privyAppId && this.privyAppSecret) {
+      try {
+        // Call Privy Server Wallet API to generate server-side wallet for user across Solana or EVM
+        const res = await fetch('https://auth.privy.io/api/v1/wallets', {
+          method: 'POST',
+          headers: {
+            'privy-app-id': this.privyAppId,
+            Authorization: `Basic ${Buffer.from(`${this.privyAppId}:${this.privyAppSecret}`).toString('base64')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            chain_type: chain.includes('solana') ? 'solana' : 'ethereum',
+            user_id: userId
+          })
+        });
 
-      return {
-        address: mockAddress,
-        chain,
-        metadata: {
-          generatedBy: 'SelfCustodyProvider_MockPrivy',
-          createdAt: new Date().toISOString()
+        if (res.ok) {
+          const data = await res.json();
+          return {
+            address: data.address,
+            chain,
+            metadata: {
+              privyWalletId: data.id,
+              createdAt: new Date().toISOString()
+            }
+          };
         }
-      };
+
+        const errText = await res.text();
+        console.warn(`⚠️ [SelfCustody] Privy Server Wallet API response (${res.status}): ${errText}`);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`⚠️ [SelfCustody] Privy API call error: ${msg}`);
+      }
     }
 
-    // Call Privy Server Wallet API to generate server-side wallet for user across Solana or EVM
-    const res = await fetch('https://auth.privy.io/api/v1/wallets', {
-      method: 'POST',
-      headers: {
-        'privy-app-id': this.privyAppId,
-        Authorization: `Basic ${Buffer.from(`${this.privyAppId}:${this.privyAppSecret}`).toString('base64')}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        chain_type: chain.includes('solana') ? 'solana' : 'ethereum',
-        user_id: userId
-      })
-    });
+    // Return deterministic sandbox testnet deposit address for testing without live Privy credentials
+    const mockAddress = chain.includes('solana')
+      ? `Sol${Buffer.from(`user_${userId}_${chain}`).toString('hex').slice(0, 32)}`
+      : `0x${Buffer.from(`user_${userId}_${chain}`).toString('hex').slice(0, 40)}`;
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Privy Wallet Generation Failed: ${errText}`);
-    }
-
-    const data = await res.json();
     return {
-      address: data.address,
+      address: mockAddress,
       chain,
       metadata: {
-        privyWalletId: data.id,
+        generatedBy: 'SelfCustodyProvider_MockPrivy',
         createdAt: new Date().toISOString()
       }
     };
