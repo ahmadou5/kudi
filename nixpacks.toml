@@ -10,7 +10,7 @@ nixPkgs = ['nodejs_20', 'nodePackages.pnpm']
 
 [phases.install]
 dependsOn = ['setup']
-cmds = ['npm install -g pnpm@8.15.3', 'pnpm install']
+cmds = ['pnpm install -g pnpm@8.15.3', 'pnpm install']
 
 [phases.build]
 dependsOn = ['install']
