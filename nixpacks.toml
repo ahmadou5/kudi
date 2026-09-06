@@ -1,12 +1,19 @@
 providers = ['node']
 
+[variables]
+NIXPACKS_PKG_ENGINE = 'pnpm'
+NIXPACKS_INSTALL_CMD = 'pnpm install'
+NIXPACKS_BUILD_CMD = 'pnpm build'
+
 [phases.setup]
 nixPkgs = ['nodejs_20', 'nodePackages.pnpm']
 
 [phases.install]
-cmds = ['pnpm install --frozen-lockfile']
+dependsOn = ['setup']
+cmds = ['npm install -g pnpm@8.15.3', 'pnpm install']
 
 [phases.build]
+dependsOn = ['install']
 cmds = ['pnpm build']
 
 [start]

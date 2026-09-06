@@ -1,5 +1,6 @@
 [build]
 builder = "NIXPACKS"
+installCommand = "pnpm install"
 buildCommand = "pnpm --filter @kudi/web build"
 watchPatterns = ["/apps/web/**"]
 buildEnvironment = "V3"
@@ -13,4 +14,5 @@ useLegacyStacker = false
 ipv6EgressEnabled = false
 multiRegionConfig = { sfo = { numReplicas = 1 } }
 restartPolicyType = "ON_FAILURE"
+healthcheckTimeout = 30
 restartPolicyMaxRetries = 10

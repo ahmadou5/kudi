@@ -1,5 +1,6 @@
 [build]
 builder = "NIXPACKS"
+installCommand = "pnpm install"
 buildCommand = "pnpm --filter @kudi/api build && pnpm --filter @kudi/database db:push"
 watchPatterns = ["/apps/api/**"]
 buildEnvironment = "V3"
