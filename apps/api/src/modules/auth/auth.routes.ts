@@ -8,7 +8,9 @@ export async function authRoutes(
   server.post('/api/v1/auth/privy-authenticate', controller.authenticatePrivy);
   server.post('/api/v1/auth/refresh', controller.refreshToken);
   server.post('/api/v1/auth/pin/verify', controller.verifyPin);
+  server.post('/api/v1/users/register', controller.registerUser);
   server.post('/api/users/register', controller.registerUser);
+  server.post('/api/v1/users/set-pin', controller.setPin);
   server.post('/api/users/set-pin', controller.setPin);
 }
 

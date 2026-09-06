@@ -32,7 +32,7 @@ export class KudiSDK {
   }
 
   async getHealth() {
-    const res = await fetch(`${this.baseUrl}/health`);
+    const res = await fetch(`${this.baseUrl}/api/v1/health`);
     return res.json();
   }
 
@@ -61,7 +61,7 @@ export class KudiSDK {
   }
 
   async registerUser(phoneNumber: string, email: string) {
-    const res = await fetch(`${this.baseUrl}/api/users/register`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/users/register`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ phoneNumber, email })
@@ -70,7 +70,7 @@ export class KudiSDK {
   }
 
   async getBalance(userId: string) {
-    const res = await fetch(`${this.baseUrl}/api/users/${userId}/balance`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/users/${userId}/balance`, {
       headers: this.getHeaders()
     });
     return res.json();
@@ -83,14 +83,14 @@ export class KudiSDK {
     if (options.type) params.append('type', options.type);
     const queryString = params.toString() ? `?${params.toString()}` : '';
 
-    const res = await fetch(`${this.baseUrl}/api/users/${userId}/transactions${queryString}`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/users/${userId}/transactions${queryString}`, {
       headers: this.getHeaders()
     });
     return res.json();
   }
 
   async getVirtualAccounts(userId: string) {
-    const res = await fetch(`${this.baseUrl}/api/users/${userId}/virtual-accounts`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/users/${userId}/virtual-accounts`, {
       headers: this.getHeaders()
     });
     return res.json();
@@ -104,7 +104,7 @@ export class KudiSDK {
     lastName: string;
     dob: string;
   }) {
-    const res = await fetch(`${this.baseUrl}/api/kyc/verify-id`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/kyc/verify-id`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -113,7 +113,7 @@ export class KudiSDK {
   }
 
   async setPin(userId: string, pin: string) {
-    const res = await fetch(`${this.baseUrl}/api/users/set-pin`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/users/set-pin`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ userId, pin })
@@ -131,19 +131,19 @@ export class KudiSDK {
   }
 
   async getCurrentRates() {
-    const res = await fetch(`${this.baseUrl}/api/rates/current`);
+    const res = await fetch(`${this.baseUrl}/api/v1/rates/current`);
     return res.json();
   }
 
   async getSupportedBanks() {
-    const res = await fetch(`${this.baseUrl}/api/payout/banks`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/payout/banks`, {
       headers: this.getHeaders()
     });
     return res.json();
   }
 
   async resolveAccount(accountNumber: string, bankCode: string) {
-    const res = await fetch(`${this.baseUrl}/api/payout/resolve-account`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/payout/resolve-account`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ accountNumber, bankCode })
@@ -160,7 +160,7 @@ export class KudiSDK {
     accountName: string;
     narration?: string;
   }) {
-    const res = await fetch(`${this.baseUrl}/api/payout/spend`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/payout/spend`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -174,7 +174,7 @@ export class KudiSDK {
     amountUSDC: number;
     pin?: string;
   }) {
-    const res = await fetch(`${this.baseUrl}/api/payout/spend-user`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/payout/spend-user`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -189,7 +189,7 @@ export class KudiSDK {
     toAddress: string;
     chain: 'solana' | 'monad';
   }) {
-    const res = await fetch(`${this.baseUrl}/api/payout/spend-onchain`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/payout/spend-onchain`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -198,7 +198,7 @@ export class KudiSDK {
   }
 
   async overrideRate(newRateNGN: number) {
-    const res = await fetch(`${this.baseUrl}/api/admin/rate-override`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/admin/rate-override`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ newRateNGN })
@@ -207,7 +207,7 @@ export class KudiSDK {
   }
 
   async getReceiptHTML(reference: string): Promise<string> {
-    const res = await fetch(`${this.baseUrl}/api/payout/receipt/${reference}`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/payout/receipt/${reference}`, {
       headers: this.getHeaders()
     });
     return res.text();
@@ -220,7 +220,7 @@ export class KudiSDK {
     recipientIdentifier: string;
     amountNGN: number;
   }) {
-    const res = await fetch(`${this.baseUrl}/api/bills/pay`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/bills/pay`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -229,21 +229,21 @@ export class KudiSDK {
   }
 
   async exportAuditCSV(): Promise<string> {
-    const res = await fetch(`${this.baseUrl}/api/admin/reconciliation/export-csv`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/admin/reconciliation/export-csv`, {
       headers: this.getHeaders()
     });
     return res.text();
   }
 
   async getAdminConfig() {
-    const res = await fetch(`${this.baseUrl}/api/admin/config`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/admin/config`, {
       headers: this.getHeaders()
     });
     return res.json();
   }
 
   async setActivePaymentProvider(providerId: PaymentProviderId) {
-    const res = await fetch(`${this.baseUrl}/api/admin/set-active-provider`, {
+    const res = await fetch(`${this.baseUrl}/api/v1/admin/set-active-provider`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ providerId })
