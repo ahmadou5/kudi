@@ -12,7 +12,6 @@
     "start": "next start -p 3001",
     "lint": "next lint"
   },
-
   "dependencies": {
     "@kudi/sdk": "workspace:*",
     "@kudi/types": "workspace:*",
