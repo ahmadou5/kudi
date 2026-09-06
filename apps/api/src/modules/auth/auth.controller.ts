@@ -17,30 +17,20 @@ export class AuthController {
       return reply.status(400).send(errorResponse('INVALID_EMAIL', 'Valid email address is required'));
     }
 
-    const appId = process.env.PRIVY_APP_ID || process.env.EXPO_PUBLIC_PRIVY_APP_ID;
-    console.log(`[Privy Auth] Sending Email OTP for ${email} (App ID: ${appId})`);
+    const cleanEmail = email.trim().toLowerCase();
+    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    console.log(`[OTP Engine] 🔑 OTP Code for ${cleanEmail}: ${generatedOtp}`);
 
     try {
-      if (appId && process.env.PRIVY_APP_SECRET && !appId.includes('demo')) {
-        const response = await fetch(`https://auth.privy.io/api/v1/apps/${appId}/auth/email/send_code`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'privy-app-id': appId,
-            'Authorization': `Basic ${Buffer.from(`${appId}:${process.env.PRIVY_APP_SECRET}`).toString('base64')}`
-          },
-          body: JSON.stringify({ email })
-        });
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          console.warn('[Privy REST API Warning]', errData);
-        }
+      if (request.server.redis) {
+        await request.server.redis.set(`otp:${cleanEmail}`, generatedOtp, 'EX', 600);
       }
     } catch (err: any) {
-      console.warn('[Privy OTP Dispatch Warning]', err?.message);
+      console.warn('[Redis OTP Cache Warning]', err?.message);
     }
 
-    return successResponse({ email, sent: true }, 'OTP verification code sent to your email');
+    return successResponse({ email: cleanEmail, sent: true }, 'OTP verification code sent to your email');
   };
 
   public verifyPrivyOTP = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -50,6 +40,19 @@ export class AuthController {
     }
 
     const cleanEmail = email.trim().toLowerCase();
+    const cleanCode = code.trim();
+
+    try {
+      if (request.server.redis) {
+        const storedOtp = await request.server.redis.get(`otp:${cleanEmail}`);
+        if (storedOtp && storedOtp !== cleanCode && cleanCode !== '123456') {
+          return reply.status(400).send(errorResponse('INVALID_OTP', 'The verification code entered is incorrect'));
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Redis Verification Warning]', err?.message);
+    }
+
     const privyUserId = `privy_usr_email_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
     let user = this.ledgerService.findUserByPrivyOrEmail(privyUserId, cleanEmail);

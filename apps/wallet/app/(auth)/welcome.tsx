@@ -7,13 +7,120 @@ import {
   TextInput,
   ActivityIndicator,
   Pressable,
-  Animated
+  Animated,
+  Easing
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography } from '../../constants/typography';
 import { useAppPalette } from '../../lib/theme';
 import { useAuthStore, AuthState } from '../../store/auth.store';
+
+function AnimatedStackedCards() {
+  const floatY1 = useRef(new Animated.Value(0)).current;
+  const floatY2 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim1 = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatY1, {
+          toValue: -8,
+          duration: 2500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true
+        }),
+        Animated.timing(floatY1, {
+          toValue: 0,
+          duration: 2500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true
+        })
+      ])
+    );
+
+    const anim2 = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatY2, {
+          toValue: 5,
+          duration: 2900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true
+        }),
+        Animated.timing(floatY2, {
+          toValue: -3,
+          duration: 2900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true
+        })
+      ])
+    );
+
+    anim1.start();
+    anim2.start();
+
+    return () => {
+      anim1.stop();
+      anim2.stop();
+    };
+  }, [floatY1, floatY2]);
+
+  return (
+    <View style={styles.stackedCardsContainer}>
+      {/* Bottom Black Card (Peeking underneath, covering ~20%) */}
+      <Animated.View
+        style={[
+          styles.cardBase,
+          styles.blackCard,
+          {
+            transform: [
+              { translateY: floatY2 },
+              { rotate: '-7deg' },
+              { translateX: 14 },
+              { translateY: 16 }
+            ]
+          }
+        ]}
+      >
+        <View style={styles.cardPatternCircle} />
+        <View style={styles.cardPatternCircle2} />
+        <View style={styles.cardHeader}>
+          <View style={[styles.emvChip, styles.goldChip]} />
+          <Ionicons name="wifi-outline" size={16} color="#64748B" style={{ transform: [{ rotate: '90deg' }] }} />
+        </View>
+        <View style={styles.cardFooter}>
+          <Text style={styles.blackCardNumber}>•••• •••• •••• 9012</Text>
+          <Text style={styles.visaTextDark}>VISA</Text>
+        </View>
+      </Animated.View>
+
+      {/* Top Silver Card (On top, covering ~80% of black card) */}
+      <Animated.View
+        style={[
+          styles.cardBase,
+          styles.silverCard,
+          {
+            transform: [
+              { translateY: floatY1 },
+              { rotate: '-1.5deg' }
+            ]
+          }
+        ]}
+      >
+        <View style={styles.silverShineOverlay} />
+        <View style={styles.silverPatternCircle} />
+        <View style={styles.silverPatternCircle2} />
+        <View style={styles.cardHeader}>
+          <View style={[styles.emvChip, styles.silverChip]} />
+          <Ionicons name="wifi-outline" size={16} color="#475569" style={{ transform: [{ rotate: '90deg' }] }} />
+        </View>
+        <View style={styles.cardFooter}>
+          <Text style={styles.silverCardNumber}>•••• •••• •••• 5678</Text>
+          <Text style={styles.visaTextLight}>VISA</Text>
+        </View>
+      </Animated.View>
+    </View>
+  );
+}
 
 export default function WelcomeScreen() {
   const palette = useAppPalette();
@@ -138,39 +245,20 @@ export default function WelcomeScreen() {
             <Ionicons name="arrow-back" size={16} color={palette.text} />
             <Text style={[Typography.bodyBold, { color: palette.text }]}>Back</Text>
           </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            onPress={handleDemoSkip}
-            style={[styles.skipPill, { backgroundColor: palette.card, borderColor: palette.border }]}
-            activeOpacity={0.7}
-            disabled={isLoading}
-          >
-            <Text style={[Typography.bodyBold, { color: palette.text }]}>Skip Login</Text>
-          </TouchableOpacity>
-        )}
+        ) : null}
       </View>
 
       {/* Main Headline & Hero Visual */}
       <View style={styles.content}>
-        <Text style={[Typography.displayLarge, styles.title, { color: palette.text }]}>
-          Money,{"\n"}forever yours
+        <Text style={[Typography.display, styles.title, { color: palette.text }]}>
+          The Money,{"\n"}is yours
         </Text>
-        <Text style={[Typography.body, styles.subtitle, { color: palette.textSecondary }]}>
-          Self-custodied via Privy. Instant Naira payouts to any Nigerian bank.
+        <Text style={[Typography.caption, styles.subtitle, { color: palette.textSecondary }]}>
+          Instant Local Payout.{"\n"} Secured by Privy.
         </Text>
 
-        {/* Hero Visual Phone Illustration */}
-        <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <View style={styles.phoneFrame}>
-            <View style={styles.phoneNotch} />
-            <Text style={[Typography.caption, { color: '#CBD5E1' }]}>Kudi Wallet</Text>
-            <Text style={[Typography.currencyDisplay, { color: '#FFFFFF', fontSize: 20, marginVertical: 8 }]}>$343,287.81</Text>
-            <View style={styles.phonePillRow}>
-              <View style={styles.phonePill} />
-              <View style={styles.phonePill} />
-            </View>
-          </View>
-        </View>
+        {/* Hero Visual Animated Stacked Cards */}
+        <AnimatedStackedCards />
       </View>
 
       {/* Auth Section — Email OTP */}
@@ -187,7 +275,7 @@ export default function WelcomeScreen() {
         {step === 'email' ? (
           <View style={{ gap: 12 }}>
             <Text style={[Typography.caption, { color: palette.textSecondary, textAlign: 'center' }]}>
-              Enter your email to receive a 6-digit Privy verification code
+              Enter your email to receive a verification code
             </Text>
 
             {/* Premium Email Input */}
@@ -208,8 +296,8 @@ export default function WelcomeScreen() {
                 style={{ marginRight: 10 }}
               />
               <TextInput
-                placeholder="name@example.com"
-                placeholderTextColor={palette.textSecondary}
+                placeholder="ahmadou@kudi.io"
+                placeholderTextColor={`${palette.textSecondary}60`}
                 value={email}
                 onChangeText={(val) => {
                   setEmail(val);
@@ -276,8 +364,8 @@ export default function WelcomeScreen() {
                         borderColor: isCurrentBox
                           ? palette.text
                           : isFilled
-                          ? palette.textSecondary
-                          : palette.border,
+                            ? palette.textSecondary
+                            : palette.border,
                         borderWidth: isCurrentBox ? 2 : 1
                       }
                     ]}
@@ -358,32 +446,150 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', justifyContent: 'flex-end', paddingTop: 16 },
   skipPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   backPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  content: { alignItems: 'center', marginVertical: 10 },
-  title: { textAlign: 'center' },
-  subtitle: { textAlign: 'center', marginTop: 10, maxWidth: 320 },
-  heroCard: {
+  content: { alignItems: 'center', marginVertical: 10, marginTop: 10 },
+  title: { textAlign: 'center', lineHeight: 48 },
+  subtitle: { textAlign: 'center', marginTop: 10, marginBottom: 50, maxWidth: 320 },
+  stackedCardsContainer: {
     width: '100%',
-    height: 180,
-    borderRadius: 24,
-    borderWidth: 1,
-    marginTop: 24,
+    height: 195,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    marginTop: 10,
+    position: 'relative'
   },
-  phoneFrame: {
-    width: 160,
+  cardBase: {
+    width: 275,
     height: 160,
     borderRadius: 20,
+    padding: 18,
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 8,
+    overflow: 'hidden'
+  },
+  silverCard: {
+    backgroundColor: '#E2E8F0',
+    borderColor: '#FFFFFF',
+    borderWidth: 1.5,
+    zIndex: 2
+  },
+  blackCard: {
     backgroundColor: '#0F172A',
-    borderWidth: 2,
     borderColor: '#334155',
-    padding: 12,
+    borderWidth: 1.5,
+    position: 'absolute',
+    zIndex: 1
+  },
+  silverShineOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '55%',
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    transform: [{ skewY: '-8deg' }],
+    marginTop: -15
+  },
+  silverPatternCircle: {
+    position: 'absolute',
+    right: -40,
+    bottom: -40,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.25)'
+  },
+  silverPatternCircle2: {
+    position: 'absolute',
+    right: -20,
+    bottom: -20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.35)'
+  },
+  cardPatternCircle: {
+    position: 'absolute',
+    right: -40,
+    bottom: -40,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)'
+  },
+  cardPatternCircle2: {
+    position: 'absolute',
+    right: -20,
+    bottom: -20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)'
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center'
   },
-  phoneNotch: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#475569', marginBottom: 12 },
-  phonePillRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
-  phonePill: { width: 36, height: 16, borderRadius: 8, backgroundColor: '#334155' },
-  authSection: { gap: 12, paddingBottom: 20 },
+  emvChip: {
+    width: 38,
+    height: 26,
+    borderRadius: 6,
+    borderWidth: 1
+  },
+  silverChip: {
+    backgroundColor: '#CBD5E1',
+    borderColor: '#94A3B8'
+  },
+  goldChip: {
+    backgroundColor: '#D97706',
+    borderColor: '#F59E0B'
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end'
+  },
+  silverCardNumber: {
+    fontFamily: Typography.family.mono,
+    fontSize: 14,
+    color: '#1E293B',
+    fontWeight: '600',
+    letterSpacing: 1
+  },
+  blackCardNumber: {
+    fontFamily: Typography.family.mono,
+    fontSize: 14,
+    color: '#94A3B8',
+    fontWeight: '600',
+    letterSpacing: 1
+  },
+  visaTextLight: {
+    fontFamily: Typography.family.sans,
+    fontSize: 22,
+    fontWeight: '900',
+    fontStyle: 'italic',
+    color: '#0F172A',
+    letterSpacing: 1
+  },
+  visaTextDark: {
+    fontFamily: Typography.family.sans,
+    fontSize: 22,
+    fontWeight: '900',
+    fontStyle: 'italic',
+    color: '#FFFFFF',
+    letterSpacing: 1
+  },
+  authSection: { gap: 12, paddingBottom: 40 },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
