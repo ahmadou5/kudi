@@ -12,7 +12,7 @@ export class KudiSDK {
   private baseUrl: string;
   private authToken: string | null = null;
 
-  constructor(config: KudiClientConfig = { baseUrl: 'http://localhost:4000' }) {
+  constructor(config: KudiClientConfig = { baseUrl: 'https://kudiapi-production.up.railway.app' }) {
     let cleanUrl = (config?.baseUrl || '').trim().replace(/\/$/, '');
     if (cleanUrl.startsWith('hhttps://')) {
       cleanUrl = cleanUrl.replace('hhttps://', 'https://');
