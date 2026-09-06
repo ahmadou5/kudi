@@ -1,5 +1,6 @@
 [build]
 builder = "NIXPACKS"
+installCommand = "pnpm install"
 buildCommand = "pnpm --filter @kudi/admin build"
 watchPatterns = ["/apps/admin/**", "/packages/**"]
 

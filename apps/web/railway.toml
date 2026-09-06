@@ -1,5 +1,6 @@
 [build]
 builder = "NIXPACKS"
+installCommand = "pnpm install"
 buildCommand = "pnpm --filter @kudi/web build"
 watchPatterns = ["/apps/web/**", "/packages/**"]
 
