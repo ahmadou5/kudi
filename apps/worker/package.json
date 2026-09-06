@@ -2,6 +2,9 @@
   "name": "@kudi/worker",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "20"
+  },
   "scripts": {
     "build:deps": "pnpm --filter @kudi/types build && pnpm --filter @kudi/chains build && pnpm --filter @kudi/database build && pnpm --filter @kudi/payment-providers build",
     "build": "pnpm build:deps && tsup src/index.ts --format cjs,esm",

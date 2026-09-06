@@ -2,6 +2,9 @@
   "name": "@kudi/web",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "20"
+  },
   "scripts": {
     "dev": "next dev -p 3000",
     "build:deps": "pnpm --filter @kudi/types build && pnpm --filter @kudi/ui build && pnpm --filter @kudi/sdk build",
