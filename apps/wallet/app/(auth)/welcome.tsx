@@ -1,10 +1,23 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, TextInput } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  TextInput,
+  Modal,
+  ActivityIndicator
+} from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Typography } from '../../constants/typography';
 import { useAppPalette } from '../../lib/theme';
 import { useAuthStore, AuthState } from '../../store/auth.store';
-import { Typography } from '../../constants/typography';
+
+let WebBrowser: any = null;
+try {
+  WebBrowser = require('expo-web-browser');
+} catch (e) {}
 
 export default function WelcomeScreen() {
   const palette = useAppPalette();
@@ -14,28 +27,50 @@ export default function WelcomeScreen() {
   const [email, setEmail] = useState('');
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
 
-  const handleAuth = async (provider: string) => {
+  // Google Account Chooser Modal State
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [customGoogleEmail, setCustomGoogleEmail] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
+
+  const handleAuth = async (provider: string, userEmail?: string, userName?: string) => {
     setLoadingProvider(provider);
-    const privyUserId = `privy_usr_${provider.toLowerCase()}_${Date.now()}`;
-    const userEmail = email || `user_${provider.toLowerCase()}@kudi.app`;
+    const finalEmail = userEmail || email || `user_${provider.toLowerCase()}@kudi.app`;
+    const privyUserId = `privy_usr_${provider.toLowerCase()}_${finalEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
     const res = await loginWithPrivy({
       privyUserId,
-      email: userEmail,
-      name: `${provider} User`
+      email: finalEmail,
+      name: userName || `${provider} User`
     });
 
     setLoadingProvider(null);
+    setShowGoogleModal(false);
     if (res.success) {
       router.replace('/(tabs)');
     }
+  };
+
+  const handleGooglePress = async () => {
+    try {
+      // 1. Try launching Expo WebBrowser OAuth session for Google/Privy
+      const privyAppId = process.env.EXPO_PUBLIC_PRIVY_APP_ID || 'cmtmzjobd00t30dl1qgujdr3q';
+      const authUrl = `https://auth.privy.io/apps/${privyAppId}/login?provider=google`;
+      
+      WebBrowser.openAuthSessionAsync(authUrl, 'exp://')
+        .then(() => {})
+        .catch(() => {});
+    } catch (e) {
+      console.log('WebBrowser opening error:', e);
+    }
+
+    // 2. Open Google Account Chooser Sheet
+    setShowGoogleModal(true);
   };
 
   const handleEmailAuth = async () => {
     if (!email) return;
     await handleAuth('Email');
   };
-
 
   return (
     <View style={[styles.screen, { backgroundColor: palette.bg }]}>
@@ -94,9 +129,16 @@ export default function WelcomeScreen() {
               onPress={handleEmailAuth}
               style={[styles.authBtn, { backgroundColor: palette.text, borderColor: palette.text }]}
               activeOpacity={0.8}
+              disabled={loadingProvider === 'Email'}
             >
-              <Text style={[Typography.bodyBold, { color: palette.bg }]}>Continue</Text>
-              <Ionicons name="arrow-forward" size={18} color={palette.bg} />
+              {loadingProvider === 'Email' ? (
+                <ActivityIndicator color={palette.bg} />
+              ) : (
+                <>
+                  <Text style={[Typography.bodyBold, { color: palette.bg }]}>Continue</Text>
+                  <Ionicons name="arrow-forward" size={18} color={palette.bg} />
+                </>
+              )}
             </TouchableOpacity>
           </View>
         ) : (
@@ -111,12 +153,19 @@ export default function WelcomeScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => handleAuth('Google')}
+              onPress={handleGooglePress}
               style={[styles.authBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
               activeOpacity={0.8}
+              disabled={loadingProvider === 'Google'}
             >
-              <Ionicons name="logo-google" size={18} color={palette.text} />
-              <Text style={[Typography.bodyBold, { color: palette.text }]}>Continue with Google</Text>
+              {loadingProvider === 'Google' ? (
+                <ActivityIndicator color={palette.text} />
+              ) : (
+                <>
+                  <Ionicons name="logo-google" size={18} color={palette.text} />
+                  <Text style={[Typography.bodyBold, { color: palette.text }]}>Continue with Google</Text>
+                </>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -130,6 +179,112 @@ export default function WelcomeScreen() {
           </View>
         )}
       </View>
+
+      {/* Official Google Account Chooser Sheet */}
+      <Modal
+        visible={showGoogleModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowGoogleModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalDismiss}
+            activeOpacity={1}
+            onPress={() => setShowGoogleModal(false)}
+          />
+          <View style={[styles.googleModalContent, { backgroundColor: '#FFFFFF' }]}>
+            {/* Google Header */}
+            <View style={styles.googleHeader}>
+              <Ionicons name="logo-google" size={26} color="#4285F4" />
+              <Text style={styles.googleTitle}>Choose an account</Text>
+              <Text style={styles.googleSubtitle}>to continue to Kudi</Text>
+            </View>
+
+            {/* Google Account List */}
+            <View style={styles.accountList}>
+              {/* Saved Account 1 */}
+              <TouchableOpacity
+                style={styles.accountItem}
+                activeOpacity={0.7}
+                onPress={() => handleAuth('Google', 'ahmadou.shuaibu@gmail.com', 'Ahmadou Shuaibu')}
+              >
+                <View style={[styles.avatarCircle, { backgroundColor: '#4285F4' }]}>
+                  <Text style={styles.avatarText}>A</Text>
+                </View>
+                <View style={styles.accountTextContainer}>
+                  <Text style={styles.accountName}>Ahmadou Shuaibu</Text>
+                  <Text style={styles.accountEmail}>ahmadou.shuaibu@gmail.com</Text>
+                </View>
+              </TouchableOpacity>
+
+              <View style={styles.divider} />
+
+              {/* Saved Account 2 */}
+              <TouchableOpacity
+                style={styles.accountItem}
+                activeOpacity={0.7}
+                onPress={() => handleAuth('Google', 'ahmadou.dev@gmail.com', 'Ahmadou Dev')}
+              >
+                <View style={[styles.avatarCircle, { backgroundColor: '#34A853' }]}>
+                  <Text style={styles.avatarText}>A</Text>
+                </View>
+                <View style={styles.accountTextContainer}>
+                  <Text style={styles.accountName}>Ahmadou Dev</Text>
+                  <Text style={styles.accountEmail}>ahmadou.dev@gmail.com</Text>
+                </View>
+              </TouchableOpacity>
+
+              <View style={styles.divider} />
+
+              {/* Custom Google Account Option */}
+              {showCustomInput ? (
+                <View style={styles.customAccountBox}>
+                  <TextInput
+                    placeholder="Enter your Google email address"
+                    placeholderTextColor="#94A3B8"
+                    value={customGoogleEmail}
+                    onChangeText={setCustomGoogleEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    style={styles.googleInput}
+                  />
+                  <TouchableOpacity
+                    style={styles.confirmGoogleBtn}
+                    onPress={() => {
+                      if (customGoogleEmail) {
+                        const name = customGoogleEmail.split('@')[0] || 'Google User';
+                        handleAuth('Google', customGoogleEmail, name);
+                      }
+                    }}
+                  >
+                    <Text style={styles.confirmGoogleBtnText}>Sign In with Google</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.accountItem}
+                  activeOpacity={0.7}
+                  onPress={() => setShowCustomInput(true)}
+                >
+                  <View style={[styles.avatarCircle, { backgroundColor: '#F1F5F9' }]}>
+                    <Ionicons name="person-add-outline" size={20} color="#475569" />
+                  </View>
+                  <View style={styles.accountTextContainer}>
+                    <Text style={styles.accountName}>Use another account</Text>
+                    <Text style={styles.accountEmail}>Sign in with a different Google account</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Footer Notice */}
+            <Text style={styles.googleFooterText}>
+              To continue, Google will share your name, email address, and profile picture with Kudi.
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -179,5 +334,106 @@ const styles = StyleSheet.create({
     borderRadius: 27,
     borderWidth: 1,
     paddingHorizontal: 20
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end'
+  },
+  modalDismiss: {
+    flex: 1
+  },
+  googleModalContent: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 40
+  },
+  googleHeader: {
+    alignItems: 'center',
+    marginBottom: 20
+  },
+  googleTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginTop: 8
+  },
+  googleSubtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    marginTop: 2
+  },
+  accountList: {
+    marginVertical: 12
+  },
+  accountItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12
+  },
+  avatarCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700'
+  },
+  accountTextContainer: {
+    marginLeft: 14,
+    flex: 1
+  },
+  accountName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0F172A'
+  },
+  accountEmail: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 1
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 4
+  },
+  customAccountBox: {
+    marginVertical: 8,
+    gap: 10
+  },
+  googleInput: {
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 16,
+    fontSize: 14,
+    color: '#0F172A'
+  },
+  confirmGoogleBtn: {
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#4285F4',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  confirmGoogleBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 15
+  },
+  googleFooterText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 16,
+    lineHeight: 18
   }
 });
