@@ -33,8 +33,7 @@ export class SelfCustodyProvider implements CustodyProvider {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            chain_type: chain.includes('solana') ? 'solana' : 'ethereum',
-            user_id: userId
+            chain_type: chain.includes('solana') ? 'solana' : 'ethereum'
           })
         });
 
