@@ -90,8 +90,6 @@ async function main() {
   await billsRoutes(server, billsController);
   await webhooksRoutes(server, webhooksController);
 
-  const port = process.env.PORT ? parseInt(process.env.PORT) : 4000;
-
   server.get('/', async (_request, reply) => {
     return reply.send({
       name: 'Kudi API Engine',
@@ -104,10 +102,15 @@ async function main() {
     });
   });
 
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 4000;
   await server.listen({ port, host: '0.0.0.0' });
   rateService.startPolling(30_000);
+
   console.log(`🚀 Kudi API server running on http://localhost:${port}`);
+
+
 }
+
 
 main().catch((err) => {
   server.log.error(err);
