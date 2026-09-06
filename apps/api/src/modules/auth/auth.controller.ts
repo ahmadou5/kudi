@@ -110,5 +110,26 @@ export class AuthController {
     }
     return successResponse({ verified: true }, 'PIN verified successfully');
   };
+
+  public getUserProfile = async (request: FastifyRequest, reply: FastifyReply) => {
+    const { userId } = request.params as { userId: string };
+    const user = this.ledgerService.getUser(userId);
+    if (!user) {
+      return reply.status(404).send(errorResponse('USER_NOT_FOUND', 'User not found'));
+    }
+    const balance = this.ledgerService.getBalance(userId);
+    const virtualAccounts = this.ledgerService.getUserVirtualAccounts(userId);
+    const custodyProvider = this.custodyManager.getActiveProvider();
+    const solanaWallet = await custodyProvider.generateWallet(userId, 'solana');
+    const monadWallet = await custodyProvider.generateWallet(userId, 'monad-testnet');
+
+    return successResponse({
+      user,
+      balanceUSDC: balance,
+      balanceNGN: balance * 1585.50,
+      wallets: [solanaWallet, monadWallet],
+      virtualAccounts
+    }, 'User profile retrieved successfully');
+  };
 }
 

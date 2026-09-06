@@ -18,13 +18,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function ProfileScreen() {
   const palette = useAppPalette();
   const insets = useSafeAreaInsets();
+  const user = useAuthStore((s: AuthState) => s.user);
+  const wallets = useAuthStore((s: AuthState) => s.wallets);
   const logout = useAuthStore((s: AuthState) => s.logout);
   const isDark = palette.text === '#FFFFFF';
 
-  const walletAddress = '0x71C849204A8109F2184B314';
+  const solanaAddress = wallets.find(w => w.chain === 'solana')?.address || 'Solana Address Loading...';
+  const monadAddress = wallets.find(w => w.chain.includes('monad'))?.address || 'Monad Address Loading...';
 
-  const handleCopyAddress = () => {
-    Alert.alert('Copied', 'Wallet address copied to clipboard');
+  const userEmail = user?.email || 'authenticated.user@kudi.app';
+  const userDisplayName = userEmail.split('@')[0] || 'Kudi User';
+  const kycTierLabel = user?.kycTier || 'UNVERIFIED';
+
+  const handleCopyAddress = (address: string, chainName: string) => {
+    Alert.alert('Copied', `${chainName} address copied:\n${address}`);
   };
 
   const handleLogout = () => {
@@ -76,29 +83,47 @@ export default function ProfileScreen() {
           </View>
 
           <Text style={[Typography.title1, styles.nameText, { color: palette.text }]}>
-            Ahmadou S.
+            {userDisplayName}
           </Text>
           <Text style={[Typography.subhead, { color: palette.textSecondary }]}>
-            @ahmadou.kudi
+            {userEmail}
           </Text>
+          {!!user?.id && (
+            <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 2 }]}>
+              ID: {user.id}
+            </Text>
+          )}
 
-          {/* Tier 3 Verified Pill */}
+          {/* KYC Tier Verified Pill */}
           <View style={styles.tierPill}>
             <Ionicons name="sparkles" size={13} color="#34D399" />
             <Text style={[Typography.caption, { color: '#34D399', fontWeight: '700', marginLeft: 4 }]}>
-              Tier 3 Verified User
+              KYC {kycTierLabel}
             </Text>
           </View>
 
-          {/* Wallet Address Strip */}
+          {/* Deposit Address Strip: Solana */}
           <TouchableOpacity
-            onPress={handleCopyAddress}
+            onPress={() => handleCopyAddress(solanaAddress, 'Solana')}
             style={[styles.addressStrip, { backgroundColor: palette.bg, borderColor: palette.border }]}
             activeOpacity={0.7}
           >
-            <Ionicons name="wallet-outline" size={16} color={palette.textSecondary} />
-            <Text style={[Typography.currencySub, { color: palette.text, fontSize: 12 }]}>
-              {walletAddress}
+            <Ionicons name="logo-bitcoin" size={16} color="#9945FF" />
+            <Text style={[Typography.currencySub, { color: palette.text, fontSize: 11, flex: 1 }]} numberOfLines={1} ellipsizeMode="middle">
+              SOL: {solanaAddress}
+            </Text>
+            <Ionicons name="copy-outline" size={14} color={palette.textSecondary} />
+          </TouchableOpacity>
+
+          {/* Deposit Address Strip: Monad EVM */}
+          <TouchableOpacity
+            onPress={() => handleCopyAddress(monadAddress, 'Monad EVM')}
+            style={[styles.addressStrip, { backgroundColor: palette.bg, borderColor: palette.border, marginTop: 8 }]}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="cube-outline" size={16} color="#60A5FA" />
+            <Text style={[Typography.currencySub, { color: palette.text, fontSize: 11, flex: 1 }]} numberOfLines={1} ellipsizeMode="middle">
+              EVM: {monadAddress}
             </Text>
             <Ionicons name="copy-outline" size={14} color={palette.textSecondary} />
           </TouchableOpacity>

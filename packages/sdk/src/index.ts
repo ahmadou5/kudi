@@ -75,6 +75,13 @@ export class KudiSDK {
     return res.json();
   }
 
+  async getUserProfile(userId: string) {
+    const res = await fetch(`${this.baseUrl}/api/v1/users/${userId}`, {
+      headers: this.getHeaders()
+    });
+    return res.json();
+  }
+
   async getBalance(userId: string) {
     const res = await fetch(`${this.baseUrl}/api/v1/users/${userId}/balance`, {
       headers: this.getHeaders()

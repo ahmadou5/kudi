@@ -12,5 +12,7 @@ export async function authRoutes(
   server.post('/api/users/register', controller.registerUser);
   server.post('/api/v1/users/set-pin', controller.setPin);
   server.post('/api/users/set-pin', controller.setPin);
+  server.get('/api/v1/users/:userId', controller.getUserProfile);
+  server.get('/api/users/:userId', controller.getUserProfile);
 }
 
