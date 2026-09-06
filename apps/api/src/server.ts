@@ -38,12 +38,37 @@ import { billsRoutes } from './modules/bills/bills.routes';
 import { WebhooksController } from './modules/webhooks/webhooks.controller';
 import { webhooksRoutes } from './modules/webhooks/webhooks.routes';
 
+import { Server as SocketIOServer, Socket } from 'socket.io';
+
 dotenv.config();
 
 // Initialize Sentry error monitoring & performance profiling
 initSentry();
 
 const server = Fastify({ logger: true });
+
+// Attach Socket.io server instance to Fastify's HTTP server
+const io = new SocketIOServer(server.server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
+
+io.on('connection', (socket: Socket) => {
+  server.log.info(`⚡ [Socket.io] Client connected: ${socket.id}`);
+
+  socket.on('join:room', (userId: string) => {
+    if (userId) {
+      socket.join(userId);
+      server.log.info(`⚡ [Socket.io] Socket ${socket.id} joined user room: ${userId}`);
+    }
+  });
+
+  socket.on('disconnect', () => {
+    server.log.info(`⚡ [Socket.io] Client disconnected: ${socket.id}`);
+  });
+});
 
 // Core shared infrastructure services
 const custodyManager = new CustodyManager();
@@ -104,6 +129,10 @@ async function main() {
 
   const port = process.env.PORT ? parseInt(process.env.PORT) : 4000;
   await server.listen({ port, host: '0.0.0.0' });
+
+  rateService.onRateUpdate((rateState) => {
+    io.emit('rate:updated', rateState);
+  });
   rateService.startPolling(30_000);
 
   console.log(`🚀 Kudi API server running on http://localhost:${port}`);

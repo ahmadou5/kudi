@@ -30,7 +30,8 @@
             "./assets/fonts/Inter-Bold.ttf"
           ]
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
