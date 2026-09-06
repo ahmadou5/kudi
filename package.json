@@ -12,7 +12,7 @@
     "dev:worker": "pnpm --filter @kudi/worker dev",
     "dev:services": "turbo run dev --filter=@kudi/api --filter=@kudi/worker --filter=@kudi/web --filter=@kudi/admin",
     "dev:all": "turbo run dev --filter=@kudi/api --filter=@kudi/worker --filter=@kudi/web --filter=@kudi/admin --filter=@kudi/wallet",
-    "start": "pnpm --filter @kudi/api start",
+    "start": "pnpm start:services",
     "start:api": "pnpm --filter @kudi/api start",
     "start:admin": "pnpm --filter @kudi/admin start",
     "start:web": "pnpm --filter @kudi/web start",
