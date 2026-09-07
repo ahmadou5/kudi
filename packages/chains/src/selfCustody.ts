@@ -76,11 +76,6 @@ export class SelfCustodyProvider implements CustodyProvider {
     const isSolana = chain.includes('solana') || address.startsWith('Sol');
 
     if (isSolana) {
-      if (address.startsWith('Soluser_') || address.startsWith('Sol')) {
-        // Fallback for mock/sandbox deterministic addresses
-        return '250.00';
-      }
-
       try {
         if (tokenAddress) {
           // Query Solana SPL Token Account balance

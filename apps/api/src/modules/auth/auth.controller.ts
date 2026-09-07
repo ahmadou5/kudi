@@ -69,9 +69,15 @@ export class AuthController {
       user = this.ledgerService.registerUser(userId, undefined, cleanEmail, privyUserId);
     }
 
-    const custodyProvider = this.custodyManager.getActiveProvider();
-    const solanaWallet = await custodyProvider.generateWallet(userId, 'solana');
-    const monadWallet = await custodyProvider.generateWallet(userId, 'monad-testnet');
+    let userWallets = user.wallets && user.wallets.length > 0 ? user.wallets : null;
+
+    if (!userWallets) {
+      const custodyProvider = this.custodyManager.getActiveProvider();
+      const solanaWallet = await custodyProvider.generateWallet(user.id, 'solana');
+      const monadWallet = await custodyProvider.generateWallet(user.id, 'monad-testnet');
+      userWallets = [solanaWallet, monadWallet];
+      this.ledgerService.setUserWallets(user.id, userWallets);
+    }
 
     const payload = { userId: user.id, email: user.email };
     const accessToken = signAccessToken(request.server, payload);
@@ -79,7 +85,7 @@ export class AuthController {
 
     return successResponse({
       user,
-      wallets: [solanaWallet, monadWallet],
+      wallets: userWallets,
       accessToken,
       refreshToken
     }, 'Email OTP verified successfully');
@@ -105,10 +111,16 @@ export class AuthController {
       user = this.ledgerService.registerUser(userId, phoneNumber, email, privyUserId);
     }
 
-    // Ensure wallets are generated for the user
-    const custodyProvider = this.custodyManager.getActiveProvider();
-    const solanaWallet = await custodyProvider.generateWallet(userId, 'solana');
-    const monadWallet = await custodyProvider.generateWallet(userId, 'monad-testnet');
+    // Ensure wallets are generated once per user and reused on re-login
+    let userWallets = user.wallets && user.wallets.length > 0 ? user.wallets : null;
+
+    if (!userWallets) {
+      const custodyProvider = this.custodyManager.getActiveProvider();
+      const solanaWallet = await custodyProvider.generateWallet(user.id, 'solana');
+      const monadWallet = await custodyProvider.generateWallet(user.id, 'monad-testnet');
+      userWallets = [solanaWallet, monadWallet];
+      this.ledgerService.setUserWallets(user.id, userWallets);
+    }
 
     // Sign Kudi session JWT tokens using fastify jwt
     const payload = { userId: user.id, email: user.email, phoneNumber: user.phoneNumber };
@@ -117,7 +129,7 @@ export class AuthController {
 
     return successResponse({
       user,
-      wallets: [solanaWallet, monadWallet],
+      wallets: userWallets,
       accessToken,
       refreshToken
     }, 'Authentication successful');

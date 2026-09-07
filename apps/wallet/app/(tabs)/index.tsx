@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppPalette } from '../../lib/theme';
@@ -9,71 +9,99 @@ import { Typography } from '../../constants/typography';
 import { Header } from '../../components/Header';
 import { TransactionCard, TransactionData } from '../../components/TransactionCard';
 
+function ActivitySkeleton({ palette }: { palette: any }) {
+  return (
+    <View style={[styles.skeletonCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+      <View style={styles.skeletonRow}>
+        <View style={[styles.skeletonCircle, { backgroundColor: palette.border }]} />
+        <View style={styles.skeletonTextStack}>
+          <View style={[styles.skeletonBar, { width: 120, backgroundColor: palette.border }]} />
+          <View style={[styles.skeletonBar, { width: 80, height: 10, backgroundColor: palette.border }]} />
+        </View>
+        <View style={[styles.skeletonBar, { width: 60, height: 16, backgroundColor: palette.border }]} />
+      </View>
+    </View>
+  );
+}
+
 export default function HomeTab() {
   const palette = useAppPalette();
-  const { balanceUSDC, rateNGN } = useKudiWallet();
+  const {
+    balanceUSDC,
+    rateNGN,
+    transactions,
+    userId,
+    isBalanceLoading,
+    isTransactionsLoading,
+    refetchBalance,
+    refetchTransactions
+  } = useKudiWallet();
+
+  const isRefreshing = isBalanceLoading || isTransactionsLoading;
 
   const quickActions: Array<{
     label: string;
     iconName: keyof typeof Ionicons.glyphMap;
     route: string;
   }> = [
-      { label: 'Airtime', iconName: 'phone-portrait-outline', route: '/(tabs)/spend' },
-      { label: 'Data', iconName: 'cellular-outline', route: '/(tabs)/spend' },
-      { label: 'Electricity', iconName: 'flash-outline', route: '/(tabs)/spend' },
-      { label: 'Virtual Card', iconName: 'card-outline', route: '/(tabs)/card' }
-    ];
-
-  const recentTransactions: TransactionData[] = [
-    {
-      id: '1',
-      title: 'MTN Airtime Top-Up',
-      subtitle: 'Airtime Purchase',
-      date: '10:32 AM',
-      amount: '-₦5,000.00',
-      secondaryAmount: '3.15 USDC',
-      status: 'SUCCESS',
-      icon: 'phone-portrait-outline',
-      isDeposit: false
-    },
-    {
-      id: '2',
-      title: 'Deposit Solana USDC',
-      subtitle: 'Solana Network',
-      date: 'Today',
-      amount: '+$100.00',
-      secondaryAmount: '158,550 NGN',
-      status: 'COMPLETED',
-      icon: 'arrow-down-circle-outline',
-      isDeposit: true
-    },
-    {
-      id: '3',
-      title: 'Electricity Payment',
-      subtitle: 'IKEDC Prepaid Token',
-      date: 'Yesterday',
-      amount: '-₦12,500.00',
-      secondaryAmount: '7.88 USDC',
-      status: 'SUCCESS',
-      icon: 'flash-outline',
-      isDeposit: false
-    }
+    { label: 'Airtime', iconName: 'phone-portrait-outline', route: '/(tabs)/spend' },
+    { label: 'Data', iconName: 'cellular-outline', route: '/(tabs)/spend' },
+    { label: 'Electricity', iconName: 'flash-outline', route: '/(tabs)/spend' },
+    { label: 'Virtual Card', iconName: 'card-outline', route: '/(tabs)/card' }
   ];
+
+  // Map live API transactions to TransactionData interface
+  const formattedTransactions: TransactionData[] = (transactions || []).map((tx: any, idx: number) => {
+    const isDeposit = tx.toUserId === userId || tx.metadata?.type === 'DEPOSIT_ONCHAIN';
+    const rawAmount = typeof tx.amount === 'number' ? tx.amount.toFixed(2) : String(tx.amount || '0.00');
+    const amountStr = isDeposit ? `+$${rawAmount}` : `-$${rawAmount}`;
+
+    let formattedDate = 'Recently';
+    if (tx.timestamp) {
+      const d = new Date(tx.timestamp);
+      formattedDate = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    return {
+      id: tx.reference || String(idx),
+      title: tx.metadata?.title || (isDeposit ? 'USDC Deposit' : 'Bank Payout'),
+      subtitle: tx.metadata?.subtitle || (isDeposit ? 'Solana Network' : `${tx.currency || 'NGN'} Transfer`),
+      date: formattedDate,
+      amount: amountStr,
+      secondaryAmount: tx.metadata?.subtitle ? undefined : `Via ${tx.currency || 'USDC'}`,
+      status: 'SUCCESS',
+      isDeposit,
+      icon: isDeposit ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'
+    };
+  });
+
+  const onRefresh = () => {
+    refetchBalance();
+    refetchTransactions();
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: palette.bg }]}>
-      {/* Fixed Sticky Top Header */}
+      {/* Sticky Top Header */}
       <Header onOpenScanner={() => router.push('/qr-scanner')} />
 
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 110, paddingHorizontal: 14, paddingTop: 12 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={palette.text}
+            colors={['#3B82F6']}
+          />
+        }
       >
-        {/* Top Balance Card Component */}
+        {/* Live Balance Card Component */}
         <BalanceCard balanceUSDC={balanceUSDC} rateNGN={rateNGN} />
 
-        {/* Quick Actions Circle Row */}
+        {/* Quick Actions Grid */}
         <Text style={[Typography.title2, styles.sectionTitle, { color: palette.text }]}>
           Quick Services
         </Text>
@@ -96,7 +124,7 @@ export default function HomeTab() {
           ))}
         </View>
 
-        {/* Recent Activity Feed */}
+        {/* Recent Live Activity Feed */}
         <View style={styles.activityHeaderRow}>
           <Text style={[Typography.title2, { color: palette.text }]}>
             Recent Activity
@@ -113,9 +141,25 @@ export default function HomeTab() {
         </View>
 
         <View style={styles.activityList}>
-          {recentTransactions.map((tx) => (
-            <TransactionCard key={tx.id} item={tx} compact />
-          ))}
+          {isTransactionsLoading && formattedTransactions.length === 0 ? (
+            <>
+              <ActivitySkeleton palette={palette} />
+              <ActivitySkeleton palette={palette} />
+              <ActivitySkeleton palette={palette} />
+            </>
+          ) : formattedTransactions.length > 0 ? (
+            formattedTransactions.slice(0, 5).map((tx) => (
+              <TransactionCard key={tx.id} item={tx} compact />
+            ))
+          ) : (
+            <View style={[styles.emptyBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <Ionicons name="receipt-outline" size={28} color={palette.textSecondary} />
+              <Text style={[Typography.bodyBold, { color: palette.text }]}>No Activity Yet</Text>
+              <Text style={[Typography.caption, { color: palette.textSecondary, textAlign: 'center' }]}>
+                Your deposits and payouts will appear here in real-time.
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -139,65 +183,39 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4
   },
-  metallicCard: {
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    marginVertical: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4
-  },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardChipRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 16 },
-  cardChip: {
-    width: 40,
-    height: 28,
-    borderRadius: 6,
-    backgroundColor: '#94A3B8',
-    padding: 4,
-    justifyContent: 'center'
-  },
-  chipInner: {
-    height: 12,
-    borderWidth: 1,
-    borderColor: '#64748B',
-    borderRadius: 3
-  },
-  activeTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#10B981',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12
-  },
-  activeTagText: { color: '#FFFFFF', fontSize: 10 },
-  cardFooter: { marginTop: 4 },
-  cardNumber: { color: '#0F172A', letterSpacing: 2 },
-  cardLabel: { color: '#475569', marginTop: 4 },
   activityHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, marginBottom: 12 },
   viewAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   activityList: { gap: 10 },
-  activityItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  emptyBox: {
+    padding: 24,
+    borderRadius: 18,
+    borderWidth: 1,
     alignItems: 'center',
-    padding: 14,
-    borderRadius: 16,
+    justifyContent: 'center',
+    gap: 6
+  },
+  skeletonCard: {
+    padding: 16,
+    borderRadius: 18,
     borderWidth: 1
   },
-  txLeftGroup: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  txIconContainer: {
+  skeletonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12
+  },
+  skeletonCircle: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center'
+    borderRadius: 20
   },
-  txDetails: { gap: 2 },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, marginTop: 4 }
+  skeletonTextStack: {
+    flex: 1,
+    gap: 8
+  },
+  skeletonBar: {
+    height: 14,
+    borderRadius: 6
+  }
 });

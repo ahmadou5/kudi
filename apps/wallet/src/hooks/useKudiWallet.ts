@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TabType } from '../components/TabBar';
 import { useAuthStore } from '../../store/auth.store';
 import { sdk } from '../lib/sdk';
@@ -7,12 +7,38 @@ import { sdk } from '../lib/sdk';
 export function useKudiWallet() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabType>('home');
-  const user = useAuthStore(s => s.user);
-  const userId = user?.id || 'usr_demo_123';
+  const user = useAuthStore((s) => s.user);
+  const userId = user?.id || '';
 
-  const [balanceUSDC, setBalanceUSDC] = useState<string>('250.00');
-  const [rateNGN] = useState<number>(1585.50);
   const [spendSuccess, setSpendSuccess] = useState<string | null>(null);
+
+  // Fetch live user balance from API
+  const balanceQuery = useQuery({
+    queryKey: ['balance', userId],
+    queryFn: async () => {
+      if (!userId) return null;
+      const res = await sdk.getBalance(userId);
+      return res?.data || null;
+    },
+    enabled: !!userId,
+    refetchInterval: 10000
+  });
+
+  // Fetch live user transactions activity feed from API
+  const transactionsQuery = useQuery({
+    queryKey: ['transactions', userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const res = await sdk.getTransactions(userId);
+      return res?.data?.transactions || [];
+    },
+    enabled: !!userId,
+    refetchInterval: 10000
+  });
+
+  const balanceUSDC = balanceQuery.data?.balanceUSDC || '0.00';
+  const rateNGN = balanceQuery.data?.currentRateNGN || 1585.50;
+  const transactions = transactionsQuery.data || [];
 
   const resolveAccount = async (accountNumber: string, bankCode: string): Promise<string> => {
     try {
@@ -46,7 +72,6 @@ export function useKudiWallet() {
 
       if (res && res.success && res.data) {
         const data = res.data;
-        if (data.newBalanceUSDC) setBalanceUSDC(data.newBalanceUSDC);
         const amountNGNStr = data.amountNGN ? `₦${data.amountNGN.toLocaleString()} NGN` : '';
         setSpendSuccess(`Successfully sent ${amountNGNStr}! Reference: ${data.reference || 'KUDI_SPEND'}`);
         queryClient.invalidateQueries({ queryKey: ['balance'] });
@@ -67,9 +92,13 @@ export function useKudiWallet() {
     userId,
     balanceUSDC,
     rateNGN,
+    transactions,
+    isBalanceLoading: balanceQuery.isLoading,
+    isTransactionsLoading: transactionsQuery.isLoading,
+    refetchBalance: () => balanceQuery.refetch(),
+    refetchTransactions: () => transactionsQuery.refetch(),
     spendSuccess,
     resolveAccount,
     spendToBank
   };
 }
-

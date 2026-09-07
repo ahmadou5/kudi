@@ -8,6 +8,7 @@ export interface UserRecord {
   pinHash?: string;
   kycStatus: KYCStatus;
   kycTier: KYCTier;
+  wallets?: Array<{ chain: string; address: string; metadata?: Record<string, any> }>;
 }
 
 export interface TransactionRecord {
@@ -43,16 +44,17 @@ export class LedgerService {
       phoneNumber,
       email,
       kycStatus: KYCStatus.NOT_STARTED,
-      kycTier: KYCTier.UNVERIFIED
+      kycTier: KYCTier.UNVERIFIED,
+      wallets: []
     };
     this.users.set(userId, user);
-    this.ledger.set(userId, 250.0); // Seed demo testnet balance
+    this.ledger.set(userId, 0.0);
 
-    // Seed virtual accounts for demo user
+    // Seed virtual accounts for user
     this.virtualAccounts.set(userId, [
       {
         accountNumber: '9920148201',
-        accountName: 'KUDI / AHMADOU SHUAIBU',
+        accountName: `KUDI / ${email ? email.split('@')[0].toUpperCase() : 'USER'}`,
         bankName: 'Wema Bank (Squad)',
         bankCode: '035',
         currency: 'NGN',
@@ -60,35 +62,13 @@ export class LedgerService {
       },
       {
         accountNumber: '7038192041',
-        accountName: 'KUDI / AHMADOU SHUAIBU',
+        accountName: `KUDI / ${email ? email.split('@')[0].toUpperCase() : 'USER'}`,
         bankName: 'Moniepoint (Monnify)',
         bankCode: '50515',
         currency: 'NGN',
         provider: 'MONNIFY'
       }
     ]);
-
-    // Seed sample initial transactions
-    const now = Date.now();
-    this.recordTransaction({
-      fromUserId: 'squad_gateway',
-      toUserId: userId,
-      amount: '100.00',
-      currency: 'USDC',
-      reference: `TX_DEP_${now - 86400000}`,
-      timestamp: new Date(now - 86400000).toISOString(),
-      metadata: { title: 'USDC Deposit', subtitle: 'Solana Network', type: 'DEPOSIT_ONCHAIN' }
-    });
-
-    this.recordTransaction({
-      fromUserId: userId,
-      toUserId: 'bank_payout_gtbank',
-      amount: '50.00',
-      currency: 'USDC',
-      reference: `TX_SPEND_${now - 43200000}`,
-      timestamp: new Date(now - 43200000).toISOString(),
-      metadata: { title: 'GTBank Transfer', subtitle: '79,275.00 NGN', type: 'SPEND_BANK' }
-    });
 
     return user;
   }
@@ -169,6 +149,19 @@ export class LedgerService {
         provider: 'SQUAD'
       }
     ];
+  }
+
+  public getUserWallets(userId: string): Array<{ chain: string; address: string; metadata?: Record<string, any> }> | undefined {
+    const user = this.users.get(userId);
+    return user?.wallets;
+  }
+
+  public setUserWallets(userId: string, wallets: Array<{ chain: string; address: string; metadata?: Record<string, any> }>): void {
+    const user = this.users.get(userId);
+    if (user) {
+      user.wallets = wallets;
+      this.users.set(userId, user);
+    }
   }
 }
 
