@@ -5,6 +5,9 @@ export interface UserRecord {
   privyUserId?: string;
   phoneNumber?: string;
   email?: string;
+  fullName?: string;
+  username?: string;
+  avatarUrl?: string;
   pinHash?: string;
   kycStatus: KYCStatus;
   kycTier: KYCTier;
@@ -97,6 +100,15 @@ export class LedgerService {
     const user = this.users.get(userId) || { id: userId, kycStatus: KYCStatus.NOT_STARTED, kycTier: KYCTier.UNVERIFIED };
     user.pinHash = `hashed_${pin}`;
     this.users.set(userId, user);
+  }
+
+  public updateUserProfile(userId: string, data: { fullName?: string; username?: string; avatarUrl?: string }): UserRecord {
+    const user = this.users.get(userId) || { id: userId, kycStatus: KYCStatus.NOT_STARTED, kycTier: KYCTier.UNVERIFIED };
+    if (data.fullName !== undefined) user.fullName = data.fullName;
+    if (data.username !== undefined) user.username = data.username;
+    if (data.avatarUrl !== undefined) user.avatarUrl = data.avatarUrl;
+    this.users.set(userId, user);
+    return user;
   }
 
   public getBalance(userId: string): number {

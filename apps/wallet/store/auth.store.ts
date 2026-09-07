@@ -8,6 +8,8 @@ export interface User {
   privyUserId?: string;
   email?: string;
   fullName?: string;
+  username?: string;
+  avatarUrl?: string;
   phoneNumber?: string;
   kycTier?: string;
   kycStatus?: string;
@@ -38,6 +40,7 @@ export interface AuthState {
     phoneNumber?: string;
     name?: string;
   }) => Promise<{ success: boolean; error?: string }>;
+  updateProfile: (data: { fullName?: string; username?: string; avatarUrl?: string }) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   unlock: () => void;
   lock: () => void;
@@ -254,6 +257,27 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   unlock: () => {
     set({ isUnlocked: true });
+  },
+
+  updateProfile: async (data: { fullName?: string; username?: string; avatarUrl?: string }) => {
+    const currentUser = get().user;
+    if (!currentUser) return { success: false, error: 'User not logged in' };
+
+    const updatedUser: User = {
+      ...currentUser,
+      ...data
+    };
+
+    set({ user: updatedUser });
+    await setSecureItem('kudi_user', JSON.stringify(updatedUser));
+
+    try {
+      await sdk.updateUserProfile(currentUser.id, data);
+    } catch (e) {
+      console.warn('Failed to sync profile update with server:', e);
+    }
+
+    return { success: true };
   },
 
   lock: () => {

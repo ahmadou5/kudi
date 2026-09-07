@@ -78,7 +78,7 @@ export default function SettingsScreen() {
         <View style={[styles.cardGroup, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <TouchableOpacity
             style={[styles.rowItem, { borderBottomColor: palette.border }]}
-            onPress={() => Alert.alert('Profile', 'KYC & Profile details active')}
+            onPress={() => router.push('/settings/edit-profile' as any)}
             activeOpacity={0.7}
           >
             <View style={styles.itemLeft}>

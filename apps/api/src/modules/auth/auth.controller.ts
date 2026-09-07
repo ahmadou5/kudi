@@ -217,5 +217,17 @@ export class AuthController {
       virtualAccounts
     }, 'User profile retrieved successfully');
   };
+
+  public updateUserProfile = async (request: FastifyRequest, reply: FastifyReply) => {
+    const { userId } = request.params as { userId: string };
+    const { fullName, username, avatarUrl } = (request.body || {}) as {
+      fullName?: string;
+      username?: string;
+      avatarUrl?: string;
+    };
+
+    const updatedUser = this.ledgerService.updateUserProfile(userId, { fullName, username, avatarUrl });
+    return successResponse({ user: updatedUser }, 'User profile updated successfully');
+  };
 }
 

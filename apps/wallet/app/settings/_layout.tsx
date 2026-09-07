@@ -9,6 +9,7 @@ export default function SettingsLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
+      <Stack.Screen name="edit-profile" />
       <Stack.Screen name="appearance" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="security" />

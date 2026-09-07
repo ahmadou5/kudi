@@ -100,6 +100,15 @@ export class KudiSDK {
     return res.json();
   }
 
+  async updateUserProfile(userId: string, payload: { fullName?: string; username?: string; avatarUrl?: string }) {
+    const res = await fetch(`${this.baseUrl}/api/v1/users/${userId}`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return res.json();
+  }
+
   async getBalance(userId: string) {
     const res = await fetch(`${this.baseUrl}/api/v1/users/${userId}/balance`, {
       headers: this.getHeaders()

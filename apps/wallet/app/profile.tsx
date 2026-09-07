@@ -6,7 +6,8 @@ import {
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
-  Alert
+  Alert,
+  Image
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,8 +28,18 @@ export default function ProfileScreen() {
   const monadAddress = wallets.find(w => w.chain.includes('monad'))?.address || 'Monad Address Loading...';
 
   const userEmail = user?.email || 'authenticated.user@kudi.app';
-  const userDisplayName = userEmail.split('@')[0] || 'Kudi User';
+  const fullName = user?.fullName || '';
+  const username = user?.username || (userEmail ? `@${userEmail.split('@')[0]}` : '');
+  const userDisplayName = fullName || username || userEmail.split('@')[0] || 'Kudi User';
   const kycTierLabel = user?.kycTier || 'UNVERIFIED';
+
+  const initials = userDisplayName
+    .replace(/^@/, '')
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'K';
 
   const handleCopyAddress = (address: string, chainName: string) => {
     Alert.alert('Copied', `${chainName} address copied:\n${address}`);
@@ -64,7 +75,13 @@ export default function ProfileScreen() {
           <Ionicons name="arrow-back" size={20} color={palette.text} />
         </TouchableOpacity>
         <Text style={[Typography.title2, { color: palette.text }]}>Profile</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity
+          onPress={() => router.push('/settings/edit-profile' as any)}
+          style={[styles.circularBackBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="create-outline" size={20} color={palette.text} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -73,18 +90,27 @@ export default function ProfileScreen() {
       >
         {/* User Identity Hero Card */}
         <View style={[styles.identityCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <View style={styles.avatarWrapper}>
+          <TouchableOpacity onPress={() => router.push('/settings/edit-profile' as any)} style={styles.avatarWrapper} activeOpacity={0.8}>
             <View style={[styles.avatarCircle, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0', borderColor: '#34D399' }]}>
-              <Ionicons name="person" size={40} color={palette.text} />
+              {user?.avatarUrl ? (
+                <Image source={{ uri: user.avatarUrl }} style={styles.avatarImg} />
+              ) : (
+                <Text style={[Typography.title1, { color: palette.text, fontSize: 28 }]}>{initials}</Text>
+              )}
             </View>
             <View style={styles.verifiedBadge}>
               <Ionicons name="checkmark" size={10} color="#FFFFFF" />
             </View>
-          </View>
+          </TouchableOpacity>
 
           <Text style={[Typography.title1, styles.nameText, { color: palette.text }]}>
             {userDisplayName}
           </Text>
+          {!!username && (
+            <Text style={[Typography.bodyBold, { color: '#3B82F6', fontSize: 13, marginBottom: 2 }]}>
+              {username}
+            </Text>
+          )}
           <Text style={[Typography.subhead, { color: palette.textSecondary }]}>
             {userEmail}
           </Text>
@@ -98,7 +124,7 @@ export default function ProfileScreen() {
           <View style={styles.tierPill}>
             <Ionicons name="sparkles" size={13} color="#34D399" />
             <Text style={[Typography.caption, { color: '#34D399', fontWeight: '700', marginLeft: 4 }]}>
-              KYC {kycTierLabel}
+              KYC {kycTierLabel} Verified
             </Text>
           </View>
 
@@ -147,6 +173,23 @@ export default function ProfileScreen() {
 
         {/* Account Menu Items */}
         <View style={[styles.menuCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          <TouchableOpacity
+            style={[styles.menuRow, { borderBottomColor: palette.border }]}
+            onPress={() => router.push('/settings/edit-profile' as any)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.menuLeft}>
+              <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : 'rgba(59,130,246,0.1)' }]}>
+                <Ionicons name="person-outline" size={18} color="#3B82F6" />
+              </View>
+              <View>
+                <Text style={[Typography.bodyBold, { color: palette.text }]}>Edit Profile</Text>
+                <Text style={[Typography.footnote, { color: palette.textSecondary }]}>Update photo, full name & username</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.menuRow, { borderBottomColor: palette.border }]}
             onPress={() => router.push('/settings')}
@@ -270,7 +313,13 @@ const styles = StyleSheet.create({
     borderRadius: 42,
     borderWidth: 2,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    overflow: 'hidden'
+  },
+  avatarImg: {
+    width: 84,
+    height: 84,
+    borderRadius: 42
   },
   verifiedBadge: {
     position: 'absolute',

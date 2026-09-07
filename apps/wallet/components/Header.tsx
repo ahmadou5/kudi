@@ -6,6 +6,9 @@ import { useAppPalette } from '../lib/theme';
 import { usePreferencesStore, PreferencesState } from '../store/preferences.store';
 import { Typography } from '../constants/typography';
 
+import { Image, Text } from 'react-native';
+import { useAuthStore } from '../store/auth.store';
+
 export interface HeaderProps {
   onOpenScanner?: () => void;
   onOpenProfile?: () => void;
@@ -15,6 +18,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
   const palette = useAppPalette();
   const themeMode = usePreferencesStore((s: PreferencesState) => s.themeMode);
   const setThemeMode = usePreferencesStore((s: PreferencesState) => s.setThemeMode);
+  const user = useAuthStore((s) => s.user);
 
   const isDark = themeMode === 'dark' || palette.text === '#FFFFFF';
 
@@ -42,15 +46,36 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
     router.push('/settings');
   };
 
+  const displayName = user?.fullName || user?.username || (user?.email ? user.email.split('@')[0] : 'User');
+  const initials = displayName
+    .replace(/^@/, '')
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'K';
+
   return (
     <View style={[styles.header, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-      {/* Top Left: Avatar / Person Button -> Profile */}
+      {/* Top Left: Avatar Photo / Initials + User Greeting */}
       <TouchableOpacity
         onPress={handleProfile}
-        style={[styles.iconBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
+        style={styles.profileGreetingTouch}
         activeOpacity={0.7}
       >
-        <Ionicons name="person" size={19} color={palette.text} />
+        <View style={[styles.avatarBtn, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0', borderColor: '#34D399' }]}>
+          {user?.avatarUrl ? (
+            <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+          ) : (
+            <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 14 }]}>{initials}</Text>
+          )}
+        </View>
+        <View style={styles.greetingTextCol}>
+          <Text style={[Typography.caption, { color: palette.textSecondary }]}>Welcome back 👋</Text>
+          <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 14 }]} numberOfLines={1}>
+            {displayName}
+          </Text>
+        </View>
       </TouchableOpacity>
 
       {/* Top Right Actions */}
@@ -107,5 +132,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8
+  },
+  profileGreetingTouch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  avatarBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden'
+  },
+  avatarImage: {
+    width: 42,
+    height: 42,
+    borderRadius: 21
+  },
+  greetingTextCol: {
+    justifyContent: 'center'
   }
 });

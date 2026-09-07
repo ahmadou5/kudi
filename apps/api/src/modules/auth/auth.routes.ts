@@ -16,5 +16,8 @@ export async function authRoutes(
   server.post('/api/users/set-pin', controller.setPin);
   server.get('/api/v1/users/:userId', controller.getUserProfile);
   server.get('/api/users/:userId', controller.getUserProfile);
+  server.patch('/api/v1/users/:userId', controller.updateUserProfile);
+  server.post('/api/v1/users/:userId/profile', controller.updateUserProfile);
+  server.patch('/api/users/:userId', controller.updateUserProfile);
 }
 
