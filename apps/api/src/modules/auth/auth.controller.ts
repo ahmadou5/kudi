@@ -5,6 +5,8 @@ import { successResponse, errorResponse } from '../../utils/response';
 import { signAccessToken, signRefreshToken } from '../../utils/jwt';
 import { verifyPin } from '../../utils/hash';
 
+import { sendOTPEmail } from '../../services/emailService';
+
 export class AuthController {
   constructor(
     private custodyManager: CustodyManager,
@@ -29,6 +31,11 @@ export class AuthController {
     } catch (err: any) {
       console.warn('[Redis OTP Cache Warning]', err?.message);
     }
+
+    // Dispatch email asynchronously
+    void sendOTPEmail({ toEmail: cleanEmail, otpCode: generatedOtp }).catch((err) => {
+      console.warn('[OTP Dispatch Warning]', err?.message);
+    });
 
     return successResponse({ email: cleanEmail, sent: true }, 'OTP verification code sent to your email');
   };

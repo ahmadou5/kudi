@@ -1,9 +1,4 @@
-import 'react-native-get-random-values';
-import 'react-native-url-polyfill/auto';
-import { Buffer } from 'buffer';
-if (typeof global.Buffer === 'undefined') {
-  global.Buffer = Buffer;
-}
+import '../lib/polyfills';
 import React, { useEffect } from 'react';
 import { View } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

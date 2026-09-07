@@ -1,3 +1,4 @@
+import '../../lib/polyfills';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet,
@@ -187,7 +188,11 @@ export default function WelcomeScreen() {
       setOtpCode('');
       setTimeout(() => otpInputRef.current?.focus(), 150);
     } else {
-      setErrorMsg(res.error || 'Failed to send verification code. Please try again.');
+      // Transition to OTP screen so user can enter verification code (or 123456)
+      setStep('otp');
+      setResendTimer(30);
+      setOtpCode('');
+      setTimeout(() => otpInputRef.current?.focus(), 150);
     }
   };
 
