@@ -15,12 +15,13 @@ import { usePreferencesStore, PreferencesState } from '../store/preferences.stor
 import { connectSocket, disconnectSocket } from '../lib/socket';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-
+import { PrivyProvider } from '@privy-io/expo';
 
 // Prevent splash screen from auto-hiding until fonts are loaded (Percel pattern)
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const queryClient = new QueryClient();
+const PRIVY_APP_ID = process.env.EXPO_PUBLIC_PRIVY_APP_ID || 'cmtqc3mw8007e0cjxtcsip65e';
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -80,18 +81,20 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>
-          <ThemeProvider value={buildNavigationTheme(palette)}>
-            <StatusBar style={isLight(palette.bg) ? 'dark' : 'light'} />
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="auth-lock" />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="settings" />
-              <Stack.Screen name="qr-scanner" options={{ presentation: 'modal' }} />
-            </Stack>
-          </ThemeProvider>
-        </QueryClientProvider>
+        <PrivyProvider appId={PRIVY_APP_ID}>
+          <QueryClientProvider client={queryClient}>
+            <ThemeProvider value={buildNavigationTheme(palette)}>
+              <StatusBar style={isLight(palette.bg) ? 'dark' : 'light'} />
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="auth-lock" />
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="settings" />
+                <Stack.Screen name="qr-scanner" options={{ presentation: 'modal' }} />
+              </Stack>
+            </ThemeProvider>
+          </QueryClientProvider>
+        </PrivyProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

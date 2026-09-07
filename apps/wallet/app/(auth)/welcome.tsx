@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Typography } from '../../constants/typography';
 import { useAppPalette } from '../../lib/theme';
 import { useAuthStore, AuthState } from '../../store/auth.store';
+import { useLoginWithEmail } from '@privy-io/expo';
 
 function AnimatedStackedCards() {
   const floatY1 = useRef(new Animated.Value(0)).current;
@@ -128,6 +129,8 @@ export default function WelcomeScreen() {
   const verifyPrivyOTP = useAuthStore((s: AuthState) => s.verifyPrivyOTP);
   const loginWithPrivy = useAuthStore((s: AuthState) => s.loginWithPrivy);
 
+  const privyLogin = useLoginWithEmail();
+
   const [step, setStep] = useState<'email' | 'otp'>('email');
   const [email, setEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
@@ -159,7 +162,21 @@ export default function WelcomeScreen() {
     }
 
     setIsLoading(true);
-    console.log(`[Privy Auth] Sending OTP code to ${targetEmail}...`);
+    console.log(`[Privy Native SDK] Sending Email OTP code to ${targetEmail}...`);
+
+    try {
+      if (privyLogin?.sendCode) {
+        await privyLogin.sendCode({ email: targetEmail });
+        setIsLoading(false);
+        setStep('otp');
+        setResendTimer(30);
+        setOtpCode('');
+        setTimeout(() => otpInputRef.current?.focus(), 150);
+        return;
+      }
+    } catch (err: any) {
+      console.warn('[Privy Client SDK Warning]', err?.message);
+    }
 
     const res = await sendPrivyOTP(targetEmail);
     setIsLoading(false);
@@ -184,7 +201,27 @@ export default function WelcomeScreen() {
     }
 
     setIsLoading(true);
-    console.log(`[Privy Auth] Verifying OTP code for ${email}...`);
+    console.log(`[Privy Native SDK] Verifying OTP code for ${email}...`);
+
+    try {
+      if (privyLogin?.loginWithCode) {
+        const user = await privyLogin.loginWithCode({ code });
+        const privyUserId = user?.id || `privy_usr_${email.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+        const authRes = await loginWithPrivy({
+          privyUserId,
+          email: email.trim().toLowerCase()
+        });
+
+        setIsLoading(false);
+        if (authRes.success) {
+          router.replace('/(tabs)');
+          return;
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Privy SDK Verification Warning]', err?.message);
+    }
 
     const res = await verifyPrivyOTP(email, code);
     setIsLoading(false);
