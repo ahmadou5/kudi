@@ -13,7 +13,7 @@ export class SelfCustodyProvider implements CustodyProvider {
     privyAppId: string = process.env.PRIVY_APP_ID || '',
     privyAppSecret: string = process.env.PRIVY_APP_SECRET || '',
     defaultRpcUrl: string = process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz',
-    solanaRpcUrl: string = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'
+    solanaRpcUrl: string = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com'
   ) {
     this.privyAppId = privyAppId;
     this.privyAppSecret = privyAppSecret;

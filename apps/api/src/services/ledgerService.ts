@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { KYCStatus, KYCTier } from '@kudi/types';
+import { prisma } from '@kudi/database';
 
 export interface UserRecord {
   id: string;
@@ -11,6 +12,7 @@ export interface UserRecord {
   username?: string;
   avatarUrl?: string;
   pinHash?: string;
+  expoPushToken?: string;
   kycStatus: KYCStatus;
   kycTier: KYCTier;
   wallets?: Array<{ chain: string; address: string; metadata?: Record<string, any> }>;
@@ -35,12 +37,25 @@ export interface VirtualAccountRecord {
   provider: string;
 }
 
+export interface NotificationRecord {
+  id: string;
+  userId: string;
+  title: string;
+  body: string;
+  type: string;
+  read: boolean;
+  createdAt: string;
+  data?: Record<string, any>;
+}
+
 export class LedgerService {
   private users: Map<string, UserRecord> = new Map();
   private ledger: Map<string, number> = new Map();
   private spends: Map<string, any> = new Map();
   private transactions: Map<string, TransactionRecord> = new Map();
   private virtualAccounts: Map<string, VirtualAccountRecord[]> = new Map();
+  private notifications: Map<string, NotificationRecord[]> = new Map();
+  private processedSignatures: Set<string> = new Set();
   private storageFilePath: string;
 
   constructor() {
@@ -54,6 +69,47 @@ export class LedgerService {
     }
     this.storageFilePath = path.join(dataDir, 'ledger_store.json');
     this.loadFromStorage();
+    this.syncFromDatabase().catch(err => console.warn('[LedgerService] Async DB sync warning:', err));
+  }
+
+  public async syncFromDatabase(): Promise<void> {
+    try {
+      const dbUsers = await prisma.user.findMany({
+        include: { wallets: true, virtualAccounts: true }
+      });
+
+      for (const u of dbUsers) {
+        const userRec: UserRecord = {
+          id: u.id,
+          privyUserId: u.privyUserId || undefined,
+          phoneNumber: u.phoneNumber || undefined,
+          email: u.email || undefined,
+          fullName: u.fullName || undefined,
+          username: u.username || undefined,
+          avatarUrl: u.avatarUrl || undefined,
+          pinHash: u.pinHash || undefined,
+          expoPushToken: u.expoPushToken || undefined,
+          kycStatus: u.kycStatus as KYCStatus,
+          kycTier: u.kycTier as KYCTier,
+          wallets: u.wallets.map(w => ({ chain: w.chain, address: w.address }))
+        };
+        this.users.set(u.id, userRec);
+
+        // Fetch balance from ledger entries
+        const entries = await prisma.ledgerEntry.findMany({ where: { userId: u.id }, orderBy: { createdAt: 'desc' }, take: 1 });
+        if (entries.length > 0) {
+          this.ledger.set(u.id, Number(entries[0].resultingBalanceUSDC));
+        }
+      }
+
+      const sigs = await prisma.processedSignature.findMany();
+      sigs.forEach(s => this.processedSignatures.add(s.signature));
+
+      this.saveToStorage();
+      console.log(`[LedgerService] 🐘 Synced ${dbUsers.length} user(s) and ${sigs.length} processed signature(s) from Neon PostgreSQL DB.`);
+    } catch (err: any) {
+      console.warn('[LedgerService] Warning syncing from PostgreSQL DB:', err?.message || err);
+    }
   }
 
   private loadFromStorage(): void {
@@ -76,6 +132,12 @@ export class LedgerService {
         if (data.virtualAccounts && Array.isArray(data.virtualAccounts)) {
           this.virtualAccounts = new Map(data.virtualAccounts);
         }
+        if (data.notifications && Array.isArray(data.notifications)) {
+          this.notifications = new Map(data.notifications);
+        }
+        if (data.processedSignatures && Array.isArray(data.processedSignatures)) {
+          this.processedSignatures = new Set(data.processedSignatures);
+        }
         console.log(`[LedgerService] 💾 Loaded ${this.users.size} persisted user(s) from persistent storage.`);
       }
     } catch (err: any) {
@@ -90,7 +152,9 @@ export class LedgerService {
         ledger: Array.from(this.ledger.entries()),
         spends: Array.from(this.spends.entries()),
         transactions: Array.from(this.transactions.entries()),
-        virtualAccounts: Array.from(this.virtualAccounts.entries())
+        virtualAccounts: Array.from(this.virtualAccounts.entries()),
+        notifications: Array.from(this.notifications.entries()),
+        processedSignatures: Array.from(this.processedSignatures)
       };
       fs.writeFileSync(this.storageFilePath, JSON.stringify(data, null, 2), 'utf-8');
     } catch (err: any) {
@@ -210,6 +274,25 @@ export class LedgerService {
   public recordSpend(reference: string, record: any): void {
     this.spends.set(reference, record);
     this.saveToStorage();
+
+    // Async write-through to PostgreSQL (fire-and-forget; does not block local JSON flow)
+    prisma.spendTransaction.upsert({
+      where: { reference },
+      update: { status: record.status || 'SUCCESS' },
+      create: {
+        userId: record.userId,
+        reference,
+        amountUSDC: Number(record.amountUSDC) || 0,
+        exchangeRateNGN: Number(record.exchangeRateNGN) || 1585.50,
+        amountNGN: Number(record.amountNGN) || 0,
+        feeNGN: Number(record.feeNGN) || 0,
+        recipientBankCode: record.recipientBankCode || '000',
+        recipientAccountNumber: record.recipientAccountNumber || '0000000000',
+        recipientAccountName: record.recipientAccountName || 'Unknown',
+        payoutProvider: 'PAYSTACK',
+        status: 'SUCCESS'
+      }
+    }).catch(err => console.warn('[LedgerService] DB write-through failed (spend):', err?.message));
   }
 
   public getSpend(reference: string): any {
@@ -265,5 +348,126 @@ export class LedgerService {
       this.users.set(userId, user);
       this.saveToStorage();
     }
+  }
+
+  public saveUserPushToken(userId: string, token: string): void {
+    const user = this.users.get(userId);
+    if (user) {
+      user.expoPushToken = token;
+      this.users.set(userId, user);
+      this.saveToStorage();
+    }
+  }
+
+  public getUserPushToken(userId: string): string | undefined {
+    return this.users.get(userId)?.expoPushToken;
+  }
+
+  public getAllUsers(): UserRecord[] {
+    return Array.from(this.users.values());
+  }
+
+  public creditUserBalance(userId: string, amountUSDC: number, reference: string, metadata?: Record<string, any>): number {
+    const current = this.getBalance(userId);
+    const newBal = current + amountUSDC;
+    this.setBalance(userId, newBal);
+
+    this.recordTransaction({
+      fromUserId: 'CHAIN_DEPOSIT',
+      toUserId: userId,
+      amount: amountUSDC,
+      currency: 'USDC',
+      reference: reference || `dep_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      metadata: {
+        type: 'DEPOSIT',
+        ...metadata
+      }
+    });
+
+    this.addNotification(
+      userId,
+      'Deposit Received 💰',
+      `You received ${amountUSDC.toFixed(2)} USDC into your Kudi wallet balance.`,
+      'PAYMENT_RECEIVED',
+      { amountUSDC, reference, ...metadata }
+    );
+
+    // Async write-through to PostgreSQL (fire-and-forget; does not block local JSON flow)
+    prisma.ledgerEntry.create({
+      data: {
+        userId,
+        type: 'DEPOSIT_CREDIT',
+        amountUSDC,
+        resultingBalanceUSDC: newBal,
+        referenceId: reference || `dep_${Date.now()}`,
+        metadata: metadata as any
+      }
+    }).catch(err => console.warn('[LedgerService] DB write-through failed (deposit):', err?.message));
+
+    return newBal;
+  }
+
+  public getUserNotifications(userId: string): NotificationRecord[] {
+    const list = this.notifications.get(userId) || [];
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  public addNotification(userId: string, title: string, body: string, type: string = 'SYSTEM', data?: Record<string, any>): NotificationRecord {
+    const list = this.notifications.get(userId) || [];
+    const item: NotificationRecord = {
+      id: `noti_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      userId,
+      title,
+      body,
+      type,
+      read: false,
+      createdAt: new Date().toISOString(),
+      data
+    };
+    list.unshift(item);
+    this.notifications.set(userId, list);
+    this.saveToStorage();
+    return item;
+  }
+
+  public markNotificationRead(userId: string, notificationId: string): boolean {
+    const list = this.notifications.get(userId) || [];
+    const target = list.find(n => n.id === notificationId);
+    if (target) {
+      target.read = true;
+      this.saveToStorage();
+      return true;
+    }
+    return false;
+  }
+
+  public markAllNotificationsRead(userId: string): number {
+    const list = this.notifications.get(userId) || [];
+    let count = 0;
+    list.forEach(n => {
+      if (!n.read) {
+        n.read = true;
+        count++;
+      }
+    });
+    this.saveToStorage();
+    return count;
+  }
+
+  public isSignatureProcessed(signature: string): boolean {
+    return this.processedSignatures.has(signature);
+  }
+
+  public markSignatureProcessed(signature: string): void {
+    this.processedSignatures.add(signature);
+    this.saveToStorage();
+
+    // Async write-through to PostgreSQL
+    prisma.processedSignature.upsert({
+      where: { signature },
+      update: {},
+      create: { signature }
+    }).catch(err => console.warn('[LedgerService] DB write-through failed (signature):', err?.message));
   }
 }

@@ -19,5 +19,11 @@ export async function authRoutes(
   server.patch('/api/v1/users/:userId', controller.updateUserProfile);
   server.post('/api/v1/users/:userId/profile', controller.updateUserProfile);
   server.patch('/api/users/:userId', controller.updateUserProfile);
+  server.post('/api/v1/auth/push-token', controller.registerPushToken);
+  server.post('/api/v1/users/push-token', controller.registerPushToken);
+  server.post('/api/v1/auth/test-notification', controller.testPushNotification);
+  server.get('/api/v1/users/:userId/notifications', controller.getUserNotifications);
+  server.patch('/api/v1/users/:userId/notifications/read-all', controller.markAllNotificationsRead);
+  server.patch('/api/v1/users/:userId/notifications/:notificationId/read', controller.markNotificationRead);
 }
 

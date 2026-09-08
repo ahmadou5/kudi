@@ -4,6 +4,8 @@ import { router } from 'expo-router';
 import { useAuthStore, AuthState } from '../store/auth.store';
 import { useAppPalette } from '../lib/theme';
 
+import { registerPushToken } from '../lib/notifications';
+
 export default function IndexScreen() {
   const palette = useAppPalette();
   const isAuthenticated = useAuthStore((s: AuthState) => s.isAuthenticated);
@@ -14,6 +16,9 @@ export default function IndexScreen() {
     if (isLoading) return;
 
     if (isAuthenticated) {
+      // Auto-register push token in background if permission is granted
+      registerPushToken().catch(() => {});
+
       if (isUnlocked) {
         router.replace('/(tabs)');
       } else {

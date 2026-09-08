@@ -111,3 +111,5 @@ export class GeneralizedEVMListener {
     return events;
   }
 }
+
+export { GeneralizedEVMListener as EVMListener };

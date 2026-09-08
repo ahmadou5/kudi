@@ -78,13 +78,22 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
       <View style={styles.rightActions}>
 
 
+        {/* Notifications Bell Button */}
+        <TouchableOpacity
+          onPress={() => router.push('/notifications')}
+          style={[styles.iconBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="notifications-outline" size={18} color={palette.text} />
+        </TouchableOpacity>
+
         {/* Theme Toggle Button */}
         <TouchableOpacity
           onPress={toggleTheme}
           style={[styles.iconBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={18} color={palette.text} />
+          <Ionicons name="sunny-outline" size={18} color={palette.text} />
         </TouchableOpacity>
 
         {/* QR Scanner Button */}

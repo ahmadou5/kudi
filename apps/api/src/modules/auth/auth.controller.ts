@@ -6,6 +6,7 @@ import { signAccessToken, signRefreshToken } from '../../utils/jwt';
 import { verifyPin } from '../../utils/hash';
 
 import { sendOTPEmail } from '../../services/emailService';
+import { sendPushNotification } from '../../lib/notifications';
 
 export class AuthController {
   constructor(
@@ -245,6 +246,53 @@ export class AuthController {
 
     const updatedUser = this.ledgerService.updateUserProfile(userId, { fullName, username, avatarUrl });
     return successResponse({ user: updatedUser }, 'User profile updated successfully');
+  };
+
+  public registerPushToken = async (request: FastifyRequest, reply: FastifyReply) => {
+    const { userId, token } = (request.body || {}) as { userId?: string; token?: string };
+    if (!token) {
+      return reply.status(400).send(errorResponse('MISSING_TOKEN', 'Push notification token is required'));
+    }
+    const targetUserId = userId || (request.user as any)?.id || 'usr_1788867509637';
+    this.ledgerService.saveUserPushToken(targetUserId, token);
+    return successResponse({ registered: true, userId: targetUserId }, 'Push token registered successfully');
+  };
+
+  public testPushNotification = async (request: FastifyRequest, reply: FastifyReply) => {
+    const { userId, title, body } = (request.body || {}) as { userId?: string; title?: string; body?: string };
+    const targetUserId = userId || 'usr_1788867509637';
+    const pushToken = this.ledgerService.getUserPushToken(targetUserId);
+    if (!pushToken) {
+      return reply.status(400).send(errorResponse('NO_PUSH_TOKEN', 'No push token registered for user'));
+    }
+    const result = await sendPushNotification(pushToken, 'DEPOSIT_RECEIVED', {
+      amountUSDC: 10,
+      title: title || 'Test Push Notification 🚀',
+      body: body || 'Push notifications are fully working on Kudi!'
+    });
+    return successResponse(result, 'Test notification dispatched');
+  };
+
+  public getUserNotifications = async (request: FastifyRequest, reply: FastifyReply) => {
+    const { userId } = request.params as { userId: string };
+    const notifications = this.ledgerService.getUserNotifications(userId);
+    const unreadCount = notifications.filter(n => !n.read).length;
+    return successResponse({
+      data: notifications,
+      unreadCount
+    }, 'Notifications retrieved');
+  };
+
+  public markNotificationRead = async (request: FastifyRequest, reply: FastifyReply) => {
+    const { userId, notificationId } = request.params as { userId: string; notificationId: string };
+    const updated = this.ledgerService.markNotificationRead(userId, notificationId);
+    return successResponse({ updated }, 'Notification marked read');
+  };
+
+  public markAllNotificationsRead = async (request: FastifyRequest, reply: FastifyReply) => {
+    const { userId } = request.params as { userId: string };
+    const count = this.ledgerService.markAllNotificationsRead(userId);
+    return successResponse({ updated: count }, 'All notifications marked read');
   };
 }
 

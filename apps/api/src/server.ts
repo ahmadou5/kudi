@@ -13,6 +13,8 @@ import prismaPlugin from './plugins/prisma';
 import { initSentry } from './lib/sentry';
 import { RateService } from './services/rateService';
 import { LedgerService } from './services/ledgerService';
+import { DepositService } from './services/depositService';
+import { SweepService } from './services/sweepService';
 
 import { HealthController } from './modules/health/health.controller';
 import { healthRoutes } from './modules/health/health.routes';
@@ -37,6 +39,9 @@ import { billsRoutes } from './modules/bills/bills.routes';
 
 import { WebhooksController } from './modules/webhooks/webhooks.controller';
 import { webhooksRoutes } from './modules/webhooks/webhooks.routes';
+
+import { DepositsController } from './modules/deposits/deposits.controller';
+import { depositsRoutes } from './modules/deposits/deposits.routes';
 
 import { Server as SocketIOServer, Socket } from 'socket.io';
 
@@ -75,6 +80,8 @@ const custodyManager = new CustodyManager();
 const paymentRegistry = new PaymentProviderRegistry();
 const rateService = new RateService();
 const ledgerService = new LedgerService();
+const depositService = new DepositService(ledgerService, io);
+const sweepService = new SweepService(ledgerService);
 
 // Domain Controllers
 const healthController = new HealthController(custodyManager, paymentRegistry);
@@ -85,14 +92,13 @@ const payoutController = new PayoutController(paymentRegistry, ledgerService, ra
 const adminController = new AdminController(custodyManager, paymentRegistry, rateService);
 const billsController = new BillsController(ledgerService, rateService);
 const webhooksController = new WebhooksController(ledgerService);
+const depositsController = new DepositsController(depositService, sweepService);
 
 async function main() {
   // Register Infrastructure Plugins
   await server.register(corsPlugin);
   await server.register(helmetPlugin);
   await server.register(compressPlugin);
-
-
 
   await server.register(jwtPlugin);
   await server.register(rateLimitPlugin);
@@ -102,7 +108,6 @@ async function main() {
     server.log.warn('Redis plugin registration skipped');
   }
   await server.register(swaggerPlugin);
-
   await server.register(prismaPlugin);
 
   // Register Domain Modules (Percel Standard Architecture)
@@ -114,6 +119,7 @@ async function main() {
   await adminRoutes(server, adminController);
   await billsRoutes(server, billsController);
   await webhooksRoutes(server, webhooksController);
+  await depositsRoutes(server, depositsController);
 
   server.get('/', async (_request, reply) => {
     return reply.send({
@@ -134,12 +140,10 @@ async function main() {
     io.emit('rate:updated', rateState);
   });
   rateService.startPolling(30_000);
+  depositService.startPolling(10_000);
 
   console.log(`🚀 Kudi API server running on http://localhost:${port}`);
-
-
 }
-
 
 main().catch((err) => {
   server.log.error(err);
