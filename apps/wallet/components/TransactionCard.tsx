@@ -10,6 +10,7 @@ export type BrandProvider = 'usdc' | 'solana' | 'monad' | 'mtn' | 'airtel' | 'gl
 const BRAND_LOGOS: Record<string, ImageSourcePropType> = {
   usdc: require('../assets/logos/usdc.png'),
   solana: require('../assets/logos/solana.png'),
+  monad: require('../assets/logos/monad.png'),
   mtn: require('../assets/logos/mtn.png'),
   airtel: require('../assets/logos/airtel.png'),
   glo: require('../assets/logos/glo.png'),

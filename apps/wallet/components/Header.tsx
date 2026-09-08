@@ -71,32 +71,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
             <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 14 }]}>{initials}</Text>
           )}
         </View>
-        <View style={styles.greetingTextCol}>
-          <Text style={[Typography.caption, { color: palette.textSecondary }]}>Welcome back 👋</Text>
-          <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 14 }]} numberOfLines={1}>
-            {displayName}
-          </Text>
-        </View>
+
       </TouchableOpacity>
 
       {/* Top Right Actions */}
       <View style={styles.rightActions}>
-        {/* Network Badge */}
-        <TouchableOpacity
-          onPress={() => router.push('/(tabs)/deposit')}
-          style={[styles.networkPill, { backgroundColor: isDark ? 'rgba(153, 69, 255, 0.15)' : '#F1F5F9', borderColor: isDark ? 'rgba(153, 69, 255, 0.3)' : '#CBD5E1' }]}
-          activeOpacity={0.7}
-        >
-          <View style={styles.chainLogosOverlap}>
-            <ChainLogo chain="solana" size={14} />
-            <View style={{ marginLeft: -4 }}>
-              <ChainLogo chain="monad" size={14} />
-            </View>
-          </View>
-          <Text style={[Typography.caption, { color: isDark ? '#A78BFA' : '#0F172A', fontSize: 10, fontWeight: '700' }]}>
-            Devnet
-          </Text>
-        </TouchableOpacity>
+
 
         {/* Theme Toggle Button */}
         <TouchableOpacity

@@ -23,14 +23,11 @@ export const ChainLogo: React.FC<ChainLogoProps> = ({ chain, size = 20 }) => {
 
   if (normalized.includes('monad')) {
     return (
-      <View
-        style={[
-          styles.monadBadge,
-          { width: size, height: size, borderRadius: size / 2 }
-        ]}
-      >
-        <Text style={[styles.monadLetter, { fontSize: Math.max(9, size * 0.55) }]}>M</Text>
-      </View>
+      <Image
+        source={require('../../assets/logos/monad.png')}
+        style={{ width: size, height: size, borderRadius: size / 2 }}
+        resizeMode="contain"
+      />
     );
   }
 
