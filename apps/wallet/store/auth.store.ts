@@ -113,7 +113,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           accessToken: storedToken,
           refreshToken: storedRefreshToken,
           isAuthenticated: true,
-          isUnlocked: true,
+          isUnlocked: false,
           isLoading: false,
           pin: storedPin || '1234'
         });

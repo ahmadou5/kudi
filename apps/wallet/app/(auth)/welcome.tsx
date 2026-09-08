@@ -129,6 +129,8 @@ export default function WelcomeScreen() {
   const sendPrivyOTP = useAuthStore((s: AuthState) => s.sendPrivyOTP);
   const verifyPrivyOTP = useAuthStore((s: AuthState) => s.verifyPrivyOTP);
   const loginWithPrivy = useAuthStore((s: AuthState) => s.loginWithPrivy);
+  const isAuthenticated = useAuthStore((s: AuthState) => s.isAuthenticated);
+  const isUnlocked = useAuthStore((s: AuthState) => s.isUnlocked);
 
   const privyLogin = useLoginWithEmail();
 
@@ -141,6 +143,17 @@ export default function WelcomeScreen() {
   const [resendTimer, setResendTimer] = useState(0);
 
   const otpInputRef = useRef<TextInput>(null);
+
+  // Auto-redirect if already authenticated (prevent showing email screen again on relaunch)
+  useEffect(() => {
+    if (isAuthenticated) {
+      if (isUnlocked) {
+        router.replace('/(tabs)');
+      } else {
+        router.replace('/auth-lock');
+      }
+    }
+  }, [isAuthenticated, isUnlocked]);
 
   // Resend countdown timer logic
   useEffect(() => {
