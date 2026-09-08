@@ -156,16 +156,22 @@ export class AuthController {
 
   public registerUser = async (request: FastifyRequest, reply: FastifyReply) => {
     const { phoneNumber, email } = request.body as { phoneNumber: string; email: string };
-    const userId = `usr_${Date.now()}`;
+    const cleanEmail = email ? email.trim().toLowerCase() : undefined;
+    const cleanPhone = phoneNumber ? phoneNumber.trim() : undefined;
 
-    const custodyProvider = this.custodyManager.getActiveProvider();
-    const solanaWallet = await custodyProvider.generateWallet(userId, 'solana');
-    const monadWallet = await custodyProvider.generateWallet(userId, 'monad-testnet');
-    const userWallets = [solanaWallet, monadWallet];
+    let user = this.ledgerService.findUserByPrivyOrEmail(undefined, cleanEmail, cleanPhone);
+    let userWallets = user?.wallets && user.wallets.length > 0 ? user.wallets : null;
 
-    const user = this.ledgerService.registerUser(userId, phoneNumber, email);
-    // Persist wallets so they are reused on subsequent logins
-    this.ledgerService.setUserWallets(userId, userWallets);
+    if (!user) {
+      const userId = `usr_${Date.now()}`;
+      user = this.ledgerService.registerUser(userId, cleanPhone, cleanEmail);
+
+      const custodyProvider = this.custodyManager.getActiveProvider();
+      const solanaWallet = await custodyProvider.generateWallet(user.id, 'solana');
+      const monadWallet = await custodyProvider.generateWallet(user.id, 'monad-testnet');
+      userWallets = [solanaWallet, monadWallet];
+      this.ledgerService.setUserWallets(user.id, userWallets);
+    }
 
     const payload = { userId: user.id, email: user.email, phoneNumber: user.phoneNumber };
     const accessToken = signAccessToken(request.server, payload);
