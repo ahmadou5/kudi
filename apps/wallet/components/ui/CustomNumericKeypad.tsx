@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppPalette } from '../../lib/theme';
 
 export interface CustomNumericKeypadProps {
@@ -36,8 +37,9 @@ export const CustomNumericKeypad: React.FC<CustomNumericKeypadProps> = ({
                   disabled={disabled}
                   onPress={onBiometricPress}
                   style={[styles.keyButton, { backgroundColor: palette.card, borderColor: palette.border }]}
+                  activeOpacity={0.7}
                 >
-                  <Text style={{ fontSize: 20 }}>👆</Text>
+                  <Ionicons name="finger-print" size={26} color={palette.primary} />
                 </TouchableOpacity>
               );
             }
@@ -49,8 +51,9 @@ export const CustomNumericKeypad: React.FC<CustomNumericKeypadProps> = ({
                   disabled={disabled}
                   onPress={onDelete}
                   style={[styles.keyButton, { backgroundColor: palette.card, borderColor: palette.border }]}
+                  activeOpacity={0.7}
                 >
-                  <Text style={[styles.delText, { color: palette.text }]}>⌫</Text>
+                  <Ionicons name="backspace-outline" size={24} color={palette.text} />
                 </TouchableOpacity>
               );
             }
@@ -61,6 +64,7 @@ export const CustomNumericKeypad: React.FC<CustomNumericKeypadProps> = ({
                 disabled={disabled}
                 onPress={() => onPressDigit(item)}
                 style={[styles.keyButton, { backgroundColor: palette.card, borderColor: palette.border }]}
+                activeOpacity={0.7}
               >
                 <Text style={[styles.digitText, { color: palette.text }]}>{item}</Text>
               </TouchableOpacity>
@@ -96,9 +100,5 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     fontFamily: 'monospace'
-  },
-  delText: {
-    fontSize: 20,
-    fontWeight: '700'
   }
 });
