@@ -11,7 +11,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.kudi.app"
+      "bundleIdentifier": "com.kudi.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.kudi.app",
@@ -38,6 +41,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "368e5114-1468-4e89-bc29-c2b1f9827da6"
+      }
     }
   }
 }
