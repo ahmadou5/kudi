@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { useAuthStore } from '../../store/auth.store';
 
+import { KeyboardView } from '../components/ui/KeyboardView';
+
 interface OnboardingAuthScreenProps {
   mode?: 'light' | 'dark';
 }
@@ -61,7 +63,7 @@ export const OnboardingAuthScreen: React.FC<OnboardingAuthScreenProps> = ({ mode
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: isLight ? '#FFFFFF' : '#090A0F' }]}>
+    <KeyboardView style={{ backgroundColor: isLight ? '#FFFFFF' : '#090A0F' }} contentContainerStyle={styles.container}>
       {/* Top Bar */}
       <View style={styles.topBar}>
         {step === 'otp' ? (
@@ -219,7 +221,7 @@ export const OnboardingAuthScreen: React.FC<OnboardingAuthScreenProps> = ({ mode
           </View>
         )}
       </View>
-    </View>
+    </KeyboardView>
   );
 };
 

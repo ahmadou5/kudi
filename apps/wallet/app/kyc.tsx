@@ -7,7 +7,9 @@ import {
   TextInput,
   ScrollView,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -73,11 +75,13 @@ export default function KYCScreen() {
   };
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: palette.bg }]}
-      contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 40, paddingBottom: 40 }}
-      showsVerticalScrollIndicator={false}
-    >
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView
+        style={[styles.container, { backgroundColor: palette.bg }]}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 40, paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -187,6 +191,7 @@ export default function KYCScreen() {
       </TouchableOpacity>
       <AppModal config={modal.config} onClose={modal.hide} />
     </ScrollView>
+  </KeyboardAvoidingView>
   );
 }
 

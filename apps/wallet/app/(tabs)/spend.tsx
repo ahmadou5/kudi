@@ -9,7 +9,9 @@ import {
   Alert,
   Modal,
   Image,
-  ActivityIndicator
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -173,11 +175,13 @@ export default function SpendTab() {
   );
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: palette.bg }]}
-      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 110 }}
-      showsVerticalScrollIndicator={false}
-    >
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView
+        style={[styles.container, { backgroundColor: palette.bg }]}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 110 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
       {/* Dynamic Circle Back Button & Title Header */}
       <View style={styles.headerRow}>
         <TouchableOpacity
@@ -623,6 +627,7 @@ export default function SpendTab() {
         </View>
       </Modal>
     </ScrollView>
+  </KeyboardAvoidingView>
   );
 }
 
