@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   patternContainer: {
-    ...StyleSheet.absoluteFillObject
+    ...(StyleSheet.absoluteFill as any)
   },
   patternRingOuter: {
     position: 'absolute',

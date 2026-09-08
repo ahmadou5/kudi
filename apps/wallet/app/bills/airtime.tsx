@@ -16,6 +16,7 @@ import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { useAuthStore } from '../../store/auth.store';
 import { sdk } from '../../src/lib/sdk';
+import { AppModal, useAppModal } from '../../components/ui/AppModal';
 
 const NETWORKS = [
   { id: 'MTN', name: 'MTN Nigeria', logo: require('../../assets/logos/mtn.png') },
@@ -27,6 +28,7 @@ const NETWORKS = [
 export default function AirtimeBillScreen() {
   const palette = useAppPalette();
   const user = useAuthStore(s => s.user);
+  const modal = useAppModal();
 
   const [selectedNetwork, setSelectedNetwork] = useState('MTN');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -35,16 +37,16 @@ export default function AirtimeBillScreen() {
 
   const handlePurchase = async () => {
     if (!phoneNumber || phoneNumber.length < 10) {
-      Alert.alert('Invalid Phone Number', 'Please enter a valid recipient phone number.');
+      modal.alert('Invalid Phone Number', 'Please enter a valid recipient phone number.', 'warning');
       return;
     }
     const amount = parseFloat(amountNGN);
     if (!amount || amount < 100) {
-      Alert.alert('Invalid Amount', 'Minimum airtime purchase is ₦100 NGN.');
+      modal.alert('Invalid Amount', 'Minimum airtime purchase is ₦100 NGN.', 'warning');
       return;
     }
     if (!user?.id) {
-      Alert.alert('Authentication Required', 'Please log in to purchase airtime.');
+      modal.alert('Authentication Required', 'Please log in to purchase airtime.', 'error');
       return;
     }
 
@@ -60,18 +62,23 @@ export default function AirtimeBillScreen() {
 
       setIsSubmitting(false);
       if (res && res.success) {
-        Alert.alert(
-          'Airtime Sent! 📱⚡',
-          `Successfully recharged ₦${amount.toLocaleString()} NGN airtime to ${phoneNumber} (${selectedNetwork}).`,
-          [{ text: 'Done', onPress: () => router.replace('/(tabs)') }]
-        );
+        modal.show({
+          title: 'Airtime Sent! 📱⚡',
+          description: `Successfully recharged ₦${amount.toLocaleString()} NGN airtime to ${phoneNumber} (${selectedNetwork}).`,
+          type: 'success',
+          primaryText: 'Done',
+          onPrimaryPress: () => {
+            modal.hide();
+            router.replace('/(tabs)');
+          }
+        });
       } else {
         const errorMsg = res?.error?.message || res?.message || 'Bill payment failed';
-        Alert.alert('Purchase Failed', errorMsg);
+        modal.alert('Purchase Failed', errorMsg, 'error');
       }
     } catch (err: any) {
       setIsSubmitting(false);
-      Alert.alert('Connection Error', err?.message || 'Could not process airtime purchase.');
+      modal.alert('Connection Error', err?.message || 'Could not process airtime purchase.', 'error');
     }
   };
 
@@ -174,6 +181,7 @@ export default function AirtimeBillScreen() {
           <Text style={[Typography.bodyBold, { color: palette.bg }]}>Purchase Airtime</Text>
         )}
       </TouchableOpacity>
+      <AppModal config={modal.config} onClose={modal.hide} />
     </ScrollView>
   );
 }

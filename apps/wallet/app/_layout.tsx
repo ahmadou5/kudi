@@ -17,6 +17,7 @@ import { connectSocket, disconnectSocket } from '../lib/socket';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PrivyProvider } from '@privy-io/expo';
+import { AppModalProvider } from '../components/ui/AppModal';
 
 // Prevent splash screen from auto-hiding until fonts are loaded (Percel pattern)
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -85,14 +86,16 @@ export default function RootLayout() {
         <PrivyProvider appId={PRIVY_APP_ID}>
           <QueryClientProvider client={queryClient}>
             <ThemeProvider value={buildNavigationTheme(palette)}>
-              <StatusBar style={isLight(palette.bg) ? 'dark' : 'light'} />
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="(auth)" />
-                <Stack.Screen name="auth-lock" />
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="settings" />
-                <Stack.Screen name="qr-scanner" options={{ presentation: 'modal' }} />
-              </Stack>
+              <AppModalProvider>
+                <StatusBar style={isLight(palette.bg) ? 'dark' : 'light'} />
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="(auth)" />
+                  <Stack.Screen name="auth-lock" />
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="settings" />
+                  <Stack.Screen name="qr-scanner" options={{ presentation: 'modal' }} />
+                </Stack>
+              </AppModalProvider>
             </ThemeProvider>
           </QueryClientProvider>
         </PrivyProvider>

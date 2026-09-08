@@ -15,10 +15,12 @@ import { useAppPalette } from '../lib/theme';
 import { Typography } from '../constants/typography';
 import { useAuthStore } from '../store/auth.store';
 import { sdk } from '../src/lib/sdk';
+import { AppModal, useAppModal } from '../components/ui/AppModal';
 
 export default function KYCScreen() {
   const palette = useAppPalette();
   const user = useAuthStore(s => s.user);
+  const modal = useAppModal();
 
   const [idType, setIdType] = useState<'BVN' | 'NIN'>('BVN');
   const [idNumber, setIdNumber] = useState('');
@@ -29,11 +31,11 @@ export default function KYCScreen() {
 
   const handleSubmit = async () => {
     if (!idNumber || idNumber.length < 10) {
-      Alert.alert('Invalid ID Number', `Please enter a valid 11-digit ${idType} number.`);
+      modal.alert('Invalid ID Number', `Please enter a valid 11-digit ${idType} number.`, 'warning');
       return;
     }
     if (!user?.id) {
-      Alert.alert('Authentication Error', 'Please log in to complete KYC verification.');
+      modal.alert('Authentication Error', 'Please log in to complete KYC verification.', 'error');
       return;
     }
 
@@ -50,18 +52,23 @@ export default function KYCScreen() {
 
       setIsSubmitting(false);
       if (res && res.success) {
-        Alert.alert(
-          'Verification Successful! 🎉',
-          `Your ${idType} has been verified. Tier 2 limits (₦5,000,000 / day) and Virtual Bank Account activated!`,
-          [{ text: 'Continue to Deposit', onPress: () => router.replace('/(tabs)/deposit') }]
-        );
+        modal.show({
+          title: 'Verification Successful! 🎉',
+          description: `Your ${idType} has been verified. Tier 2 limits (₦5,000,000 / day) and Virtual Bank Account activated!`,
+          type: 'success',
+          primaryText: 'Continue to Deposit',
+          onPrimaryPress: () => {
+            modal.hide();
+            router.replace('/(tabs)/deposit');
+          }
+        });
       } else {
         const errorMsg = res?.error?.message || res?.message || 'KYC verification failed';
-        Alert.alert('Verification Failed', errorMsg);
+        modal.alert('Verification Failed', errorMsg, 'error');
       }
     } catch (err: any) {
       setIsSubmitting(false);
-      Alert.alert('Connection Error', err?.message || 'Could not verify ID.');
+      modal.alert('Connection Error', err?.message || 'Could not verify ID.', 'error');
     }
   };
 
@@ -178,6 +185,7 @@ export default function KYCScreen() {
           <Text style={[Typography.bodyBold, { color: palette.bg }]}>Submit Verification</Text>
         )}
       </TouchableOpacity>
+      <AppModal config={modal.config} onClose={modal.hide} />
     </ScrollView>
   );
 }

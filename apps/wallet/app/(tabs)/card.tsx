@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8
   },
-  patternContainer: { ...StyleSheet.absoluteFillObject },
+  patternContainer: { ...(StyleSheet.absoluteFill as any) },
   patternRingOuter: {
     position: 'absolute',
     top: -60,
