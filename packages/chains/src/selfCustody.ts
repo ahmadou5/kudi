@@ -25,7 +25,7 @@ export class SelfCustodyProvider implements CustodyProvider {
     if (this.privyAppId && this.privyAppSecret) {
       try {
         // Call Privy Server Wallet API to generate server-side wallet for user across Solana or EVM
-        const res = await fetch('https://auth.privy.io/api/v1/wallets', {
+        const res = await fetch('https://api.privy.io/v1/wallets', {
           method: 'POST',
           headers: {
             'privy-app-id': this.privyAppId,
