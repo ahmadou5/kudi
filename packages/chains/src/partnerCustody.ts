@@ -111,7 +111,7 @@ export class PartnerCustodyProvider implements CustodyProvider {
       confirmed: true,
       amount: '500.00',
       sender: `0xVASPSender_${chain}`,
-      tokenAddress: chain.includes('solana') ? 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' : '0xMockAUSDContract',
+      tokenAddress: chain.includes('solana') ? '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU' : '0xMockAUSDContract',
       blockNumber: 998877
     };
   }

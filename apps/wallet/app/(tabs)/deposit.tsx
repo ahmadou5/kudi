@@ -33,7 +33,7 @@ export default function DepositTab() {
   const [selectedChain, setSelectedChain] = useState<ChainType>('solana');
   const [selectedOffchainAcc, setSelectedOffchainAcc] = useState<'ngn' | 'usd'>('ngn');
 
-  const solanaWallet = wallets.find(w => w.chain === 'solana')?.address || 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+  const solanaWallet = wallets.find(w => w.chain === 'solana')?.address || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
   const monadWallet = wallets.find(w => w.chain.includes('monad'))?.address || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
 
   const addresses = {

@@ -17,7 +17,7 @@ export const DepositScreen: React.FC = () => {
 
       <View style={styles.walletBox}>
         <View style={styles.chainRow}>
-          <Text style={styles.chainName}>Solana Mainnet (USDC)</Text>
+          <Text style={styles.chainName}>Solana Devnet (USDC)</Text>
           <Text style={styles.chainBadge}>SOL</Text>
         </View>
         <Text style={styles.walletAddress}>Sol4kUdiDemoDepositAddress11111111111111111</Text>

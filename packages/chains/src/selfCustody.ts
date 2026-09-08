@@ -288,7 +288,7 @@ export class SelfCustodyProvider implements CustodyProvider {
             confirmed,
             amount: parsedAmount,
             sender,
-            tokenAddress: meta?.postTokenBalances[0]?.mint || 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+            tokenAddress: meta?.postTokenBalances[0]?.mint || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
             blockNumber
           };
         }
@@ -302,7 +302,7 @@ export class SelfCustodyProvider implements CustodyProvider {
       confirmed: true,
       amount: '100.00',
       sender: isEvm ? '0xMockSender' : 'SolanaMockSender',
-      tokenAddress: isEvm ? '0xMockToken' : 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+      tokenAddress: isEvm ? '0xMockToken' : '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
       blockNumber: 123456
     };
   }
