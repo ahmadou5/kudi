@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert } from 'react-native';
 import { CustomNumericKeypad } from '../components/CustomNumericKeypad';
-import { useAuthStore } from '../store/authStore';
+import { useAuthStore } from '../../store/auth.store';
 
 interface AuthLockScreenProps {
   mode?: 'light' | 'dark';

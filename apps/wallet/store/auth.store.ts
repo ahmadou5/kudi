@@ -167,15 +167,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           isLoading: false
         });
 
-        try {
-          const { authStore } = require('../src/store/authStore');
-          authStore.login({
-            id: user.id,
-            email: user.email || `${user.id}@kudi.app`,
-            fullName: user.email ? user.email.split('@')[0] : 'Kudi User'
-          });
-        } catch (e) {}
-
         return { success: true };
       } else {
         const errorMsg = response?.error?.message || response?.message || 'Invalid verification code';
@@ -215,15 +206,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           isUnlocked: true,
           isLoading: false
         });
-
-        try {
-          const { authStore } = require('../src/store/authStore');
-          authStore.login({
-            id: user.id,
-            email: user.email || `${user.id}@kudi.app`,
-            fullName: user.email ? user.email.split('@')[0] : 'Kudi User'
-          });
-        } catch (e) {}
 
         return { success: true };
       } else {

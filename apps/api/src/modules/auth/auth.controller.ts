@@ -161,15 +161,19 @@ export class AuthController {
     const custodyProvider = this.custodyManager.getActiveProvider();
     const solanaWallet = await custodyProvider.generateWallet(userId, 'solana');
     const monadWallet = await custodyProvider.generateWallet(userId, 'monad-testnet');
+    const userWallets = [solanaWallet, monadWallet];
 
     const user = this.ledgerService.registerUser(userId, phoneNumber, email);
+    // Persist wallets so they are reused on subsequent logins
+    this.ledgerService.setUserWallets(userId, userWallets);
+
     const payload = { userId: user.id, email: user.email, phoneNumber: user.phoneNumber };
     const accessToken = signAccessToken(request.server, payload);
     const refreshToken = signRefreshToken(request.server, payload);
 
     return successResponse({
       user,
-      wallets: [solanaWallet, monadWallet],
+      wallets: userWallets,
       accessToken,
       refreshToken
     });
@@ -205,15 +209,22 @@ export class AuthController {
     }
     const balance = this.ledgerService.getBalance(userId);
     const virtualAccounts = this.ledgerService.getUserVirtualAccounts(userId);
-    const custodyProvider = this.custodyManager.getActiveProvider();
-    const solanaWallet = await custodyProvider.generateWallet(userId, 'solana');
-    const monadWallet = await custodyProvider.generateWallet(userId, 'monad-testnet');
+
+    // Always reuse stored wallets — never regenerate for an existing user
+    let wallets = user.wallets && user.wallets.length > 0 ? user.wallets : null;
+    if (!wallets) {
+      const custodyProvider = this.custodyManager.getActiveProvider();
+      const solanaWallet = await custodyProvider.generateWallet(userId, 'solana');
+      const monadWallet = await custodyProvider.generateWallet(userId, 'monad-testnet');
+      wallets = [solanaWallet, monadWallet];
+      this.ledgerService.setUserWallets(userId, wallets);
+    }
 
     return successResponse({
       user,
       balanceUSDC: balance,
       balanceNGN: balance * 1585.50,
-      wallets: [solanaWallet, monadWallet],
+      wallets,
       virtualAccounts
     }, 'User profile retrieved successfully');
   };

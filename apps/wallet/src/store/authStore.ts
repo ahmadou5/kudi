@@ -1,11 +1,23 @@
 import { useState, useEffect } from 'react';
 
+export interface WalletData {
+  chain: string;
+  address: string;
+  metadata?: Record<string, any>;
+}
+
 export interface UserSession {
   id: string;
   email: string;
   fullName: string;
   phoneNumber?: string;
   pinHash?: string;
+  privyUserId?: string;
+  kycStatus?: string;
+  kycTier?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  wallets?: WalletData[];
 }
 
 // In-memory global state for React Native wallet authentication & app lock
@@ -82,7 +94,14 @@ export const authStore = {
   }
 };
 
-export function useAuthStore() {
+export function useAuthStore(): typeof authStore.state & {
+  login: typeof authStore.login;
+  logout: typeof authStore.logout;
+  lock: typeof authStore.lock;
+  unlock: typeof authStore.unlock;
+  verifyPin: typeof authStore.verifyPin;
+  setPin: typeof authStore.setPin;
+} {
   const [, setTick] = useState(0);
 
   useEffect(() => {

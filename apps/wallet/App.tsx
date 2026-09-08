@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, ScrollView, SafeAreaView, View } from 'react-native';
 import { Header } from './src/components/Header';
 import { BalanceCard } from './src/components/BalanceCard';
@@ -10,13 +10,18 @@ import { HistoryScreen } from './src/screens/HistoryScreen';
 import { OnboardingAuthScreen } from './src/screens/OnboardingAuthScreen';
 import { AuthLockScreen } from './src/screens/AuthLockScreen';
 import { useKudiWallet } from './src/hooks/useKudiWallet';
-import { useAuthStore } from './src/store/authStore';
+import { useAuthStore } from './store/auth.store';
 import { useAppFonts } from './lib/fonts';
 
 export default function App() {
   const [mode, setMode] = useState<'dark' | 'light'>('dark');
-  const { isAuthenticated, isUnlocked, lock } = useAuthStore();
+  const { isAuthenticated, isUnlocked, isLoading, lock, hydrate } = useAuthStore();
   useAppFonts();
+
+  // Restore persisted session from SecureStore on startup
+  useEffect(() => {
+    hydrate();
+  }, []);
 
   const {
     activeTab,

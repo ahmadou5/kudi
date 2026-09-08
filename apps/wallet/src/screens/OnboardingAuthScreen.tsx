@@ -7,59 +7,74 @@ import {
   TextInput,
   ActivityIndicator
 } from 'react-native';
-import { useAuthStore } from '../store/authStore';
+import { useAuthStore } from '../../store/auth.store';
 
 interface OnboardingAuthScreenProps {
   mode?: 'light' | 'dark';
 }
 
+type AuthStep = 'email' | 'otp';
+
 export const OnboardingAuthScreen: React.FC<OnboardingAuthScreenProps> = ({ mode = 'dark' }) => {
   const isLight = mode === 'light';
-  const { login } = useAuthStore();
+  const { sendPrivyOTP, verifyPrivyOTP } = useAuthStore();
 
+  const [step, setStep] = useState<AuthStep>('email');
   const [email, setEmail] = useState('');
-  const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
+  const [otp, setOtp] = useState('');
+  const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleAuthenticate = (provider: string, userEmail?: string, name?: string) => {
-    setErrorMsg(null);
-    setLoadingProvider(provider);
-
-    const targetEmail = (userEmail || email || `user_${provider.toLowerCase()}@kudi.app`).trim().toLowerCase();
-    
-    if (provider === 'Email' && (!targetEmail || !targetEmail.includes('@'))) {
+  // Step 1: send OTP to the user's email
+  const handleSendOTP = async () => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
       setErrorMsg('Please enter a valid email address');
-      setLoadingProvider(null);
       return;
     }
+    setErrorMsg(null);
+    setLoading(true);
+    const result = await sendPrivyOTP(cleanEmail);
+    setLoading(false);
+    if (result.success) {
+      setStep('otp');
+    } else {
+      setErrorMsg(result.error || 'Failed to send OTP. Please try again.');
+    }
+  };
 
-    login({
-      id: `usr_${Date.now()}`,
-      email: targetEmail,
-      fullName: name || targetEmail.split('@')[0] || `${provider} User`
-    });
-
-    setLoadingProvider(null);
+  // Step 2: verify OTP — the store handles persisting user/tokens
+  const handleVerifyOTP = async () => {
+    const cleanCode = otp.trim();
+    if (cleanCode.length < 4) {
+      setErrorMsg('Please enter the 6-digit code sent to your email');
+      return;
+    }
+    setErrorMsg(null);
+    setLoading(true);
+    const result = await verifyPrivyOTP(email.trim().toLowerCase(), cleanCode);
+    setLoading(false);
+    if (!result.success) {
+      setErrorMsg(result.error || 'Incorrect code. Please try again.');
+    }
+    // On success, the store sets isAuthenticated=true → App.tsx re-renders to main screen
   };
 
   return (
     <View style={[styles.container, { backgroundColor: isLight ? '#FFFFFF' : '#090A0F' }]}>
       {/* Top Bar */}
       <View style={styles.topBar}>
-        <TouchableOpacity
-          onPress={() => handleAuthenticate('Demo', `demo_${Date.now()}@kudi.app`, 'Demo User')}
-          style={[
-            styles.skipPill,
-            {
-              backgroundColor: isLight ? '#F1F5F9' : 'rgba(255, 255, 255, 0.1)',
-              borderColor: isLight ? '#CBD5E1' : 'rgba(255, 255, 255, 0.2)'
-            }
-          ]}
-        >
-          <Text style={[styles.skipText, { color: isLight ? '#0F172A' : '#FFFFFF' }]}>
-            Skip Login
-          </Text>
-        </TouchableOpacity>
+        {step === 'otp' ? (
+          <TouchableOpacity
+            onPress={() => { setStep('email'); setOtp(''); setErrorMsg(null); }}
+            style={[
+              styles.skipPill,
+              { backgroundColor: isLight ? '#F1F5F9' : 'rgba(255,255,255,0.1)', borderColor: isLight ? '#CBD5E1' : 'rgba(255,255,255,0.2)' }
+            ]}
+          >
+            <Text style={[styles.skipText, { color: isLight ? '#0F172A' : '#FFFFFF' }]}>← Back</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {/* Main Content */}
@@ -101,100 +116,108 @@ export const OnboardingAuthScreen: React.FC<OnboardingAuthScreenProps> = ({ mode
           </Text>
         )}
 
-        <View style={{ gap: 12 }}>
-          <TextInput
-            placeholder="Enter your email (e.g. name@example.com)"
-            placeholderTextColor={isLight ? '#94A3B8' : '#64748B'}
-            value={email}
-            onChangeText={(val) => {
-              setEmail(val);
-              if (errorMsg) setErrorMsg(null);
-            }}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={[
-              styles.emailInput,
-              {
-                backgroundColor: isLight ? '#F1F5F9' : 'rgba(255, 255, 255, 0.08)',
-                color: isLight ? '#0F172A' : '#FFFFFF',
-                borderColor: isLight ? '#CBD5E1' : 'rgba(255, 255, 255, 0.2)'
-              }
-            ]}
-          />
+        {step === 'email' ? (
+          <View style={{ gap: 12 }}>
+            <TextInput
+              placeholder="Enter your email (e.g. name@example.com)"
+              placeholderTextColor={isLight ? '#94A3B8' : '#64748B'}
+              value={email}
+              onChangeText={(val) => { setEmail(val); if (errorMsg) setErrorMsg(null); }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[
+                styles.emailInput,
+                {
+                  backgroundColor: isLight ? '#F1F5F9' : 'rgba(255, 255, 255, 0.08)',
+                  color: isLight ? '#0F172A' : '#FFFFFF',
+                  borderColor: isLight ? '#CBD5E1' : 'rgba(255, 255, 255, 0.2)'
+                }
+              ]}
+            />
 
-          <TouchableOpacity
-            onPress={() => handleAuthenticate('Email')}
-            style={[
-              styles.authBtn,
-              {
-                backgroundColor: isLight ? '#0F172A' : '#FFFFFF',
-                borderColor: isLight ? '#0F172A' : '#FFFFFF'
-              }
-            ]}
-            disabled={!!loadingProvider}
-          >
-            {loadingProvider === 'Email' ? (
-              <ActivityIndicator color={isLight ? '#FFFFFF' : '#0F172A'} />
-            ) : (
-              <Text style={[styles.authBtnText, { color: isLight ? '#FFFFFF' : '#0F172A' }]}>
-                Continue with Email
-              </Text>
-            )}
-          </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSendOTP}
+              style={[styles.authBtn, { backgroundColor: isLight ? '#0F172A' : '#FFFFFF', borderColor: isLight ? '#0F172A' : '#FFFFFF' }]}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color={isLight ? '#FFFFFF' : '#0F172A'} />
+              ) : (
+                <Text style={[styles.authBtnText, { color: isLight ? '#FFFFFF' : '#0F172A' }]}>Continue with Email</Text>
+              )}
+            </TouchableOpacity>
 
-          <View style={styles.dividerRow}>
-            <View style={[styles.line, { backgroundColor: isLight ? '#CBD5E1' : 'rgba(255, 255, 255, 0.2)' }]} />
-            <Text style={{ color: isLight ? '#64748B' : '#94A3B8', fontSize: 12 }}>or social sign in</Text>
-            <View style={[styles.line, { backgroundColor: isLight ? '#CBD5E1' : 'rgba(255, 255, 255, 0.2)' }]} />
+            <View style={styles.dividerRow}>
+              <View style={[styles.line, { backgroundColor: isLight ? '#CBD5E1' : 'rgba(255, 255, 255, 0.2)' }]} />
+              <Text style={{ color: isLight ? '#64748B' : '#94A3B8', fontSize: 12 }}>or social sign in</Text>
+              <View style={[styles.line, { backgroundColor: isLight ? '#CBD5E1' : 'rgba(255, 255, 255, 0.2)' }]} />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.authBtn, { backgroundColor: isLight ? '#FFFFFF' : 'rgba(255,255,255,0.05)', borderColor: isLight ? '#CBD5E1' : 'rgba(255,255,255,0.2)', opacity: 0.5 }]}
+              disabled
+            >
+              <Text style={styles.authIcon}>🌐</Text>
+              <Text style={[styles.authBtnText, { color: isLight ? '#0F172A' : '#FFFFFF' }]}>Continue with Google</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.authBtn, { backgroundColor: isLight ? '#FFFFFF' : 'rgba(255,255,255,0.05)', borderColor: isLight ? '#CBD5E1' : 'rgba(255,255,255,0.2)', opacity: 0.5 }]}
+              disabled
+            >
+              <Text style={[styles.authIcon, { color: isLight ? '#0F172A' : '#FFFFFF' }]}></Text>
+              <Text style={[styles.authBtnText, { color: isLight ? '#0F172A' : '#FFFFFF' }]}>Continue with Apple</Text>
+            </TouchableOpacity>
           </View>
+        ) : (
+          <View style={{ gap: 12 }}>
+            <Text style={{ color: isLight ? '#475569' : '#94A3B8', fontSize: 14, textAlign: 'center' }}>
+              Enter the 6-digit code sent to{' '}
+              <Text style={{ fontWeight: '700', color: isLight ? '#0F172A' : '#FFFFFF' }}>{email}</Text>
+            </Text>
 
-          <TouchableOpacity
-            onPress={() => handleAuthenticate('Google', email || `user_google_${Date.now()}@gmail.com`, 'Google User')}
-            style={[
-              styles.authBtn,
-              {
-                backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.05)',
-                borderColor: isLight ? '#CBD5E1' : 'rgba(255, 255, 255, 0.2)'
-              }
-            ]}
-            disabled={!!loadingProvider}
-          >
-            {loadingProvider === 'Google' ? (
-              <ActivityIndicator color={isLight ? '#0F172A' : '#FFFFFF'} />
-            ) : (
-              <>
-                <Text style={styles.authIcon}>🌐</Text>
-                <Text style={[styles.authBtnText, { color: isLight ? '#0F172A' : '#FFFFFF' }]}>
-                  Continue with Google
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
+            <TextInput
+              placeholder="000000"
+              placeholderTextColor={isLight ? '#94A3B8' : '#64748B'}
+              value={otp}
+              onChangeText={(val) => { setOtp(val.replace(/[^0-9]/g, '').slice(0, 6)); if (errorMsg) setErrorMsg(null); }}
+              keyboardType="number-pad"
+              maxLength={6}
+              textAlign="center"
+              style={[
+                styles.emailInput,
+                {
+                  backgroundColor: isLight ? '#F1F5F9' : 'rgba(255,255,255,0.08)',
+                  color: isLight ? '#0F172A' : '#FFFFFF',
+                  borderColor: isLight ? '#CBD5E1' : 'rgba(255,255,255,0.2)',
+                  fontSize: 28,
+                  letterSpacing: 12,
+                  fontWeight: '700'
+                }
+              ]}
+            />
 
-          <TouchableOpacity
-            onPress={() => handleAuthenticate('Apple', email || `user_apple_${Date.now()}@icloud.com`, 'Apple User')}
-            style={[
-              styles.authBtn,
-              {
-                backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.05)',
-                borderColor: isLight ? '#CBD5E1' : 'rgba(255, 255, 255, 0.2)'
-              }
-            ]}
-            disabled={!!loadingProvider}
-          >
-            {loadingProvider === 'Apple' ? (
-              <ActivityIndicator color={isLight ? '#0F172A' : '#FFFFFF'} />
-            ) : (
-              <>
-                <Text style={[styles.authIcon, { color: isLight ? '#0F172A' : '#FFFFFF' }]}></Text>
-                <Text style={[styles.authBtnText, { color: isLight ? '#0F172A' : '#FFFFFF' }]}>
-                  Continue with Apple
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              onPress={handleVerifyOTP}
+              style={[styles.authBtn, { backgroundColor: isLight ? '#0F172A' : '#FFFFFF', borderColor: isLight ? '#0F172A' : '#FFFFFF' }]}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color={isLight ? '#FFFFFF' : '#0F172A'} />
+              ) : (
+                <Text style={[styles.authBtnText, { color: isLight ? '#FFFFFF' : '#0F172A' }]}>Verify Code</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={handleSendOTP} disabled={loading} style={{ alignItems: 'center', paddingVertical: 8 }}>
+              <Text style={{ color: isLight ? '#64748B' : '#94A3B8', fontSize: 13 }}>
+                Didn't receive it?{' '}
+                <Text style={{ fontWeight: '700', color: isLight ? '#0F172A' : '#FFFFFF' }}>Resend code</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </View>
   );
