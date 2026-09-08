@@ -211,6 +211,9 @@ importers:
       expo-auth-session:
         specifier: ^57.0.11
         version: 57.0.11(expo@57.0.20)(react-native@0.86.3)(react@19.2.3)
+      expo-camera:
+        specifier: ^57.0.4
+        version: 57.0.4(@types/emscripten@1.41.6)(expo@57.0.20)(react-native-web@0.21.2)(react-native@0.86.3)(react@19.2.3)
       expo-clipboard:
         specifier: ^57.0.1
         version: 57.0.1(expo@57.0.20)(react-native@0.86.3)(react@19.2.3)
@@ -3882,6 +3885,10 @@ packages:
     dependencies:
       '@types/node': 20.19.43
 
+  /@types/emscripten@1.41.6:
+    resolution: {integrity: sha512-uN+9i8bFT5CUcZfyIEYDrSueACEyKGbUs5kC/72DGlZZoinh84sJfVV0i8UOJD1asdzkvLPBRrKs41kZ8MdEXg==}
+    dev: false
+
   /@types/estree@1.0.9:
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
     dev: true
@@ -4361,6 +4368,14 @@ packages:
   /balanced-match@4.0.4:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
     engines: {node: 18 || 20 || >=22}
+    dev: false
+
+  /barcode-detector@3.2.2(@types/emscripten@1.41.6):
+    resolution: {integrity: sha512-/4QOrrNrCRmDSBWiiP4aC72dnkuXUEdcFRidHgbPRXUpy82XcCMvJssI6fEs6JT42LS7DvBVZO70qasJbYKyrA==}
+    dependencies:
+      zxing-wasm: 3.1.3(@types/emscripten@1.41.6)
+    transitivePeerDependencies:
+      - '@types/emscripten'
     dev: false
 
   /base64-js@1.5.1:
@@ -5456,6 +5471,26 @@ packages:
     transitivePeerDependencies:
       - expo
       - supports-color
+    dev: false
+
+  /expo-camera@57.0.4(@types/emscripten@1.41.6)(expo@57.0.20)(react-native-web@0.21.2)(react-native@0.86.3)(react@19.2.3):
+    resolution: {integrity: sha512-MqbbQ63O+cA8JbK3lfFHiD0f2jv8jB+EG/ILK6f5xnOPV9IR37yaG5+lGtRZNoOeYBzGypyOi17USItleMyuGw==}
+    peerDependencies:
+      expo: '*'
+      react: '*'
+      react-native: '*'
+      react-native-web: '*'
+    peerDependenciesMeta:
+      react-native-web:
+        optional: true
+    dependencies:
+      barcode-detector: 3.2.2(@types/emscripten@1.41.6)
+      expo: 57.0.20(@babel/core@7.29.7)(@expo/dom-webview@57.0.1)(@expo/metro-runtime@57.0.15)(expo-router@57.0.19)(react-dom@19.2.3)(react-native-web@0.21.2)(react-native-webview@14.0.1)(react-native-worklets@0.10.4)(react-native@0.86.3)(react@19.2.3)(typescript@6.0.3)
+      react: 19.2.3
+      react-native: 0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1)(@types/react@19.2.18)(react@19.2.3)
+      react-native-web: 0.21.2(react-dom@19.2.3)(react@19.2.3)
+    transitivePeerDependencies:
+      - '@types/emscripten'
     dev: false
 
   /expo-clipboard@57.0.1(expo@57.0.20)(react-native@0.86.3)(react@19.2.3):
@@ -9459,6 +9494,11 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
+  /tagged-tag@1.0.0:
+    resolution: {integrity: sha512-yEFYrVhod+hdNyx7g5Bnkkb0G6si8HJurOoOEgC8B/O0uXLHlaey/65KRv6cuWBNhBgHKAROVpc7QyYqE5gFng==}
+    engines: {node: '>=20'}
+    dev: false
+
   /tailwindcss@3.4.19:
     resolution: {integrity: sha512-3ofp+LL8E+pK/JuPLPggVAIaEuhvIz4qNcf3nA1Xn2o/7fb7s/TYpHhwGDv1ZU3PkBluUVaF8PyCHcm48cKLWQ==}
     engines: {node: '>=14.0.0'}
@@ -9773,6 +9813,13 @@ packages:
   /type-fest@0.7.1:
     resolution: {integrity: sha512-Ne2YiiGN8bmrmJJEuTWTLJR32nh/JdL1+PSicowtNb0WFpn59GK8/lfD61bVtzguz7b3PBt74nxpv/Pw5po5Rg==}
     engines: {node: '>=8'}
+    dev: false
+
+  /type-fest@5.9.0:
+    resolution: {integrity: sha512-yANm3Jr3GiJ1qgJlxGAVxTOIcEOk1rhQHamlXtnrCK7EHP4HeM9OGxtMg/W7HFdrVzw/ZWJKGVIJusVH85sLtw==}
+    engines: {node: '>=20'}
+    dependencies:
+      tagged-tag: 1.0.0
     dev: false
 
   /typed-array-buffer@1.0.3:
@@ -10227,4 +10274,13 @@ packages:
     dependencies:
       '@types/react': 19.2.18
       react: 19.2.3
+    dev: false
+
+  /zxing-wasm@3.1.3(@types/emscripten@1.41.6):
+    resolution: {integrity: sha512-3lC9BJk4fR5ZJxcGjb0hVnDFOW7KpLXHIebiBmVd4FDRQZVeObztoTKxRUPxlWwSgxrMRONK0u50hBD1aTYEKg==}
+    peerDependencies:
+      '@types/emscripten': '>=1.39.6'
+    dependencies:
+      '@types/emscripten': 1.41.6
+      type-fest: 5.9.0
     dev: false

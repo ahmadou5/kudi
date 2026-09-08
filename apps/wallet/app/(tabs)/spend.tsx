@@ -14,7 +14,7 @@ import {
   Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useAppPalette } from '../../lib/theme';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
 import { Typography } from '../../constants/typography';
@@ -43,6 +43,7 @@ export default function SpendTab() {
   const palette = useAppPalette();
   const isDark = palette.text === '#FFFFFF';
   const { balanceUSDC, rateNGN, resolveAccount, spendToBank } = useKudiWallet();
+  const params = useLocalSearchParams<{ address?: string }>();
 
   // Spend Mode States
   const [spendType, setSpendType] = useState<SpendType>('select');
@@ -61,6 +62,20 @@ export default function SpendTab() {
   const [pin, setPin] = useState('1234');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [bankPickerOpen, setBankPickerOpen] = useState(false);
+
+  // Handle auto-prefill from QR Scanner
+  useEffect(() => {
+    if (params?.address) {
+      const scannedAddr = params.address;
+      setOnchainAddress(scannedAddr);
+      setSpendType('onchain');
+      if (scannedAddr.startsWith('0x')) {
+        setOnchainChain('monad');
+      } else {
+        setOnchainChain('solana');
+      }
+    }
+  }, [params?.address]);
 
   const selectedBank = NIGERIAN_BANKS.find((b) => b.code === bankCode) || NIGERIAN_BANKS[0];
 
