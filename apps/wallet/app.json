@@ -14,7 +14,8 @@
       "bundleIdentifier": "com.kudi.app"
     },
     "android": {
-      "package": "com.kudi.app"
+      "package": "com.kudi.app",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "bundler": "metro"

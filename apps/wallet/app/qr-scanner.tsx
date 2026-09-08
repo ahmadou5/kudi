@@ -12,21 +12,24 @@ import { Ionicons } from '@expo/vector-icons';
 import { Typography } from '../constants/typography';
 import { useAppPalette } from '../lib/theme';
 import { Colors } from '../constants/palette';
+import { AppModal, useAppModal } from '../components/ui/AppModal';
 
 export default function QRScannerScreen() {
   const [torchOn, setTorchOn] = useState(false);
   const palette = useAppPalette();
+  const modal = useAppModal();
+
   const handleToggleTorch = () => {
     setTorchOn((prev) => !prev);
-    Alert.alert('Flashlight', torchOn ? 'Flashlight turned off' : 'Flashlight turned on');
+    modal.alert('Flashlight', torchOn ? 'Flashlight turned off' : 'Flashlight turned on', 'info');
   };
 
   const handlePickGallery = () => {
-    Alert.alert('Gallery', 'Select a QR code image from your photo library');
+    modal.alert('Gallery', 'Select a QR code image from your photo library', 'info');
   };
 
   const handlePasteClipboard = () => {
-    Alert.alert('Clipboard', 'Scanned wallet address pasted from clipboard: 0x71C...4b82');
+    modal.alert('Clipboard', 'Scanned wallet address pasted from clipboard: 0x71C...4b82', 'info');
   };
 
   return (
@@ -78,6 +81,7 @@ export default function QRScannerScreen() {
           <Text style={[Typography.subhead, styles.actionLabel]}>Paste</Text>
         </TouchableOpacity>
       </View>
+      <AppModal config={modal.config} onClose={modal.hide} />
     </SafeAreaView>
   );
 }

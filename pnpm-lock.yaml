@@ -177,7 +177,7 @@ importers:
         version: link:../../packages/types
       '@privy-io/expo':
         specifier: ^0.72.0
-        version: 0.72.0(@privy-io/expo-native-extensions@0.0.12)(@types/react@19.2.18)(expo-apple-authentication@57.0.1)(expo-application@57.0.2)(expo-crypto@57.0.2)(expo-linking@57.0.9)(expo-secure-store@57.0.3)(expo-web-browser@57.0.2)(react-native-passkeys@0.4.2)(react-native-safe-area-context@5.7.0)(react-native-svg@15.15.5)(react-native-webview@14.0.1)(react-native@0.86.3)(react@19.2.3)(typescript@6.0.3)(viem@2.56.0)
+        version: 0.72.0(@privy-io/expo-native-extensions@0.0.12)(@types/react@19.2.18)(expo-apple-authentication@57.0.1)(expo-application@57.0.2)(expo-clipboard@7.1.5)(expo-crypto@57.0.2)(expo-linking@57.0.9)(expo-secure-store@57.0.3)(expo-web-browser@57.0.2)(react-native-passkeys@0.4.2)(react-native-safe-area-context@5.7.0)(react-native-svg@15.15.5)(react-native-webview@14.0.1)(react-native@0.86.3)(react@19.2.3)(typescript@6.0.3)(viem@2.56.0)
       '@privy-io/expo-native-extensions':
         specifier: ^0.0.12
         version: 0.0.12(expo@57.0.20)(react-native@0.86.3)(react@19.2.3)
@@ -211,6 +211,9 @@ importers:
       expo-auth-session:
         specifier: ^57.0.11
         version: 57.0.11(expo@57.0.20)(react-native@0.86.3)(react@19.2.3)
+      expo-clipboard:
+        specifier: ^7.0.0
+        version: 7.1.5(expo@57.0.20)(react-native@0.86.3)(react@19.2.3)
       expo-constants:
         specifier: ^57.0.17
         version: 57.0.17(expo@57.0.20)(react-native@0.86.3)
@@ -2785,7 +2788,7 @@ packages:
       react-native: 0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1)(@types/react@19.2.18)(react@19.2.3)
     dev: false
 
-  /@privy-io/expo@0.72.0(@privy-io/expo-native-extensions@0.0.12)(@types/react@19.2.18)(expo-apple-authentication@57.0.1)(expo-application@57.0.2)(expo-crypto@57.0.2)(expo-linking@57.0.9)(expo-secure-store@57.0.3)(expo-web-browser@57.0.2)(react-native-passkeys@0.4.2)(react-native-safe-area-context@5.7.0)(react-native-svg@15.15.5)(react-native-webview@14.0.1)(react-native@0.86.3)(react@19.2.3)(typescript@6.0.3)(viem@2.56.0):
+  /@privy-io/expo@0.72.0(@privy-io/expo-native-extensions@0.0.12)(@types/react@19.2.18)(expo-apple-authentication@57.0.1)(expo-application@57.0.2)(expo-clipboard@7.1.5)(expo-crypto@57.0.2)(expo-linking@57.0.9)(expo-secure-store@57.0.3)(expo-web-browser@57.0.2)(react-native-passkeys@0.4.2)(react-native-safe-area-context@5.7.0)(react-native-svg@15.15.5)(react-native-webview@14.0.1)(react-native@0.86.3)(react@19.2.3)(typescript@6.0.3)(viem@2.56.0):
     resolution: {integrity: sha512-Kj5X4RyYutYsGMaAgWIT5ojkt4RJLurvQbOcpMBAUVU28XCqqFdZj/XK8dph8hJAwdykkl1Ob0ENiNalyHEUpw==}
     peerDependencies:
       '@privy-io/expo-native-extensions': 0.0.12
@@ -2836,6 +2839,7 @@ packages:
       '@scure/base': 1.2.6
       expo-apple-authentication: 57.0.1(expo@57.0.20)(react-native@0.86.3)(react@19.2.3)
       expo-application: 57.0.2(expo@57.0.20)
+      expo-clipboard: 7.1.5(expo@57.0.20)(react-native@0.86.3)(react@19.2.3)
       expo-crypto: 57.0.2(expo@57.0.20)
       expo-linking: 57.0.9(expo@57.0.20)(react-native@0.86.3)(react@19.2.3)
       expo-secure-store: 57.0.3(expo@57.0.20)
@@ -5452,6 +5456,18 @@ packages:
     transitivePeerDependencies:
       - expo
       - supports-color
+    dev: false
+
+  /expo-clipboard@7.1.5(expo@57.0.20)(react-native@0.86.3)(react@19.2.3):
+    resolution: {integrity: sha512-TCANUGOxouoJXxKBW5ASJl2WlmQLGpuZGemDCL2fO5ZMl57DGTypUmagb0CVUFxDl0yAtFIcESd78UsF9o64aw==}
+    peerDependencies:
+      expo: '*'
+      react: '*'
+      react-native: '*'
+    dependencies:
+      expo: 57.0.20(@babel/core@7.29.7)(@expo/dom-webview@57.0.1)(@expo/metro-runtime@57.0.15)(expo-router@57.0.19)(react-dom@19.2.3)(react-native-web@0.21.2)(react-native-webview@14.0.1)(react-native-worklets@0.10.4)(react-native@0.86.3)(react@19.2.3)(typescript@6.0.3)
+      react: 19.2.3
+      react-native: 0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1)(@types/react@19.2.18)(react@19.2.3)
     dev: false
 
   /expo-constants@57.0.17(expo@57.0.20)(react-native@0.86.3):

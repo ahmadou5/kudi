@@ -14,12 +14,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppPalette, isLight } from '../../lib/theme';
 import { usePreferencesStore, PreferencesState } from '../../store/preferences.store';
 import { Typography } from '../../constants/typography';
+import { AppModal, useAppModal } from '../../components/ui/AppModal';
 
 export default function SecurityScreen() {
   const palette = useAppPalette();
   const light = isLight(palette.bg);
   const appLockEnabled = usePreferencesStore((s: PreferencesState) => s.appLockEnabled);
   const setAppLockEnabled = usePreferencesStore((s: PreferencesState) => s.setAppLockEnabled);
+  const modal = useAppModal();
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
@@ -43,7 +45,7 @@ export default function SecurityScreen() {
         <View style={[styles.cardGroup, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <TouchableOpacity
             style={[styles.rowItem, { borderBottomColor: palette.border }]}
-            onPress={() => Alert.alert('Change PIN', 'Enter your current 4-digit PIN to set a new one.')}
+            onPress={() => modal.alert('Change PIN', 'Enter your current 4-digit PIN to set a new one.', 'info')}
             activeOpacity={0.7}
           >
             <View style={styles.itemLeft}>
@@ -78,6 +80,7 @@ export default function SecurityScreen() {
             />
           </View>
         </View>
+        <AppModal config={modal.config} onClose={modal.hide} />
       </ScrollView>
     </SafeAreaView>
   );

@@ -4,9 +4,11 @@ import { router } from 'expo-router';
 import { useAppPalette } from '../lib/theme';
 import { useAuthStore, AuthState } from '../store/auth.store';
 import { CustomNumericKeypad } from '../components/ui/CustomNumericKeypad';
+import { AppModal, useAppModal } from '../components/ui/AppModal';
 
 export default function AuthLockScreen() {
   const palette = useAppPalette();
+  const modal = useAppModal();
   const user = useAuthStore((s: AuthState) => s.user);
   const isAuthenticated = useAuthStore((s: AuthState) => s.isAuthenticated);
   const isUnlocked = useAuthStore((s: AuthState) => s.isUnlocked);
@@ -54,20 +56,19 @@ export default function AuthLockScreen() {
   };
 
   const triggerBiometric = () => {
-    Alert.alert(
-      'Biometric Fingerprint Scanner',
-      'Scanning fingerprint to unlock Kudi Wallet...',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Authenticate',
-          onPress: () => {
-            unlock();
-            router.replace('/(tabs)');
-          }
-        }
-      ]
-    );
+    modal.show({
+      title: 'Biometric Scanner 👆',
+      description: 'Scanning fingerprint to unlock Kudi Wallet...',
+      type: 'info',
+      primaryText: 'Authenticate',
+      onPrimaryPress: () => {
+        modal.hide();
+        unlock();
+        router.replace('/(tabs)');
+      },
+      secondaryText: 'Cancel',
+      onSecondaryPress: modal.hide,
+    });
   };
 
   return (
@@ -127,6 +128,7 @@ export default function AuthLockScreen() {
             onDelete={removeDigit}
             onBiometricPress={triggerBiometric}
           />
+          <AppModal config={modal.config} onClose={modal.hide} />
         </View>
 
         <Pressable style={{ marginTop: 12 }}>

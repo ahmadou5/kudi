@@ -18,6 +18,8 @@ import { router } from 'expo-router';
 import { useAppPalette } from '../../lib/theme';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
 import { Typography } from '../../constants/typography';
+import { AppModal, useAppModal } from '../../components/ui/AppModal';
+import { ChainLogo } from '../../components/ui/ChainLogo';
 
 type SpendType = 'select' | 'offchain' | 'onchain';
 type OffchainSubMode = 'BANK' | 'INTERAPP';
@@ -87,20 +89,22 @@ export default function SpendTab() {
     }
   }, [recipientHandle, offchainMode]);
 
+  const modal = useAppModal();
+
   const handleExecuteSpend = async () => {
     const amt = parseFloat(usdcAmount) || 0;
     if (amt <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid USDC amount to send.');
+      modal.alert('Invalid Amount', 'Please enter a valid USDC amount to send.', 'warning');
       return;
     }
 
     if (amt > parseFloat(balanceUSDC)) {
-      Alert.alert('Insufficient Balance', `Your balance is $${balanceUSDC} USDC.`);
+      modal.alert('Insufficient Balance', `Your balance is $${balanceUSDC} USDC.`, 'warning');
       return;
     }
 
     if (pin.length < 4) {
-      Alert.alert('Invalid PIN', 'Please enter your 4-digit transaction PIN.');
+      modal.alert('Invalid PIN', 'Please enter your 4-digit transaction PIN.', 'warning');
       return;
     }
 
@@ -109,31 +113,34 @@ export default function SpendTab() {
         setStatusMessage('Processing instant bank transfer payout...');
         await spendToBank(amt, bankCode, accountNumber, accountName, pin);
         setStatusMessage(`Successfully sent ₦${calculateNGN()} NGN to ${accountName}!`);
-        Alert.alert(
-          'Transfer Successful',
-          `Sent ₦${calculateNGN()} NGN to ${accountName} (${selectedBank.name}).`
+        modal.alert(
+          'Transfer Successful 🎉',
+          `Sent ₦${calculateNGN()} NGN to ${accountName} (${selectedBank.name}).`,
+          'success'
         );
       } else {
         setStatusMessage(`Sending $${amt} USDC to ${resolvedUser || recipientHandle}...`);
         setTimeout(() => {
           setStatusMessage(`Successfully sent $${amt} USDC float to ${resolvedUser || recipientHandle}!`);
-          Alert.alert(
-            'Inter-App Transfer Sent',
-            `Successfully transferred $${amt} USDC to ${resolvedUser || recipientHandle}.`
+          modal.alert(
+            'Inter-App Transfer Sent 🎉',
+            `Successfully transferred $${amt} USDC to ${resolvedUser || recipientHandle}.`,
+            'success'
           );
         }, 800);
       }
     } else {
       if (!onchainAddress || onchainAddress.length < 10) {
-        Alert.alert('Invalid Address', 'Please enter a valid on-chain wallet address.');
+        modal.alert('Invalid Address', 'Please enter a valid on-chain wallet address.', 'warning');
         return;
       }
       setStatusMessage(`Broadcasting $${amt} ${onchainChain === 'solana' ? 'USDC' : 'AUSD'} to ${onchainChain.toUpperCase()} network...`);
       setTimeout(() => {
         setStatusMessage(`On-Chain transfer confirmed! Reference: TX_${Math.floor(Math.random() * 899999 + 100000)}`);
-        Alert.alert(
-          'On-Chain Transfer Confirmed',
-          `Transferred $${amt} ${onchainChain === 'solana' ? 'USDC' : 'AUSD'} to:\n${onchainAddress}`
+        modal.alert(
+          'On-Chain Transfer Confirmed 🔗',
+          `Transferred $${amt} ${onchainChain === 'solana' ? 'USDC' : 'AUSD'} to:\n${onchainAddress}`,
+          'success'
         );
       }, 1000);
     }
@@ -492,7 +499,7 @@ export default function SpendTab() {
                 }
               ]}
             >
-              <Image source={require('../../assets/logos/solana.png')} style={styles.switcherLogo} />
+              <ChainLogo chain="solana" size={18} />
               <Text
                 style={[
                   Typography.footnote,
@@ -502,7 +509,7 @@ export default function SpendTab() {
                   }
                 ]}
               >
-                Solana (USDC)
+                Solana Devnet (USDC)
               </Text>
             </TouchableOpacity>
 
@@ -519,7 +526,7 @@ export default function SpendTab() {
                 }
               ]}
             >
-              <Ionicons name="cube" size={16} color={onchainChain === 'monad' ? '#9945FF' : palette.textSecondary} />
+              <ChainLogo chain="monad" size={18} />
               <Text
                 style={[
                   Typography.footnote,
@@ -529,7 +536,7 @@ export default function SpendTab() {
                   }
                 ]}
               >
-                Monad (AUSD)
+                Monad Testnet (AUSD)
               </Text>
             </TouchableOpacity>
           </View>
@@ -626,6 +633,7 @@ export default function SpendTab() {
           </View>
         </View>
       </Modal>
+      <AppModal config={modal.config} onClose={modal.hide} />
     </ScrollView>
   </KeyboardAvoidingView>
   );

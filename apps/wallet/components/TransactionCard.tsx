@@ -3,8 +3,9 @@ import { StyleSheet, Text, View, TouchableOpacity, Image, ImageSourcePropType } 
 import { Ionicons } from '@expo/vector-icons';
 import { useAppPalette } from '../lib/theme';
 import { Typography } from '../constants/typography';
+import { ChainLogo } from './ui/ChainLogo';
 
-export type BrandProvider = 'usdc' | 'solana' | 'mtn' | 'airtel' | 'glo' | '9mobile' | 'electricity' | 'gtbank' | 'zenith' | 'paystack' | 'monnify' | 'generic';
+export type BrandProvider = 'usdc' | 'solana' | 'monad' | 'mtn' | 'airtel' | 'glo' | '9mobile' | 'electricity' | 'gtbank' | 'zenith' | 'paystack' | 'monnify' | 'generic';
 
 const BRAND_LOGOS: Record<string, ImageSourcePropType> = {
   usdc: require('../assets/logos/usdc.png'),
@@ -43,6 +44,7 @@ function detectProvider(item: TransactionData): BrandProvider {
   const text = `${item.title} ${item.subtitle || ''} ${item.secondaryAmount || ''} ${item.ref || ''}`.toLowerCase();
 
   if (text.includes('solana')) return 'solana';
+  if (text.includes('monad') || text.includes('ausd')) return 'monad';
   if (text.includes('mtn')) return 'mtn';
   if (text.includes('airtel')) return 'airtel';
   if (text.includes('glo')) return 'glo';
@@ -79,6 +81,14 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
     : '#F43F5E';
 
   const renderBrandIcon = () => {
+    if (provider === 'monad') {
+      return (
+        <View style={[styles.brandContainer, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: palette.border, borderWidth: 1 }]}>
+          <ChainLogo chain="monad" size={24} />
+        </View>
+      );
+    }
+
     const logoSource = BRAND_LOGOS[provider];
 
     if (logoSource) {

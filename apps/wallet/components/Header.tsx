@@ -8,6 +8,7 @@ import { Typography } from '../constants/typography';
 
 import { Image, Text } from 'react-native';
 import { useAuthStore } from '../store/auth.store';
+import { ChainLogo } from './ui/ChainLogo';
 
 export interface HeaderProps {
   onOpenScanner?: () => void;
@@ -80,6 +81,23 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
 
       {/* Top Right Actions */}
       <View style={styles.rightActions}>
+        {/* Network Badge */}
+        <TouchableOpacity
+          onPress={() => router.push('/(tabs)/deposit')}
+          style={[styles.networkPill, { backgroundColor: isDark ? 'rgba(153, 69, 255, 0.15)' : '#F1F5F9', borderColor: isDark ? 'rgba(153, 69, 255, 0.3)' : '#CBD5E1' }]}
+          activeOpacity={0.7}
+        >
+          <View style={styles.chainLogosOverlap}>
+            <ChainLogo chain="solana" size={14} />
+            <View style={{ marginLeft: -4 }}>
+              <ChainLogo chain="monad" size={14} />
+            </View>
+          </View>
+          <Text style={[Typography.caption, { color: isDark ? '#A78BFA' : '#0F172A', fontSize: 10, fontWeight: '700' }]}>
+            Devnet
+          </Text>
+        </TouchableOpacity>
+
         {/* Theme Toggle Button */}
         <TouchableOpacity
           onPress={toggleTheme}
@@ -132,6 +150,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8
+  },
+  networkPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1
+  },
+  chainLogosOverlap: {
+    flexDirection: 'row',
+    alignItems: 'center'
   },
   profileGreetingTouch: {
     flexDirection: 'row',

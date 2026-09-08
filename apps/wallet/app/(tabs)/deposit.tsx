@@ -11,7 +11,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAppPalette } from '../../lib/theme';
+import { useKudiWallet } from '../../src/hooks/useKudiWallet';
 import { Typography } from '../../constants/typography';
+import { AppModal, useAppModal } from '../../components/ui/AppModal';
+import { ChainLogo } from '../../components/ui/ChainLogo';
+import * as Clipboard from 'expo-clipboard';
 
 import { useVirtualAccounts } from '../../src/hooks/useVirtualAccounts';
 import { useAuthStore } from '../../store/auth.store';
@@ -78,8 +82,15 @@ export default function DepositTab() {
   ];
 
 
-  const handleCopy = (text: string, label: string) => {
-    Alert.alert('Copied to Clipboard', `${label}:\n${text}`);
+  const modal = useAppModal();
+
+  const handleCopy = async (text: string, label: string) => {
+    try {
+      await Clipboard.setStringAsync(text);
+    } catch (err) {
+      console.warn('Clipboard setStringAsync error:', err);
+    }
+    modal.alert('Copied to Clipboard', `${label}:\n${text}`, 'success');
   };
 
   // Render Background Pattern Layer for Cards
@@ -264,7 +275,7 @@ export default function DepositTab() {
                 }
               ]}
             >
-              <Image source={require('../../assets/logos/solana.png')} style={styles.switcherLogo} />
+              <ChainLogo chain="solana" size={18} />
               <Text
                 style={[
                   Typography.footnote,
@@ -274,7 +285,7 @@ export default function DepositTab() {
                   }
                 ]}
               >
-                Solana (USDC)
+                Solana Devnet (USDC)
               </Text>
             </TouchableOpacity>
 
@@ -291,7 +302,7 @@ export default function DepositTab() {
                 }
               ]}
             >
-              <Ionicons name="cube" size={16} color={selectedChain === 'monad' ? '#9945FF' : palette.textSecondary} />
+              <ChainLogo chain="monad" size={18} />
               <Text
                 style={[
                   Typography.footnote,
@@ -301,7 +312,7 @@ export default function DepositTab() {
                   }
                 ]}
               >
-                Monad (AUSD)
+                Monad Testnet (AUSD)
               </Text>
             </TouchableOpacity>
           </View>
@@ -504,6 +515,7 @@ export default function DepositTab() {
           </View>
         );
       })()}
+      <AppModal config={modal.config} onClose={modal.hide} />
     </ScrollView>
   );
 }

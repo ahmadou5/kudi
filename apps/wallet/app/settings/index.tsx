@@ -16,6 +16,7 @@ import { usePreferencesStore, PreferencesState } from '../../store/preferences.s
 import { useAuthStore, AuthState } from '../../store/auth.store';
 import { Typography } from '../../constants/typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppModal, useAppModal } from '../../components/ui/AppModal';
 
 export default function SettingsScreen() {
   const palette = useAppPalette();
@@ -27,29 +28,29 @@ export default function SettingsScreen() {
   const [searchPrivacy, setSearchPrivacy] = useState(false);
   const [shareAnalytics, setShareAnalytics] = useState(true);
 
+  const modal = useAppModal();
+
   const handleLogout = () => {
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out of Kudi?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Log Out',
-          style: 'destructive',
-          onPress: () => {
-            logout();
-            router.replace('/(auth)/welcome');
-          }
-        }
-      ]
-    );
+    modal.show({
+      title: 'Log Out',
+      description: 'Are you sure you want to log out of Kudi?',
+      type: 'warning',
+      primaryText: 'Log Out',
+      onPrimaryPress: () => {
+        modal.hide();
+        logout();
+        router.replace('/(auth)/welcome');
+      },
+      secondaryText: 'Cancel',
+      onSecondaryPress: modal.hide,
+    });
   };
 
   const handleCloseAccount = () => {
-    Alert.alert(
+    modal.alert(
       'Close Account',
       'Closing your account is permanent and cannot be undone. Please contact Kudi support to process account closure.',
-      [{ text: 'OK' }]
+      'warning'
     );
   };
 
@@ -114,7 +115,7 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={[styles.rowItem, { borderBottomColor: palette.border }]}
-            onPress={() => Alert.alert('Statements', 'Account statements & history CSV exported')}
+            onPress={() => modal.alert('Statements', 'Account statements & history CSV exported', 'info')}
             activeOpacity={0.7}
           >
             <View style={styles.itemLeft}>
@@ -172,7 +173,7 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={styles.rowItem}
-            onPress={() => Alert.alert('Support', 'Contacting Kudi support: support@kudi.app')}
+            onPress={() => modal.alert('Support', 'Contacting Kudi support: support@kudi.app', 'info')}
             activeOpacity={0.7}
           >
             <View style={styles.itemLeft}>
@@ -223,6 +224,7 @@ export default function SettingsScreen() {
         <Text style={[Typography.footnote, styles.versionFooter, { color: palette.textSecondary }]}>
           v1.2.0-54 (Expo SDK 54)
         </Text>
+        <AppModal config={modal.config} onClose={modal.hide} />
       </ScrollView>
     </SafeAreaView>
   );

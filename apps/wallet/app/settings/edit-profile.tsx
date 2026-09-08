@@ -20,6 +20,7 @@ import { useAppPalette, isLight } from '../../lib/theme';
 import { useAuthStore, AuthState } from '../../store/auth.store';
 import { Typography } from '../../constants/typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppModal, useAppModal } from '../../components/ui/AppModal';
 
 export default function EditProfileScreen() {
   const palette = useAppPalette();
@@ -45,11 +46,13 @@ export default function EditProfileScreen() {
     .slice(0, 2)
     .toUpperCase() || 'K';
 
+  const modal = useAppModal();
+
   const handlePickAvatar = async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
-        Alert.alert('Permission Required', 'Please allow access to your photo library to choose a profile picture.');
+        modal.alert('Permission Required', 'Please allow access to your photo library to choose a profile picture.', 'warning');
         return;
       }
 
@@ -71,13 +74,13 @@ export default function EditProfileScreen() {
       }
     } catch (err: any) {
       console.warn('Avatar picker error:', err);
-      Alert.alert('Error', 'Could not select photo. Please try again.');
+      modal.alert('Error', 'Could not select photo. Please try again.', 'error');
     }
   };
 
   const handleSave = async () => {
     if (!fullName.trim()) {
-      Alert.alert('Required', 'Please enter your full name.');
+      modal.alert('Required', 'Please enter your full name.', 'warning');
       return;
     }
 
@@ -96,11 +99,18 @@ export default function EditProfileScreen() {
     setIsSaving(false);
 
     if (result.success) {
-      Alert.alert('Success', 'Your profile details have been updated successfully.', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      modal.show({
+        title: 'Success! 🎉',
+        description: 'Your profile details have been updated successfully.',
+        type: 'success',
+        primaryText: 'OK',
+        onPrimaryPress: () => {
+          modal.hide();
+          router.back();
+        }
+      });
     } else {
-      Alert.alert('Error', result.error || 'Failed to update profile. Please try again.');
+      modal.alert('Error', result.error || 'Failed to update profile. Please try again.', 'error');
     }
   };
 
@@ -219,6 +229,7 @@ export default function EditProfileScreen() {
             <Text style={[Typography.bodyBold, { color: '#FFFFFF', fontSize: 16 }]}>Save Profile</Text>
           )}
         </TouchableOpacity>
+        <AppModal config={modal.config} onClose={modal.hide} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

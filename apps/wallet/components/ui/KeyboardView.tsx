@@ -5,18 +5,20 @@ type KeyboardViewProps = PropsWithChildren<{
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
   keyboardVerticalOffset?: number;
+  behavior?: 'padding' | 'height' | 'position';
 }>;
 
 export function KeyboardView({
   children,
   style,
   contentContainerStyle,
-  keyboardVerticalOffset = Platform.OS === 'ios' ? 0 : 20,
+  keyboardVerticalOffset = Platform.OS === 'ios' ? 0 : 0,
+  behavior = Platform.OS === 'ios' ? 'padding' : undefined,
 }: KeyboardViewProps) {
   return (
     <KeyboardAvoidingView
       style={[styles.container, style]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={behavior}
       keyboardVerticalOffset={keyboardVerticalOffset}
     >
       <ScrollView

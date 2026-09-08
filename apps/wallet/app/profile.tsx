@@ -15,6 +15,9 @@ import { useAppPalette } from '../lib/theme';
 import { useAuthStore, AuthState } from '../store/auth.store';
 import { Typography } from '../constants/typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppModal, useAppModal } from '../components/ui/AppModal';
+import { ChainLogo } from '../components/ui/ChainLogo';
+import * as Clipboard from 'expo-clipboard';
 
 export default function ProfileScreen() {
   const palette = useAppPalette();
@@ -33,6 +36,8 @@ export default function ProfileScreen() {
   const userDisplayName = fullName || username || userEmail.split('@')[0] || 'Kudi User';
   const kycTierLabel = user?.kycTier || 'UNVERIFIED';
 
+  const modal = useAppModal();
+
   const initials = userDisplayName
     .replace(/^@/, '')
     .split(/\s+/)
@@ -41,26 +46,29 @@ export default function ProfileScreen() {
     .slice(0, 2)
     .toUpperCase() || 'K';
 
-  const handleCopyAddress = (address: string, chainName: string) => {
-    Alert.alert('Copied', `${chainName} address copied:\n${address}`);
+  const handleCopyAddress = async (address: string, chainName: string) => {
+    try {
+      await Clipboard.setStringAsync(address);
+    } catch (err) {
+      console.warn('Clipboard setStringAsync error:', err);
+    }
+    modal.alert('Copied to Clipboard', `${chainName} address copied:\n${address}`, 'success');
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out of Kudi?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Log Out',
-          style: 'destructive',
-          onPress: () => {
-            logout();
-            router.replace('/(auth)/welcome');
-          }
-        }
-      ]
-    );
+    modal.show({
+      title: 'Log Out',
+      description: 'Are you sure you want to log out of Kudi?',
+      type: 'warning',
+      primaryText: 'Log Out',
+      onPrimaryPress: () => {
+        modal.hide();
+        logout();
+        router.replace('/(auth)/welcome');
+      },
+      secondaryText: 'Cancel',
+      onSecondaryPress: modal.hide,
+    });
   };
 
   return (
@@ -114,42 +122,38 @@ export default function ProfileScreen() {
           <Text style={[Typography.subhead, { color: palette.textSecondary }]}>
             {userEmail}
           </Text>
-          {!!user?.id && (
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 2 }]}>
-              ID: {user.id}
-            </Text>
-          )}
+
 
           {/* KYC Tier Verified Pill */}
           <View style={styles.tierPill}>
-            <Ionicons name="sparkles" size={13} color="#34D399" />
-            <Text style={[Typography.caption, { color: '#34D399', fontWeight: '700', marginLeft: 4 }]}>
-              KYC {kycTierLabel} Verified
+
+            <Text style={[Typography.caption, { color: palette.text, fontWeight: '700', marginLeft: 4 }]}>
+              KYC {kycTierLabel}
             </Text>
           </View>
 
-          {/* Deposit Address Strip: Solana */}
+          {/* Deposit Address Strip: Solana Devnet */}
           <TouchableOpacity
-            onPress={() => handleCopyAddress(solanaAddress, 'Solana')}
+            onPress={() => handleCopyAddress(solanaAddress, 'Solana Devnet')}
             style={[styles.addressStrip, { backgroundColor: palette.bg, borderColor: palette.border }]}
             activeOpacity={0.7}
           >
-            <Ionicons name="logo-bitcoin" size={16} color="#9945FF" />
+            <ChainLogo chain="solana" size={16} />
             <Text style={[Typography.currencySub, { color: palette.text, fontSize: 11, flex: 1 }]} numberOfLines={1} ellipsizeMode="middle">
-              SOL: {solanaAddress}
+              SOL Devnet: {solanaAddress}
             </Text>
             <Ionicons name="copy-outline" size={14} color={palette.textSecondary} />
           </TouchableOpacity>
 
-          {/* Deposit Address Strip: Monad EVM */}
+          {/* Deposit Address Strip: Monad Testnet EVM */}
           <TouchableOpacity
-            onPress={() => handleCopyAddress(monadAddress, 'Monad EVM')}
+            onPress={() => handleCopyAddress(monadAddress, 'Monad Testnet EVM')}
             style={[styles.addressStrip, { backgroundColor: palette.bg, borderColor: palette.border, marginTop: 8 }]}
             activeOpacity={0.7}
           >
-            <Ionicons name="cube-outline" size={16} color="#60A5FA" />
+            <ChainLogo chain="monad" size={16} />
             <Text style={[Typography.currencySub, { color: palette.text, fontSize: 11, flex: 1 }]} numberOfLines={1} ellipsizeMode="middle">
-              EVM: {monadAddress}
+              Monad Testnet: {monadAddress}
             </Text>
             <Ionicons name="copy-outline" size={14} color={palette.textSecondary} />
           </TouchableOpacity>
@@ -268,6 +272,7 @@ export default function ProfileScreen() {
           <Ionicons name="log-out-outline" size={19} color="#EF4444" />
           <Text style={[Typography.bodyBold, { color: '#EF4444' }]}>Log Out</Text>
         </TouchableOpacity>
+        <AppModal config={modal.config} onClose={modal.hide} />
       </ScrollView>
     </SafeAreaView>
   );

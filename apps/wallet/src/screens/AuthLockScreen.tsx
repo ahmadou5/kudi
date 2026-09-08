@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert } from 'react-native';
 import { CustomNumericKeypad } from '../components/CustomNumericKeypad';
 import { useAuthStore } from '../../store/auth.store';
+import { AppModal, useAppModal } from '../components/ui/AppModal';
 
 interface AuthLockScreenProps {
   mode?: 'light' | 'dark';
@@ -9,6 +10,7 @@ interface AuthLockScreenProps {
 
 export const AuthLockScreen: React.FC<AuthLockScreenProps> = ({ mode = 'dark' }) => {
   const isLight = mode === 'light';
+  const modal = useAppModal();
   const { user, unlock, logout, verifyPin } = useAuthStore();
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -41,21 +43,18 @@ export const AuthLockScreen: React.FC<AuthLockScreenProps> = ({ mode = 'dark' })
   };
 
   const handleBiometricPress = () => {
-    // Biometric fingerprint trigger (LocalAuthentication simulated)
-    Alert.alert(
-      'Fingerprint Biometric Unlock',
-      'Scanning fingerprint for Kudi Wallet...',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        },
-        {
-          text: 'Authenticate',
-          onPress: () => unlock()
-        }
-      ]
-    );
+    modal.show({
+      title: 'Biometric Scanner 👆',
+      description: 'Scanning fingerprint for Kudi Wallet...',
+      type: 'info',
+      primaryText: 'Authenticate',
+      onPrimaryPress: () => {
+        modal.hide();
+        unlock();
+      },
+      secondaryText: 'Cancel',
+      onSecondaryPress: modal.hide,
+    });
   };
 
   return (
@@ -152,6 +151,7 @@ export const AuthLockScreen: React.FC<AuthLockScreenProps> = ({ mode = 'dark' })
           </Text>
         </TouchableOpacity>
       </View>
+      <AppModal config={modal.config} onClose={modal.hide} />
     </View>
   );
 };

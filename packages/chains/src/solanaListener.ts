@@ -13,12 +13,12 @@ export class SolanaListener {
 
   constructor(config?: Partial<SolanaChainConfig>) {
     this.config = {
-      id: 'solana-mainnet',
-      name: 'Solana',
+      id: 'solana-devnet',
+      name: 'Solana Devnet',
       type: ChainType.SOLANA,
-      rpcUrl: config?.rpcUrl || process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
-      usdcMintAddress: config?.usdcMintAddress || 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-      confirmationThreshold: 32,
+      rpcUrl: config?.rpcUrl || process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com',
+      usdcMintAddress: config?.usdcMintAddress || process.env.SOLANA_USDC_MINT || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+      confirmationThreshold: 1,
       enabled: true
     };
   }
