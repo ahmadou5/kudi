@@ -106,6 +106,36 @@ export class LedgerService {
       const sigs = await prisma.processedSignature.findMany();
       sigs.forEach(s => this.processedSignatures.add(s.signature));
 
+      // Sync local users and wallets to Neon DB so background worker can scan them
+      for (const user of this.users.values()) {
+        try {
+          await prisma.user.upsert({
+            where: { id: user.id },
+            update: { email: user.email || undefined, privyUserId: user.privyUserId || undefined, phoneNumber: user.phoneNumber || undefined },
+            create: {
+              id: user.id,
+              email: user.email || undefined,
+              privyUserId: user.privyUserId || undefined,
+              phoneNumber: user.phoneNumber || undefined,
+              kycTier: 'UNVERIFIED',
+              kycStatus: 'NOT_STARTED'
+            }
+          });
+          if (user.wallets) {
+            for (const w of user.wallets) {
+              if (!w.address) continue;
+              await prisma.wallet.upsert({
+                where: { address: w.address },
+                update: { userId: user.id, chain: w.chain },
+                create: { userId: user.id, chain: w.chain, address: w.address }
+              });
+            }
+          }
+        } catch (syncErr: any) {
+          console.warn(`[LedgerService] Warning syncing user ${user.id} to Neon DB:`, syncErr?.message);
+        }
+      }
+
       this.saveToStorage();
       console.log(`[LedgerService] 🐘 Synced ${dbUsers.length} user(s) and ${sigs.length} processed signature(s) from Neon PostgreSQL DB.`);
     } catch (err: any) {
@@ -352,6 +382,33 @@ export class LedgerService {
       user.wallets = wallets;
       this.users.set(userId, user);
       this.saveToStorage();
+
+      // Write-through user and wallets to Neon DB so background worker scans real addresses
+      prisma.user.upsert({
+        where: { id: userId },
+        update: { email: user.email || undefined, privyUserId: user.privyUserId || undefined, phoneNumber: user.phoneNumber || undefined },
+        create: {
+          id: userId,
+          email: user.email || undefined,
+          privyUserId: user.privyUserId || undefined,
+          phoneNumber: user.phoneNumber || undefined,
+          kycTier: 'UNVERIFIED',
+          kycStatus: 'NOT_STARTED'
+        }
+      }).then(() => {
+        for (const w of wallets) {
+          if (!w.address) continue;
+          prisma.wallet.upsert({
+            where: { address: w.address },
+            update: { userId, chain: w.chain },
+            create: {
+              userId,
+              chain: w.chain,
+              address: w.address
+            }
+          }).catch(err => console.warn('[LedgerService] DB write-through failed (wallet):', err?.message));
+        }
+      }).catch(err => console.warn('[LedgerService] DB write-through failed (user):', err?.message));
     }
   }
 
