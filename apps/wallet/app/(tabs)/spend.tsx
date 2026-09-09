@@ -42,7 +42,7 @@ const NIGERIAN_BANKS = [
 export default function SpendTab() {
   const palette = useAppPalette();
   const isDark = palette.text === '#FFFFFF';
-  const { balanceUSDC, rateNGN, resolveAccount, spendToBank } = useKudiWallet();
+  const { balanceUSDC, rateNGN, resolveAccount, spendToBank, sendCrypto, cryptoSendResult, setCryptoSendResult } = useKudiWallet();
   const params = useLocalSearchParams<{ address?: string }>();
 
   // Spend Mode States
@@ -61,6 +61,7 @@ export default function SpendTab() {
   const [onchainAddress, setOnchainAddress] = useState('');
   const [pin, setPin] = useState('1234');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isSendingCrypto, setIsSendingCrypto] = useState(false);
   const [bankPickerOpen, setBankPickerOpen] = useState(false);
 
   // Handle auto-prefill from QR Scanner
@@ -149,17 +150,49 @@ export default function SpendTab() {
         modal.alert('Invalid Address', 'Please enter a valid on-chain wallet address.', 'warning');
         return;
       }
-      setStatusMessage(`Broadcasting $${amt} ${onchainChain === 'solana' ? 'USDC' : 'AUSD'} to ${onchainChain.toUpperCase()} network...`);
-      setTimeout(() => {
-        setStatusMessage(`On-Chain transfer confirmed! Reference: TX_${Math.floor(Math.random() * 899999 + 100000)}`);
-        modal.alert(
-          'On-Chain Transfer Confirmed 🔗',
-          `Transferred $${amt} ${onchainChain === 'solana' ? 'USDC' : 'AUSD'} to:\n${onchainAddress}`,
-          'success'
-        );
-      }, 1000);
+
+      setIsSendingCrypto(true);
+      setCryptoSendResult(null);
+      setStatusMessage(`Broadcasting ${amt} ${onchainChain === 'solana' ? 'USDC' : 'AUSD'} to ${onchainChain.toUpperCase()}...`);
+
+      try {
+        const result = await sendCrypto({
+          amountUSDC: amt,
+          toAddress: onchainAddress,
+          chain: onchainChain,
+          pin
+        });
+
+        setStatusMessage(`Pending — Reference: ${result.reference}`);
+        // Status updates are now driven by hook's polling (cryptoSendResult)
+      } catch (err: any) {
+        const msg = err?.message || 'Crypto send failed';
+        setIsSendingCrypto(false);
+        setStatusMessage(null);
+        modal.alert('Send Failed ❌', msg, 'error');
+      }
     }
   };
+
+  // Show final modal when crypto send reaches terminal state
+  React.useEffect(() => {
+    if (!cryptoSendResult) return;
+    if (cryptoSendResult.status === 'CONFIRMED') {
+      setIsSendingCrypto(false);
+      setStatusMessage(null);
+      modal.alert(
+        'Crypto Sent ✅',
+        `${cryptoSendResult.amountUSDC} ${onchainChain === 'solana' ? 'USDC' : 'AUSD'} confirmed on ${onchainChain.toUpperCase()}.\n\nAddress: ${cryptoSendResult.toAddress.slice(0, 8)}...${cryptoSendResult.toAddress.slice(-6)}`,
+        'success'
+      );
+      setCryptoSendResult(null);
+    } else if (cryptoSendResult.status === 'FAILED') {
+      setIsSendingCrypto(false);
+      setStatusMessage(null);
+      modal.alert('Send Failed ❌', 'Transaction failed. Your balance has been restored.', 'error');
+      setCryptoSendResult(null);
+    }
+  }, [cryptoSendResult?.status]);
 
   // Render Pattern Background for Cards
   const renderPatternBackground = (accentColor: string) => (
@@ -597,12 +630,52 @@ export default function SpendTab() {
               />
             </View>
 
-            <TouchableOpacity onPress={handleExecuteSpend} style={[styles.confirmBtn, { backgroundColor: palette.text }]} activeOpacity={0.8}>
-              <Text style={[Typography.bodyBold, { color: palette.bg }]}>Confirm & Broadcast On-Chain</Text>
-              <Ionicons name="arrow-forward" size={18} color={palette.bg} />
+            <TouchableOpacity
+              onPress={handleExecuteSpend}
+              disabled={isSendingCrypto}
+              style={[styles.confirmBtn, { backgroundColor: isSendingCrypto ? '#6B7280' : palette.text, opacity: isSendingCrypto ? 0.7 : 1 }]}
+              activeOpacity={0.8}
+            >
+              {isSendingCrypto ? (
+                <>
+                  <ActivityIndicator size="small" color={palette.bg} />
+                  <Text style={[Typography.bodyBold, { color: palette.bg, marginLeft: 8 }]}>Broadcasting...</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={[Typography.bodyBold, { color: palette.bg }]}>Confirm & Broadcast On-Chain</Text>
+                  <Ionicons name="arrow-forward" size={18} color={palette.bg} />
+                </>
+              )}
             </TouchableOpacity>
 
-            {statusMessage && (
+            {/* Live Status Tracker */}
+            {isSendingCrypto && cryptoSendResult && (
+              <View style={[styles.statusTracker, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F8FAFC', borderColor: palette.border }]}>
+                {(['PENDING', 'BROADCAST', 'CONFIRMED'] as const).map((stage, i) => {
+                  const isActive = cryptoSendResult.status === stage;
+                  const isPast = (
+                    (stage === 'PENDING' && ['BROADCAST', 'CONFIRMED'].includes(cryptoSendResult.status)) ||
+                    (stage === 'BROADCAST' && cryptoSendResult.status === 'CONFIRMED')
+                  );
+                  const stageLabel = stage === 'PENDING' ? '📥 Queued' : stage === 'BROADCAST' ? '🔗 Broadcasting' : '✅ Confirmed';
+                  return (
+                    <View key={stage} style={styles.statusStage}>
+                      <View style={[styles.statusDot, {
+                        backgroundColor: isPast ? '#34D399' : isActive ? '#FBBF24' : palette.border
+                      }]} />
+                      <Text style={[Typography.caption, {
+                        color: isPast ? '#34D399' : isActive ? '#FBBF24' : palette.textSecondary,
+                        fontWeight: isActive ? '700' : '400'
+                      }]}>{stageLabel}</Text>
+                      {i < 2 && <View style={[styles.statusLine, { backgroundColor: isPast ? '#34D399' : palette.border }]} />}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {statusMessage && !isSendingCrypto && (
               <Text style={[Typography.bodyBold, styles.statusText, { color: palette.success }]}>{statusMessage}</Text>
             )}
           </View>
@@ -904,5 +977,33 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     marginBottom: 10
+  },
+  statusTracker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 10,
+    gap: 0
+  },
+  statusStage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5
+  },
+  statusLine: {
+    flex: 1,
+    height: 2,
+    borderRadius: 1,
+    marginLeft: 4,
+    marginRight: 4
   }
 });

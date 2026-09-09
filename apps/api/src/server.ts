@@ -15,6 +15,7 @@ import { RateService } from './services/rateService';
 import { LedgerService } from './services/ledgerService';
 import { DepositService } from './services/depositService';
 import { SweepService } from './services/sweepService';
+import { processCryptoWithdrawals } from './services/cryptoWithdrawalProcessor';
 
 import { HealthController } from './modules/health/health.controller';
 import { healthRoutes } from './modules/health/health.routes';
@@ -141,6 +142,7 @@ async function main() {
   });
   rateService.startPolling(30_000);
   depositService.startPolling(10_000);
+  setInterval(processCryptoWithdrawals, 5000);
 
   console.log(`🚀 Kudi API server running on http://localhost:${port}`);
 }

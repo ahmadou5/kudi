@@ -237,6 +237,38 @@ export class KudiSDK {
     return res.json();
   }
 
+  /**
+   * Send USDC on-chain from the user's Kudi balance to any external wallet.
+   * Returns a reference and PENDING status immediately.
+   * Poll getCryptoWithdrawalStatus() to track PENDING → BROADCAST → CONFIRMED.
+   */
+  async sendCrypto(payload: {
+    userId: string;
+    pin?: string;
+    amountUSDC: number;
+    toAddress: string;
+    chain: 'solana' | 'monad';
+  }) {
+    const res = await fetch(`${this.baseUrl}/api/v1/payout/spend-onchain`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return res.json();
+  }
+
+  /**
+   * Poll the status of a crypto withdrawal by reference.
+   * Status lifecycle: PENDING → BROADCAST → CONFIRMED | FAILED
+   */
+  async getCryptoWithdrawalStatus(reference: string) {
+    const res = await fetch(`${this.baseUrl}/api/v1/payout/crypto-status/${reference}`, {
+      headers: this.getHeaders()
+    });
+    return res.json();
+  }
+
+
   async overrideRate(newRateNGN: number) {
     const res = await fetch(`${this.baseUrl}/api/v1/admin/rate-override`, {
       method: 'POST',

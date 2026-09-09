@@ -306,5 +306,148 @@ export class SelfCustodyProvider implements CustodyProvider {
       blockNumber: 123456
     };
   }
-}
 
+  /**
+   * Send USDC from the Kudi treasury wallet to any external address.
+   *
+   * Custodial model (Track B): Kudi signs from its own treasury Privy wallet
+   * on behalf of the user. Supports Solana and Monad (EVM).
+   *
+   * @param treasuryWalletId  - Privy wallet ID of the Kudi treasury wallet
+   * @param toAddress         - Recipient on-chain address
+   * @param amountUSDC        - Amount in USDC (will be converted to token units)
+   * @param chain             - 'solana' | 'monad'
+   * @returns { txHash }      - Broadcast transaction hash
+   */
+  async sendCrypto(params: {
+    treasuryWalletId: string;
+    toAddress: string;
+    amountUSDC: number;
+    chain: 'solana' | 'monad';
+    usdcMintAddress?: string;
+    usdcContractAddress?: string;
+  }): Promise<{ txHash: string }> {
+    const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress } = params;
+
+    if (!this.privyAppId || !this.privyAppSecret) {
+      // Sandbox fallback: generate deterministic mock tx hash
+      const mockHash = chain === 'solana'
+        ? Array.from({ length: 88 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz123456789'[Math.floor(Math.random() * 58)]).join('')
+        : `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+      console.log(`[SelfCustody] 🧪 Sandbox mode — mock broadcast for ${amountUSDC} USDC on ${chain}: ${mockHash.slice(0, 20)}...`);
+      return { txHash: mockHash };
+    }
+
+    const authHeader = `Basic ${Buffer.from(`${this.privyAppId}:${this.privyAppSecret}`).toString('base64')}`;
+    const isSolana = chain === 'solana';
+
+    // Build chain-specific transaction payload
+    let requestBody: Record<string, unknown>;
+
+    if (isSolana) {
+      // Solana: SPL token transfer via Privy signAndSendTransaction
+      const mint = usdcMintAddress || process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
+      const amountLamports = Math.floor(amountUSDC * 1_000_000); // USDC = 6 decimals
+      requestBody = {
+        method: 'signAndSendTransaction',
+        caip2: process.env.SOLANA_CAIP2 || 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1', // devnet
+        params: {
+          transaction: JSON.stringify({
+            type: 'USDC_SPL_TRANSFER',
+            mint,
+            recipient: toAddress,
+            amountLamports
+          })
+        }
+      };
+    } else {
+      // Monad EVM: ERC-20 transfer(address,uint256) via eth_sendTransaction
+      const contract = usdcContractAddress || process.env.AUSD_TOKEN_ADDRESS || '0x000000000000000000000000000000000000AUSD';
+      const amountWei = BigInt(Math.floor(amountUSDC * 1_000_000)).toString(16).padStart(64, '0');
+      const recipientPadded = toAddress.replace('0x', '').padStart(64, '0');
+      // ERC-20 transfer(address,uint256) = selector 0xa9059cbb
+      const data = `0xa9059cbb${recipientPadded}${amountWei}`;
+      requestBody = {
+        method: 'eth_sendTransaction',
+        caip2: `eip155:${process.env.MONAD_CHAIN_ID || '10143'}`,
+        params: {
+          transaction: {
+            to: contract,
+            data,
+            value: '0x0'
+          }
+        }
+      };
+    }
+
+    const res = await fetch(`https://api.privy.io/v1/wallets/${treasuryWalletId}/rpc`, {
+      method: 'POST',
+      headers: {
+        'privy-app-id': this.privyAppId,
+        Authorization: authHeader,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Privy broadcast failed (${res.status}): ${errText}`);
+    }
+
+    const data = await res.json() as any;
+    const txHash = data.data?.hash || data.hash || data.data?.signature || data.signature;
+
+    if (!txHash) {
+      throw new Error(`Privy returned success but no tx hash: ${JSON.stringify(data)}`);
+    }
+
+    console.log(`[SelfCustody] ✅ Broadcast ${amountUSDC} USDC on ${chain}: ${txHash.slice(0, 20)}...`);
+    return { txHash };
+  }
+
+  /**
+   * Poll the chain until a transaction is confirmed or timeout is reached.
+   *
+   * @param txHash   - Transaction hash / signature to poll
+   * @param chain    - 'solana' | 'monad'
+   * @param timeoutMs - How long to poll before giving up (default: 90s)
+   * @returns true if confirmed, false if timed out or failed
+   */
+  async waitForConfirmation(
+    txHash: string,
+    chain: 'solana' | 'monad',
+    timeoutMs = 90_000
+  ): Promise<boolean> {
+    const pollIntervalMs = 4_000;
+    const deadline = Date.now() + timeoutMs;
+    const isSolana = chain === 'solana';
+
+    // Sandbox shortcut: mock hashes always confirm instantly
+    if (
+      (!this.privyAppId || !this.privyAppSecret) ||
+      (isSolana && !txHash.startsWith('0x') && txHash.length < 20) ||
+      (!isSolana && !txHash.startsWith('0x'))
+    ) {
+      console.log(`[SelfCustody] 🧪 Sandbox — instant confirmation for ${txHash.slice(0, 20)}...`);
+      return true;
+    }
+
+    while (Date.now() < deadline) {
+      try {
+        const result = await this.verifyDepositTransaction(txHash, chain);
+        if (result.confirmed) {
+          console.log(`[SelfCustody] ✅ Confirmed on ${chain}: ${txHash.slice(0, 20)}...`);
+          return true;
+        }
+      } catch (err) {
+        // Transient RPC error — keep polling
+        console.warn(`[SelfCustody] Polling error (will retry):`, err);
+      }
+      await new Promise((r) => setTimeout(r, pollIntervalMs));
+    }
+
+    console.warn(`[SelfCustody] ⏰ Confirmation timeout for ${txHash.slice(0, 20)}...`);
+    return false;
+  }
+}

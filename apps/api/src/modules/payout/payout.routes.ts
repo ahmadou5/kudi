@@ -12,7 +12,8 @@ export async function payoutRoutes(server: FastifyInstance, controller: PayoutCo
   server.post('/api/payout/spend-user', controller.spendToUser);
   server.post('/api/v1/payout/spend-onchain', controller.spendOnChain);
   server.post('/api/payout/spend-onchain', controller.spendOnChain);
+  server.get('/api/v1/payout/crypto-status/:reference', controller.getCryptoWithdrawalStatus);
+  server.get('/api/payout/crypto-status/:reference', controller.getCryptoWithdrawalStatus);
   server.get('/api/v1/payout/receipt/:reference', controller.getReceipt);
   server.get('/api/payout/receipt/:reference', controller.getReceipt);
 }
-

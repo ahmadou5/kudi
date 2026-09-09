@@ -119,7 +119,36 @@ export enum LedgerEntryType {
   DEPOSIT_CREDIT = 'DEPOSIT_CREDIT',
   SPEND_DEBIT = 'SPEND_DEBIT',
   SPEND_REVERSAL = 'SPEND_REVERSAL',
-  FEE_DEBIT = 'FEE_DEBIT'
+  FEE_DEBIT = 'FEE_DEBIT',
+  CRYPTO_SEND_DEBIT = 'CRYPTO_SEND_DEBIT',
+  CRYPTO_SEND_REVERSAL = 'CRYPTO_SEND_REVERSAL'
+}
+
+// ==========================================
+// 4b. Crypto Withdrawal Types
+// ==========================================
+
+export enum WithdrawalStatus {
+  PENDING   = 'PENDING',    // Queued, not yet broadcast
+  BROADCAST = 'BROADCAST',  // Tx hash obtained, awaiting confirmation
+  CONFIRMED = 'CONFIRMED',  // Finalized on-chain
+  FAILED    = 'FAILED',     // Error — balance rolled back
+  CANCELLED = 'CANCELLED'   // Rejected pre-broadcast
+}
+
+export interface CryptoWithdrawal {
+  id: string;
+  reference: string;
+  userId: string;
+  amountUSDC: number;
+  toAddress: string;
+  chain: 'solana' | 'monad';
+  txHash?: string;
+  blockNumber?: number;
+  status: WithdrawalStatus;
+  failureReason?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LedgerEntry {

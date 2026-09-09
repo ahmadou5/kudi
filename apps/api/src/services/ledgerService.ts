@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { KYCStatus, KYCTier } from '@kudi/types';
+import { KYCStatus, KYCTier, CryptoWithdrawal, WithdrawalStatus } from '@kudi/types';
 import { prisma } from '@kudi/database';
 
 export interface UserRecord {
@@ -56,6 +56,7 @@ export class LedgerService {
   private virtualAccounts: Map<string, VirtualAccountRecord[]> = new Map();
   private notifications: Map<string, NotificationRecord[]> = new Map();
   private processedSignatures: Set<string> = new Set();
+  private withdrawals: Map<string, CryptoWithdrawal> = new Map();
   private storageFilePath: string;
 
   constructor() {
@@ -138,6 +139,9 @@ export class LedgerService {
         if (data.processedSignatures && Array.isArray(data.processedSignatures)) {
           this.processedSignatures = new Set(data.processedSignatures);
         }
+        if (data.withdrawals && Array.isArray(data.withdrawals)) {
+          this.withdrawals = new Map(data.withdrawals);
+        }
         console.log(`[LedgerService] 💾 Loaded ${this.users.size} persisted user(s) from persistent storage.`);
       }
     } catch (err: any) {
@@ -154,7 +158,8 @@ export class LedgerService {
         transactions: Array.from(this.transactions.entries()),
         virtualAccounts: Array.from(this.virtualAccounts.entries()),
         notifications: Array.from(this.notifications.entries()),
-        processedSignatures: Array.from(this.processedSignatures)
+        processedSignatures: Array.from(this.processedSignatures),
+        withdrawals: Array.from(this.withdrawals.entries())
       };
       fs.writeFileSync(this.storageFilePath, JSON.stringify(data, null, 2), 'utf-8');
     } catch (err: any) {
@@ -469,5 +474,111 @@ export class LedgerService {
       update: {},
       create: { signature }
     }).catch(err => console.warn('[LedgerService] DB write-through failed (signature):', err?.message));
+  }
+
+  // ============================================================
+  // Crypto Withdrawal Lifecycle Methods
+  // ============================================================
+
+  /**
+   * Create a new withdrawal record and optimistically debit the user's balance.
+   * Balance is debited here to prevent double-spend. If broadcast fails,
+   * call rollbackWithdrawal() to restore it.
+   */
+  public createWithdrawal(params: {
+    reference: string;
+    userId: string;
+    amountUSDC: number;
+    toAddress: string;
+    chain: 'solana' | 'monad';
+  }): CryptoWithdrawal {
+    const now = new Date().toISOString();
+    const withdrawal: CryptoWithdrawal = {
+      id: `wd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      ...params,
+      status: WithdrawalStatus.PENDING,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    this.withdrawals.set(params.reference, withdrawal);
+
+    // Optimistic debit
+    const currentBalance = this.getBalance(params.userId);
+    this.setBalance(params.userId, currentBalance - params.amountUSDC);
+
+    // Record in transaction feed
+    this.recordTransaction({
+      fromUserId: params.userId,
+      toUserId: `onchain_${params.chain}_${params.toAddress.slice(0, 8)}`,
+      amount: params.amountUSDC.toFixed(2),
+      currency: params.chain === 'solana' ? 'USDC' : 'AUSD',
+      reference: params.reference,
+      timestamp: now,
+      metadata: {
+        title: `Send to ${params.chain.toUpperCase()}`,
+        subtitle: `${params.toAddress.slice(0, 6)}...${params.toAddress.slice(-4)}`,
+        type: 'SPEND_ONCHAIN',
+        chain: params.chain,
+        status: WithdrawalStatus.PENDING
+      }
+    });
+
+    this.saveToStorage();
+    return withdrawal;
+  }
+
+  /**
+   * Update a withdrawal's status and optionally set txHash / blockNumber.
+   */
+  public updateWithdrawal(
+    reference: string,
+    update: Partial<Pick<CryptoWithdrawal, 'status' | 'txHash' | 'blockNumber' | 'failureReason'>>
+  ): CryptoWithdrawal | undefined {
+    const withdrawal = this.withdrawals.get(reference);
+    if (!withdrawal) return undefined;
+
+    Object.assign(withdrawal, { ...update, updatedAt: new Date().toISOString() });
+    this.withdrawals.set(reference, withdrawal);
+
+    // Update the matching transaction record metadata too
+    const tx = this.transactions.get(reference);
+    if (tx && tx.metadata) {
+      tx.metadata.status = update.status;
+      if (update.txHash) tx.metadata.txHash = update.txHash;
+    }
+
+    this.saveToStorage();
+    return withdrawal;
+  }
+
+  /**
+   * Retrieve a withdrawal by reference for status polling.
+   */
+  public getWithdrawal(reference: string): CryptoWithdrawal | undefined {
+    return this.withdrawals.get(reference);
+  }
+
+  /**
+   * Rollback a failed withdrawal — restore the user's balance.
+   */
+  public rollbackWithdrawal(reference: string, userId: string, amountUSDC: number): void {
+    const currentBalance = this.getBalance(userId);
+    this.setBalance(userId, currentBalance + amountUSDC);
+
+    this.updateWithdrawal(reference, {
+      status: WithdrawalStatus.FAILED,
+      failureReason: 'Balance restored after broadcast failure'
+    });
+
+    this.addNotification(
+      userId,
+      'Crypto Send Failed ❌',
+      `Your send of ${amountUSDC.toFixed(2)} USDC failed. Your balance has been restored.`,
+      'PAYMENT_FAILED',
+      { reference, amountUSDC }
+    );
+
+    console.log(`[LedgerService] 🔄 Rolled back ${amountUSDC} USDC for withdrawal ${reference} — balance restored for ${userId}`);
   }
 }

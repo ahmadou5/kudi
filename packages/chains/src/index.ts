@@ -6,6 +6,8 @@ export * from './selfCustody';
 export * from './partnerCustody';
 export * from './evmListener';
 export * from './solanaListener';
+export * from './addressValidator';
+export * from './cryptoWithdrawalQueue';
 
 export class CustodyManager {
   private activeTrack: CustodyTrack = CustodyTrack.TRACK_A_SELF_CUSTODY;

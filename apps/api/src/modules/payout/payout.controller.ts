@@ -1,7 +1,8 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { PaymentProviderRegistry } from '@kudi/payment-providers';
 import { ReceiptGenerator } from '@kudi/receipts';
-import { KYCTier } from '@kudi/types';
+import { KYCTier, WithdrawalStatus } from '@kudi/types';
+import { validateCryptoAddress, CryptoWithdrawalQueue } from '@kudi/chains';
 import { LedgerService } from '../../services/ledgerService';
 import { RateService } from '../../services/rateService';
 import { errorResponse, successResponse } from '../../utils/response';
@@ -17,7 +18,8 @@ export class PayoutController {
   constructor(
     private paymentRegistry: PaymentProviderRegistry,
     private ledgerService: LedgerService,
-    private rateService: RateService
+    private rateService: RateService,
+    private cryptoQueue: CryptoWithdrawalQueue = CryptoWithdrawalQueue.getInstance()
   ) {}
 
   public resolveAccount = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -177,48 +179,89 @@ export class PayoutController {
       chain: 'solana' | 'monad';
     };
 
+    // 1. PIN verification
     const user = this.ledgerService.getUser(userId);
     if (!verifyPin(pin || '', user?.pinHash)) {
       return reply.status(401).send(errorResponse('INVALID_PIN', 'Incorrect transaction PIN entered', 401));
     }
 
-    const currentBalance = this.ledgerService.getBalance(userId);
-    if (currentBalance < amountUSDC) {
-      return reply.status(400).send(errorResponse('INSUFFICIENT_BALANCE', `Insufficient balance. Available: ${currentBalance} USDC`));
+    // 2. Address format validation — before any funds move
+    if (!validateCryptoAddress(toAddress, chain)) {
+      return reply.status(400).send(
+        errorResponse('INVALID_ADDRESS', `The address "${toAddress}" is not a valid ${chain} address.`, 400)
+      );
     }
 
+    // 3. Minimum send guard
+    if (amountUSDC < 1.0) {
+      return reply.status(400).send(
+        errorResponse('BELOW_MINIMUM', 'Minimum crypto send is 1.00 USDC.', 400)
+      );
+    }
+
+    // 4. Balance check
+    const currentBalance = this.ledgerService.getBalance(userId);
+    if (currentBalance < amountUSDC) {
+      return reply.status(400).send(
+        errorResponse('INSUFFICIENT_BALANCE', `Insufficient balance. Available: ${currentBalance.toFixed(2)} USDC`, 400)
+      );
+    }
+
+    // 5. Self-send guard — block sending to own deposit address
+    const userWallets = this.ledgerService.getUserWallets(userId) || [];
+    const isSelfSend = userWallets.some((w) => w.address.toLowerCase() === toAddress.toLowerCase());
+    if (isSelfSend) {
+      return reply.status(400).send(
+        errorResponse('SELF_SEND_BLOCKED', 'You cannot send crypto to your own Kudi deposit address.', 400)
+      );
+    }
+
+    // 6. Create withdrawal record + optimistic debit (atomic in-process)
     const reference = generateReference('KUDI_ONCHAIN');
-    const newBalance = currentBalance - amountUSDC;
-    this.ledgerService.setBalance(userId, newBalance);
-
-    const txHash = chain === 'solana'
-      ? `${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
-      : `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
-
-    this.ledgerService.recordTransaction({
-      fromUserId: userId,
-      toUserId: `onchain_${chain}_${toAddress.slice(0, 8)}`,
-      amount: amountUSDC.toFixed(2),
-      currency: 'USDC',
+    const withdrawal = this.ledgerService.createWithdrawal({
       reference,
-      timestamp: new Date().toISOString(),
-      metadata: {
-        title: `Send to ${chain.toUpperCase()}`,
-        subtitle: `${toAddress.slice(0, 6)}...${toAddress.slice(-4)}`,
-        txHash,
-        chain,
-        type: 'SPEND_ONCHAIN'
-      }
+      userId,
+      amountUSDC,
+      toAddress,
+      chain
     });
 
+    // 7. Enqueue async broadcast job (fire-and-forget — worker handles broadcast + confirm + rollback)
+    try {
+      await this.cryptoQueue.enqueue({
+        reference,
+        userId,
+        amountUSDC,
+        toAddress,
+        chain
+      });
+
+      console.log(`[PayoutController] 📤 Crypto withdrawal queued: ${reference} | ${amountUSDC} USDC → ${toAddress.slice(0, 8)}... on ${chain}`);
+    } catch (queueErr: unknown) {
+      // If enqueue itself fails hard (rare), rollback immediately
+      this.ledgerService.rollbackWithdrawal(reference, userId, amountUSDC);
+      const msg = queueErr instanceof Error ? queueErr.message : String(queueErr);
+      return reply.status(500).send(errorResponse('QUEUE_ERROR', `Failed to queue withdrawal: ${msg}`, 500));
+    }
+
     return successResponse({
-      reference,
-      txHash,
+      reference: withdrawal.reference,
+      status: WithdrawalStatus.PENDING,
       chain,
-      amountUSDC: amountUSDC.toFixed(2),
       toAddress,
-      newBalanceUSDC: newBalance.toFixed(2)
-    }, 'Crypto broadcast submitted successfully');
+      amountUSDC: amountUSDC.toFixed(2),
+      newBalanceUSDC: this.ledgerService.getBalance(userId).toFixed(2),
+      message: 'Your crypto send is being broadcast to the network. Check status using the reference.'
+    }, 'Crypto send initiated');
+  };
+
+  public getCryptoWithdrawalStatus = async (request: FastifyRequest, reply: FastifyReply) => {
+    const { reference } = request.params as { reference: string };
+    const withdrawal = this.ledgerService.getWithdrawal(reference);
+    if (!withdrawal) {
+      return reply.status(404).send(errorResponse('NOT_FOUND', `No withdrawal found for reference: ${reference}`, 404));
+    }
+    return successResponse(withdrawal);
   };
 
   public getReceipt = async (request: FastifyRequest, reply: FastifyReply) => {
