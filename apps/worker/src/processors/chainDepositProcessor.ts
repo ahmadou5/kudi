@@ -31,7 +31,7 @@ export class ChainDepositProcessor {
   }
 
   /**
-   * Fetches all actual registered user deposit addresses from the database/storage.
+   * Fetches all registered user deposit addresses directly from Neon DB.
    */
   private async getActiveAddresses(): Promise<{ evm: string[]; solana: string[] }> {
     const evmSet = new Set<string>(this.watchedEvmAddresses);
@@ -49,8 +49,9 @@ export class ChainDepositProcessor {
           evmSet.add(w.address);
         }
       }
-    } catch {
-      // In-memory registered addresses if DB is unpopulated
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[ChainDepositProcessor] Could not fetch wallets from Neon DB: ${msg}`);
     }
 
     return {
@@ -65,7 +66,7 @@ export class ChainDepositProcessor {
 
     for (const chain of enabledEVMs) {
       if (evmAddresses.length === 0) {
-        console.log(`🔗 [Chain Processor] No EVM user deposit addresses registered to scan.`);
+        console.log(`🔗 [Chain Processor] No EVM user deposit addresses registered in DB.`);
         continue;
       }
       console.log(`🔗 [Chain Processor] Polling EVM RPC (${chain.name} - ${chain.rpcUrl}) for ${evmAddresses.length} wallet(s)...`);
@@ -81,7 +82,7 @@ export class ChainDepositProcessor {
     }
 
     if (solanaAddresses.length === 0) {
-      console.log(`🔗 [Chain Processor] No Solana user deposit addresses registered to scan.`);
+      console.log(`🔗 [Chain Processor] No Solana user deposit addresses registered in DB.`);
       return;
     }
 

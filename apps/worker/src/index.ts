@@ -1,11 +1,9 @@
+import 'dotenv/config';
 import { ChainDepositProcessor } from './processors/chainDepositProcessor';
 import { pollRateEngine } from './processors/ratePollerProcessor';
 import { WebhookProcessor } from './processors/webhookProcessor';
 import { processCryptoWithdrawals } from './processors/cryptoWithdrawalProcessor';
 import { EVMChainConfig, ChainType } from '@kudi/types';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 const monadTestnetConfig: EVMChainConfig = {
   id: 'monad-testnet',
