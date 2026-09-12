@@ -5,10 +5,13 @@ import { useAppPalette } from '../lib/theme';
 import { Typography } from '../constants/typography';
 import { ChainLogo } from './ui/ChainLogo';
 
-export type BrandProvider = 'usdc' | 'solana' | 'monad' | 'mtn' | 'airtel' | 'glo' | '9mobile' | 'electricity' | 'gtbank' | 'zenith' | 'paystack' | 'monnify' | 'generic';
+import { router } from 'expo-router';
+
+export type BrandProvider = 'usdc' | 'ausd' | 'solana' | 'monad' | 'mtn' | 'airtel' | 'glo' | '9mobile' | 'electricity' | 'gtbank' | 'zenith' | 'paystack' | 'monnify' | 'generic';
 
 const BRAND_LOGOS: Record<string, ImageSourcePropType> = {
   usdc: require('../assets/logos/usdc.png'),
+  ausd: require('../assets/logos/ausd.png'),
   solana: require('../assets/logos/solana.png'),
   monad: require('../assets/logos/monad.png'),
   mtn: require('../assets/logos/mtn.png'),
@@ -22,6 +25,7 @@ const BRAND_LOGOS: Record<string, ImageSourcePropType> = {
 export interface TransactionData {
   id?: string;
   ref?: string;
+  txHash?: string;
   title: string;
   subtitle?: string;
   amount: string;
@@ -31,6 +35,9 @@ export interface TransactionData {
   isDeposit?: boolean;
   icon?: keyof typeof Ionicons.glyphMap;
   provider?: BrandProvider | string;
+  chain?: 'solana' | 'monad' | 'monad-testnet' | string;
+  tokenSymbol?: 'USDC' | 'AUSD' | string;
+  metadata?: Record<string, any>;
 }
 
 interface TransactionCardProps {
@@ -42,10 +49,10 @@ interface TransactionCardProps {
 function detectProvider(item: TransactionData): BrandProvider {
   if (item.provider) return item.provider.toLowerCase() as BrandProvider;
 
-  const text = `${item.title} ${item.subtitle || ''} ${item.secondaryAmount || ''} ${item.ref || ''}`.toLowerCase();
+  const text = `${item.title} ${item.subtitle || ''} ${item.secondaryAmount || ''} ${item.ref || ''} ${item.tokenSymbol || ''}`.toLowerCase();
 
-  if (text.includes('solana')) return 'solana';
-  if (text.includes('monad') || text.includes('ausd')) return 'monad';
+  if (text.includes('ausd') || text.includes('monad')) return 'ausd';
+  if (text.includes('usdc') || text.includes('solana')) return 'usdc';
   if (text.includes('mtn')) return 'mtn';
   if (text.includes('airtel')) return 'airtel';
   if (text.includes('glo')) return 'glo';
@@ -53,9 +60,20 @@ function detectProvider(item: TransactionData): BrandProvider {
   if (text.includes('electricity') || text.includes('ikedc') || text.includes('ekedc')) return 'electricity';
   if (text.includes('gtbank') || text.includes('paystack')) return 'gtbank';
   if (text.includes('zenith') || text.includes('monnify')) return 'zenith';
-  if (text.includes('usdc')) return 'usdc';
 
   return 'generic';
+}
+
+function detectChain(item: TransactionData): 'monad' | 'solana' | null {
+  if (item.chain) {
+    const c = item.chain.toLowerCase();
+    if (c.includes('monad')) return 'monad';
+    if (c.includes('solana')) return 'solana';
+  }
+  const text = `${item.title} ${item.subtitle || ''} ${item.amount}`.toLowerCase();
+  if (text.includes('monad') || text.includes('ausd')) return 'monad';
+  if (text.includes('solana') || text.includes('usdc')) return 'solana';
+  return null;
 }
 
 export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress, compact = false }) => {
@@ -64,6 +82,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
 
   const isDeposit = item.isDeposit ?? item.amount.startsWith('+');
   const provider = detectProvider(item);
+  const detectedChain = detectChain(item);
 
   // Status Badge Colors
   const isSuccess = ['SUCCESS', 'COMPLETED', 'DONE'].includes(item.status.toUpperCase());
@@ -81,25 +100,37 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
     ? '#FBBF24'
     : '#F43F5E';
 
-  const renderBrandIcon = () => {
-    if (provider === 'monad') {
-      return (
-        <View style={[styles.brandContainer, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: palette.border, borderWidth: 1 }]}>
-          <ChainLogo chain="monad" size={24} />
-        </View>
-      );
+  const handleCardPress = () => {
+    if (onPress) {
+      onPress();
+    } else {
+      router.push({
+        pathname: '/transaction-details',
+        params: {
+          id: item.id || item.ref,
+          ref: item.ref || item.id,
+          txHash: item.txHash || item.ref,
+          title: item.title,
+          subtitle: item.subtitle,
+          amount: item.amount,
+          secondaryAmount: item.secondaryAmount,
+          status: item.status,
+          date: item.date,
+          isDeposit: String(isDeposit),
+          chain: item.chain || detectedChain || '',
+          tokenSymbol: item.tokenSymbol || (provider === 'ausd' ? 'AUSD' : 'USDC')
+        }
+      });
     }
+  };
 
+  const renderBrandIcon = () => {
     const logoSource = BRAND_LOGOS[provider];
 
     if (logoSource) {
       return (
         <View style={[styles.brandContainer, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: palette.border, borderWidth: 1 }]}>
-          <Image
-            source={logoSource}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
+          <Image source={logoSource} style={styles.logoImage} resizeMode="contain" />
         </View>
       );
     }
@@ -134,9 +165,8 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
 
   return (
     <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={onPress ? 0.75 : 1}
-      disabled={!onPress}
+      onPress={handleCardPress}
+      activeOpacity={0.75}
       style={[
         styles.card,
         {
@@ -148,13 +178,20 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
       ]}
     >
       <View style={styles.topRow}>
-        {/* Left Icon with Real High Quality Brand/Chain Logo + Direction Overlay */}
+        {/* Main Token Logo + Chain Logo Corner Badge Overlay */}
         <View style={styles.leftGroup}>
           <View style={styles.iconWrapper}>
             {renderBrandIcon()}
-            <View style={[styles.directionOverlay, { backgroundColor: isDeposit ? '#10B981' : '#F43F5E', borderColor: palette.card }]}>
-              <Ionicons name={isDeposit ? 'arrow-down' : 'arrow-up'} size={9} color="#FFFFFF" />
-            </View>
+
+            {detectedChain ? (
+              <View style={[styles.chainBadgeOverlay, { borderColor: palette.card }]}>
+                <ChainLogo chain={detectedChain} size={14} />
+              </View>
+            ) : (
+              <View style={[styles.directionOverlay, { backgroundColor: isDeposit ? '#10B981' : '#F43F5E', borderColor: palette.card }]}>
+                <Ionicons name={isDeposit ? 'arrow-down' : 'arrow-up'} size={9} color="#FFFFFF" />
+              </View>
+            )}
           </View>
 
           <View style={styles.titleStack}>
@@ -264,6 +301,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5
+  },
+  chainBadgeOverlay: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    overflow: 'hidden',
+    backgroundColor: '#0F172A'
   },
   titleStack: {
     flex: 1,

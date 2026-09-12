@@ -60,10 +60,17 @@ export default function HomeTab() {
       tx.metadata?.type === 'DEPOSIT_CREDIT' ||
       tx.metadata?.type === 'DEPOSIT_ONCHAIN';
 
+    const rawChain = (tx.metadata?.chain || tx.chain || '').toLowerCase();
+    const isMonad = rawChain.includes('monad') || tx.currency === 'AUSD' || tx.metadata?.tokenSymbol === 'AUSD' || tx.metadata?.title?.includes('AUSD');
+    const isSolana = rawChain.includes('solana') || tx.currency === 'USDC' || (!isMonad && isDeposit);
+
+    const tokenSymbol = isMonad ? 'AUSD' : (tx.currency || 'USDC');
+    const chainName = isMonad ? 'monad' : (isSolana ? 'solana' : '');
+
     const rawAmount = typeof tx.amount === 'number' ? tx.amount.toFixed(2) : String(tx.amount || '0.00');
     const amountNum = parseFloat(rawAmount) || 0;
     const amountNGN = amountNum * rateNGN;
-    const amountStr = isDeposit ? `+$${rawAmount}` : `-$${rawAmount}`;
+    const amountStr = `${isDeposit ? '+' : '-'}$${amountNum.toFixed(2)} ${tokenSymbol}`;
 
     let formattedDate = 'Recently';
     if (tx.timestamp) {
@@ -73,14 +80,19 @@ export default function HomeTab() {
 
     return {
       id: tx.reference || String(idx),
-      title: tx.metadata?.title || (isDeposit ? 'USDC Deposit' : 'Bank Payout'),
-      subtitle: tx.metadata?.subtitle || (isDeposit ? `${(tx.metadata?.chain || 'solana').toUpperCase()} Network` : `${tx.currency || 'NGN'} Transfer`),
+      ref: tx.reference,
+      txHash: tx.metadata?.txHash || tx.reference,
+      title: tx.metadata?.title || (isDeposit ? `${tokenSymbol} Deposit` : 'Bank Payout'),
+      subtitle: tx.metadata?.subtitle || (isDeposit ? `${isMonad ? 'Monad Testnet' : 'Solana Network'}` : `${tx.currency || 'NGN'} Transfer`),
       date: formattedDate,
       amount: amountStr,
       secondaryAmount: `≈ ₦${amountNGN.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      status: 'SUCCESS',
+      status: tx.metadata?.status || 'SUCCESS',
       isDeposit,
-      icon: isDeposit ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'
+      chain: chainName,
+      tokenSymbol,
+      icon: isDeposit ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline',
+      metadata: tx.metadata
     };
   });
 

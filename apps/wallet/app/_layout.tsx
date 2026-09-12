@@ -94,6 +94,7 @@ export default function RootLayout() {
                   <Stack.Screen name="(tabs)" />
                   <Stack.Screen name="settings" />
                   <Stack.Screen name="qr-scanner" options={{ presentation: 'modal' }} />
+                  <Stack.Screen name="transaction-details" options={{ presentation: 'modal' }} />
                 </Stack>
               </AppModalProvider>
             </ThemeProvider>
