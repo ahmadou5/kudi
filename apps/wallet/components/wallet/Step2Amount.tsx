@@ -26,7 +26,7 @@ export const Step2Amount: React.FC<Step2AmountProps> = ({
   const palette = useAppPalette();
   const numericAmount = parseFloat(amount) || 0;
   const amountNGN = numericAmount * rateNGN;
-  const isAmountValid = numericAmount > 0 && numericAmount <= balanceUSDC;
+  const isAmountValid = numericAmount >= 1.0 && numericAmount <= balanceUSDC;
 
   return (
     <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
@@ -74,6 +74,15 @@ export const Step2Amount: React.FC<Step2AmountProps> = ({
       )}
 
       {/* Validation Warnings */}
+      {numericAmount > 0 && numericAmount < 1.0 ? (
+        <View style={[styles.statusCard, { backgroundColor: 'rgba(245,158,11,0.12)', borderColor: '#F59E0B' }]}>
+          <AlertTriangle size={18} color="#F59E0B" />
+          <Text style={[styles.statusTitle, { color: '#F59E0B' }]}>
+            Minimum transfer amount is $1.00 USDC
+          </Text>
+        </View>
+      ) : null}
+
       {numericAmount > balanceUSDC ? (
         <View style={[styles.statusCard, { backgroundColor: 'rgba(255,69,58,0.12)', borderColor: palette.error }]}>
           <AlertTriangle size={18} color={palette.error} />

@@ -2,7 +2,8 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
-import { BankLogo } from './BankPickerModal';
+import { BankLogo, BankItem } from './BankPickerModal';
+import { ChainLogo } from '../ui/ChainLogo';
 
 export interface Beneficiary {
   id: string;
@@ -57,6 +58,10 @@ export const BeneficiariesScroll: React.FC<BeneficiariesScrollProps> = ({
           >
             {b.type === 'BANK' ? (
               <BankLogo name={b.bankName || b.name} bankCode={b.bankCode} size={44} />
+            ) : b.type === 'CRYPTO' ? (
+              <View style={[styles.avatarCircle, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+                <ChainLogo chain={b.chain || 'solana'} size={24} />
+              </View>
             ) : (
               <View style={[styles.avatarCircle, { backgroundColor: palette.bg, borderColor: palette.border }]}>
                 <Text style={[styles.avatarText, { color: palette.text }]}>{initialsFromName(b.name)}</Text>
