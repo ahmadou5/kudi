@@ -85,6 +85,8 @@ export async function sendPushNotification(expoPushToken: string, type: Notifica
       title: payload.title,
       body: payload.body,
       data: payload.data,
+      priority: 'high',
+      channelId: 'default',
     },
   ];
 

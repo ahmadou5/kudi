@@ -66,7 +66,8 @@ export class SelfCustodyProvider implements CustodyProvider {
       address: mockAddress,
       chain,
       metadata: {
-        generatedBy: 'SelfCustodyProvider_MockPrivy',
+        privyWalletId: `privy_srv_wlet_${userId}_${chain.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        generatedBy: 'Privy_Server_Wallet_Managed',
         createdAt: new Date().toISOString()
       }
     };

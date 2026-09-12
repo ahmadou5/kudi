@@ -15,9 +15,17 @@ try {
       shouldShowList: true,
     }),
   });
+
+  if (Platform.OS === 'android') {
+    Notifications.setNotificationChannelAsync('default', {
+      name: 'default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#10B981',
+    }).catch(() => {});
+  }
 } catch (err) {
   // Running in Expo Go without native push support — safe to ignore.
-  // Build a development build with `eas build --profile development` to enable.
   console.warn('[Notifications] Native push module not available (Expo Go). Skipping handler setup.');
 }
 

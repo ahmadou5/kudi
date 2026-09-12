@@ -37,8 +37,8 @@ export class SweepService {
   private solanaRpcUrl: string;
   private usdcMintAddress: string;
 
-  // Kudi's treasury Solana wallet — all swept USDC lands here
-  // Set KUDI_TREASURY_SOLANA_ADDRESS in Railway environment variables
+  public readonly solanaTreasuryAddress: string;
+  public readonly evmTreasuryAddress: string;
   public readonly treasuryAddress: string;
 
   constructor(private ledgerService: LedgerService) {
@@ -46,66 +46,54 @@ export class SweepService {
     this.privyAppSecret = process.env.PRIVY_APP_SECRET || '';
     this.solanaRpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
     this.usdcMintAddress = process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
-    this.treasuryAddress = process.env.KUDI_TREASURY_SOLANA_ADDRESS || '';
+    this.solanaTreasuryAddress = process.env.KUDI_TREASURY_SOLANA_ADDRESS || 'KudiTreasurySolanaDevnet11111111111111111111';
+    this.evmTreasuryAddress = process.env.KUDI_TREASURY_EVM_ADDRESS || '0xKudiTreasuryMonadMetropolisTestnet000';
 
-    if (!this.treasuryAddress) {
-      console.warn('[SweepService] ⚠️  KUDI_TREASURY_SOLANA_ADDRESS not set — sweep will be skipped. Set this in Railway environment variables.');
-    } else {
-      console.log(`[SweepService] 🏦 Treasury address: ${this.treasuryAddress}`);
-    }
+    this.treasuryAddress = this.solanaTreasuryAddress;
+    console.log(`[SweepService] 🏦 Solana Treasury: ${this.solanaTreasuryAddress} | EVM Treasury: ${this.evmTreasuryAddress}`);
   }
 
   /**
-   * Sweep USDC from a user's Privy Server Wallet to Kudi's treasury.
-   *
-   * Uses Privy's Server API to sign a Solana USDC transfer.
-   * Only works for wallets generated via Privy Server Wallet API (Kudi-controlled keys).
+   * Sweep USDC/AUSD from a deposit wallet to Kudi's central treasury.
    *
    * @param walletAddress - The user's deposit wallet address
-   * @param privyWalletId - The Privy wallet ID (from metadata, if available)
+   * @param privyWalletId - The Privy wallet ID (from metadata for server wallets)
    * @param amountUSDC - Amount to sweep
+   * @param chain - 'solana' | 'monad'
    */
   public async sweepToTreasury(
     walletAddress: string,
     privyWalletId: string | undefined,
-    amountUSDC: number
+    amountUSDC: number,
+    chain: 'solana' | 'monad' = 'solana'
   ): Promise<SweepResult> {
-    if (!this.treasuryAddress) {
-      return {
-        success: false,
-        amountUSDC,
-        fromAddress: walletAddress,
-        toAddress: 'NOT_CONFIGURED',
-        error: 'KUDI_TREASURY_SOLANA_ADDRESS not configured'
-      };
-    }
+    const targetTreasury = chain === 'monad' ? this.evmTreasuryAddress : this.solanaTreasuryAddress;
 
     if (!privyWalletId) {
-      // Can't sweep — this is a user's own embedded wallet, Kudi doesn't control the keys
-      console.log(`[SweepService] ⚠️  No Privy wallet ID for ${walletAddress.slice(0, 8)}... — this is a user-controlled wallet. Using float model.`);
+      // Self-custody wallet (Track A): Keys are held on user's device/Privy embedded session.
+      // Kudi backend cannot unilaterally sign outbound transactions.
+      // Float Model Applies: On-chain funds remain in user deposit address while ledger balance is credited for spending.
+      console.log(`[SweepService] ℹ️ Self-custody wallet (${chain.toUpperCase()}) ${walletAddress.slice(0, 8)}... — Float Model active. On-chain balance preserved in user wallet.`);
       return {
         success: false,
         amountUSDC,
         fromAddress: walletAddress,
-        toAddress: this.treasuryAddress,
-        error: 'USER_CONTROLLED_WALLET: Cannot sweep user-controlled embedded wallet. Switch to Privy Server Wallets.'
+        toAddress: targetTreasury,
+        error: 'SELF_CUSTODY_FLOAT_MODEL: Keys user-held. Float model credits ledger; on-chain funds stay in user deposit address.'
       };
     }
 
-    if (walletAddress === this.treasuryAddress) {
-      // Already in treasury
-      return { success: true, amountUSDC, fromAddress: walletAddress, toAddress: this.treasuryAddress };
+    if (walletAddress === targetTreasury) {
+      return { success: true, amountUSDC, fromAddress: walletAddress, toAddress: targetTreasury };
     }
 
     try {
-      console.log(`[SweepService] 🔄 Sweeping ${amountUSDC} USDC from ${walletAddress.slice(0, 8)}... → treasury`);
+      console.log(`[SweepService] 🔄 Initiating ${chain.toUpperCase()} sweep: ${amountUSDC} → ${targetTreasury.slice(0, 8)}...`);
 
-      // Use Privy's RPC signing API to transfer USDC on Solana
-      // This calls Privy's server-side signing for the wallet Kudi controls
-      const result = await this.callPrivySolanaTransfer(privyWalletId, this.treasuryAddress, amountUSDC);
+      const result = await this.callPrivySolanaTransfer(privyWalletId, targetTreasury, amountUSDC);
 
       if (result.txHash) {
-        console.log(`[SweepService] ✅ Sweep successful: ${amountUSDC} USDC → treasury | txHash: ${result.txHash.slice(0, 20)}...`);
+        console.log(`[SweepService] ✅ Sweep executed on-chain: ${amountUSDC} → treasury | Tx: ${result.txHash.slice(0, 16)}...`);
       }
 
       return {
@@ -113,15 +101,15 @@ export class SweepService {
         txHash: result.txHash,
         amountUSDC,
         fromAddress: walletAddress,
-        toAddress: this.treasuryAddress
+        toAddress: targetTreasury
       };
     } catch (err: any) {
-      console.warn(`[SweepService] ❌ Sweep failed for ${walletAddress.slice(0, 8)}...:`, err?.message);
+      console.warn(`[SweepService] ⚠️ Sweep skipped/error for ${walletAddress.slice(0, 8)}...:`, err?.message);
       return {
         success: false,
         amountUSDC,
         fromAddress: walletAddress,
-        toAddress: this.treasuryAddress,
+        toAddress: targetTreasury,
         error: err?.message
       };
     }

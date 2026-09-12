@@ -193,6 +193,18 @@ export class DepositService {
 
             console.log(`[DepositService] ✅ Monad Balance updated for user ${user.id}: ${newBal.toFixed(6)} AUSD/USDC`);
 
+            // Sweep deposited AUSD from user's deposit address to Kudi treasury
+            const privyWalletId = (monadWallet as any).metadata?.privyWalletId as string | undefined;
+            this.sweepService.sweepToTreasury(monadWallet.address, privyWalletId, amount, 'monad')
+              .then(sweep => {
+                if (sweep.success) {
+                  console.log(`[DepositService] 🏦 Monad Sweep successful: ${amount} AUSD → treasury (${sweep.txHash?.slice(0, 12)}...)`);
+                } else {
+                  console.warn(`[DepositService] ℹ️ Monad Sweep status: ${sweep.error}`);
+                }
+              })
+              .catch(err => console.warn('[DepositService] Monad Sweep error:', err?.message));
+
             if (this.io) {
               this.io.to(user.id).emit('deposit:received', {
                 amountUSDC: amount,

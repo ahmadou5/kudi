@@ -60,10 +60,19 @@ export function useKudiWallet() {
       queryClient.refetchQueries({ queryKey: ['transactions', userId] });
 
       if (data && data.amountUSDC) {
+        const chainTitle = data.chain === 'monad' ? 'Monad Testnet' : 'Solana Network';
         setDepositNotification({
           amountUSDC: Number(data.amountUSDC),
           chain: data.chain || 'solana',
           txHash: data.txHash
+        });
+
+        // Trigger top-of-screen local push banner when app is in foreground
+        import('../../lib/notifications').then(({ triggerLocalTestNotification }) => {
+          triggerLocalTestNotification(
+            'Deposit Received! 💰',
+            `+${Number(data.amountUSDC).toFixed(2)} ${data.chain === 'monad' ? 'AUSD' : 'USDC'} landed on ${chainTitle}. Balance updated.`
+          ).catch(() => {});
         });
 
         setTimeout(() => setDepositNotification(null), 6000);
