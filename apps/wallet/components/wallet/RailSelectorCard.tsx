@@ -1,10 +1,8 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Building2, Send, ChevronRight } from 'lucide-react-native';
+import { StyleSheet, Text, TouchableOpacity, View, Image } from 'react-native';
+import { ChevronRight } from 'lucide-react-native';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
-import { Spacing } from '../../constants/spacing';
-import { ChainLogo } from '../ui/ChainLogo';
 
 interface RailSelectorCardProps {
   onSelectOffchain: () => void;
@@ -16,108 +14,129 @@ export const RailSelectorCard: React.FC<RailSelectorCardProps> = ({
   onSelectOnchain,
 }) => {
   const palette = useAppPalette();
+  const isDark = palette.text === '#FFFFFF';
+
+  const renderBgPattern = (color: string) => (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <View style={[styles.ring1, { borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.05)' }]} />
+      <View style={[styles.ring2, { borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.04)' }]} />
+      <View style={[styles.glow, { backgroundColor: color, opacity: isDark ? 0.1 : 0.06 }]} />
+    </View>
+  );
 
   return (
-    <View style={styles.sectionGap}>
-      <View style={styles.headerCopy}>
-        <Text style={[styles.eyebrow, { color: palette.primary }]}>TRANSFER FLOW</Text>
-        <Text style={[styles.titleText, { color: palette.text }]}>Select payment rails</Text>
-      </View>
-
+    <View style={styles.stack}>
+      {/* Off-Chain Bank & Inter-App Transfer Card */}
       <TouchableOpacity
-        activeOpacity={0.88}
         onPress={onSelectOffchain}
-        style={[styles.rootCard, { backgroundColor: palette.card, borderColor: palette.border }]}
+        activeOpacity={0.85}
+        style={[styles.choiceCard, { backgroundColor: palette.card, borderColor: palette.border }]}
       >
-        <View style={[styles.cardIconWrap, { backgroundColor: 'rgba(10,132,255,0.12)' }]}>
-          <Building2 size={24} color={palette.primary} />
-        </View>
-        <View style={styles.cardContent}>
-          <Text style={[styles.cardTitle, { color: palette.text }]}>Off-Chain Transfer</Text>
-          <Text style={[styles.cardSubtitle, { color: palette.textSecondary }]}>
-            Send instantly to NGN Bank accounts (Paystack/NUBAN) or inter-app handles
-          </Text>
-          <View style={styles.pillRow}>
-            <View style={[styles.miniPill, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-              <Text style={[styles.miniPillText, { color: palette.text }]}>NUBAN Bank</Text>
-            </View>
-            <View style={[styles.miniPill, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-              <Text style={[styles.miniPillText, { color: palette.text }]}>Inter-App</Text>
-            </View>
+        {renderBgPattern('#34D399')}
+        <View style={styles.choiceTop}>
+          <View style={styles.choiceBadgesRow}>
+            {['₦', '$', '€'].map((sym) => (
+              <View key={sym} style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
+                <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 13 }]}>{sym}</Text>
+              </View>
+            ))}
           </View>
+          <ChevronRight size={20} color={palette.textSecondary} />
         </View>
-        <ChevronRight size={20} color={palette.textSecondary} />
+        <Text style={[Typography.title2, { color: palette.text, marginTop: 14 }]}>Bank Transfer</Text>
+        <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 4, lineHeight: 18 }]}>
+          Send NGN directly to any Nigerian bank account (NUBAN) or transfer instantly to Kudi users via handle.
+        </Text>
       </TouchableOpacity>
 
+      {/* On-Chain Transfer Card */}
       <TouchableOpacity
-        activeOpacity={0.88}
         onPress={onSelectOnchain}
-        style={[styles.rootCard, { backgroundColor: palette.card, borderColor: palette.border }]}
+        activeOpacity={0.85}
+        style={[styles.choiceCard, { backgroundColor: palette.card, borderColor: palette.border }]}
       >
-        <View style={[styles.cardIconWrap, { backgroundColor: 'rgba(139,92,246,0.12)' }]}>
-          <Send size={24} color="#8B5CF6" />
-        </View>
-        <View style={styles.cardContent}>
-          <Text style={[styles.cardTitle, { color: palette.text }]}>On-Chain Transfer</Text>
-          <Text style={[styles.cardSubtitle, { color: palette.textSecondary }]}>
-            Send USDC or AUSD to external crypto wallet addresses
-          </Text>
-          <View style={styles.pillRow}>
-            <View style={[styles.miniPill, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-              <ChainLogo chain="solana" size={14} />
-              <Text style={[styles.miniPillText, { color: palette.text }]}>Solana</Text>
+        {renderBgPattern('#9945FF')}
+        <View style={styles.choiceTop}>
+          <View style={styles.choiceBadgesRow}>
+            <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
+              <Image source={require('../../assets/logos/usdc.png')} style={styles.miniLogo} />
+              <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>USDC</Text>
             </View>
-            <View style={[styles.miniPill, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-              <ChainLogo chain="monad" size={14} />
-              <Text style={[styles.miniPillText, { color: palette.text }]}>Monad</Text>
+            <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
+              <Image source={require('../../assets/logos/ausd.png')} style={styles.miniLogo} />
+              <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>AUSD</Text>
+            </View>
+            <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
+              <Image source={require('../../assets/logos/ngnc.png')} style={styles.miniLogo} />
+              <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>NGNC</Text>
             </View>
           </View>
+          <ChevronRight size={20} color={palette.textSecondary} />
         </View>
-        <ChevronRight size={20} color={palette.textSecondary} />
+        <Text style={[Typography.title2, { color: palette.text, marginTop: 14 }]}>On-Chain Transfer</Text>
+        <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 4, lineHeight: 18 }]}>
+          Send USDC, AUSD, or NGNC directly to external crypto wallet addresses on Solana or Monad networks.
+        </Text>
       </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  sectionGap: { gap: Spacing.lg },
-  headerCopy: { gap: 4 },
-  eyebrow: {
-    fontSize: Typography.xs,
-    fontFamily: Typography.family.bold,
-    letterSpacing: 1,
-  },
-  titleText: {
-    fontSize: Typography.xxl,
-    fontFamily: Typography.family.bold,
-  },
-  rootCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 20,
+  stack: { gap: 14 },
+  choiceCard: {
+    borderRadius: 24,
+    padding: 20,
     borderWidth: 1,
-    padding: Spacing.lg,
-    gap: Spacing.md,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  cardIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+  ring1: {
+    position: 'absolute',
+    right: -40,
+    top: -40,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    borderWidth: 1,
   },
-  cardContent: { flex: 1, gap: 4 },
-  cardTitle: { fontSize: Typography.md, fontFamily: Typography.family.bold },
-  cardSubtitle: { fontSize: Typography.xs, lineHeight: 18 },
-  pillRow: { flexDirection: 'row', gap: 6, marginTop: 4 },
-  miniPill: {
+  ring2: {
+    position: 'absolute',
+    right: -10,
+    top: -10,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 1,
+  },
+  glow: {
+    position: 'absolute',
+    right: 20,
+    top: 20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  choiceTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    justifyContent: 'space-between',
+  },
+  choiceBadgesRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  assetBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    gap: 6,
+  },
+  miniLogo: {
+    width: 16,
+    height: 16,
     borderRadius: 8,
-    borderWidth: 1,
   },
-  miniPillText: { fontSize: 10, fontFamily: Typography.family.semibold },
 });

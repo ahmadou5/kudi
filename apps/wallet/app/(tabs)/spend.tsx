@@ -112,6 +112,19 @@ export default function SpendTab() {
     return NIGERIAN_BANKS.find((b) => b.code === bankCode) || NIGERIAN_BANKS[0];
   }, [bankCode]);
 
+  const handleBack = () => {
+    if (spendType !== 'select' && step > 1) {
+      setStep((prev) => (prev - 1) as FlowStep);
+      return;
+    }
+    if (spendType !== 'select') {
+      setSpendType('select');
+      setStep(1);
+      return;
+    }
+    router.back();
+  };
+
   // Auto NUBAN resolution
   useEffect(() => {
     if (spendType === 'offchain' && offchainMode === 'BANK') {
@@ -351,30 +364,22 @@ export default function SpendTab() {
     >
       <ScrollView
         style={[styles.container, { backgroundColor: palette.bg }]}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Row */}
+        {/* Header */}
         <View style={styles.headerRow}>
-          {spendType !== 'select' ? (
-            <Pressable
-              onPress={() => {
-                if (step > 1) {
-                  setStep((prev) => (prev - 1) as FlowStep);
-                } else {
-                  setSpendType('select');
-                }
-              }}
-              style={[styles.backButton, { backgroundColor: palette.card, borderColor: palette.border }]}
-            >
-              <ArrowLeft size={18} color={palette.text} />
-            </Pressable>
-          ) : (
-            <View style={{ width: 40 }} />
-          )}
-          <Text style={[styles.headerTitle, { color: palette.text }]}>Send Money</Text>
-          <View style={{ width: 40 }} />
+          <TouchableOpacity
+            onPress={handleBack}
+            style={[styles.backButton, { backgroundColor: palette.card, borderColor: palette.border }]}
+            activeOpacity={0.7}
+          >
+            <ArrowLeft size={20} color={palette.text} />
+          </TouchableOpacity>
+          <Text style={[Typography.title1, { color: palette.text }]}>
+            {spendType === 'select' ? 'Spend Funds' : activeFlowTitle}
+          </Text>
         </View>
 
         {/* Root Spend Type Selection (Off-chain & On-chain Cards) */}
@@ -404,59 +409,79 @@ export default function SpendTab() {
 
             {/* Sub-mode Switcher Pills */}
             {spendType === 'offchain' ? (
-              <View style={[styles.subModeRow, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <View style={styles.chainTabRow}>
                 <TouchableOpacity
                   onPress={() => setOffchainMode('BANK')}
+                  activeOpacity={0.8}
                   style={[
-                    styles.subModePill,
-                    offchainMode === 'BANK' && { backgroundColor: palette.primary }
+                    styles.chainTab,
+                    {
+                      backgroundColor: offchainMode === 'BANK' ? (palette.text === '#FFFFFF' ? '#1E293B' : '#0F172A') : palette.card,
+                      borderColor: offchainMode === 'BANK' ? palette.primary : palette.border
+                    }
                   ]}
                 >
-                  <Building2 size={14} color={offchainMode === 'BANK' ? '#fff' : palette.textSecondary} />
-                  <Text style={[styles.subModeText, { color: offchainMode === 'BANK' ? '#fff' : palette.textSecondary }]}>
-                    Bank Transfer
+                  <Building2 size={16} color={offchainMode === 'BANK' ? palette.primary : palette.textSecondary} />
+                  <Text style={[Typography.footnote, { color: offchainMode === 'BANK' ? '#FFF' : palette.textSecondary, fontWeight: offchainMode === 'BANK' ? '700' : '500' }]}>
+                    Bank Transfer (NGN)
                   </Text>
+                  {offchainMode === 'BANK' && <View style={[styles.activeDot, { backgroundColor: palette.primary }]} />}
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={() => setOffchainMode('INTERAPP')}
+                  activeOpacity={0.8}
                   style={[
-                    styles.subModePill,
-                    offchainMode === 'INTERAPP' && { backgroundColor: palette.primary }
+                    styles.chainTab,
+                    {
+                      backgroundColor: offchainMode === 'INTERAPP' ? (palette.text === '#FFFFFF' ? '#1E293B' : '#0F172A') : palette.card,
+                      borderColor: offchainMode === 'INTERAPP' ? palette.primary : palette.border
+                    }
                   ]}
                 >
-                  <Smartphone size={14} color={offchainMode === 'INTERAPP' ? '#fff' : palette.textSecondary} />
-                  <Text style={[styles.subModeText, { color: offchainMode === 'INTERAPP' ? '#fff' : palette.textSecondary }]}>
-                    Inter-App
+                  <Smartphone size={16} color={offchainMode === 'INTERAPP' ? palette.primary : palette.textSecondary} />
+                  <Text style={[Typography.footnote, { color: offchainMode === 'INTERAPP' ? '#FFF' : palette.textSecondary, fontWeight: offchainMode === 'INTERAPP' ? '700' : '500' }]}>
+                    Inter-App (@User)
                   </Text>
+                  {offchainMode === 'INTERAPP' && <View style={[styles.activeDot, { backgroundColor: palette.primary }]} />}
                 </TouchableOpacity>
               </View>
             ) : (
-              <View style={[styles.subModeRow, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <View style={styles.chainTabRow}>
                 <TouchableOpacity
                   onPress={() => setOnchainChain('solana')}
+                  activeOpacity={0.8}
                   style={[
-                    styles.subModePill,
-                    onchainChain === 'solana' && { backgroundColor: palette.primary }
+                    styles.chainTab,
+                    {
+                      backgroundColor: onchainChain === 'solana' ? (palette.text === '#FFFFFF' ? '#1E293B' : '#0F172A') : palette.card,
+                      borderColor: onchainChain === 'solana' ? '#9945FF' : palette.border
+                    }
                   ]}
                 >
-                  <ChainLogo chain="solana" size={14} />
-                  <Text style={[styles.subModeText, { color: onchainChain === 'solana' ? '#fff' : palette.textSecondary }]}>
+                  <ChainLogo chain="solana" size={16} />
+                  <Text style={[Typography.footnote, { color: onchainChain === 'solana' ? '#FFF' : palette.textSecondary, fontWeight: onchainChain === 'solana' ? '700' : '500' }]}>
                     Solana (USDC)
                   </Text>
+                  {onchainChain === 'solana' && <View style={[styles.activeDot, { backgroundColor: '#9945FF' }]} />}
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={() => setOnchainChain('monad')}
+                  activeOpacity={0.8}
                   style={[
-                    styles.subModePill,
-                    onchainChain === 'monad' && { backgroundColor: palette.primary }
+                    styles.chainTab,
+                    {
+                      backgroundColor: onchainChain === 'monad' ? (palette.text === '#FFFFFF' ? '#1E293B' : '#0F172A') : palette.card,
+                      borderColor: onchainChain === 'monad' ? '#836EF9' : palette.border
+                    }
                   ]}
                 >
-                  <ChainLogo chain="monad" size={14} />
-                  <Text style={[styles.subModeText, { color: onchainChain === 'monad' ? '#fff' : palette.textSecondary }]}>
+                  <ChainLogo chain="monad" size={16} />
+                  <Text style={[Typography.footnote, { color: onchainChain === 'monad' ? '#FFF' : palette.textSecondary, fontWeight: onchainChain === 'monad' ? '700' : '500' }]}>
                     Monad (AUSD)
                   </Text>
+                  {onchainChain === 'monad' && <View style={[styles.activeDot, { backgroundColor: '#836EF9' }]} />}
                 </TouchableOpacity>
               </View>
             )}
@@ -578,10 +603,10 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   contentContainer: { padding: Spacing.lg, paddingBottom: 40 },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.md,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 14,
+    marginBottom: 16,
   },
   backButton: {
     width: 40,
@@ -591,26 +616,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: {
-    fontSize: Typography.lg,
-    fontFamily: Typography.family.bold,
-  },
   sectionGap: { gap: Spacing.lg },
-  subModeRow: {
-    flexDirection: 'row',
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 4,
-    gap: 4,
-  },
-  subModePill: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  subModeText: { fontSize: Typography.xs, fontFamily: Typography.family.bold },
+  chainTabRow: { flexDirection: 'row', gap: 10 },
+  chainTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 28, borderWidth: 1 },
+  activeDot: { width: 6, height: 6, borderRadius: 3 },
 });
