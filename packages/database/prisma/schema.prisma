@@ -7,6 +7,19 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum KYCTier {
+  UNVERIFIED
+  TIER_1
+  TIER_2
+}
+
+enum KYCStatus {
+  NOT_STARTED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
 model User {
   id              String             @id @default(uuid())
   privyUserId     String?            @unique
@@ -16,8 +29,8 @@ model User {
   username        String?
   avatarUrl       String?
   expoPushToken   String?
-  kycTier         String             @default("UNVERIFIED")
-  kycStatus       String             @default("NOT_STARTED")
+  kycTier         KYCTier            @default(UNVERIFIED)
+  kycStatus       KYCStatus          @default(NOT_STARTED)
   pinHash         String?
   wallets         Wallet[]
   ledger          LedgerEntry[]

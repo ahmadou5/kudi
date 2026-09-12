@@ -36,6 +36,11 @@ export function useKudiWallet() {
   useEffect(() => {
     if (!userId) return;
 
+    // Register Expo Push Token on app launch / login
+    import('../../lib/notifications').then(({ registerPushToken }) => {
+      registerPushToken(userId).catch(err => console.warn('[PushToken] Registration error:', err));
+    });
+
     const handleDepositReceived = (data: any) => {
       console.log('💰 [Socket] Deposit Received event:', data);
 

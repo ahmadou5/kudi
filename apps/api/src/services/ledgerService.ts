@@ -363,6 +363,25 @@ export class LedgerService {
         status: 'SUCCESS'
       }
     }).catch(err => console.warn('[LedgerService] DB spend transaction record warning:', err?.message));
+
+    // Record LedgerEntry debit directly in Neon DB
+    const currentBal = this.getBalance(record.userId);
+    prisma.ledgerEntry.create({
+      data: {
+        userId: record.userId,
+        type: 'SPEND_DEBIT',
+        amountUSDC: Number(record.amountUSDC) || 0,
+        resultingBalanceUSDC: currentBal,
+        referenceId: reference,
+        metadata: JSON.stringify({
+          title: 'Bank Payout',
+          subtitle: `${record.recipientAccountName || 'Bank Transfer'} (${record.recipientAccountNumber || ''})`,
+          amountNGN: record.amountNGN,
+          exchangeRateNGN: record.exchangeRateNGN,
+          recipientBankCode: record.recipientBankCode
+        })
+      }
+    }).catch(err => console.warn('[LedgerService] DB spend ledger entry warning:', err?.message));
   }
 
   public getSpend(reference: string): any {
@@ -375,6 +394,43 @@ export class LedgerService {
       timestamp: record.timestamp || new Date().toISOString()
     };
     this.transactions.set(record.reference, tx);
+
+    // Record LedgerEntry in Neon DB for inter-app transfers
+    if (record.metadata?.type === 'SPEND_INTER_APP') {
+      const amount = Number(record.amount) || 0;
+      const senderBal = this.getBalance(record.fromUserId);
+      prisma.ledgerEntry.create({
+        data: {
+          userId: record.fromUserId,
+          type: 'SPEND_DEBIT',
+          amountUSDC: amount,
+          resultingBalanceUSDC: senderBal,
+          referenceId: record.reference,
+          metadata: JSON.stringify({
+            title: record.metadata.title || 'Inter-App Transfer',
+            subtitle: record.metadata.subtitle || 'Kudi Transfer',
+            toUserId: record.toUserId
+          })
+        }
+      }).catch(err => console.warn('[LedgerService] DB inter-app sender ledger entry warning:', err?.message));
+
+      const recipientBal = this.getBalance(record.toUserId);
+      prisma.ledgerEntry.create({
+        data: {
+          userId: record.toUserId,
+          type: 'DEPOSIT_CREDIT',
+          amountUSDC: amount,
+          resultingBalanceUSDC: recipientBal,
+          referenceId: `rec_${record.reference}`,
+          metadata: JSON.stringify({
+            title: 'Inter-App Transfer Received',
+            subtitle: 'Kudi Transfer',
+            fromUserId: record.fromUserId
+          })
+        }
+      }).catch(err => console.warn('[LedgerService] DB inter-app recipient ledger entry warning:', err?.message));
+    }
+
     return tx;
   }
 
