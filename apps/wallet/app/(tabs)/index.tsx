@@ -34,7 +34,8 @@ export default function HomeTab() {
     isBalanceLoading,
     isTransactionsLoading,
     refetchBalance,
-    refetchTransactions
+    refetchTransactions,
+    depositNotification
   } = useKudiWallet();
 
   const isRefreshing = isBalanceLoading || isTransactionsLoading;
@@ -52,8 +53,16 @@ export default function HomeTab() {
 
   // Map live API transactions to TransactionData interface
   const formattedTransactions: TransactionData[] = (transactions || []).map((tx: any, idx: number) => {
-    const isDeposit = tx.toUserId === userId || tx.metadata?.type === 'DEPOSIT_ONCHAIN';
+    const isDeposit =
+      tx.toUserId === userId ||
+      tx.fromUserId === 'CHAIN_DEPOSIT' ||
+      tx.metadata?.type === 'DEPOSIT' ||
+      tx.metadata?.type === 'DEPOSIT_CREDIT' ||
+      tx.metadata?.type === 'DEPOSIT_ONCHAIN';
+
     const rawAmount = typeof tx.amount === 'number' ? tx.amount.toFixed(2) : String(tx.amount || '0.00');
+    const amountNum = parseFloat(rawAmount) || 0;
+    const amountNGN = amountNum * rateNGN;
     const amountStr = isDeposit ? `+$${rawAmount}` : `-$${rawAmount}`;
 
     let formattedDate = 'Recently';
@@ -65,10 +74,10 @@ export default function HomeTab() {
     return {
       id: tx.reference || String(idx),
       title: tx.metadata?.title || (isDeposit ? 'USDC Deposit' : 'Bank Payout'),
-      subtitle: tx.metadata?.subtitle || (isDeposit ? 'Solana Network' : `${tx.currency || 'NGN'} Transfer`),
+      subtitle: tx.metadata?.subtitle || (isDeposit ? `${(tx.metadata?.chain || 'solana').toUpperCase()} Network` : `${tx.currency || 'NGN'} Transfer`),
       date: formattedDate,
       amount: amountStr,
-      secondaryAmount: tx.metadata?.subtitle ? undefined : `Via ${tx.currency || 'USDC'}`,
+      secondaryAmount: `≈ ₦${amountNGN.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       status: 'SUCCESS',
       isDeposit,
       icon: isDeposit ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'
@@ -99,7 +108,7 @@ export default function HomeTab() {
         }
       >
         {/* Live Balance Card Component */}
-        <BalanceCard balanceUSDC={balanceUSDC} rateNGN={rateNGN} />
+        <BalanceCard balanceUSDC={balanceUSDC} rateNGN={rateNGN} depositNotification={depositNotification} />
 
         {/* Quick Actions Grid */}
         <Text style={[Typography.title2, styles.sectionTitle, { color: palette.text }]}>

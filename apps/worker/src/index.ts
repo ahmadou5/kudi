@@ -11,7 +11,7 @@ const monadTestnetConfig: EVMChainConfig = {
   chainId: 10143,
   type: ChainType.EVM,
   rpcUrl: process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz',
-  tokenContractAddress: process.env.AUSD_TOKEN_ADDRESS || '0x000000000000000000000000000000000000AUSD',
+  tokenContractAddress: process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3',
   tokenSymbol: 'AUSD',
   tokenDecimals: 6,
   confirmationThreshold: 1,

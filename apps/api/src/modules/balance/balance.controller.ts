@@ -39,7 +39,7 @@ export class BalanceController {
 
   public getTransactions = async (request: FastifyRequest, reply: FastifyReply) => {
     const { userId } = request.params as { userId: string };
-    const transactions = this.ledgerService.getUserTransactions(userId);
+    const transactions = await this.ledgerService.getUserTransactionsAsync(userId);
     return successResponse({ transactions, total: transactions.length });
   };
 

@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Animated } from 'react-native';
 import { router } from 'expo-router';
 import { useAppPalette } from '../lib/theme';
 import { Typography } from '../constants/typography';
@@ -7,23 +7,124 @@ import { Typography } from '../constants/typography';
 interface BalanceCardProps {
   balanceUSDC: string;
   rateNGN: number;
+  depositNotification?: { amountUSDC: number; chain: string } | null;
 }
 
-export const BalanceCard: React.FC<BalanceCardProps> = ({ balanceUSDC, rateNGN }) => {
+export const BalanceCard: React.FC<BalanceCardProps> = ({
+  balanceUSDC,
+  rateNGN,
+  depositNotification
+}) => {
   const palette = useAppPalette();
-  const ngnEquivalent = (parseFloat(balanceUSDC) || 0) * rateNGN;
+  const numericBalance = parseFloat(balanceUSDC) || 0;
+  const ngnEquivalent = numericBalance * rateNGN;
   const isDark = palette.text === '#FFFFFF';
 
+  // Animation values
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
+  const badgeYAnim = useRef(new Animated.Value(20)).current;
+  const badgeOpacityAnim = useRef(new Animated.Value(0)).current;
+
+  const prevBalanceRef = useRef<number>(numericBalance);
+  const [depositDelta, setDepositDelta] = useState<number | null>(null);
+
+  useEffect(() => {
+    const prev = prevBalanceRef.current;
+    if (numericBalance > prev && prev !== 0) {
+      const diff = numericBalance - prev;
+      setDepositDelta(diff);
+
+      // Trigger Apple-style spring pulse & green glow aura
+      Animated.parallel([
+        Animated.sequence([
+          Animated.spring(scaleAnim, {
+            toValue: 1.04,
+            friction: 5,
+            tension: 140,
+            useNativeDriver: true
+          }),
+          Animated.spring(scaleAnim, {
+            toValue: 1,
+            friction: 6,
+            tension: 100,
+            useNativeDriver: true
+          })
+        ]),
+        Animated.sequence([
+          Animated.timing(glowAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true
+          }),
+          Animated.timing(glowAnim, {
+            toValue: 0,
+            duration: 1200,
+            useNativeDriver: true
+          })
+        ]),
+        Animated.sequence([
+          Animated.parallel([
+            Animated.spring(badgeYAnim, {
+              toValue: 0,
+              friction: 6,
+              tension: 120,
+              useNativeDriver: true
+            }),
+            Animated.timing(badgeOpacityAnim, {
+              toValue: 1,
+              duration: 250,
+              useNativeDriver: true
+            })
+          ]),
+          Animated.delay(4000),
+          Animated.parallel([
+            Animated.timing(badgeYAnim, {
+              toValue: -15,
+              duration: 300,
+              useNativeDriver: true
+            }),
+            Animated.timing(badgeOpacityAnim, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: true
+            })
+          ])
+        ])
+      ]).start(() => {
+        badgeYAnim.setValue(20);
+      });
+    }
+
+    prevBalanceRef.current = numericBalance;
+  }, [numericBalance]);
+
   return (
-    <View
+    <Animated.View
       style={[
         styles.balanceCard,
         {
           backgroundColor: palette.card,
-          borderColor: palette.border
+          borderColor: palette.border,
+          transform: [{ scale: scaleAnim }]
         }
       ]}
     >
+      {/* Animated Green Deposit Glow Overlay */}
+      <Animated.View
+        style={[
+          styles.glowOverlay,
+          {
+            backgroundColor: palette.success,
+            opacity: glowAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, 0.18]
+            })
+          }
+        ]}
+        pointerEvents="none"
+      />
+
       {/* Subtle Background Pattern Layer */}
       <View style={styles.patternContainer} pointerEvents="none">
         <View
@@ -44,23 +145,31 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({ balanceUSDC, rateNGN }
             { backgroundColor: isDark ? 'rgba(52, 211, 153, 0.05)' : 'rgba(16, 185, 129, 0.04)' }
           ]}
         />
-        <View style={styles.dotGrid}>
-          {[...Array(6)].map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.patternDot,
-                { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(15, 23, 42, 0.12)' }
-              ]}
-            />
-          ))}
-        </View>
       </View>
 
       <View style={styles.cardHeaderRow}>
         <Text style={[Typography.caption, { color: palette.textSecondary }]}>
-          Balance
+          Available Balance
         </Text>
+
+        {/* Animated Floating Deposit Badge */}
+        {depositDelta !== null && (
+          <Animated.View
+            style={[
+              styles.depositBadge,
+              {
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                borderColor: palette.success,
+                opacity: badgeOpacityAnim,
+                transform: [{ translateY: badgeYAnim }]
+              }
+            ]}
+          >
+            <Text style={[Typography.caption, { color: palette.success, fontWeight: '700' }]}>
+              +${depositDelta.toFixed(2)} USDC 💰
+            </Text>
+          </Animated.View>
+        )}
       </View>
 
       <Text style={[Typography.currencyDisplay, styles.balanceValue, { color: palette.text }]}>
@@ -68,7 +177,7 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({ balanceUSDC, rateNGN }
       </Text>
 
       <Text style={[Typography.bodyBold, styles.ngnEquivalent, { color: palette.success }]}>
-        ₦{ngnEquivalent.toLocaleString()} NGN{' '}
+        ₦{ngnEquivalent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN{' '}
         <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
           (1 USDC = ₦{rateNGN})
         </Text>
@@ -108,85 +217,81 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({ balanceUSDC, rateNGN }
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   balanceCard: {
-    position: 'relative',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
     overflow: 'hidden',
-    borderWidth: 0.7,
-    borderRadius: Typography.xxl,
-    padding: Typography.xl,
-    marginTop: Typography.xs,
-    marginBottom: 20
+    position: 'relative'
+  },
+  glowOverlay: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 24
   },
   patternContainer: {
-    ...(StyleSheet.absoluteFill as any)
+    ...StyleSheet.absoluteFill,
+    overflow: 'hidden'
   },
   patternRingOuter: {
     position: 'absolute',
-    top: -60,
-    right: -50,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    borderWidth: 1.5
+    right: -40,
+    top: -40,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    borderWidth: 1
   },
   patternRingInner: {
     position: 'absolute',
-    top: -20,
     right: -10,
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+    top: -10,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     borderWidth: 1
   },
   patternGlow: {
     position: 'absolute',
-    top: -30,
-    right: 10,
-    width: 150,
-    height: 150,
-    borderRadius: 75
-  },
-  dotGrid: {
-    position: 'absolute',
-    top: 18,
     right: 20,
-    flexDirection: 'row',
-    gap: 6
-  },
-  patternDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5
+    top: 20,
+    width: 80,
+    height: 80,
+    borderRadius: 40
   },
   cardHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4
+    justifyContent: 'space-between',
+    marginBottom: 6
+  },
+  depositBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1
   },
   balanceValue: {
-    marginVertical: 6
+    marginVertical: 4
   },
   ngnEquivalent: {
-    marginBottom: 18
+    marginBottom: 16
   },
   actionRow: {
     flexDirection: 'row',
-    gap: 12
+    gap: 12,
+    marginTop: 4
   },
   actionBtn: {
     flex: 1,
-    flexDirection: 'row',
-    gap: 6,
-    paddingVertical: 12,
+    height: 46,
     borderRadius: 14,
-    borderWidth: 1,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    borderWidth: 1
   }
 });

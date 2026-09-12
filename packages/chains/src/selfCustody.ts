@@ -362,7 +362,7 @@ export class SelfCustodyProvider implements CustodyProvider {
       };
     } else {
       // Monad EVM: ERC-20 transfer(address,uint256) via eth_sendTransaction
-      const contract = usdcContractAddress || process.env.AUSD_TOKEN_ADDRESS || '0x000000000000000000000000000000000000AUSD';
+      const contract = usdcContractAddress || process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3';
       const amountWei = BigInt(Math.floor(amountUSDC * 1_000_000)).toString(16).padStart(64, '0');
       const recipientPadded = toAddress.replace('0x', '').padStart(64, '0');
       // ERC-20 transfer(address,uint256) = selector 0xa9059cbb

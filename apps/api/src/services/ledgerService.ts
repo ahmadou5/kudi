@@ -392,6 +392,62 @@ export class LedgerService {
     return userTxs.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
   }
 
+  public async getUserTransactionsAsync(userId: string): Promise<TransactionRecord[]> {
+    const mergedMap = new Map<string, TransactionRecord>();
+
+    // 1. Load in-memory transactions
+    for (const tx of this.transactions.values()) {
+      if (tx.fromUserId === userId || tx.toUserId === userId) {
+        mergedMap.set(tx.reference, tx);
+      }
+    }
+
+    // 2. Load directly from Neon PostgreSQL DB ledger entries
+    try {
+      const dbEntries = await prisma.ledgerEntry.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 100
+      });
+
+      for (const entry of dbEntries) {
+        if (!mergedMap.has(entry.referenceId)) {
+          let meta: Record<string, any> = {};
+          try {
+            if (entry.metadata) meta = JSON.parse(entry.metadata);
+          } catch {
+            meta = {};
+          }
+
+          const isDeposit = entry.type === 'DEPOSIT_CREDIT';
+          const isReversal = entry.type === 'CRYPTO_SEND_REVERSAL';
+
+          const txRecord: TransactionRecord = {
+            fromUserId: isDeposit ? 'CHAIN_DEPOSIT' : userId,
+            toUserId: isDeposit ? userId : (meta.toAddress || 'BANK_PAYOUT'),
+            amount: entry.amountUSDC,
+            currency: meta.chain === 'monad' ? 'AUSD' : 'USDC',
+            reference: entry.referenceId,
+            timestamp: entry.createdAt.toISOString(),
+            metadata: {
+              title: meta.title || (isDeposit ? 'USDC Deposit' : (isReversal ? 'Send Reversal' : 'Bank Payout')),
+              subtitle: meta.subtitle || (isDeposit ? `${(meta.chain || 'solana').toUpperCase()} Network` : 'Bank Transfer'),
+              type: entry.type,
+              ...meta
+            }
+          };
+
+          mergedMap.set(entry.referenceId, txRecord);
+        }
+      }
+    } catch (err: any) {
+      console.warn('[LedgerService] Warning querying ledger entries from DB:', err?.message);
+    }
+
+    const result = Array.from(mergedMap.values());
+    return result.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+  }
+
   public getUserVirtualAccounts(userId: string): VirtualAccountRecord[] {
     return this.virtualAccounts.get(userId) || [
       {

@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TabType } from '../components/TabBar';
 import { useAuthStore } from '../../store/auth.store';
 import { sdk } from '../lib/sdk';
+import { socket } from '../../lib/socket';
 
 export type CryptoWithdrawalStatus = 'PENDING' | 'BROADCAST' | 'CONFIRMED' | 'FAILED' | 'CANCELLED';
 
@@ -24,7 +25,40 @@ export function useKudiWallet() {
 
   const [spendSuccess, setSpendSuccess] = useState<string | null>(null);
   const [cryptoSendResult, setCryptoSendResult] = useState<CryptoSendResult | null>(null);
+  const [depositNotification, setDepositNotification] = useState<{
+    amountUSDC: number;
+    chain: string;
+    txHash?: string;
+  } | null>(null);
   const cryptoPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Real-time deposit notification & instant balance query invalidation via Socket.io
+  useEffect(() => {
+    if (!userId) return;
+
+    const handleDepositReceived = (data: any) => {
+      console.log('💰 [Socket] Deposit Received event:', data);
+
+      queryClient.invalidateQueries({ queryKey: ['balance', userId] });
+      queryClient.invalidateQueries({ queryKey: ['transactions', userId] });
+
+      if (data && data.amountUSDC) {
+        setDepositNotification({
+          amountUSDC: Number(data.amountUSDC),
+          chain: data.chain || 'solana',
+          txHash: data.txHash
+        });
+
+        setTimeout(() => setDepositNotification(null), 6000);
+      }
+    };
+
+    socket.on('deposit:received', handleDepositReceived);
+
+    return () => {
+      socket.off('deposit:received', handleDepositReceived);
+    };
+  }, [userId, queryClient]);
 
   // Fetch live user balance from API
   const balanceQuery = useQuery({
@@ -186,6 +220,7 @@ export function useKudiWallet() {
     spendToBank,
     sendCrypto,
     cryptoSendResult,
-    setCryptoSendResult
+    setCryptoSendResult,
+    depositNotification
   };
 }
