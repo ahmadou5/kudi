@@ -197,6 +197,67 @@ export class LedgerService {
     }
   }
 
+  public async syncUserToDb(user: UserRecord): Promise<void> {
+    try {
+      await prisma.user.upsert({
+        where: { id: user.id },
+        update: {
+          email: user.email || undefined,
+          privyUserId: user.privyUserId || undefined,
+          phoneNumber: user.phoneNumber || undefined,
+          fullName: user.fullName || undefined,
+          username: user.username || undefined,
+          avatarUrl: user.avatarUrl || undefined,
+          pinHash: user.pinHash || undefined,
+          kycStatus: user.kycStatus,
+          kycTier: user.kycTier
+        },
+        create: {
+          id: user.id,
+          email: user.email || undefined,
+          privyUserId: user.privyUserId || undefined,
+          phoneNumber: user.phoneNumber || undefined,
+          fullName: user.fullName || undefined,
+          username: user.username || undefined,
+          avatarUrl: user.avatarUrl || undefined,
+          pinHash: user.pinHash || undefined,
+          kycStatus: user.kycStatus || 'NOT_STARTED',
+          kycTier: user.kycTier || 'UNVERIFIED'
+        }
+      });
+      console.log(`[LedgerService] 🐘 User ${user.id} (${user.email || user.privyUserId || 'anon'}) saved/updated in Neon DB.`);
+    } catch (err: any) {
+      console.warn(`[LedgerService] ⚠️ Sync user ${user.id} to Neon DB warning:`, err?.message);
+    }
+  }
+
+  public async syncWalletToDb(userId: string, wallet: { chain: string; address: string; tokenAddress?: string }): Promise<void> {
+    if (!wallet.address) return;
+    try {
+      const user = this.users.get(userId);
+      if (user) {
+        await this.syncUserToDb(user);
+      }
+      await prisma.wallet.upsert({
+        where: { address: wallet.address },
+        update: {
+          userId,
+          chain: wallet.chain,
+          tokenAddress: wallet.tokenAddress || undefined
+        },
+        create: {
+          userId,
+          chain: wallet.chain,
+          address: wallet.address,
+          tokenAddress: wallet.tokenAddress || undefined
+        }
+      });
+      console.log(`[LedgerService] 🐘 Wallet ${wallet.chain}:${wallet.address.slice(0, 10)}... saved to Neon DB for ${userId}.`);
+    } catch (err: any) {
+      console.warn(`[LedgerService] ⚠️ Sync wallet ${wallet.address} to Neon DB warning:`, err?.message);
+    }
+  }
+
   public registerUser(userId: string, phoneNumber?: string, email?: string, privyUserId?: string): UserRecord {
     const cleanEmail = email?.trim().toLowerCase();
     const cleanPhone = phoneNumber?.trim();
@@ -210,6 +271,7 @@ export class LedgerService {
       if (cleanPhone && !existing.phoneNumber) existing.phoneNumber = cleanPhone;
       this.users.set(existing.id, existing);
       this.saveToStorage();
+      void this.syncUserToDb(existing);
       return existing;
     }
 
@@ -246,6 +308,7 @@ export class LedgerService {
     ]);
 
     this.saveToStorage();
+    void this.syncUserToDb(user);
     return user;
   }
 
@@ -384,31 +447,10 @@ export class LedgerService {
       this.saveToStorage();
 
       // Write-through user and wallets to Neon DB so background worker scans real addresses
-      prisma.user.upsert({
-        where: { id: userId },
-        update: { email: user.email || undefined, privyUserId: user.privyUserId || undefined, phoneNumber: user.phoneNumber || undefined },
-        create: {
-          id: userId,
-          email: user.email || undefined,
-          privyUserId: user.privyUserId || undefined,
-          phoneNumber: user.phoneNumber || undefined,
-          kycTier: 'UNVERIFIED',
-          kycStatus: 'NOT_STARTED'
-        }
-      }).then(() => {
-        for (const w of wallets) {
-          if (!w.address) continue;
-          prisma.wallet.upsert({
-            where: { address: w.address },
-            update: { userId, chain: w.chain },
-            create: {
-              userId,
-              chain: w.chain,
-              address: w.address
-            }
-          }).catch(err => console.warn('[LedgerService] DB write-through failed (wallet):', err?.message));
-        }
-      }).catch(err => console.warn('[LedgerService] DB write-through failed (user):', err?.message));
+      for (const w of wallets) {
+        if (!w.address) continue;
+        void this.syncWalletToDb(userId, { chain: w.chain, address: w.address, tokenAddress: w.metadata?.tokenAddress });
+      }
     }
   }
 
