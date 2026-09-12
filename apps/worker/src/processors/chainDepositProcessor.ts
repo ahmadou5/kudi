@@ -136,12 +136,13 @@ export class ChainDepositProcessor {
       }
 
       // 2. Resolve wallet owner in Neon DB
+      const searchAddresses = params.address.startsWith('0x')
+        ? [params.address, params.address.toLowerCase()]
+        : [params.address];
+
       const wallet = await prisma.wallet.findFirst({
         where: {
-          address: {
-            equals: params.address,
-            mode: 'insensitive'
-          }
+          address: { in: searchAddresses }
         }
       });
 

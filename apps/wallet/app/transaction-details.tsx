@@ -7,8 +7,7 @@ import {
   ScrollView,
   Image,
   Linking,
-  Clipboard,
-  Animated
+  Clipboard
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -73,8 +72,8 @@ export default function TransactionDetailsScreen() {
     }
   };
 
-  const isSuccess = ['SUCCESS', 'COMPLETED', 'DONE'].includes(status.toUpperCase());
-  const isPending = ['PENDING', 'PROCESSING'].includes(status.toUpperCase());
+  const isSuccess = ['SUCCESS', 'COMPLETED', 'CONFIRMED', 'DONE'].includes(status.toUpperCase());
+  const isPending = ['PENDING', 'PROCESSING', 'BROADCAST'].includes(status.toUpperCase());
 
   const statusBg = isSuccess
     ? 'rgba(52, 211, 153, 0.15)'
@@ -145,6 +144,47 @@ export default function TransactionDetailsScreen() {
             <Text style={[Typography.caption, { color: statusColor, fontWeight: '700' }]}>
               {status}
             </Text>
+          </View>
+        </View>
+
+        {/* TRANSACTION STATUS TRACKER LINE */}
+        <View style={[styles.trackerCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          <Text style={[Typography.caption, { color: palette.textSecondary, letterSpacing: 0.8, marginBottom: 12 }]}>
+            TRANSACTION PROGRESS TRACK
+          </Text>
+
+          <View style={styles.timelineRow}>
+            {/* Stage 1: Initiated */}
+            <View style={styles.stageNode}>
+              <View style={[styles.nodeCircle, { backgroundColor: statusColor }]}>
+                <Ionicons name="send" size={12} color="#0F172A" />
+              </View>
+              <Text style={[Typography.caption, { color: palette.text, fontWeight: '700', fontSize: 11 }]}>Requested</Text>
+            </View>
+
+            <View style={[styles.timelineTrackLine, { backgroundColor: statusColor }]} />
+
+            {/* Stage 2: Processing */}
+            <View style={styles.stageNode}>
+              <View style={[styles.nodeCircle, { backgroundColor: isPending || isSuccess ? statusColor : palette.border }]}>
+                <Ionicons name="sync" size={12} color={isPending || isSuccess ? '#0F172A' : palette.textSecondary} />
+              </View>
+              <Text style={[Typography.caption, { color: isPending || isSuccess ? palette.text : palette.textSecondary, fontWeight: '700', fontSize: 11 }]}>
+                Processing
+              </Text>
+            </View>
+
+            <View style={[styles.timelineTrackLine, { backgroundColor: isSuccess ? statusColor : palette.border }]} />
+
+            {/* Stage 3: Completed */}
+            <View style={styles.stageNode}>
+              <View style={[styles.nodeCircle, { backgroundColor: isSuccess ? statusColor : palette.border }]}>
+                <Ionicons name={isSuccess ? 'checkmark-done' : 'time-outline'} size={12} color={isSuccess ? '#0F172A' : palette.textSecondary} />
+              </View>
+              <Text style={[Typography.caption, { color: isSuccess ? statusColor : palette.textSecondary, fontWeight: '700', fontSize: 11 }]}>
+                {isSuccess ? 'Completed' : 'Pending'}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -304,6 +344,33 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3
+  },
+  trackerCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 16
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  stageNode: {
+    alignItems: 'center',
+    gap: 4
+  },
+  nodeCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  timelineTrackLine: {
+    flex: 1,
+    height: 2,
+    marginHorizontal: 6,
+    marginTop: -12
   },
   detailsContainer: {
     borderRadius: 20,

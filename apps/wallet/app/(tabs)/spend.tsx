@@ -1,836 +1,607 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
   View,
-  TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
-  Modal,
-  Image,
-  ActivityIndicator,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Pressable
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAppPalette } from '../../lib/theme';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
 import { Typography } from '../../constants/typography';
-import { AppModal, useAppModal } from '../../components/ui/AppModal';
+import { Spacing } from '../../constants/spacing';
+import { useAppModal } from '../../components/ui/AppModal';
+import { BankPickerModal, BankItem } from '../../components/wallet/BankPickerModal';
+import { PaymentPinModal } from '../../components/wallet/PaymentPinModal';
+import { TransactionResultModal } from '../../components/TransactionResultModal';
+import { RailSelectorCard } from '../../components/wallet/RailSelectorCard';
+import { SpendHeroCard } from '../../components/wallet/SpendHeroCard';
+import { Step1Recipient } from '../../components/wallet/Step1Recipient';
+import { Step2Amount } from '../../components/wallet/Step2Amount';
+import { Step3Review } from '../../components/wallet/Step3Review';
+import { Beneficiary } from '../../components/wallet/BeneficiariesScroll';
 import { ChainLogo } from '../../components/ui/ChainLogo';
 
 type SpendType = 'select' | 'offchain' | 'onchain';
 type OffchainSubMode = 'BANK' | 'INTERAPP';
 type OnchainChain = 'solana' | 'monad';
+type FlowStep = 1 | 2 | 3;
 
-const NIGERIAN_BANKS = [
-  { code: '058', name: 'Guaranty Trust Bank (GTBank)', logoKey: 'gtbank' },
-  { code: '057', name: 'Zenith Bank', logoKey: 'zenith' },
-  { code: '044', name: 'Access Bank', logoKey: 'access' },
-  { code: '033', name: 'United Bank for Africa (UBA)', logoKey: 'uba' },
-  { code: '011', name: 'First Bank of Nigeria', logoKey: 'firstbank' },
-  { code: '035', name: 'Wema Bank / ALAT', logoKey: 'wema' },
-  { code: '232', name: 'Sterling Bank', logoKey: 'sterling' },
-  { code: '50515', name: 'Moniepoint MFB', logoKey: 'moniepoint' },
-  { code: '999992', name: 'OPay Digital Services', logoKey: 'opay' },
-  { code: '999991', name: 'PalmPay', logoKey: 'palmpay' },
-  { code: '50211', name: 'Kuda Microfinance Bank', logoKey: 'kuda' }
+const NIGERIAN_BANKS: BankItem[] = [
+  { code: '058', name: 'Guaranty Trust Bank (GTBank)' },
+  { code: '057', name: 'Zenith Bank' },
+  { code: '044', name: 'Access Bank' },
+  { code: '033', name: 'United Bank for Africa (UBA)' },
+  { code: '011', name: 'First Bank of Nigeria' },
+  { code: '035', name: 'Wema Bank / ALAT' },
+  { code: '232', name: 'Sterling Bank' },
+  { code: '50515', name: 'Moniepoint MFB' },
+  { code: '999992', name: 'OPay Digital Services' },
+  { code: '999991', name: 'PalmPay' },
+  { code: '50211', name: 'Kuda Microfinance Bank' }
+];
+
+const INITIAL_BENEFICIARIES: Beneficiary[] = [
+  { id: 'b1', name: 'Ahmadou S.', accountNumber: '0123456789', bankCode: '058', bankName: 'Guaranty Trust Bank', type: 'BANK' },
+  { id: 'b2', name: 'Fatima Z.', accountNumber: '2233445566', bankCode: '057', bankName: 'Zenith Bank', type: 'BANK' },
+  { id: 'b3', name: 'Chidubem K.', handle: '@chidubem', type: 'INTERAPP' },
+  { id: 'b4', name: 'Solana Treasury', address: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R', chain: 'solana', type: 'CRYPTO' }
 ];
 
 export default function SpendTab() {
   const palette = useAppPalette();
-  const isDark = palette.text === '#FFFFFF';
-  const { balanceUSDC, rateNGN, resolveAccount, spendToBank, sendCrypto, cryptoSendResult, setCryptoSendResult } = useKudiWallet();
+  const { balanceUSDC, rateNGN, resolveAccount, spendToBank, sendCrypto, setCryptoSendResult } = useKudiWallet();
   const params = useLocalSearchParams<{ address?: string }>();
+  const modal = useAppModal();
 
-  // Spend Mode States
+  // Root Spend Selection & Step State
   const [spendType, setSpendType] = useState<SpendType>('select');
+  const [step, setStep] = useState<FlowStep>(1);
   const [offchainMode, setOffchainMode] = useState<OffchainSubMode>('BANK');
   const [onchainChain, setOnchainChain] = useState<OnchainChain>('solana');
 
   // Form Inputs
-  const [usdcAmount, setUsdcAmount] = useState('10');
   const [bankCode, setBankCode] = useState('058');
-  const [accountNumber, setAccountNumber] = useState('0123456789');
-  const [accountName, setAccountName] = useState('Guaranty Trust Bank Account');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [accountName, setAccountName] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(false);
+  const [bankConfirmed, setBankConfirmed] = useState(false);
   const [recipientHandle, setRecipientHandle] = useState('');
   const [resolvedUser, setResolvedUser] = useState<string | null>(null);
   const [onchainAddress, setOnchainAddress] = useState('');
-  const [pin, setPin] = useState('1234');
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [isSendingCrypto, setIsSendingCrypto] = useState(false);
-  const [bankPickerOpen, setBankPickerOpen] = useState(false);
+  const [amount, setAmount] = useState('');
 
-  // Handle auto-prefill from QR Scanner
+  // Beneficiaries State
+  const [savedBeneficiaries, setSavedBeneficiaries] = useState<Beneficiary[]>(INITIAL_BENEFICIARIES);
+  const [isSaved, setIsSaved] = useState(false);
+
+  // Modals State
+  const [bankPickerOpen, setBankPickerOpen] = useState(false);
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pinError, setPinError] = useState('');
+  const [resultModal, setResultModal] = useState<{
+    visible: boolean;
+    type: 'success' | 'failed' | 'pending';
+    title: string;
+    message: string;
+    amount?: string;
+    reference?: string;
+  }>({
+    visible: false,
+    type: 'success',
+    title: '',
+    message: '',
+  });
+
+  // Handle incoming params (e.g. from QR Scanner)
   useEffect(() => {
-    if (params?.address) {
-      const scannedAddr = params.address;
-      setOnchainAddress(scannedAddr);
+    if (params.address) {
       setSpendType('onchain');
-      if (scannedAddr.startsWith('0x')) {
-        setOnchainChain('monad');
+      setOnchainAddress(params.address);
+    }
+  }, [params.address]);
+
+  // Selected Bank Object
+  const selectedBank = useMemo(() => {
+    return NIGERIAN_BANKS.find((b) => b.code === bankCode) || NIGERIAN_BANKS[0];
+  }, [bankCode]);
+
+  // Auto NUBAN resolution
+  useEffect(() => {
+    if (spendType === 'offchain' && offchainMode === 'BANK') {
+      const cleanAcc = accountNumber.replace(/\D/g, '');
+      if (cleanAcc.length === 10) {
+        setIsResolving(true);
+        setAccountName(null);
+        setBankConfirmed(false);
+        const timer = setTimeout(async () => {
+          const res = await resolveAccount(cleanAcc, bankCode);
+          setIsResolving(false);
+          if (res) {
+            setAccountName(res);
+          } else {
+            setAccountName(null);
+          }
+        }, 500);
+        return () => clearTimeout(timer);
       } else {
-        setOnchainChain('solana');
+        setAccountName(null);
+        setIsResolving(false);
+        setBankConfirmed(false);
       }
     }
-  }, [params?.address]);
+  }, [accountNumber, bankCode, spendType, offchainMode, resolveAccount]);
 
-  const selectedBank = NIGERIAN_BANKS.find((b) => b.code === bankCode) || NIGERIAN_BANKS[0];
-
-  const calculateNGN = () => {
-    const val = parseFloat(usdcAmount) || 0;
-    return (val * rateNGN).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
-
-  // Account Number Resolution Trigger
+  // Auto Inter-App resolution
   useEffect(() => {
-    if (accountNumber.length === 10 && offchainMode === 'BANK') {
-      setIsResolving(true);
-      resolveAccount(accountNumber, bankCode).then((name) => {
-        setAccountName(name);
+    if (spendType === 'offchain' && offchainMode === 'INTERAPP') {
+      const cleanHandle = recipientHandle.trim().toLowerCase();
+      if (cleanHandle.length >= 3) {
+        setIsResolving(true);
+        const timer = setTimeout(() => {
+          setIsResolving(false);
+          if (cleanHandle.includes('kudi') || cleanHandle.includes('fatima') || cleanHandle.includes('ahmadou') || cleanHandle.includes('chidubem')) {
+            setResolvedUser(cleanHandle.startsWith('@') ? cleanHandle : `@${cleanHandle}`);
+          } else {
+            setResolvedUser(`${cleanHandle.startsWith('@') ? cleanHandle : '@' + cleanHandle} (Kudi User)`);
+          }
+        }, 400);
+        return () => clearTimeout(timer);
+      } else {
+        setResolvedUser(null);
         setIsResolving(false);
-      });
+      }
     }
-  }, [accountNumber, bankCode, offchainMode]);
+  }, [recipientHandle, spendType, offchainMode]);
 
-  // Inter-App User Resolution Trigger
-  useEffect(() => {
-    if (recipientHandle.length >= 3 && offchainMode === 'INTERAPP') {
-      setResolvedUser(`Ahmadou S. (${recipientHandle.startsWith('@') ? recipientHandle : '@' + recipientHandle})`);
-    } else {
-      setResolvedUser(null);
+  // Active Beneficiaries Filter
+  const activeBeneficiaries = useMemo(() => {
+    if (spendType === 'offchain') {
+      return savedBeneficiaries.filter((b) => b.type === offchainMode);
     }
-  }, [recipientHandle, offchainMode]);
+    return savedBeneficiaries.filter((b) => b.type === 'CRYPTO');
+  }, [savedBeneficiaries, spendType, offchainMode]);
 
-  const modal = useAppModal();
+  // Calculations
+  const numericAmount = parseFloat(amount) || 0;
+  const amountNGN = numericAmount * rateNGN;
 
-  const handleExecuteSpend = async () => {
-    const amt = parseFloat(usdcAmount) || 0;
-    if (amt <= 0) {
-      modal.alert('Invalid Amount', 'Please enter a valid USDC amount to send.', 'warning');
-      return;
-    }
-
-    if (amt > parseFloat(balanceUSDC)) {
-      modal.alert('Insufficient Balance', `Your balance is $${balanceUSDC} USDC.`, 'warning');
-      return;
-    }
-
-    if (pin.length < 4) {
-      modal.alert('Invalid PIN', 'Please enter your 4-digit transaction PIN.', 'warning');
-      return;
-    }
-
+  // Active Recipient Label
+  const activeRecipientName = useMemo(() => {
     if (spendType === 'offchain') {
       if (offchainMode === 'BANK') {
-        setStatusMessage('Processing instant bank transfer payout...');
-        await spendToBank(amt, bankCode, accountNumber, accountName, pin);
-        setStatusMessage(`Successfully sent ₦${calculateNGN()} NGN to ${accountName}!`);
-        modal.alert(
-          'Transfer Successful 🎉',
-          `Sent ₦${calculateNGN()} NGN to ${accountName} (${selectedBank.name}).`,
-          'success'
-        );
+        return accountName ? `${accountName} • ${selectedBank.name}` : selectedBank.name;
       } else {
-        setStatusMessage(`Sending $${amt} USDC to ${resolvedUser || recipientHandle}...`);
-        setTimeout(() => {
-          setStatusMessage(`Successfully sent $${amt} USDC float to ${resolvedUser || recipientHandle}!`);
-          modal.alert(
-            'Inter-App Transfer Sent 🎉',
-            `Successfully transferred $${amt} USDC to ${resolvedUser || recipientHandle}.`,
-            'success'
-          );
-        }, 800);
+        return resolvedUser || recipientHandle || 'Inter-App Recipient';
       }
-    } else {
-      if (!onchainAddress || onchainAddress.length < 10) {
-        modal.alert('Invalid Address', 'Please enter a valid on-chain wallet address.', 'warning');
-        return;
+    }
+    return onchainAddress ? `${onchainAddress.slice(0, 6)}...${onchainAddress.slice(-4)}` : `${onchainChain.toUpperCase()} Address`;
+  }, [spendType, offchainMode, accountName, selectedBank.name, resolvedUser, recipientHandle, onchainAddress, onchainChain]);
+
+  // Recipient Ready Check for Step 1
+  const isRecipientReady = useMemo(() => {
+    if (spendType === 'offchain') {
+      if (offchainMode === 'BANK') {
+        return Boolean(accountName) && bankConfirmed;
       }
+      return Boolean(resolvedUser);
+    }
+    return onchainAddress.trim().length >= 32;
+  }, [spendType, offchainMode, accountName, bankConfirmed, resolvedUser, onchainAddress]);
 
-      setIsSendingCrypto(true);
-      setCryptoSendResult(null);
-      setStatusMessage(`Broadcasting ${amt} ${onchainChain === 'solana' ? 'USDC' : 'AUSD'} to ${onchainChain.toUpperCase()}...`);
+  const handleResetForm = () => {
+    setSpendType('select');
+    setStep(1);
+    setAmount('');
+    setPinError('');
+    setAccountName(null);
+    setAccountNumber('');
+    setBankConfirmed(false);
+    setRecipientHandle('');
+    setResolvedUser(null);
+    setOnchainAddress('');
+    setIsSaved(false);
+  };
 
-      try {
-        const result = await sendCrypto({
-          amountUSDC: amt,
-          toAddress: onchainAddress,
-          chain: onchainChain,
-          pin
-        });
-
-        setStatusMessage(`Pending — Reference: ${result.reference}`);
-        // Status updates are now driven by hook's polling (cryptoSendResult)
-      } catch (err: any) {
-        const msg = err?.message || 'Crypto send failed';
-        setIsSendingCrypto(false);
-        setStatusMessage(null);
-        modal.alert('Send Failed ❌', msg, 'error');
-      }
+  const handleSaveBeneficiary = () => {
+    if (spendType === 'offchain' && offchainMode === 'BANK' && accountName) {
+      const newB: Beneficiary = {
+        id: `b_${Date.now()}`,
+        name: accountName,
+        accountNumber,
+        bankCode,
+        bankName: selectedBank.name,
+        type: 'BANK'
+      };
+      setSavedBeneficiaries([newB, ...savedBeneficiaries]);
+      setIsSaved(true);
+    } else if (spendType === 'offchain' && offchainMode === 'INTERAPP' && resolvedUser) {
+      const newB: Beneficiary = {
+        id: `b_${Date.now()}`,
+        name: resolvedUser,
+        handle: resolvedUser,
+        type: 'INTERAPP'
+      };
+      setSavedBeneficiaries([newB, ...savedBeneficiaries]);
+      setIsSaved(true);
+    } else if (spendType === 'onchain' && onchainAddress) {
+      const newB: Beneficiary = {
+        id: `b_${Date.now()}`,
+        name: `${onchainChain.toUpperCase()} Beneficiary`,
+        address: onchainAddress,
+        chain: onchainChain,
+        type: 'CRYPTO'
+      };
+      setSavedBeneficiaries([newB, ...savedBeneficiaries]);
+      setIsSaved(true);
     }
   };
 
-  // Show final modal when crypto send reaches terminal state
-  React.useEffect(() => {
-    if (!cryptoSendResult) return;
-    if (cryptoSendResult.status === 'CONFIRMED') {
-      setIsSendingCrypto(false);
-      setStatusMessage(null);
-      modal.alert(
-        'Crypto Sent ✅',
-        `${cryptoSendResult.amountUSDC} ${onchainChain === 'solana' ? 'USDC' : 'AUSD'} confirmed on ${onchainChain.toUpperCase()}.\n\nAddress: ${cryptoSendResult.toAddress.slice(0, 8)}...${cryptoSendResult.toAddress.slice(-6)}`,
-        'success'
-      );
-      setCryptoSendResult(null);
-    } else if (cryptoSendResult.status === 'FAILED') {
-      setIsSendingCrypto(false);
-      setStatusMessage(null);
-      modal.alert('Send Failed ❌', 'Transaction failed. Your balance has been restored.', 'error');
-      setCryptoSendResult(null);
-    }
-  }, [cryptoSendResult?.status]);
+  const handleRemoveBeneficiary = (id: string, name: string) => {
+    modal.show({
+      title: 'Remove Beneficiary',
+      description: `Are you sure you want to remove ${name}?`,
+      type: 'warning',
+      primaryText: 'Remove',
+      onPrimaryPress: () => {
+        setSavedBeneficiaries((prev) => prev.filter((b) => b.id !== id));
+        modal.hide();
+      },
+      secondaryText: 'Cancel',
+      onSecondaryPress: () => modal.hide()
+    });
+  };
 
-  // Render Pattern Background for Cards
-  const renderPatternBackground = (accentColor: string) => (
-    <View style={styles.patternContainer} pointerEvents="none">
-      <View
-        style={[
-          styles.patternRingOuter,
-          { borderColor: isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(15, 23, 42, 0.05)' }
-        ]}
-      />
-      <View
-        style={[
-          styles.patternRingInner,
-          { borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(15, 23, 42, 0.04)' }
-        ]}
-      />
-      <View
-        style={[
-          styles.patternGlow,
-          { backgroundColor: accentColor, opacity: isDark ? 0.08 : 0.05 }
-        ]}
-      />
-      <View style={styles.dotGrid}>
-        {[...Array(6)].map((_, i) => (
-          <View
-            key={i}
-            style={[
-              styles.patternDot,
-              { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(15, 23, 42, 0.15)' }
-            ]}
-          />
-        ))}
-      </View>
-    </View>
-  );
+  const handleExecuteTransfer = async (enteredPin: string) => {
+    if (enteredPin.length < 4) {
+      setPinError('Please enter your complete 4-digit PIN');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setPinError('');
+
+    try {
+      const txRef = `KUDI_${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+
+      if (spendType === 'offchain') {
+        if (offchainMode === 'BANK') {
+          await spendToBank(numericAmount, bankCode, accountNumber, accountName || '', enteredPin);
+          setIsSubmitting(false);
+          setPinModalOpen(false);
+
+          setResultModal({
+            visible: true,
+            type: 'success',
+            title: 'Bank Transfer Successful',
+            message: `Successfully sent ${numericAmount.toFixed(2)} USDC (₦${amountNGN.toLocaleString('en-NG', { maximumFractionDigits: 2 })}) to ${accountName}.`,
+            amount: `$${numericAmount.toFixed(2)} USDC`,
+            reference: txRef
+          });
+        } else {
+          // Inter-app transfer
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          setIsSubmitting(false);
+          setPinModalOpen(false);
+
+          setResultModal({
+            visible: true,
+            type: 'success',
+            title: 'Inter-App Transfer Sent',
+            message: `Successfully transferred $${numericAmount.toFixed(2)} USDC to ${resolvedUser}.`,
+            amount: `$${numericAmount.toFixed(2)} USDC`,
+            reference: txRef
+          });
+        }
+      } else {
+        // On-chain transfer
+        const res = await sendCrypto({
+          amountUSDC: numericAmount,
+          toAddress: onchainAddress,
+          chain: onchainChain,
+          pin: enteredPin,
+        });
+        setIsSubmitting(false);
+        setPinModalOpen(false);
+
+        if (res && (res.status === 'CONFIRMED' || res.status === 'PENDING' || res.status === 'BROADCAST')) {
+          setCryptoSendResult(res);
+          setResultModal({
+            visible: true,
+            type: 'success',
+            title: `${onchainChain.toUpperCase()} Transfer Submitted`,
+            message: `Sent $${numericAmount.toFixed(2)} USDC on ${onchainChain.toUpperCase()} network.`,
+            amount: `$${numericAmount.toFixed(2)} USDC`,
+            reference: res.txHash || res.reference || txRef
+          });
+        } else {
+          setResultModal({
+            visible: true,
+            type: 'failed',
+            title: 'On-Chain Transfer Failed',
+            message: 'Transaction rejected by network RPC.',
+            amount: `$${numericAmount.toFixed(2)} USDC`,
+            reference: txRef
+          });
+        }
+      }
+    } catch (err) {
+      setIsSubmitting(false);
+      setPinError(err instanceof Error ? err.message : 'Transfer execution failed.');
+    }
+  };
+
+  const activeFlowTitle = useMemo(() => {
+    if (spendType === 'offchain') {
+      return offchainMode === 'BANK' ? 'Bank transfer' : 'Inter-app transfer';
+    }
+    return `Crypto transfer (${onchainChain.toUpperCase()})`;
+  }, [spendType, offchainMode, onchainChain]);
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={{ flex: 1 }}
+    >
       <ScrollView
         style={[styles.container, { backgroundColor: palette.bg }]}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 110 }}
+        contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-      {/* Dynamic Circle Back Button & Title Header */}
-      <View style={styles.headerRow}>
-        <TouchableOpacity
-          onPress={() => {
-            if (spendType === 'select') {
-              router.back();
-            } else {
-              setSpendType('select');
-            }
-          }}
-          style={[styles.circularBackBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={20} color={palette.text} />
-        </TouchableOpacity>
-        <Text style={[Typography.title1, { color: palette.text }]}>
-          {spendType === 'select'
-            ? 'Send & Spend'
-            : spendType === 'onchain'
-            ? 'On-Chain Transfer'
-            : 'Off-Chain Transfer'}
-        </Text>
-      </View>
-
-      {/* MODE 1: SELECTION VIEW (MATCHING DEPOSIT SCREEN CARDS) */}
-      {spendType === 'select' && (
-        <View style={styles.selectionStack}>
-          {/* On-Chain Spend Card */}
-          <TouchableOpacity
-            onPress={() => setSpendType('onchain')}
-            activeOpacity={0.85}
-            style={[
-              styles.choiceCard,
-              {
-                backgroundColor: palette.card,
-                borderColor: palette.border
-              }
-            ]}
-          >
-            {renderPatternBackground('#9945FF')}
-
-            <View style={styles.choiceHeader}>
-              <View style={styles.typeBadge} />
-              <Ionicons name="chevron-forward" size={20} color={palette.textSecondary} />
-            </View>
-
-            <Text style={[Typography.title2, { color: palette.text, marginTop: 12 }]}>
-              On-Chain Transfer
-            </Text>
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 4, lineHeight: 18 }]}>
-              Broadcast USDC & crypto float directly to any Solana or Monad EVM wallet address.
-            </Text>
-
-            {/* Asset Badges Row */}
-            <View style={styles.assetBadgesRow}>
-              <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
-                <Image source={require('../../assets/logos/usdc.png')} style={styles.miniLogo} />
-                <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>USDC</Text>
-              </View>
-
-              <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
-                <Ionicons name="cube-outline" size={14} color="#9945FF" />
-                <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>AUSD</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-
-          {/* Off-Chain Spend Card */}
-          <TouchableOpacity
-            onPress={() => setSpendType('offchain')}
-            activeOpacity={0.85}
-            style={[
-              styles.choiceCard,
-              {
-                backgroundColor: palette.card,
-                borderColor: palette.border
-              }
-            ]}
-          >
-            {renderPatternBackground('#34D399')}
-
-            <View style={styles.choiceHeader}>
-              <View style={styles.typeBadge} />
-              <Ionicons name="chevron-forward" size={20} color={palette.textSecondary} />
-            </View>
-
-            <Text style={[Typography.title2, { color: palette.text, marginTop: 12 }]}>
-              Off-Chain Transfer
-            </Text>
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 4, lineHeight: 18 }]}>
-              Instant local bank transfer to any Nigerian bank or send to Kudi users.
-            </Text>
-
-            {/* Currency Badges Row */}
-            <View style={styles.assetBadgesRow}>
-              <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
-                <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>₦</Text>
-              </View>
-
-              <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
-                <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>$</Text>
-              </View>
-
-              <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
-                <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>€</Text>
-              </View>
-
-              <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
-                <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>£</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
+        {/* Header Row */}
+        <View style={styles.headerRow}>
+          {spendType !== 'select' ? (
+            <Pressable
+              onPress={() => {
+                if (step > 1) {
+                  setStep((prev) => (prev - 1) as FlowStep);
+                } else {
+                  setSpendType('select');
+                }
+              }}
+              style={[styles.backButton, { backgroundColor: palette.card, borderColor: palette.border }]}
+            >
+              <Ionicons name="arrow-back" size={18} color={palette.text} />
+            </Pressable>
+          ) : (
+            <View style={{ width: 40 }} />
+          )}
+          <Text style={[styles.headerTitle, { color: palette.text }]}>Send Money</Text>
+          <View style={{ width: 40 }} />
         </View>
-      )}
 
-      {/* MODE 2: OFF-CHAIN SPEND VIEW */}
-      {spendType === 'offchain' && (
-        <View style={styles.flowCardStack}>
-          {/* Sub-mode Switcher (Bank Payout vs Inter-App Transfer) */}
-          <View style={styles.subModeRow}>
-            <TouchableOpacity
-              onPress={() => setOffchainMode('BANK')}
-              activeOpacity={0.8}
-              style={[
-                styles.subModePill,
-                {
-                  backgroundColor: offchainMode === 'BANK' ? '#34D399' : palette.card,
-                  borderColor: offchainMode === 'BANK' ? '#34D399' : palette.border
-                }
-              ]}
-            >
-              <Ionicons name="business" size={15} color={offchainMode === 'BANK' ? '#0F172A' : palette.text} />
-              <Text
-                style={[
-                  Typography.footnote,
-                  {
-                    color: offchainMode === 'BANK' ? '#0F172A' : palette.text,
-                    fontWeight: offchainMode === 'BANK' ? '800' : '500'
-                  }
-                ]}
-              >
-                Bank Transfer
-              </Text>
-            </TouchableOpacity>
+        {/* Root Spend Type Selection (Off-chain & On-chain Cards) */}
+        {spendType === 'select' ? (
+          <RailSelectorCard
+            onSelectOffchain={() => {
+              setSpendType('offchain');
+              setStep(1);
+            }}
+            onSelectOnchain={() => {
+              setSpendType('onchain');
+              setStep(1);
+            }}
+          />
+        ) : (
+          /* Modular Component Flow */
+          <View style={styles.sectionGap}>
+            {/* Top Hero Banner with FlowProgressDots */}
+            <SpendHeroCard
+              activeFlowTitle={activeFlowTitle}
+              currentStep={step}
+              totalSteps={3}
+              onStepPress={(target) => {
+                if (target < step) setStep(target as FlowStep);
+              }}
+            />
 
-            <TouchableOpacity
-              onPress={() => setOffchainMode('INTERAPP')}
-              activeOpacity={0.8}
-              style={[
-                styles.subModePill,
-                {
-                  backgroundColor: offchainMode === 'INTERAPP' ? '#34D399' : palette.card,
-                  borderColor: offchainMode === 'INTERAPP' ? '#34D399' : palette.border
-                }
-              ]}
-            >
-              <Ionicons name="phone-portrait" size={15} color={offchainMode === 'INTERAPP' ? '#0F172A' : palette.text} />
-              <Text
-                style={[
-                  Typography.footnote,
-                  {
-                    color: offchainMode === 'INTERAPP' ? '#0F172A' : palette.text,
-                    fontWeight: offchainMode === 'INTERAPP' ? '800' : '500'
-                  }
-                ]}
-              >
-                Inter-App Transfer
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Form Card */}
-          <View style={[styles.mainFormCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            {renderPatternBackground('#34D399')}
-
-            {/* BANK TRANSFER FORM */}
-            {offchainMode === 'BANK' && (
-              <View style={styles.formGroupStack}>
-                <Text style={[Typography.caption, { color: palette.textSecondary }]}>SELECT DESTINATION BANK</Text>
+            {/* Sub-mode Switcher Pills */}
+            {spendType === 'offchain' ? (
+              <View style={[styles.subModeRow, { backgroundColor: palette.card, borderColor: palette.border }]}>
                 <TouchableOpacity
-                  onPress={() => setBankPickerOpen(true)}
-                  style={[styles.pickerTrigger, { backgroundColor: palette.bg, borderColor: palette.border }]}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.pickerLeft}>
-                    <Ionicons name="business-outline" size={18} color={palette.textSecondary} />
-                    <Text style={[Typography.bodyBold, { color: palette.text }]}>{selectedBank.name}</Text>
-                  </View>
-                  <Ionicons name="chevron-down" size={18} color={palette.textSecondary} />
-                </TouchableOpacity>
-
-                <Text style={[Typography.caption, { color: palette.textSecondary }]}>NUBAN ACCOUNT NUMBER</Text>
-                <View style={[styles.inputWithStatus, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-                  <TextInput
-                    value={accountNumber}
-                    onChangeText={setAccountNumber}
-                    keyboardType="numeric"
-                    maxLength={10}
-                    placeholder="10-digit NUBAN"
-                    placeholderTextColor={palette.textSecondary}
-                    style={[Typography.currencySub, styles.inputFlex, { color: palette.text }]}
-                  />
-                  {isResolving && <ActivityIndicator size="small" color="#34D399" />}
-                </View>
-
-                {/* Verified Account Name Badge */}
-                {!!accountName && (
-                  <View style={[styles.verifiedCard, { backgroundColor: 'rgba(52, 211, 153, 0.12)', borderColor: 'rgba(52, 211, 153, 0.3)' }]}>
-                    <Ionicons name="checkmark-circle" size={18} color="#34D399" />
-                    <Text style={[Typography.bodyBold, { color: palette.text, flex: 1, fontSize: 13 }]}>
-                      {accountName}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* INTER-APP TRANSFER FORM */}
-            {offchainMode === 'INTERAPP' && (
-              <View style={styles.formGroupStack}>
-                <Text style={[Typography.caption, { color: palette.textSecondary }]}>RECIPIENT USERNAME OR PHONE</Text>
-                <View style={[styles.inputWithStatus, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-                  <Ionicons name="at-outline" size={18} color={palette.textSecondary} style={{ marginRight: 8 }} />
-                  <TextInput
-                    value={recipientHandle}
-                    onChangeText={setRecipientHandle}
-                    placeholder="@username or phone number"
-                    placeholderTextColor={palette.textSecondary}
-                    style={[Typography.bodyBold, styles.inputFlex, { color: palette.text }]}
-                  />
-                </View>
-
-                {/* Resolved User Badge */}
-                {!!resolvedUser && (
-                  <View style={[styles.verifiedCard, { backgroundColor: 'rgba(96, 165, 250, 0.12)', borderColor: 'rgba(96, 165, 250, 0.3)' }]}>
-                    <Ionicons name="person-circle" size={20} color="#60A5FA" />
-                    <Text style={[Typography.bodyBold, { color: palette.text, flex: 1, fontSize: 13 }]}>
-                      {resolvedUser}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* Common Amount Section */}
-            <View style={styles.amountSection}>
-              <Text style={[Typography.caption, { color: palette.textSecondary }]}>AMOUNT TO SEND (USDC FLOAT)</Text>
-              <TextInput
-                value={usdcAmount}
-                onChangeText={setUsdcAmount}
-                keyboardType="numeric"
-                style={[Typography.currencySub, styles.inputSingle, { color: palette.text, backgroundColor: palette.bg, borderColor: palette.border }]}
-              />
-
-              {offchainMode === 'BANK' && (
-                <View style={[styles.conversionBox, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-                  <Text style={[Typography.caption, { color: palette.textSecondary }]}>RECIPIENT RECEIVES</Text>
-                  <Text style={[Typography.currencySub, { color: palette.success, fontSize: 18, fontWeight: '700' }]}>
-                    ≈ ₦{calculateNGN()} NGN
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {/* PIN Entry */}
-            <View style={styles.pinSection}>
-              <Text style={[Typography.caption, { color: palette.textSecondary }]}>4-DIGIT TRANSACTION PIN</Text>
-              <TextInput
-                value={pin}
-                onChangeText={setPin}
-                secureTextEntry
-                keyboardType="numeric"
-                maxLength={4}
-                style={[Typography.currencySub, styles.inputSingle, { color: palette.text, backgroundColor: palette.bg, borderColor: palette.border, letterSpacing: 6 }]}
-              />
-            </View>
-
-            {/* Action Button */}
-            <TouchableOpacity onPress={handleExecuteSpend} style={[styles.confirmBtn, { backgroundColor: palette.text }]} activeOpacity={0.8}>
-              <Text style={[Typography.bodyBold, { color: palette.bg }]}>
-                {offchainMode === 'BANK' ? 'Confirm & Send Naira' : 'Confirm & Transfer Float'}
-              </Text>
-              <Ionicons name="arrow-forward" size={18} color={palette.bg} />
-            </TouchableOpacity>
-
-            {statusMessage && (
-              <Text style={[Typography.bodyBold, styles.statusText, { color: palette.success }]}>{statusMessage}</Text>
-            )}
-          </View>
-        </View>
-      )}
-
-      {/* MODE 3: ON-CHAIN SPEND VIEW */}
-      {spendType === 'onchain' && (
-        <View style={styles.flowCardStack}>
-          {/* Chain Switcher Tab Bar */}
-          <View style={styles.switcherRow}>
-            <TouchableOpacity
-              onPress={() => setOnchainChain('solana')}
-              activeOpacity={0.8}
-              style={[
-                styles.switcherTab,
-                {
-                  backgroundColor: onchainChain === 'solana'
-                    ? (isDark ? '#1E293B' : '#0F172A')
-                    : palette.card,
-                  borderColor: palette.border
-                }
-              ]}
-            >
-              <ChainLogo chain="solana" size={18} />
-              <Text
-                style={[
-                  Typography.footnote,
-                  {
-                    color: onchainChain === 'solana' ? '#FFFFFF' : palette.textSecondary,
-                    fontWeight: onchainChain === 'solana' ? '700' : '500'
-                  }
-                ]}
-              >
-                Solana Devnet (USDC)
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setOnchainChain('monad')}
-              activeOpacity={0.8}
-              style={[
-                styles.switcherTab,
-                {
-                  backgroundColor: onchainChain === 'monad'
-                    ? (isDark ? '#1E293B' : '#0F172A')
-                    : palette.card,
-                  borderColor: palette.border
-                }
-              ]}
-            >
-              <ChainLogo chain="monad" size={18} />
-              <Text
-                style={[
-                  Typography.footnote,
-                  {
-                    color: onchainChain === 'monad' ? '#FFFFFF' : palette.textSecondary,
-                    fontWeight: onchainChain === 'monad' ? '700' : '500'
-                  }
-                ]}
-              >
-                Monad Testnet (AUSD)
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Form Card */}
-          <View style={[styles.mainFormCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            {renderPatternBackground('#9945FF')}
-
-            <View style={styles.formGroupStack}>
-              <Text style={[Typography.caption, { color: palette.textSecondary }]}>
-                RECIPIENT {onchainChain === 'solana' ? 'SOLANA (SPL)' : 'MONAD (EVM)'} ADDRESS
-              </Text>
-              <TextInput
-                value={onchainAddress}
-                onChangeText={setOnchainAddress}
-                placeholder={onchainChain === 'solana' ? 'Solana SPL address...' : '0x... EVM address'}
-                placeholderTextColor={palette.textSecondary}
-                style={[Typography.currencySub, styles.inputSingle, { color: palette.text, backgroundColor: palette.bg, borderColor: palette.border, fontSize: 13 }]}
-              />
-            </View>
-
-            <View style={styles.amountSection}>
-              <Text style={[Typography.caption, { color: palette.textSecondary }]}>
-                AMOUNT TO BROADCAST ({onchainChain === 'solana' ? 'USDC' : 'AUSD'})
-              </Text>
-              <TextInput
-                value={usdcAmount}
-                onChangeText={setUsdcAmount}
-                keyboardType="numeric"
-                style={[Typography.currencySub, styles.inputSingle, { color: palette.text, backgroundColor: palette.bg, borderColor: palette.border }]}
-              />
-            </View>
-
-            <View style={styles.pinSection}>
-              <Text style={[Typography.caption, { color: palette.textSecondary }]}>4-DIGIT TRANSACTION PIN</Text>
-              <TextInput
-                value={pin}
-                onChangeText={setPin}
-                secureTextEntry
-                keyboardType="numeric"
-                maxLength={4}
-                style={[Typography.currencySub, styles.inputSingle, { color: palette.text, backgroundColor: palette.bg, borderColor: palette.border, letterSpacing: 6 }]}
-              />
-            </View>
-
-            <TouchableOpacity
-              onPress={handleExecuteSpend}
-              disabled={isSendingCrypto}
-              style={[styles.confirmBtn, { backgroundColor: isSendingCrypto ? '#6B7280' : palette.text, opacity: isSendingCrypto ? 0.7 : 1 }]}
-              activeOpacity={0.8}
-            >
-              {isSendingCrypto ? (
-                <>
-                  <ActivityIndicator size="small" color={palette.bg} />
-                  <Text style={[Typography.bodyBold, { color: palette.bg, marginLeft: 8 }]}>Broadcasting...</Text>
-                </>
-              ) : (
-                <>
-                  <Text style={[Typography.bodyBold, { color: palette.bg }]}>Confirm & Broadcast On-Chain</Text>
-                  <Ionicons name="arrow-forward" size={18} color={palette.bg} />
-                </>
-              )}
-            </TouchableOpacity>
-
-            {/* Live Status Tracker */}
-            {isSendingCrypto && cryptoSendResult && (
-              <View style={[styles.statusTracker, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F8FAFC', borderColor: palette.border }]}>
-                {(['PENDING', 'BROADCAST', 'CONFIRMED'] as const).map((stage, i) => {
-                  const isActive = cryptoSendResult.status === stage;
-                  const isPast = (
-                    (stage === 'PENDING' && ['BROADCAST', 'CONFIRMED'].includes(cryptoSendResult.status)) ||
-                    (stage === 'BROADCAST' && cryptoSendResult.status === 'CONFIRMED')
-                  );
-                  const stageLabel = stage === 'PENDING' ? '📥 Queued' : stage === 'BROADCAST' ? '🔗 Broadcasting' : '✅ Confirmed';
-                  return (
-                    <View key={stage} style={styles.statusStage}>
-                      <View style={[styles.statusDot, {
-                        backgroundColor: isPast ? '#34D399' : isActive ? '#FBBF24' : palette.border
-                      }]} />
-                      <Text style={[Typography.caption, {
-                        color: isPast ? '#34D399' : isActive ? '#FBBF24' : palette.textSecondary,
-                        fontWeight: isActive ? '700' : '400'
-                      }]}>{stageLabel}</Text>
-                      {i < 2 && <View style={[styles.statusLine, { backgroundColor: isPast ? '#34D399' : palette.border }]} />}
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-
-            {statusMessage && !isSendingCrypto && (
-              <Text style={[Typography.bodyBold, styles.statusText, { color: palette.success }]}>{statusMessage}</Text>
-            )}
-          </View>
-        </View>
-      )}
-
-      {/* BANK PICKER MODAL */}
-      <Modal visible={bankPickerOpen} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[Typography.title2, { color: palette.text }]}>Select Nigerian Bank</Text>
-              <TouchableOpacity onPress={() => setBankPickerOpen(false)} style={styles.modalCloseBtn}>
-                <Ionicons name="close" size={22} color={palette.text} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {NIGERIAN_BANKS.map((b) => (
-                <TouchableOpacity
-                  key={b.code}
-                  onPress={() => {
-                    setBankCode(b.code);
-                    setBankPickerOpen(false);
-                  }}
+                  onPress={() => setOffchainMode('BANK')}
                   style={[
-                    styles.bankOptionRow,
-                    {
-                      backgroundColor: bankCode === b.code
-                        ? (isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9')
-                        : palette.card,
-                      borderColor: palette.border
-                    }
+                    styles.subModePill,
+                    offchainMode === 'BANK' && { backgroundColor: palette.primary }
                   ]}
-                  activeOpacity={0.7}
                 >
-                  <Ionicons name="business-outline" size={20} color={bankCode === b.code ? '#34D399' : palette.textSecondary} />
-                  <Text style={[Typography.bodyBold, { color: palette.text, flex: 1 }]}>{b.name}</Text>
-                  {bankCode === b.code && <Ionicons name="checkmark-circle" size={20} color="#34D399" />}
+                  <Ionicons name="business-outline" size={14} color={offchainMode === 'BANK' ? '#fff' : palette.textSecondary} />
+                  <Text style={[styles.subModeText, { color: offchainMode === 'BANK' ? '#fff' : palette.textSecondary }]}>
+                    Bank Transfer
+                  </Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
+
+                <TouchableOpacity
+                  onPress={() => setOffchainMode('INTERAPP')}
+                  style={[
+                    styles.subModePill,
+                    offchainMode === 'INTERAPP' && { backgroundColor: palette.primary }
+                  ]}
+                >
+                  <Ionicons name="phone-portrait-outline" size={14} color={offchainMode === 'INTERAPP' ? '#fff' : palette.textSecondary} />
+                  <Text style={[styles.subModeText, { color: offchainMode === 'INTERAPP' ? '#fff' : palette.textSecondary }]}>
+                    Inter-App
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={[styles.subModeRow, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                <TouchableOpacity
+                  onPress={() => setOnchainChain('solana')}
+                  style={[
+                    styles.subModePill,
+                    onchainChain === 'solana' && { backgroundColor: palette.primary }
+                  ]}
+                >
+                  <ChainLogo chain="solana" size={14} />
+                  <Text style={[styles.subModeText, { color: onchainChain === 'solana' ? '#fff' : palette.textSecondary }]}>
+                    Solana (USDC)
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setOnchainChain('monad')}
+                  style={[
+                    styles.subModePill,
+                    onchainChain === 'monad' && { backgroundColor: palette.primary }
+                  ]}
+                >
+                  <ChainLogo chain="monad" size={14} />
+                  <Text style={[styles.subModeText, { color: onchainChain === 'monad' ? '#fff' : palette.textSecondary }]}>
+                    Monad (AUSD)
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* STEP 1 Component */}
+            {step === 1 ? (
+              <Step1Recipient
+                spendType={spendType}
+                offchainMode={offchainMode}
+                onchainChain={onchainChain}
+                selectedBank={selectedBank}
+                onOpenBankPicker={() => setBankPickerOpen(true)}
+                accountNumber={accountNumber}
+                onChangeAccountNumber={setAccountNumber}
+                isResolving={isResolving}
+                accountName={accountName}
+                bankConfirmed={bankConfirmed}
+                onToggleBankConfirmed={() => setBankConfirmed(!bankConfirmed)}
+                isSaved={isSaved}
+                onSaveBeneficiary={handleSaveBeneficiary}
+                recipientHandle={recipientHandle}
+                onChangeRecipientHandle={setRecipientHandle}
+                resolvedUser={resolvedUser}
+                onchainAddress={onchainAddress}
+                onChangeOnchainAddress={setOnchainAddress}
+                activeBeneficiaries={activeBeneficiaries}
+                onSelectBeneficiary={(b) => {
+                  if (b.type === 'BANK') {
+                    setBankCode(b.bankCode || '058');
+                    setAccountNumber(b.accountNumber || '');
+                    setAccountName(b.name);
+                    setBankConfirmed(true);
+                  } else if (b.type === 'INTERAPP') {
+                    setRecipientHandle(b.handle || b.name);
+                    setResolvedUser(b.handle || b.name);
+                  } else {
+                    setOnchainAddress(b.address || '');
+                  }
+                }}
+                onRemoveBeneficiary={handleRemoveBeneficiary}
+                isRecipientReady={isRecipientReady}
+                onContinue={() => setStep(2)}
+              />
+            ) : null}
+
+            {/* STEP 2 Component */}
+            {step === 2 ? (
+              <Step2Amount
+                activeRecipientName={activeRecipientName}
+                amount={amount}
+                onChangeAmount={setAmount}
+                balanceUSDC={balanceUSDC}
+                rateNGN={rateNGN}
+                onContinueToReview={() => setStep(3)}
+              />
+            ) : null}
+
+            {/* STEP 3 Component */}
+            {step === 3 ? (
+              <Step3Review
+                spendType={spendType}
+                offchainMode={offchainMode}
+                selectedBank={selectedBank}
+                activeRecipientName={activeRecipientName}
+                numericAmount={numericAmount}
+                rateNGN={rateNGN}
+                onOpenPinModal={() => setPinModalOpen(true)}
+              />
+            ) : null}
           </View>
-        </View>
-      </Modal>
-      <AppModal config={modal.config} onClose={modal.hide} />
-    </ScrollView>
-  </KeyboardAvoidingView>
+        )}
+
+        {/* Modals Integration */}
+        <BankPickerModal
+          visible={bankPickerOpen}
+          onClose={() => setBankPickerOpen(false)}
+          banks={NIGERIAN_BANKS}
+          selectedBankCode={bankCode}
+          onSelect={(b) => {
+            setBankCode(b.code);
+            setAccountNumber('');
+            setAccountName(null);
+            setBankConfirmed(false);
+          }}
+        />
+
+        <PaymentPinModal
+          visible={pinModalOpen}
+          onClose={() => setPinModalOpen(false)}
+          reviewTitle={activeRecipientName}
+          reviewAmount={`$${numericAmount.toFixed(2)} USDC`}
+          loading={isSubmitting}
+          error={pinError}
+          onConfirm={handleExecuteTransfer}
+        />
+
+        <TransactionResultModal
+          visible={resultModal.visible}
+          type={resultModal.type}
+          title={resultModal.title}
+          message={resultModal.message}
+          amount={resultModal.amount}
+          reference={resultModal.reference}
+          onClose={() => {
+            setResultModal({ ...resultModal, visible: false });
+            handleResetForm();
+          }}
+          onViewReceipt={() => {
+            setResultModal({ ...resultModal, visible: false });
+            router.push('/(tabs)/history');
+          }}
+        />
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  contentContainer: { padding: Spacing.lg, paddingBottom: 40 },
   headerRow: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: 15,
-    marginBottom: 12
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
   },
-  circularBackBtn: {
+  backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
     borderWidth: 1,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
   },
-  selectionStack: {
-    gap: 16
+  headerTitle: {
+    fontSize: Typography.lg,
+    fontFamily: Typography.family.bold,
   },
-  choiceCard: {
-    position: 'relative',
-    overflow: 'hidden',
-    padding: 22,
-    borderRadius: 24,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 4
-  },
-  patternContainer: { ...(StyleSheet.absoluteFill as any) },
-  patternRingOuter: {
-    position: 'absolute',
-    top: -60,
-    right: -50,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    borderWidth: 1.5
-  },
-  patternRingInner: {
-    position: 'absolute',
-    top: -20,
-    right: -10,
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    borderWidth: 1
-  },
-  patternGlow: {
-    position: 'absolute',
-    top: -30,
-    right: 10,
-    width: 150,
-    height: 150,
-    borderRadius: 75
-  },
-  dotGrid: {
-    position: 'absolute',
-    top: 18,
-    right: 20,
-    flexDirection: 'row',
-    gap: 6
-  },
-  patternDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5
-  },
-  choiceHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center'
-  },
-  typeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-  assetBadgesRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 18
-  },
-  assetBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16
-  },
-  miniLogo: {
-    width: 16,
-    height: 16,
-    borderRadius: 8
-  },
-  flowCardStack: {
-    gap: 14
-  },
+  sectionGap: { gap: Spacing.lg },
   subModeRow: {
     flexDirection: 'row',
-    gap: 10
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 4,
+    gap: 4,
   },
   subModePill: {
     flex: 1,
@@ -839,171 +610,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1
+    borderRadius: 12,
   },
-  mainFormCard: {
-    position: 'relative',
-    overflow: 'hidden',
-    padding: 20,
-    borderRadius: 24,
-    borderWidth: 1,
-    gap: 16
-  },
-  formGroupStack: {
-    gap: 8
-  },
-  pickerTrigger: {
-    height: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14
-  },
-  pickerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1
-  },
-  inputWithStatus: {
-    height: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14
-  },
-  inputFlex: {
-    flex: 1,
-    height: '100%'
-  },
-  inputSingle: {
-    height: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    paddingHorizontal: 14
-  },
-  verifiedCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginTop: 4
-  },
-  amountSection: {
-    gap: 8
-  },
-  conversionBox: {
-    height: 54,
-    borderRadius: 14,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    justifyContent: 'center',
-    gap: 2,
-    marginTop: 4
-  },
-  pinSection: {
-    gap: 8
-  },
-  confirmBtn: {
-    height: 52,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 6
-  },
-  statusText: {
-    textAlign: 'center',
-    marginTop: 4
-  },
-  switcherRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 4
-  },
-  switcherTab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    borderRadius: 30,
-    borderWidth: 1
-  },
-  switcherLogo: {
-    width: 16,
-    height: 16,
-    borderRadius: 8
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end'
-  },
-  modalContent: {
-    height: '65%',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderWidth: 1,
-    padding: 20,
-    gap: 14
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6
-  },
-  modalCloseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  bankOptionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    marginBottom: 10
-  },
-  statusTracker: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    marginTop: 10,
-    gap: 0
-  },
-  statusStage: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1
-  },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5
-  },
-  statusLine: {
-    flex: 1,
-    height: 2,
-    borderRadius: 1,
-    marginLeft: 4,
-    marginRight: 4
-  }
+  subModeText: { fontSize: Typography.xs, fontFamily: Typography.family.bold },
 });

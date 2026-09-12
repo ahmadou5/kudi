@@ -1,59 +1,140 @@
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Smooch+Sans:wght@300;400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Smooch+Sans:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&display=swap');
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── DARK THEME (Default for Metropolis Obsidian Console) ─── */
 :root {
-  --bg-dark: #090A0F;
-  --bg-dark-secondary: #11131A;
-  --bg-dark-card: rgba(255, 255, 255, 0.04);
-  --border-dark-card: rgba(255, 255, 255, 0.12);
-  --text-dark-primary: #FFFFFF;
-  --text-dark-secondary: #E2E8F0;
-  --text-dark-muted: #94A3B8;
-
-  --bg-light: #FFFFFF;
-  --bg-light-secondary: #F8FAFC;
-  --bg-light-card: rgba(255, 255, 255, 0.9);
-  --border-light-card: rgba(15, 23, 42, 0.12);
-  --text-light-primary: #0F172A;
-  --text-light-secondary: #334155;
-  --text-light-muted: #64748B;
+  --background: 232 25% 4%;       /* #090A0F */
+  --foreground: 210 40% 98%;      /* #F8FAFC */
+  --card: 228 20% 8%;             /* #11131A */
+  --card-foreground: 210 40% 98%;
+  --popover: 228 20% 8%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 215 28% 85%;         /* #CBD5E1 Metallic Silver */
+  --primary-foreground: 222 47% 11%;
+  --secondary: 228 15% 14%;       /* #1E222D */
+  --secondary-foreground: 210 40% 98%;
+  --muted: 228 15% 12%;           /* #161822 */
+  --muted-foreground: 215 16% 65%;/* #94A3B8 */
+  --accent: 215 28% 85%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 84% 60%;       /* #EF4444 */
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 15% 16%;          /* rgba(255,255,255,0.12) */
+  --input: 220 15% 16%;
+  --ring: 215 28% 85%;
+  --success: 152 76% 40%;         /* #10B981 */
+  --warning: 38 92% 50%;          /* #F59E0B */
+  --radius: 1rem;
 }
 
-[data-theme='dark'] {
-  --bg: var(--bg-dark);
-  --card-bg: var(--bg-dark-card);
-  --card-border: var(--border-dark-card);
-  --text-main: var(--text-dark-primary);
-  --text-sec: var(--text-dark-secondary);
-  --text-mut: var(--text-dark-muted);
+/* ─── EXPLICIT DARK CLASS ─── */
+.dark {
+  --background: 232 25% 4%;
+  --foreground: 210 40% 98%;
+  --card: 228 20% 8%;
+  --card-foreground: 210 40% 98%;
+  --popover: 228 20% 8%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 215 28% 85%;
+  --primary-foreground: 222 47% 11%;
+  --secondary: 228 15% 14%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 228 15% 12%;
+  --muted-foreground: 215 16% 65%;
+  --accent: 215 28% 85%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 15% 16%;
+  --input: 220 15% 16%;
+  --ring: 215 28% 85%;
+  --success: 152 76% 40%;
+  --warning: 38 92% 50%;
 }
 
-[data-theme='light'] {
-  --bg: var(--bg-light);
-  --card-bg: var(--bg-light-card);
-  --card-border: var(--border-light-card);
-  --text-main: var(--text-light-primary);
-  --text-sec: var(--text-light-secondary);
-  --text-mut: var(--text-light-muted);
+/* ─── LIGHT THEME (White + Dark Slate + Metallic Silver) ─── */
+html:not(.dark) {
+  --background: 0 0% 100%;        /* Pure White #FFFFFF */
+  --foreground: 222 47% 11%;      /* Dark Slate #0F172A */
+  --card: 210 40% 98%;            /* Ultra Light Gray #F8FAFC */
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 222 47% 11%;         /* Dark Slate Primary in Light mode */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 214 32% 93%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 95%;
+  --muted-foreground: 215 16% 47%;/* #64748B */
+  --accent: 215 28% 50%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 55%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 32% 88%;
+  --input: 214 32% 88%;
+  --ring: 222 47% 11%;
+  --success: 152 76% 36%;
+  --warning: 38 92% 44%;
 }
 
 * {
   box-sizing: border-box;
+  border-color: hsl(var(--border));
+}
+
+html {
+  color-scheme: dark;
+}
+
+html:not(.dark) {
+  color-scheme: light;
 }
 
 body {
-  margin: 0;
-  padding: 0;
-  background-color: var(--bg, #090A0F);
-  color: var(--text-main, #FFFFFF);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  @apply bg-background text-foreground antialiased font-sans;
   min-height: 100vh;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 h1, h2, h3, h4, .font-display {
   font-family: 'Smooch Sans', sans-serif;
+  letter-spacing: -0.01em;
 }
 
 .font-mono {
   font-family: 'Share Tech Mono', monospace;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

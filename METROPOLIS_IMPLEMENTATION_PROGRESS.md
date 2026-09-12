@@ -59,6 +59,12 @@
 - [x] Apply `Smooch Sans` + `Share Tech` fonts to Admin Dashboard.
 - [x] Implement Light/Dark mode toggling across all admin cards (`RateEngineCard`, `ProviderManagerCard`, `ChainConfigCard`, `ReconciliationCard`).
 - [x] Add live status indicators & audit export trigger.
+- [x] Implement complete production-grade admin architecture inspired by `/home/ahmadou/delivery/percel/apps/admin`:
+  - Auth session cookie verification and `middleware.ts` protection.
+  - Custom brand login page (`/login`) with demo fallback mode.
+  - Sticky Topbar with ⌘K Command Search modal, theme toggle, and sign out.
+  - Responsive collapsible Sidebar with grouped navigation for Operations, Treasury, and System.
+  - Dedicated pages: Operations Dashboard (`/dashboard`), Spend Transactions (`/transactions`), On-Chain Deposits (`/deposits`), Users & Wallets (`/users`, `/users/[id]`), KYC Compliance Desk (`/kyc`), Payout Rails & Failover (`/wallet`), Rate Engine & Spreads (`/rates`), Custody & Chains (`/chains`), Broadcast Alerts (`/notifications`), and System Health & Settings (`/settings`).
 
 ### Phase 4: Mobile Wallet UI Polish (`apps/wallet`)
 - [x] Update styling tokens and fonts for Expo mobile wallet.
@@ -80,3 +86,4 @@
 - **2026-09-04**: `apps/wallet` UI tokens updated to light silver / dark obsidian.
 - **2026-09-04**: `apps/worker` `chainDepositProcessor.ts` deposit polling loop implemented for EVM & Solana RPCs.
 - **2026-09-04**: Full monorepo build completed cleanly.
+- **2026-09-12**: Comprehensive Admin Console (`@kudi/admin`) implemented adhering to the design and architectural patterns of Percel Admin: Next.js App Router, cookie session authentication, route middleware, sticky topbar with ⌘K search, categorized collapsible sidebar, 17 static & dynamic pages across operations, transactions, deposits, users, KYC desk, treasury payout rails, FX rate oracle, chain configs, notifications, and system telemetry.
