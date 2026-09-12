@@ -8,8 +8,6 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAppPalette, buildNavigationTheme, isLight } from '../lib/theme';
 import { useAuthStore, AuthState } from '../store/auth.store';
 import { usePreferencesStore, PreferencesState } from '../store/preferences.store';
@@ -39,8 +37,6 @@ export default function RootLayout() {
     'Smooch Sans': require('../assets/fonts/SmoochSans-ExtraBold.ttf'),
     'Share Tech Mono': require('../assets/fonts/ShareTechMono-Regular.ttf'),
     'Inter': require('../assets/fonts/Inter-Bold.ttf'),
-    ...FontAwesome.font,
-    ...Ionicons.font,
   });
 
   const palette = useAppPalette();

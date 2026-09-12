@@ -9,7 +9,7 @@ import {
   Platform,
   Pressable
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowLeft, Building2, Smartphone } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAppPalette } from '../../lib/theme';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
@@ -368,7 +368,7 @@ export default function SpendTab() {
               }}
               style={[styles.backButton, { backgroundColor: palette.card, borderColor: palette.border }]}
             >
-              <Ionicons name="arrow-back" size={18} color={palette.text} />
+              <ArrowLeft size={18} color={palette.text} />
             </Pressable>
           ) : (
             <View style={{ width: 40 }} />
@@ -412,7 +412,7 @@ export default function SpendTab() {
                     offchainMode === 'BANK' && { backgroundColor: palette.primary }
                   ]}
                 >
-                  <Ionicons name="business-outline" size={14} color={offchainMode === 'BANK' ? '#fff' : palette.textSecondary} />
+                  <Building2 size={14} color={offchainMode === 'BANK' ? '#fff' : palette.textSecondary} />
                   <Text style={[styles.subModeText, { color: offchainMode === 'BANK' ? '#fff' : palette.textSecondary }]}>
                     Bank Transfer
                   </Text>
@@ -425,7 +425,7 @@ export default function SpendTab() {
                     offchainMode === 'INTERAPP' && { backgroundColor: palette.primary }
                   ]}
                 >
-                  <Ionicons name="phone-portrait-outline" size={14} color={offchainMode === 'INTERAPP' ? '#fff' : palette.textSecondary} />
+                  <Smartphone size={14} color={offchainMode === 'INTERAPP' ? '#fff' : palette.textSecondary} />
                   <Text style={[styles.subModeText, { color: offchainMode === 'INTERAPP' ? '#fff' : palette.textSecondary }]}>
                     Inter-App
                   </Text>

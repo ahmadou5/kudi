@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Home, ArrowLeftRight, ArrowDownCircle, Clock, LucideIcon } from 'lucide-react-native';
 import { Typography } from '../../constants/typography';
 
 export type TabType = 'home' | 'deposit' | 'spend' | 'history';
@@ -14,11 +14,11 @@ interface TabBarProps {
 export const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange, mode = 'dark' }) => {
   const isLight = mode === 'light';
 
-  const tabs: { key: TabType; label: string; activeIcon: keyof typeof Ionicons.glyphMap; inactiveIcon: keyof typeof Ionicons.glyphMap }[] = [
-    { key: 'home', label: 'Home', activeIcon: 'home', inactiveIcon: 'home-outline' },
-    { key: 'spend', label: 'Spend', activeIcon: 'swap-horizontal', inactiveIcon: 'swap-horizontal-outline' },
-    { key: 'deposit', label: 'Deposit', activeIcon: 'arrow-down-circle', inactiveIcon: 'arrow-down-circle-outline' },
-    { key: 'history', label: 'History', activeIcon: 'time', inactiveIcon: 'time-outline' }
+  const tabs: { key: TabType; label: string; Icon: LucideIcon }[] = [
+    { key: 'home', label: 'Home', Icon: Home },
+    { key: 'spend', label: 'Spend', Icon: ArrowLeftRight },
+    { key: 'deposit', label: 'Deposit', Icon: ArrowDownCircle },
+    { key: 'history', label: 'History', Icon: Clock }
   ];
 
   return (
@@ -41,6 +41,7 @@ export const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange, mode = '
             : isLight
               ? '#94A3B8'
               : '#CBD5E1';
+          const TabIcon = tab.Icon;
 
           return (
             <TouchableOpacity
@@ -54,7 +55,7 @@ export const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange, mode = '
               onPress={() => onTabChange(tab.key)}
               activeOpacity={0.7}
             >
-              <Ionicons name={isActive ? tab.activeIcon : tab.inactiveIcon} size={18} color={color} />
+              <TabIcon size={18} color={color} />
 
             </TouchableOpacity>
           );

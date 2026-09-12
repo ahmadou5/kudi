@@ -1,6 +1,14 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import {
+  Smartphone,
+  Signal,
+  Zap,
+  CreditCard,
+  ArrowDownCircle,
+  ArrowRight,
+  LucideIcon,
+} from 'lucide-react-native';
 import { TabType } from '../components/TabBar';
 import { Typography } from '../../constants/typography';
 
@@ -14,52 +22,52 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, mode = 'dark
 
   const quickActions: Array<{
     label: string;
-    iconName: keyof typeof Ionicons.glyphMap;
+    icon: LucideIcon;
     color: string;
   }> = [
-      { label: 'Airtime', iconName: 'phone-portrait-outline', color: isLight ? '#F1F5F9' : 'rgba(255,255,255,0.08)' },
-      { label: 'Data', iconName: 'cellular-outline', color: isLight ? '#F1F5F9' : 'rgba(255,255,255,0.08)' },
-      { label: 'Electricity', iconName: 'flash-outline', color: isLight ? '#F1F5F9' : 'rgba(255,255,255,0.08)' },
-      { label: 'Virtual Card', iconName: 'card-outline', color: isLight ? '#F1F5F9' : 'rgba(255,255,255,0.08)' }
-    ];
+    { label: 'Airtime', icon: Smartphone, color: isLight ? '#F1F5F9' : 'rgba(255,255,255,0.08)' },
+    { label: 'Data', icon: Signal, color: isLight ? '#F1F5F9' : 'rgba(255,255,255,0.08)' },
+    { label: 'Electricity', icon: Zap, color: isLight ? '#F1F5F9' : 'rgba(255,255,255,0.08)' },
+    { label: 'Virtual Card', icon: CreditCard, color: isLight ? '#F1F5F9' : 'rgba(255,255,255,0.08)' }
+  ];
 
   const recentTransactions: Array<{
     title: string;
     time: string;
     amount: string;
     status: string;
-    icon: keyof typeof Ionicons.glyphMap;
+    icon: LucideIcon;
     iconBg: string;
     iconColor: string;
   }> = [
-      {
-        title: 'MTN Airtime Top-Up',
-        time: '10:32 AM',
-        amount: '-₦5,000',
-        status: 'SUCCESS',
-        icon: 'phone-portrait-outline',
-        iconBg: 'rgba(239, 68, 68, 0.1)',
-        iconColor: '#EF4444'
-      },
-      {
-        title: 'Deposit Solana USDC',
-        time: 'Today',
-        amount: '+$100.00',
-        status: 'COMPLETED',
-        icon: 'arrow-down-circle-outline',
-        iconBg: 'rgba(16, 185, 129, 0.1)',
-        iconColor: '#10B981'
-      },
-      {
-        title: 'Electricity Payment',
-        time: 'Yesterday',
-        amount: '-₦12,500',
-        status: 'SUCCESS',
-        icon: 'flash-outline',
-        iconBg: 'rgba(245, 158, 11, 0.1)',
-        iconColor: '#F59E0B'
-      }
-    ];
+    {
+      title: 'MTN Airtime Top-Up',
+      time: '10:32 AM',
+      amount: '-₦5,000',
+      status: 'SUCCESS',
+      icon: Smartphone,
+      iconBg: 'rgba(239, 68, 68, 0.1)',
+      iconColor: '#EF4444'
+    },
+    {
+      title: 'Deposit Solana USDC',
+      time: 'Today',
+      amount: '+$100.00',
+      status: 'COMPLETED',
+      icon: ArrowDownCircle,
+      iconBg: 'rgba(16, 185, 129, 0.1)',
+      iconColor: '#10B981'
+    },
+    {
+      title: 'Electricity Payment',
+      time: 'Yesterday',
+      amount: '-₦12,500',
+      status: 'SUCCESS',
+      icon: Zap,
+      iconBg: 'rgba(245, 158, 11, 0.1)',
+      iconColor: '#F59E0B'
+    }
+  ];
 
   return (
     <View style={styles.container}>
@@ -69,24 +77,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, mode = 'dark
       </Text>
 
       <View style={styles.quickGrid}>
-        {quickActions.map((act) => (
-          <TouchableOpacity
-            key={act.label}
-            style={styles.quickItem}
-            onPress={() => onNavigate('spend')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.quickCircle, { backgroundColor: act.color }]}>
-              <Ionicons name={act.iconName} size={22} color={isLight ? '#0F172A' : '#FFFFFF'} />
-            </View>
-            <Text style={[Typography.subhead, { color: isLight ? '#475569' : '#CBD5E1' }]}>
-              {act.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {quickActions.map((act) => {
+          const Icon = act.icon;
+          return (
+            <TouchableOpacity
+              key={act.label}
+              style={styles.quickItem}
+              onPress={() => onNavigate('spend')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.quickCircle, { backgroundColor: act.color }]}>
+                <Icon size={22} color={isLight ? '#0F172A' : '#FFFFFF'} />
+              </View>
+              <Text style={[Typography.subhead, { color: isLight ? '#475569' : '#CBD5E1' }]}>
+                {act.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
-
-
 
       {/* Recent Activity */}
       <View style={styles.activityHeaderRow}>
@@ -97,52 +106,55 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, mode = 'dark
           <Text style={[Typography.bodyBold, { color: isLight ? '#64748B' : '#94A3B8' }]}>
             View All
           </Text>
-          <Ionicons name="arrow-forward" size={14} color={isLight ? '#64748B' : '#94A3B8'} />
+          <ArrowRight size={14} color={isLight ? '#64748B' : '#94A3B8'} />
         </TouchableOpacity>
       </View>
 
       <View style={styles.activityList}>
-        {recentTransactions.map((tx, idx) => (
-          <View
-            key={idx}
-            style={[
-              styles.activityItem,
-              {
-                backgroundColor: isLight ? '#F8FAFC' : 'rgba(255,255,255,0.03)',
-                borderColor: isLight ? '#E2E8F0' : 'rgba(255,255,255,0.06)'
-              }
-            ]}
-          >
-            <View style={styles.txLeftGroup}>
-              <View style={[styles.txIconContainer, { backgroundColor: tx.iconBg }]}>
-                <Ionicons name={tx.icon} size={18} color={tx.iconColor} />
+        {recentTransactions.map((tx, idx) => {
+          const TxIcon = tx.icon;
+          return (
+            <View
+              key={idx}
+              style={[
+                styles.activityItem,
+                {
+                  backgroundColor: isLight ? '#F8FAFC' : 'rgba(255,255,255,0.03)',
+                  borderColor: isLight ? '#E2E8F0' : 'rgba(255,255,255,0.06)'
+                }
+              ]}
+            >
+              <View style={styles.txLeftGroup}>
+                <View style={[styles.txIconContainer, { backgroundColor: tx.iconBg }]}>
+                  <TxIcon size={18} color={tx.iconColor} />
+                </View>
+
+                <View style={styles.txDetails}>
+                  <Text style={[Typography.bodyBold, { color: isLight ? '#0F172A' : '#FFFFFF' }]}>
+                    {tx.title}
+                  </Text>
+                  <Text style={[Typography.subhead, { color: isLight ? '#64748B' : '#94A3B8' }]}>
+                    {tx.time}
+                  </Text>
+                </View>
               </View>
 
-              <View style={styles.txDetails}>
-                <Text style={[Typography.bodyBold, { color: isLight ? '#0F172A' : '#FFFFFF' }]}>
-                  {tx.title}
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text
+                  style={[
+                    Typography.currencySub,
+                    { color: tx.amount.startsWith('+') ? '#34D399' : isLight ? '#0F172A' : '#FFFFFF' }
+                  ]}
+                >
+                  {tx.amount}
                 </Text>
-                <Text style={[Typography.subhead, { color: isLight ? '#64748B' : '#94A3B8' }]}>
-                  {tx.time}
-                </Text>
+                <View style={styles.statusBadge}>
+                  <Text style={[Typography.caption, styles.statusBadgeText]}>{tx.status}</Text>
+                </View>
               </View>
             </View>
-
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text
-                style={[
-                  Typography.currencySub,
-                  { color: tx.amount.startsWith('+') ? '#34D399' : isLight ? '#0F172A' : '#FFFFFF' }
-                ]}
-              >
-                {tx.amount}
-              </Text>
-              <View style={styles.statusBadge}>
-                <Text style={[Typography.caption, styles.statusBadgeText]}>{tx.status}</Text>
-              </View>
-            </View>
-          </View>
-        ))}
+          );
+        })}
       </View>
     </View>
   );

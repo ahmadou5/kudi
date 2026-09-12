@@ -1,9 +1,7 @@
 import { useFonts } from 'expo-font';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import Ionicons from '@expo/vector-icons/Ionicons';
 
 /**
- * Loads brand fonts ('Smooch Sans', 'Share Tech Mono', 'Inter') and icon fonts.
+ * Loads brand fonts ('Smooch Sans', 'Share Tech Mono', 'Inter').
  * Adapted directly from Percel's typography architecture.
  */
 export function useAppFonts() {
@@ -20,8 +18,6 @@ export function useAppFonts() {
     'Smooch Sans': require('../assets/fonts/SmoochSans-ExtraBold.ttf'),
     'Share Tech Mono': require('../assets/fonts/ShareTechMono-Regular.ttf'),
     'Inter': require('../assets/fonts/Inter-Bold.ttf'),
-    ...FontAwesome.font,
-    ...Ionicons.font,
   });
 
   return loaded;

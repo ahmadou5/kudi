@@ -10,7 +10,7 @@ import {
   Pressable
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Palette, Bell, User, ShieldCheck, Wallet, Receipt, Gauge, Lock, MessageSquare, ChevronRight, ArrowLeft, LogOut, LucideIcon } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import { useAppPalette, isLight } from '../../lib/theme';
@@ -22,7 +22,7 @@ type MenuItem = {
   title: string;
   subtitle: string;
   href: string;
-  iconName: keyof typeof Ionicons.glyphMap;
+  Icon: LucideIcon;
   iconColor: string;
   iconBg: string;
   badge?: string;
@@ -47,7 +47,7 @@ export default function SettingsScreen() {
       title: 'Appearance',
       subtitle: 'Light, dark, or system theme',
       href: '/settings/appearance',
-      iconName: 'color-palette-outline',
+      Icon: Palette,
       iconColor: '#8B5CF6',
       iconBg: '#8B5CF618'
     },
@@ -56,7 +56,7 @@ export default function SettingsScreen() {
       title: 'Notification Preferences',
       subtitle: 'Push alerts and deposit triggers',
       href: '/settings/notifications',
-      iconName: 'notifications-outline',
+      Icon: Bell,
       iconColor: '#EC4899',
       iconBg: '#EC489918'
     },
@@ -68,7 +68,7 @@ export default function SettingsScreen() {
       title: 'Profile Details',
       subtitle: 'Name, email & account identity',
       href: '/profile',
-      iconName: 'person-outline',
+      Icon: User,
       iconColor: '#10B981',
       iconBg: '#10B98118'
     },
@@ -77,7 +77,7 @@ export default function SettingsScreen() {
       title: 'KYC Verification',
       subtitle: 'Tier level & identity limits',
       href: '/kyc',
-      iconName: 'shield-checkmark-outline',
+      Icon: ShieldCheck,
       iconColor: '#3B82F6',
       iconBg: '#3B82F618',
       badge: kycBadge
@@ -87,7 +87,7 @@ export default function SettingsScreen() {
       title: 'Virtual Accounts',
       subtitle: 'Wema & Moniepoint NGN details',
       href: '/(tabs)/deposit',
-      iconName: 'wallet-outline',
+      Icon: Wallet,
       iconColor: '#F59E0B',
       iconBg: '#F59E0B18'
     },
@@ -99,7 +99,7 @@ export default function SettingsScreen() {
       title: 'Transaction History',
       subtitle: 'USDC deposit & spend ledger',
       href: '/(tabs)/history',
-      iconName: 'receipt-outline',
+      Icon: Receipt,
       iconColor: '#6366F1',
       iconBg: '#6366F118'
     },
@@ -108,7 +108,7 @@ export default function SettingsScreen() {
       title: 'Spending Limits',
       subtitle: 'Daily & per-tx off-ramp caps',
       href: '/settings/limits',
-      iconName: 'speedometer-outline',
+      Icon: Gauge,
       iconColor: '#14B8A6',
       iconBg: '#14B8A618'
     },
@@ -120,7 +120,7 @@ export default function SettingsScreen() {
       title: 'Security & PIN',
       subtitle: 'PIN code, biometrics & app lock',
       href: '/settings/security',
-      iconName: 'lock-closed-outline',
+      Icon: Lock,
       iconColor: '#EF4444',
       iconBg: '#EF444418'
     },
@@ -129,7 +129,7 @@ export default function SettingsScreen() {
       title: 'Help & Support',
       subtitle: 'WhatsApp & email customer service',
       href: '/settings/support',
-      iconName: 'chatbubble-ellipses-outline',
+      Icon: MessageSquare,
       iconColor: '#06B6D4',
       iconBg: '#06B6D418'
     },
@@ -156,40 +156,43 @@ export default function SettingsScreen() {
     <View style={styles.group}>
       <Text style={[styles.groupLabel, { color: palette.textSecondary }]}>{label}</Text>
       <View style={styles.groupList}>
-        {items.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            onPress={() => handlePressItem(item)}
-            style={[styles.menuRow, { backgroundColor: palette.card, borderColor: palette.border }]}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.iconBox, { backgroundColor: item.iconBg }]}>
-              <Ionicons name={item.iconName} size={20} color={item.iconColor} />
-            </View>
-
-            <View style={styles.menuCopy}>
-              <View style={styles.menuTitleRow}>
-                <Text style={[styles.menuTitle, { color: palette.text }]}>{item.title}</Text>
-                {item.badge && (
-                  <View style={[
-                    styles.badgePill,
-                    { backgroundColor: kycTier > 0 ? '#10B98120' : '#F59E0B20' }
-                  ]}>
-                    <Text style={[
-                      styles.badgeText,
-                      { color: kycTier > 0 ? '#10B981' : '#F59E0B' }
-                    ]}>
-                      {item.badge}
-                    </Text>
-                  </View>
-                )}
+        {items.map((item) => {
+          const ItemIcon = item.Icon;
+          return (
+            <TouchableOpacity
+              key={item.id}
+              onPress={() => handlePressItem(item)}
+              style={[styles.menuRow, { backgroundColor: palette.card, borderColor: palette.border }]}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.iconBox, { backgroundColor: item.iconBg }]}>
+                <ItemIcon size={20} color={item.iconColor} />
               </View>
-              <Text style={[styles.menuSubtitle, { color: palette.textSecondary }]}>{item.subtitle}</Text>
-            </View>
 
-            <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
-          </TouchableOpacity>
-        ))}
+              <View style={styles.menuCopy}>
+                <View style={styles.menuTitleRow}>
+                  <Text style={[styles.menuTitle, { color: palette.text }]}>{item.title}</Text>
+                  {item.badge && (
+                    <View style={[
+                      styles.badgePill,
+                      { backgroundColor: kycTier > 0 ? '#10B98120' : '#F59E0B20' }
+                    ]}>
+                      <Text style={[
+                        styles.badgeText,
+                        { color: kycTier > 0 ? '#10B981' : '#F59E0B' }
+                      ]}>
+                        {item.badge}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.menuSubtitle, { color: palette.textSecondary }]}>{item.subtitle}</Text>
+              </View>
+
+              <ChevronRight size={18} color={palette.textSecondary} />
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
@@ -203,7 +206,7 @@ export default function SettingsScreen() {
           style={[styles.backButton, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={20} color={palette.text} />
+          <ArrowLeft size={20} color={palette.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: palette.text }]}>Settings</Text>
         <View style={styles.headerSpacer} />
@@ -235,7 +238,7 @@ export default function SettingsScreen() {
               {kycBadge}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
+          <ChevronRight size={18} color={palette.textSecondary} />
         </TouchableOpacity>
 
         {/* Settings Sections */}
@@ -255,7 +258,7 @@ export default function SettingsScreen() {
           style={[styles.logoutButton, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.8}
         >
-          <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+          <LogOut size={20} color="#EF4444" />
           <Text style={styles.logoutText}>Log out</Text>
         </TouchableOpacity>
 
@@ -278,7 +281,7 @@ export default function SettingsScreen() {
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setLogoutModalVisible(false)} />
           <View style={[styles.sheet, { backgroundColor: palette.card, borderColor: palette.border }]}>
             <View style={styles.sheetHeaderIcon}>
-              <Ionicons name="log-out-outline" size={24} color="#EF4444" />
+              <LogOut size={24} color="#EF4444" />
             </View>
             <Text style={[styles.sheetTitle, { color: palette.text }]}>Log Out of Kudi?</Text>
             <Text style={[styles.sheetText, { color: palette.textSecondary }]}>

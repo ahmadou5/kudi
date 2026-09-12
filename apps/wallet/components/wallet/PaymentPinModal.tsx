@@ -1,6 +1,6 @@
 import React, { ReactNode, useState, useEffect } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { CheckCircle2 } from 'lucide-react-native';
 import { CustomNumericKeypad } from '../ui/CustomNumericKeypad';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
@@ -174,7 +174,7 @@ export function PaymentPinModal({
               <ActivityIndicator color={palette.card} />
             ) : (
               <>
-                <Ionicons name="checkmark-circle-outline" size={20} color={palette.card} />
+                <CheckCircle2 size={20} color={palette.card} />
                 <Text style={[styles.confirmText, { color: palette.card }]}>{confirmLabel}</Text>
               </>
             )}

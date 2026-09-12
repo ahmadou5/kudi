@@ -11,7 +11,7 @@ import {
   StatusBar
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowLeft, Camera, Zap, ZapOff, Image as ImageIcon, Clipboard as ClipboardIcon } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as Clipboard from 'expo-clipboard';
@@ -155,7 +155,7 @@ export default function QRScannerScreen() {
         <StatusBar barStyle="light-content" />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} activeOpacity={0.7}>
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            <ArrowLeft size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={[Typography.title2, { color: '#FFFFFF' }]}>Scan QR Code</Text>
           <View style={{ width: 40 }} />
@@ -163,7 +163,7 @@ export default function QRScannerScreen() {
 
         <View style={styles.permissionContainer}>
           <View style={styles.permissionIconCircle}>
-            <Ionicons name="camera-outline" size={48} color="#10B981" />
+            <Camera size={48} color="#10B981" />
           </View>
           <Text style={[Typography.title2, styles.permissionTitle]}>Camera Access Required</Text>
           <Text style={[Typography.body, styles.permissionSubtitle]}>
@@ -200,7 +200,7 @@ export default function QRScannerScreen() {
         {/* Top Bar Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} activeOpacity={0.7}>
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            <ArrowLeft size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={[Typography.title2, { color: '#FFFFFF' }]}>Scan QR Code</Text>
           <View style={{ width: 40 }} />
@@ -236,7 +236,11 @@ export default function QRScannerScreen() {
           {/* Flashlight */}
           <TouchableOpacity style={styles.actionBtn} onPress={handleToggleTorch} activeOpacity={0.7}>
             <View style={[styles.actionCircle, torchOn && styles.actionCircleActive]}>
-              <Ionicons name={torchOn ? 'flash' : 'flash-outline'} size={22} color={torchOn ? '#000000' : '#FFFFFF'} />
+              {torchOn ? (
+                <Zap size={22} color="#000000" />
+              ) : (
+                <ZapOff size={22} color="#FFFFFF" />
+              )}
             </View>
             <Text style={[Typography.subhead, styles.actionLabel, torchOn && { color: '#10B981', fontWeight: '700' }]}>
               {torchOn ? 'Flash On' : 'Flashlight'}
@@ -246,7 +250,7 @@ export default function QRScannerScreen() {
           {/* Photo Gallery */}
           <TouchableOpacity style={styles.actionBtn} onPress={handlePickGallery} activeOpacity={0.7}>
             <View style={styles.actionCircle}>
-              <Ionicons name="image-outline" size={22} color="#FFFFFF" />
+              <ImageIcon size={22} color="#FFFFFF" />
             </View>
             <Text style={[Typography.subhead, styles.actionLabel]}>Gallery</Text>
           </TouchableOpacity>
@@ -254,7 +258,7 @@ export default function QRScannerScreen() {
           {/* Clipboard Paste */}
           <TouchableOpacity style={styles.actionBtn} onPress={handlePasteClipboard} activeOpacity={0.7}>
             <View style={styles.actionCircle}>
-              <Ionicons name="clipboard-outline" size={22} color="#FFFFFF" />
+              <ClipboardIcon size={22} color="#FFFFFF" />
             </View>
             <Text style={[Typography.subhead, styles.actionLabel]}>Paste</Text>
           </TouchableOpacity>

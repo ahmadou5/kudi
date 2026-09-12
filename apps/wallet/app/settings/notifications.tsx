@@ -12,7 +12,7 @@ import {
   Alert
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowLeft, Bell, BellOff, Send, Info } from 'lucide-react-native';
 import * as Notifications from 'expo-notifications';
 import { useAppPalette, isLight } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
@@ -82,7 +82,7 @@ export default function NotificationsScreen() {
     try {
       // 1. Local notification
       await triggerLocalTestNotification('Kudi Push Active 🔔', 'Test notification received! Deposit & spend alerts are working.');
-      
+
       // 2. Server notification test call
       try {
         await fetch(`${API_BASE_URL}/api/v1/auth/test-notification`, {
@@ -112,7 +112,7 @@ export default function NotificationsScreen() {
           style={[styles.backBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={20} color={palette.text} />
+          <ArrowLeft size={20} color={palette.text} />
         </TouchableOpacity>
         <Text style={[Typography.title2, { color: palette.text }]}>Notifications</Text>
         <View style={{ width: 40 }} />
@@ -123,7 +123,11 @@ export default function NotificationsScreen() {
         <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <View style={styles.heroTop}>
             <View style={[styles.bellWrap, { backgroundColor: isGranted ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)' }]}>
-              <Ionicons name={isGranted ? 'notifications' : 'notifications-off'} size={24} color={isGranted ? '#10B981' : '#EF4444'} />
+              {isGranted ? (
+                <Bell size={24} color="#10B981" />
+              ) : (
+                <BellOff size={24} color="#EF4444" />
+              )}
             </View>
             <View style={[styles.statusBadge, { backgroundColor: isGranted ? 'rgba(16,185,129,0.15)' : 'rgba(148,163,184,0.15)' }]}>
               <View style={[styles.dot, { backgroundColor: isGranted ? '#10B981' : '#64748B' }]} />
@@ -203,7 +207,7 @@ export default function NotificationsScreen() {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <>
-              <Ionicons name="paper-plane-outline" size={18} color="#FFFFFF" />
+              <Send size={18} color="#FFFFFF" />
               <Text style={styles.testBtnText}>Send Test Push Notification</Text>
             </>
           )}
@@ -211,7 +215,7 @@ export default function NotificationsScreen() {
 
         {/* System Info */}
         <View style={[styles.infoCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <Ionicons name="information-circle-outline" size={20} color={palette.textSecondary} />
+          <Info size={20} color={palette.textSecondary} />
           <Text style={[styles.infoText, { color: palette.textSecondary }]}>
             Permission status: {permissionStatus || 'Checking permission state...'}
           </Text>

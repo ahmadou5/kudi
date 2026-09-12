@@ -12,11 +12,12 @@ import {
   RefreshControl
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowLeft, CheckCheck, BellOff, X, ArrowDownCircle, ArrowUpCircle, ShieldCheck, Bell, Clock, LucideIcon } from 'lucide-react-native';
 import { useAppPalette, isLight } from '../lib/theme';
 import { Typography } from '../constants/typography';
 import { API_BASE_URL } from '../src/lib/sdk';
 import { useAuthStore } from '../store/auth.store';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export interface AppNotification {
   id: string;
@@ -34,12 +35,12 @@ const filters = [
   { key: 'UNREAD', label: 'Unread' },
 ] as const;
 
-function getIconForType(type: string) {
+function getIconForType(type: string): { Icon: LucideIcon; color: string; bg: string } {
   const t = (type || '').toUpperCase();
-  if (t.includes('DEPOSIT') || t.includes('PAYMENT_RECEIVED')) return { name: 'arrow-down-circle', color: '#10B981', bg: 'rgba(16,185,129,0.12)' };
-  if (t.includes('SPEND') || t.includes('PAYOUT') || t.includes('TRANSFER')) return { name: 'arrow-up-circle', color: '#8B5CF6', bg: 'rgba(139,92,246,0.12)' };
-  if (t.includes('KYC') || t.includes('SECURITY')) return { name: 'shield-checkmark', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)' };
-  return { name: 'notifications', color: '#6366F1', bg: 'rgba(99,102,241,0.12)' };
+  if (t.includes('DEPOSIT') || t.includes('PAYMENT_RECEIVED')) return { Icon: ArrowDownCircle, color: '#10B981', bg: 'rgba(16,185,129,0.12)' };
+  if (t.includes('SPEND') || t.includes('PAYOUT') || t.includes('TRANSFER')) return { Icon: ArrowUpCircle, color: '#8B5CF6', bg: 'rgba(139,92,246,0.12)' };
+  if (t.includes('KYC') || t.includes('SECURITY')) return { Icon: ShieldCheck, color: '#3B82F6', bg: 'rgba(59,130,246,0.12)' };
+  return { Icon: Bell, color: '#6366F1', bg: 'rgba(99,102,241,0.12)' };
 }
 
 function formatRelativeTime(dateStr: string) {
@@ -60,6 +61,7 @@ function formatRelativeTime(dateStr: string) {
 
 export default function NotificationsFeedScreen() {
   const palette = useAppPalette();
+  const insets = useSafeAreaInsets();
   const light = isLight(palette.bg);
   const user = useAuthStore((s) => s.user);
 
@@ -137,7 +139,7 @@ export default function NotificationsFeedScreen() {
   }, [filter, notifications]);
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg, paddingTop: insets.top }]}>
       {/* Header Bar */}
       <View style={[styles.header, { borderColor: palette.border }]}>
         <TouchableOpacity
@@ -145,19 +147,12 @@ export default function NotificationsFeedScreen() {
           style={[styles.backBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={20} color={palette.text} />
+          <ArrowLeft size={20} color={palette.text} />
         </TouchableOpacity>
 
         <Text style={[Typography.title2, { color: palette.text }]}>Notifications</Text>
 
-        {/* Gear Icon linking to Preferences Settings */}
-        <TouchableOpacity
-          onPress={() => router.push('/settings/notifications')}
-          style={[styles.backBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="settings-outline" size={20} color={palette.text} />
-        </TouchableOpacity>
+
       </View>
 
       <ScrollView
@@ -181,7 +176,7 @@ export default function NotificationsFeedScreen() {
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
               <>
-                <Ionicons name="checkmark-done" size={16} color="#FFFFFF" />
+                <CheckCheck size={16} color="#FFFFFF" />
                 <Text style={styles.markAllText}>Mark all read</Text>
               </>
             )}
@@ -222,6 +217,7 @@ export default function NotificationsFeedScreen() {
           <View style={styles.list}>
             {filteredList.map((item) => {
               const iconInfo = getIconForType(item.type);
+              const ItemIcon = iconInfo.Icon;
               return (
                 <TouchableOpacity
                   key={item.id}
@@ -236,7 +232,7 @@ export default function NotificationsFeedScreen() {
                   activeOpacity={0.8}
                 >
                   <View style={[styles.iconWrap, { backgroundColor: iconInfo.bg }]}>
-                    <Ionicons name={iconInfo.name as any} size={22} color={iconInfo.color} />
+                    <ItemIcon size={22} color={iconInfo.color} />
                   </View>
 
                   <View style={styles.cardBody}>
@@ -250,7 +246,7 @@ export default function NotificationsFeedScreen() {
                       {item.body}
                     </Text>
                     <View style={styles.timeRow}>
-                      <Ionicons name="time-outline" size={12} color={palette.textSecondary} />
+                      <Clock size={12} color={palette.textSecondary} />
                       <Text style={[styles.timeText, { color: palette.textSecondary }]}>
                         {formatRelativeTime(item.createdAt)}
                       </Text>
@@ -262,7 +258,7 @@ export default function NotificationsFeedScreen() {
           </View>
         ) : (
           <View style={[styles.stateCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <Ionicons name="notifications-off-outline" size={32} color={palette.textSecondary} />
+            <BellOff size={32} color={palette.textSecondary} />
             <Text style={[Typography.bodyBold, { color: palette.text, marginTop: 8 }]}>No Notifications</Text>
             <Text style={[Typography.subhead, { color: palette.textSecondary, textAlign: 'center' }]}>
               {filter === 'UNREAD' ? 'You have no unread notification updates.' : 'Incoming deposits, transfers, and system alerts will appear here.'}
@@ -279,7 +275,7 @@ export default function NotificationsFeedScreen() {
             <View style={styles.sheetHeader}>
               <Text style={[Typography.title3, { color: palette.text }]}>{selected?.title}</Text>
               <TouchableOpacity onPress={() => setSelected(null)} style={styles.closeBtn}>
-                <Ionicons name="close" size={20} color={palette.text} />
+                <X size={20} color={palette.text} />
               </TouchableOpacity>
             </View>
 

@@ -1,4 +1,5 @@
 import { SolanaListener, EVMListener } from '@kudi/chains';
+import { EVMChainConfig, ChainType } from '@kudi/types';
 import { LedgerService } from './ledgerService';
 import { SweepService } from './sweepService';
 import { sendPushNotification } from '../lib/notifications';
@@ -14,7 +15,21 @@ export class DepositService {
 
   constructor(ledgerService: LedgerService, io?: SocketIOServer) {
     this.solanaListener = new SolanaListener();
-    this.evmListener = new EVMListener();
+    
+    const monadConfig: EVMChainConfig = {
+      id: 'monad-testnet',
+      name: 'Monad Metropolis Testnet',
+      chainId: 10143,
+      type: ChainType.EVM,
+      rpcUrl: process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz',
+      tokenContractAddress: process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3',
+      tokenSymbol: 'AUSD',
+      tokenDecimals: 6,
+      confirmationThreshold: 1,
+      enabled: true
+    };
+    this.evmListener = new EVMListener([monadConfig]);
+
     this.ledgerService = ledgerService;
     this.sweepService = new SweepService(ledgerService);
     this.io = io;
@@ -56,15 +71,10 @@ export class DepositService {
   /**
    * Core deposit processing engine:
    * 
-   * 1. For each registered user, finds their Solana wallet address
-   * 2. Resolves their USDC SPL token account on-chain
-   * 3. Scans recent transactions on that token account for incoming USDC
-   * 4. Credits the off-chain ledger for each new deposit (idempotent via signature tracking)
-   * 5. Notifies the client via Socket.io and Push Notification
-   * 
-   * Why off-chain ledger? Because "Spend to NGN bank" is a local payment API call —
-   * the USDC stays on-chain untouched. The ledger tracks "available balance for spending"
-   * separately from the raw on-chain balance.
+   * 1. For each registered user, finds their Solana and Monad EVM wallet addresses
+   * 2. Polls Solana SPL token accounts and Monad EVM ERC-20 log transfers
+   * 3. Credits the off-chain ledger for each new deposit (idempotent via signature tracking)
+   * 4. Notifies the client via Socket.io and Push Notification
    */
   public async checkDeposits(): Promise<{ scannedUsers: number; newDeposits: number }> {
     const users = this.ledgerService.getAllUsers();
@@ -74,83 +84,136 @@ export class DepositService {
     for (const user of users) {
       const wallets = user.wallets || [];
       const solanaWallet = wallets.find(w => w.chain === 'solana');
+      const monadWallet = wallets.find(w => w.chain.includes('monad') || w.chain === 'evm');
 
-      if (!solanaWallet?.address) continue;
+      if (!solanaWallet?.address && !monadWallet?.address) continue;
 
       scannedUsers++;
 
-      try {
-        const events = await this.solanaListener.pollSolanaForDeposits([solanaWallet.address]);
+      // 1. Solana Deposit Polling
+      if (solanaWallet?.address) {
+        try {
+          const events = await this.solanaListener.pollSolanaForDeposits([solanaWallet.address]);
 
-        if (events.length === 0) {
-          console.log(`[DepositService] No new deposits for user ${user.id} (${solanaWallet.address.slice(0, 8)}...)`);
-        }
+          for (const ev of events) {
+            // Idempotency: skip signatures we already credited
+            if (this.ledgerService.isSignatureProcessed(ev.signature)) {
+              continue;
+            }
 
-        for (const ev of events) {
-          // Idempotency: skip signatures we already credited
-          if (this.ledgerService.isSignatureProcessed(ev.signature)) {
-            console.log(`[DepositService] Signature ${ev.signature.slice(0, 12)}... already processed, skipping.`);
-            continue;
-          }
+            const amount = Number(ev.amountUSDC);
+            if (amount <= 0) continue;
 
-          const amount = Number(ev.amountUSDC);
-          if (amount <= 0) continue;
+            console.log(
+              `[DepositService] 💸 New Solana deposit tx ${ev.signature.slice(0, 12)}...: ` +
+              `+${amount} USDC → user ${user.id} (${solanaWallet.address.slice(0, 8)}...)`
+            );
 
-          console.log(
-            `[DepositService] 💸 New deposit tx ${ev.signature.slice(0, 12)}...: ` +
-            `+${amount} USDC → user ${user.id} (${solanaWallet.address.slice(0, 8)}...)`
-          );
+            // Mark as processed FIRST before crediting to prevent double-credit on crash/retry
+            this.ledgerService.markSignatureProcessed(ev.signature);
 
-          // Mark as processed FIRST before crediting to prevent double-credit on crash/retry
-          this.ledgerService.markSignatureProcessed(ev.signature);
-
-          // Credit the off-chain ledger balance
-          const newBal = this.ledgerService.creditUserBalance(user.id, amount, ev.signature, {
-            chain: 'solana',
-            walletAddress: solanaWallet.address,
-            signature: ev.signature,
-            slot: ev.slot
-          });
-
-          newDeposits++;
-
-          console.log(`[DepositService] ✅ Balance updated for user ${user.id}: ${newBal.toFixed(6)} USDC`);
-
-          // Sweep deposited USDC from user's deposit address to Kudi treasury
-          // Fire-and-forget: ledger credit is already done; sweep failure falls back to float model
-          const privyWalletId = (solanaWallet as any).metadata?.privyWalletId as string | undefined;
-          this.sweepService.sweepToTreasury(solanaWallet.address, privyWalletId, amount)
-            .then(sweep => {
-              if (sweep.success) {
-                console.log(`[DepositService] 🏦 Sweep successful: ${amount} USDC → treasury (${sweep.txHash?.slice(0, 12)}...)`);
-              } else {
-                console.warn(`[DepositService] ⚠️  Sweep skipped/failed: ${sweep.error} — float model applies`);
-              }
-            })
-            .catch(err => console.warn('[DepositService] Sweep error:', err?.message));
-
-          // Real-time notification via Socket.io
-          if (this.io) {
-            this.io.to(user.id).emit('deposit:received', {
-              amountUSDC: amount,
-              newBalanceUSDC: newBal,
+            // Credit the off-chain ledger balance
+            const newBal = this.ledgerService.creditUserBalance(user.id, amount, ev.signature, {
               chain: 'solana',
-              txHash: ev.signature
+              walletAddress: solanaWallet.address,
+              signature: ev.signature,
+              slot: ev.slot
             });
-          }
 
-          // Push notification
-          const pushToken = this.ledgerService.getUserPushToken(user.id);
-          if (pushToken) {
-            await sendPushNotification(pushToken, 'DEPOSIT_RECEIVED', {
-              amountUSDC: amount,
-              chain: 'Solana Devnet',
-              newBalance: newBal
-            }).catch(err => console.warn('[DepositService] Push notification failed:', err));
+            newDeposits++;
+
+            console.log(`[DepositService] ✅ Balance updated for user ${user.id}: ${newBal.toFixed(6)} USDC`);
+
+            // Sweep deposited USDC from user's deposit address to Kudi treasury
+            const privyWalletId = (solanaWallet as any).metadata?.privyWalletId as string | undefined;
+            this.sweepService.sweepToTreasury(solanaWallet.address, privyWalletId, amount)
+              .then(sweep => {
+                if (sweep.success) {
+                  console.log(`[DepositService] 🏦 Sweep successful: ${amount} USDC → treasury (${sweep.txHash?.slice(0, 12)}...)`);
+                } else {
+                  console.warn(`[DepositService] ⚠️ Sweep skipped/failed: ${sweep.error} — float model applies`);
+                }
+              })
+              .catch(err => console.warn('[DepositService] Sweep error:', err?.message));
+
+            // Real-time notification via Socket.io
+            if (this.io) {
+              this.io.to(user.id).emit('deposit:received', {
+                amountUSDC: amount,
+                newBalanceUSDC: newBal,
+                chain: 'solana',
+                txHash: ev.signature
+              });
+            }
+
+            // Push notification
+            const pushToken = this.ledgerService.getUserPushToken(user.id);
+            if (pushToken) {
+              await sendPushNotification(pushToken, 'DEPOSIT_RECEIVED', {
+                amountUSDC: amount,
+                chain: 'Solana Devnet',
+                newBalance: newBal
+              }).catch(err => console.warn('[DepositService] Push notification failed:', err));
+            }
           }
+        } catch (err) {
+          console.warn(`[DepositService] Error scanning Solana wallet ${solanaWallet.address.slice(0, 8)}...:`, err);
         }
-      } catch (err) {
-        console.warn(`[DepositService] Error scanning wallet ${solanaWallet.address.slice(0, 8)}...:`, err);
+      }
+
+      // 2. Monad EVM Deposit Polling
+      if (monadWallet?.address && monadWallet.address.startsWith('0x')) {
+        try {
+          const evmEvents = await this.evmListener.pollChainForDeposits('monad-testnet', [monadWallet.address]);
+
+          for (const ev of evmEvents) {
+            if (this.ledgerService.isSignatureProcessed(ev.txHash)) {
+              continue;
+            }
+
+            const amount = Number(ev.amountToken);
+            if (amount <= 0) continue;
+
+            console.log(
+              `[DepositService] 💸 New Monad deposit tx ${ev.txHash.slice(0, 12)}...: ` +
+              `+${amount} AUSD → user ${user.id} (${monadWallet.address.slice(0, 8)}...)`
+            );
+
+            this.ledgerService.markSignatureProcessed(ev.txHash);
+
+            const newBal = this.ledgerService.creditUserBalance(user.id, amount, ev.txHash, {
+              chain: 'monad',
+              walletAddress: monadWallet.address,
+              signature: ev.txHash,
+              blockNumber: ev.blockNumber,
+              tokenSymbol: 'AUSD'
+            });
+
+            newDeposits++;
+
+            console.log(`[DepositService] ✅ Monad Balance updated for user ${user.id}: ${newBal.toFixed(6)} AUSD/USDC`);
+
+            if (this.io) {
+              this.io.to(user.id).emit('deposit:received', {
+                amountUSDC: amount,
+                newBalanceUSDC: newBal,
+                chain: 'monad',
+                txHash: ev.txHash
+              });
+            }
+
+            const pushToken = this.ledgerService.getUserPushToken(user.id);
+            if (pushToken) {
+              await sendPushNotification(pushToken, 'DEPOSIT_RECEIVED', {
+                amountUSDC: amount,
+                chain: 'Monad Testnet',
+                newBalance: newBal
+              }).catch(err => console.warn('[DepositService] Push notification failed:', err));
+            }
+          }
+        } catch (err) {
+          console.warn(`[DepositService] Error scanning Monad EVM wallet ${monadWallet.address.slice(0, 8)}...:`, err);
+        }
       }
     }
 

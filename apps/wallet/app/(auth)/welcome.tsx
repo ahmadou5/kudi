@@ -12,7 +12,7 @@ import {
   Easing
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Wifi, ArrowLeft, AlertCircle, Mail, XCircle, ArrowRight, CheckCircle2 } from 'lucide-react-native';
 import { Typography } from '../../constants/typography';
 import { useAppPalette } from '../../lib/theme';
 import { useAuthStore, AuthState } from '../../store/auth.store';
@@ -87,7 +87,7 @@ function AnimatedStackedCards() {
         <View style={styles.cardPatternCircle2} />
         <View style={styles.cardHeader}>
           <View style={[styles.emvChip, styles.goldChip]} />
-          <Ionicons name="wifi-outline" size={16} color="#64748B" style={{ transform: [{ rotate: '90deg' }] }} />
+          <Wifi size={16} color="#64748B" style={{ transform: [{ rotate: '90deg' }] }} />
         </View>
         <View style={styles.cardFooter}>
           <Text style={styles.blackCardNumber}>•••• •••• •••• 9012</Text>
@@ -113,7 +113,7 @@ function AnimatedStackedCards() {
         <View style={styles.silverPatternCircle2} />
         <View style={styles.cardHeader}>
           <View style={[styles.emvChip, styles.silverChip]} />
-          <Ionicons name="wifi-outline" size={16} color="#475569" style={{ transform: [{ rotate: '90deg' }] }} />
+          <Wifi size={16} color="#475569" style={{ transform: [{ rotate: '90deg' }] }} />
         </View>
         <View style={styles.cardFooter}>
           <Text style={styles.silverCardNumber}>•••• •••• •••• 5678</Text>
@@ -297,7 +297,7 @@ export default function WelcomeScreen() {
             style={[styles.backPill, { backgroundColor: palette.card, borderColor: palette.border }]}
             activeOpacity={0.7}
           >
-            <Ionicons name="arrow-back" size={16} color={palette.text} />
+            <ArrowLeft size={16} color={palette.text} />
             <Text style={[Typography.bodyBold, { color: palette.text }]}>Back</Text>
           </TouchableOpacity>
         ) : null}
@@ -320,7 +320,7 @@ export default function WelcomeScreen() {
       <View style={styles.authSection}>
         {errorMsg && (
           <View style={[styles.errorBanner, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
-            <Ionicons name="alert-circle" size={16} color="#EF4444" />
+            <AlertCircle size={16} color="#EF4444" />
             <Text style={[Typography.caption, { color: '#EF4444', flex: 1 }]}>
               {errorMsg}
             </Text>
@@ -344,8 +344,7 @@ export default function WelcomeScreen() {
                 }
               ]}
             >
-              <Ionicons
-                name="mail-outline"
+              <Mail
                 size={20}
                 color={isFocused ? palette.text : palette.textSecondary}
                 style={{ marginRight: 10 }}
@@ -367,7 +366,7 @@ export default function WelcomeScreen() {
               />
               {email.length > 0 && (
                 <TouchableOpacity onPress={() => setEmail('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                  <Ionicons name="close-circle" size={18} color={palette.textSecondary} />
+                  <XCircle size={18} color={palette.textSecondary} />
                 </TouchableOpacity>
               )}
             </View>
@@ -391,7 +390,7 @@ export default function WelcomeScreen() {
               ) : (
                 <>
                   <Text style={[Typography.bodyBold, { color: palette.bg }]}>Send Verification Code</Text>
-                  <Ionicons name="arrow-forward" size={18} color={palette.bg} />
+                  <ArrowRight size={18} color={palette.bg} />
                 </>
               )}
             </TouchableOpacity>
@@ -463,7 +462,7 @@ export default function WelcomeScreen() {
                 <ActivityIndicator color={palette.bg} />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle-outline" size={20} color={palette.bg} />
+                  <CheckCircle2 size={20} color={palette.bg} />
                   <Text style={[Typography.bodyBold, { color: palette.bg }]}>Verify & Sign In</Text>
                 </>
               )}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Fingerprint, Delete } from 'lucide-react-native';
 import { useAppPalette } from '../../lib/theme';
 
 export interface CustomNumericKeypadProps {
@@ -39,7 +39,7 @@ export const CustomNumericKeypad: React.FC<CustomNumericKeypadProps> = ({
                   style={[styles.keyButton, { backgroundColor: palette.card, borderColor: palette.border }]}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="finger-print" size={26} color={palette.primary} />
+                  <Fingerprint size={26} color={palette.primary} />
                 </TouchableOpacity>
               );
             }
@@ -53,7 +53,7 @@ export const CustomNumericKeypad: React.FC<CustomNumericKeypadProps> = ({
                   style={[styles.keyButton, { backgroundColor: palette.card, borderColor: palette.border }]}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="backspace-outline" size={24} color={palette.text} />
+                  <Delete size={24} color={palette.text} />
                 </TouchableOpacity>
               );
             }

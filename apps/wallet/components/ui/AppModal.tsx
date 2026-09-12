@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { XCircle, CheckCircle2, AlertTriangle, Info } from 'lucide-react-native';
 
 import { Spacing } from '../../constants/spacing';
 import { Typography } from '../../constants/typography';
@@ -113,16 +113,16 @@ export function AppModal({ config, onClose }: Props) {
           {/* Icon */}
           <View style={[styles.iconWrap, { backgroundColor: iconBg }]}>
             {config.type === 'error' && (
-              <Feather name="x-circle" size={22} color={palette.error} />
+              <XCircle size={22} color={palette.error} />
             )}
             {config.type === 'success' && (
-              <Feather name="check-circle" size={22} color={palette.success} />
+              <CheckCircle2 size={22} color={palette.success} />
             )}
             {config.type === 'warning' && (
-              <Feather name="alert-triangle" size={22} color={palette.warning} />
+              <AlertTriangle size={22} color={palette.warning} />
             )}
             {config.type === 'info' && (
-              <Feather name="info" size={22} color={palette.primary} />
+              <Info size={22} color={palette.primary} />
             )}
           </View>
 

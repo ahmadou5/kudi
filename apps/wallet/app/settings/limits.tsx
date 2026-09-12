@@ -8,7 +8,7 @@ import {
   ScrollView
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowLeft, ShieldCheck, ArrowUpCircle, Info } from 'lucide-react-native';
 import { useAppPalette, isLight } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { useAuthStore } from '../../store/auth.store';
@@ -61,7 +61,7 @@ export default function SpendingLimitsScreen() {
           style={[styles.backBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={20} color={palette.text} />
+          <ArrowLeft size={20} color={palette.text} />
         </TouchableOpacity>
         <Text style={[Typography.title2, { color: palette.text }]}>Spending Limits</Text>
         <View style={{ width: 40 }} />
@@ -72,7 +72,7 @@ export default function SpendingLimitsScreen() {
         <View style={[styles.bannerCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <View style={styles.bannerHeader}>
             <View style={[styles.badgeIcon, { backgroundColor: '#6366F120' }]}>
-              <Ionicons name="shield-checkmark" size={24} color="#6366F1" />
+              <ShieldCheck size={24} color="#6366F1" />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={[Typography.caption, { color: palette.textSecondary }]}>CURRENT ACCOUNT TIER</Text>
@@ -108,7 +108,7 @@ export default function SpendingLimitsScreen() {
               onPress={() => router.push('/kyc')}
               activeOpacity={0.85}
             >
-              <Ionicons name="arrow-up-circle-outline" size={18} color={light ? '#FFFFFF' : '#0F172A'} />
+              <ArrowUpCircle size={18} color={light ? '#FFFFFF' : '#0F172A'} />
               <Text style={[Typography.bodyBold, { color: light ? '#FFFFFF' : '#0F172A', marginLeft: 8 }]}>
                 Upgrade Tier & Limits
               </Text>
@@ -165,7 +165,7 @@ export default function SpendingLimitsScreen() {
 
         {/* Informational Footer */}
         <View style={[styles.infoBox, { backgroundColor: light ? '#F3F4F6' : '#1F2937' }]}>
-          <Ionicons name="information-circle-outline" size={20} color={palette.textSecondary} />
+          <Info size={20} color={palette.textSecondary} />
           <Text style={[Typography.caption, { color: palette.textSecondary, flex: 1, marginLeft: 8, lineHeight: 18 }]}>
             Spending limits are enforced in accordance with CBN regulatory guidelines to ensure safety and security on all off-ramp bank transfers.
           </Text>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { CheckCircle2 } from 'lucide-react-native';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
@@ -46,7 +46,7 @@ export const Step3Review: React.FC<Step3ReviewProps> = ({
     <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
       <View style={styles.sectionHeader}>
         <View style={[styles.stepPill, { backgroundColor: 'rgba(48,209,88,0.12)', borderColor: palette.success }]}>
-          <Ionicons name="checkmark-circle-outline" size={16} color={palette.success} />
+          <CheckCircle2 size={16} color={palette.success} />
         </View>
         <View style={styles.sectionCopy}>
           <Text style={[styles.sectionTitle, { color: palette.text }]}>Review & Confirm</Text>

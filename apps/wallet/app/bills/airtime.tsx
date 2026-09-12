@@ -13,7 +13,7 @@ import {
   Image
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowLeft } from 'lucide-react-native';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { useAuthStore } from '../../store/auth.store';
@@ -95,7 +95,7 @@ export default function AirtimeBillScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={palette.text} />
+          <ArrowLeft size={24} color={palette.text} />
         </TouchableOpacity>
         <Text style={[Typography.title2, { color: palette.text }]}>Buy Airtime</Text>
       </View>

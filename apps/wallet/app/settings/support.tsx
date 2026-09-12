@@ -9,7 +9,7 @@ import {
   Linking
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowLeft, MessageCircle, Mail, ExternalLink, ChevronUp, ChevronDown, Heart } from 'lucide-react-native';
 import { useAppPalette, isLight } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -57,7 +57,7 @@ export default function HelpSupportScreen() {
           style={[styles.backBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={20} color={palette.text} />
+          <ArrowLeft size={20} color={palette.text} />
         </TouchableOpacity>
         <Text style={[Typography.title2, { color: palette.text }]}>Help & Support</Text>
         <View style={{ width: 40 }} />
@@ -75,7 +75,7 @@ export default function HelpSupportScreen() {
           activeOpacity={0.7}
         >
           <View style={[styles.iconBox, { backgroundColor: '#25D36620' }]}>
-            <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
+            <MessageCircle size={24} color="#25D366" />
           </View>
           <View style={styles.contactText}>
             <Text style={[Typography.bodyBold, { color: palette.text }]}>Chat on WhatsApp</Text>
@@ -83,7 +83,7 @@ export default function HelpSupportScreen() {
               Instant support (Mon - Sun, 8am - 10pm)
             </Text>
           </View>
-          <Ionicons name="open-outline" size={18} color={palette.textSecondary} />
+          <ExternalLink size={18} color={palette.textSecondary} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -92,7 +92,7 @@ export default function HelpSupportScreen() {
           activeOpacity={0.7}
         >
           <View style={[styles.iconBox, { backgroundColor: '#3B82F620' }]}>
-            <Ionicons name="mail-outline" size={24} color="#3B82F6" />
+            <Mail size={24} color="#3B82F6" />
           </View>
           <View style={styles.contactText}>
             <Text style={[Typography.bodyBold, { color: palette.text }]}>Email Support</Text>
@@ -100,7 +100,7 @@ export default function HelpSupportScreen() {
               support@kudi.app • Response within 2 hrs
             </Text>
           </View>
-          <Ionicons name="open-outline" size={18} color={palette.textSecondary} />
+          <ExternalLink size={18} color={palette.textSecondary} />
         </TouchableOpacity>
 
         {/* FAQs */}
@@ -121,11 +121,11 @@ export default function HelpSupportScreen() {
                 <Text style={[Typography.bodyBold, { color: palette.text, flex: 1, paddingRight: 8 }]}>
                   {faq.q}
                 </Text>
-                <Ionicons
-                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={20}
-                  color={palette.textSecondary}
-                />
+                {isExpanded ? (
+                  <ChevronUp size={20} color={palette.textSecondary} />
+                ) : (
+                  <ChevronDown size={20} color={palette.textSecondary} />
+                )}
               </View>
               {isExpanded && (
                 <Text style={[Typography.subhead, { color: palette.textSecondary, marginTop: 10, lineHeight: 20 }]}>
@@ -138,7 +138,7 @@ export default function HelpSupportScreen() {
 
         {/* App Version Info */}
         <View style={styles.footerInfo}>
-          <Ionicons name="heart" size={16} color="#EF4444" />
+          <Heart size={16} color="#EF4444" fill="#EF4444" />
           <Text style={[Typography.caption, { color: palette.textSecondary, marginLeft: 6 }]}>
             Kudi Wallet v1.0.0 • Built for fast off-ramping
           </Text>

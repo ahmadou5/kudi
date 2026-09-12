@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { CheckCircle2, XCircle, Clock, Check, X } from 'lucide-react-native';
 import { Spacing } from '../constants/spacing';
 import { Typography } from '../constants/typography';
 import { useAppPalette } from '../lib/theme';
@@ -84,7 +84,9 @@ export function TransactionResultModal({
           </View>
 
           <View style={[styles.iconWrap, { backgroundColor: tone.backgroundColor }]}>
-            <Ionicons name={iconName} size={36} color={tone.iconColor} />
+            {type === 'success' && <CheckCircle2 size={36} color={tone.iconColor} />}
+            {type === 'failed' && <XCircle size={36} color={tone.iconColor} />}
+            {type === 'pending' && <Clock size={36} color={tone.iconColor} />}
           </View>
 
           <Text style={[styles.title, { color: palette.text }]}>{title}</Text>
@@ -96,21 +98,21 @@ export function TransactionResultModal({
             <View style={styles.trackLineContainer}>
               <View style={styles.trackStep}>
                 <View style={[styles.trackDot, { backgroundColor: palette.primary }]}>
-                  <Ionicons name="checkmark" size={12} color="#fff" />
+                  <Check size={12} color="#fff" />
                 </View>
                 <Text style={[styles.trackStepLabel, { color: palette.text }]}>Requested</Text>
               </View>
               <View style={[styles.trackConnector, { backgroundColor: type === 'failed' ? palette.error : palette.primary }]} />
               <View style={styles.trackStep}>
                 <View style={[styles.trackDot, { backgroundColor: type === 'failed' ? palette.error : palette.primary }]}>
-                  <Ionicons name="checkmark" size={12} color="#fff" />
+                  <Check size={12} color="#fff" />
                 </View>
                 <Text style={[styles.trackStepLabel, { color: palette.text }]}>Processing</Text>
               </View>
               <View style={[styles.trackConnector, { backgroundColor: type === 'success' ? palette.success : type === 'failed' ? palette.error : palette.border }]} />
               <View style={styles.trackStep}>
                 <View style={[styles.trackDot, { backgroundColor: type === 'success' ? palette.success : type === 'failed' ? palette.error : palette.border }]}>
-                  {type === 'success' ? <Ionicons name="checkmark" size={12} color="#fff" /> : type === 'failed' ? <Ionicons name="close" size={12} color="#fff" /> : <Ionicons name="time" size={12} color={palette.textSecondary} />}
+                  {type === 'success' ? <Check size={12} color="#fff" /> : type === 'failed' ? <X size={12} color="#fff" /> : <Clock size={12} color={palette.textSecondary} />}
                 </View>
                 <Text style={[styles.trackStepLabel, { color: type === 'success' ? palette.success : type === 'failed' ? palette.error : palette.textSecondary }]}>
                   {type === 'success' ? 'Completed' : type === 'failed' ? 'Failed' : 'Pending'}

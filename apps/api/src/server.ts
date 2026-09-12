@@ -141,7 +141,7 @@ async function main() {
     io.emit('rate:updated', rateState);
   });
   rateService.startPolling(30_000);
-  depositService.startPolling(10_000);
+  depositService.startPolling(3_000);
   setInterval(processCryptoWithdrawals, 5000);
 
   console.log(`🚀 Kudi API server running on http://localhost:${port}`);

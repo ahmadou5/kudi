@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Building2, Send, ChevronRight } from 'lucide-react-native';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
@@ -30,7 +30,7 @@ export const RailSelectorCard: React.FC<RailSelectorCardProps> = ({
         style={[styles.rootCard, { backgroundColor: palette.card, borderColor: palette.border }]}
       >
         <View style={[styles.cardIconWrap, { backgroundColor: 'rgba(10,132,255,0.12)' }]}>
-          <Ionicons name="business-outline" size={24} color={palette.primary} />
+          <Building2 size={24} color={palette.primary} />
         </View>
         <View style={styles.cardContent}>
           <Text style={[styles.cardTitle, { color: palette.text }]}>Off-Chain Transfer</Text>
@@ -46,7 +46,7 @@ export const RailSelectorCard: React.FC<RailSelectorCardProps> = ({
             </View>
           </View>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={palette.textSecondary} />
+        <ChevronRight size={20} color={palette.textSecondary} />
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -55,7 +55,7 @@ export const RailSelectorCard: React.FC<RailSelectorCardProps> = ({
         style={[styles.rootCard, { backgroundColor: palette.card, borderColor: palette.border }]}
       >
         <View style={[styles.cardIconWrap, { backgroundColor: 'rgba(139,92,246,0.12)' }]}>
-          <Ionicons name="paper-plane-outline" size={24} color="#8B5CF6" />
+          <Send size={24} color="#8B5CF6" />
         </View>
         <View style={styles.cardContent}>
           <Text style={[styles.cardTitle, { color: palette.text }]}>On-Chain Transfer</Text>
@@ -73,7 +73,7 @@ export const RailSelectorCard: React.FC<RailSelectorCardProps> = ({
             </View>
           </View>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={palette.textSecondary} />
+        <ChevronRight size={20} color={palette.textSecondary} />
       </TouchableOpacity>
     </View>
   );

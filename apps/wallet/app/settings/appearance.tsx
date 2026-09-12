@@ -8,7 +8,7 @@ import {
   ScrollView
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowLeft, Monitor, Sun, Moon, Check, LucideIcon } from 'lucide-react-native';
 import { useAppPalette, isLight } from '../../lib/theme';
 import { usePreferencesStore, PreferencesState, ThemeMode } from '../../store/preferences.store';
 import { Typography } from '../../constants/typography';
@@ -21,24 +21,24 @@ export default function AppearanceScreen() {
   const themeMode = usePreferencesStore((s: PreferencesState) => s.themeMode);
   const setThemeMode = usePreferencesStore((s: PreferencesState) => s.setThemeMode);
 
-  const options: { mode: ThemeMode; title: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  const options: { mode: ThemeMode; title: string; subtitle: string; Icon: LucideIcon }[] = [
     {
       mode: 'system',
       title: 'System',
       subtitle: 'Automatically match your device system settings',
-      icon: 'contrast-outline'
+      Icon: Monitor
     },
     {
       mode: 'light',
       title: 'Light',
       subtitle: 'Always use light theme',
-      icon: 'sunny-outline'
+      Icon: Sun
     },
     {
       mode: 'dark',
       title: 'Dark',
       subtitle: 'Always use dark theme',
-      icon: 'moon-outline'
+      Icon: Moon
     }
   ];
 
@@ -51,7 +51,7 @@ export default function AppearanceScreen() {
           style={[styles.backBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={20} color={palette.text} />
+          <ArrowLeft size={20} color={palette.text} />
         </TouchableOpacity>
         <Text style={[Typography.title2, { color: palette.text }]}>Appearance</Text>
         <View style={{ width: 40 }} />
@@ -66,6 +66,7 @@ export default function AppearanceScreen() {
           {options.map((opt, idx) => {
             const isSelected = themeMode === opt.mode;
             const isLast = idx === options.length - 1;
+            const OptIcon = opt.Icon;
 
             return (
               <TouchableOpacity
@@ -79,7 +80,7 @@ export default function AppearanceScreen() {
               >
                 <View style={styles.itemLeft}>
                   <View style={[styles.iconBadge, { backgroundColor: light ? '#E2E8F0' : 'rgba(255,255,255,0.08)' }]}>
-                    <Ionicons name={opt.icon} size={20} color={palette.text} />
+                    <OptIcon size={20} color={palette.text} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[Typography.bodyBold, { color: palette.text }]}>{opt.title}</Text>
@@ -96,7 +97,7 @@ export default function AppearanceScreen() {
                       : { borderColor: palette.border, backgroundColor: 'transparent' }
                   ]}
                 >
-                  {isSelected && <Ionicons name="checkmark" size={12} color="#FFFFFF" />}
+                  {isSelected && <Check size={12} color="#FFFFFF" />}
                 </View>
               </TouchableOpacity>
             );

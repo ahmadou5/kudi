@@ -10,7 +10,7 @@ import {
   Alert
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowLeft, KeyRound, ChevronRight, Key } from 'lucide-react-native';
 import { useAppPalette, isLight } from '../../lib/theme';
 import { usePreferencesStore, PreferencesState } from '../../store/preferences.store';
 import { Typography } from '../../constants/typography';
@@ -31,7 +31,7 @@ export default function SecurityScreen() {
           style={[styles.backBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={20} color={palette.text} />
+          <ArrowLeft size={20} color={palette.text} />
         </TouchableOpacity>
         <Text style={[Typography.title2, { color: palette.text }]}>Security</Text>
         <View style={{ width: 40 }} />
@@ -50,20 +50,20 @@ export default function SecurityScreen() {
           >
             <View style={styles.itemLeft}>
               <View style={[styles.iconBadge, { backgroundColor: light ? '#E2E8F0' : 'rgba(255,255,255,0.08)' }]}>
-                <Ionicons name="keypad-outline" size={18} color={palette.text} />
+                <KeyRound size={18} color={palette.text} />
               </View>
               <View>
                 <Text style={[Typography.bodyBold, { color: palette.text }]}>Change 4-Digit PIN</Text>
                 <Text style={[Typography.subhead, { color: palette.textSecondary }]}>Used to confirm transactions</Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
+            <ChevronRight size={18} color={palette.textSecondary} />
           </TouchableOpacity>
 
           <View style={styles.rowItem}>
             <View style={styles.itemLeft}>
               <View style={[styles.iconBadge, { backgroundColor: light ? '#E2E8F0' : 'rgba(255,255,255,0.08)' }]}>
-                <Ionicons name="key-outline" size={18} color={palette.text} />
+                <Key size={18} color={palette.text} />
               </View>
               <View>
                 <Text style={[Typography.bodyBold, { color: palette.text }]}>Require Passcode on Launch</Text>

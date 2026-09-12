@@ -8,7 +8,7 @@ import {
   Image,
   Animated
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { ChevronRight, QrCode, Copy, Zap, ArrowDownCircle, ShieldCheck, AlertTriangle, Clock, ArrowLeft } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
@@ -238,7 +238,7 @@ export default function DepositTab() {
               </View>
             </View>
 
-            <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
+            <ChevronRight size={18} color={palette.textSecondary} />
           </View>
         </TouchableOpacity>
       ))}
@@ -320,7 +320,7 @@ export default function DepositTab() {
 
           {/* QR placeholder */}
           <View style={[styles.qrFrame, { borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.1)' }]}>
-            <Ionicons name="qr-code" size={120} color={palette.text} />
+            <QrCode size={120} color={palette.text} />
             <View style={[styles.qrBadge, { backgroundColor: tokenDef.color }]}>
               <Image source={tokenDef.logo} style={{ width: 18, height: 18, borderRadius: 9 }} />
             </View>
@@ -346,7 +346,7 @@ export default function DepositTab() {
                 onPress={() => handleCopy(depositAddress, `${tokenDef.id} ${chainDef.shortName} Address`)}
                 activeOpacity={0.8}
               >
-                <Ionicons name="copy-outline" size={16} color={palette.bg} />
+                <Copy size={16} color={palette.bg} />
                 <Text style={[Typography.bodyBold, { color: palette.bg }]}>
                   Copy {chainDef.shortName} Address
                 </Text>
@@ -364,17 +364,17 @@ export default function DepositTab() {
         {/* Info pills */}
         <View style={styles.infoRow}>
           <View style={[styles.infoBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <Ionicons name="flash-outline" size={16} color={palette.success} />
+            <Zap size={16} color={palette.success} />
             <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 2 }]}>SPEED</Text>
             <Text style={[Typography.bodyBold, { color: palette.success }]}>{chainDef.speed}</Text>
           </View>
           <View style={[styles.infoBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <Ionicons name="arrow-down-circle-outline" size={16} color={palette.text} />
+            <ArrowDownCircle size={16} color={palette.text} />
             <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 2 }]}>MIN DEPOSIT</Text>
             <Text style={[Typography.bodyBold, { color: palette.text }]}>{chainDef.minDeposit} {tokenDef.id}</Text>
           </View>
           <View style={[styles.infoBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <Ionicons name="shield-checkmark-outline" size={16} color="#F59E0B" />
+            <ShieldCheck size={16} color="#F59E0B" />
             <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 2 }]}>NETWORK FEE</Text>
             <Text style={[Typography.bodyBold, { color: '#F59E0B' }]}>Free</Text>
           </View>
@@ -382,7 +382,7 @@ export default function DepositTab() {
 
         {/* Warning banner */}
         <View style={[styles.warningBanner, { backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.3)' }]}>
-          <Ionicons name="warning-outline" size={18} color="#F59E0B" />
+          <AlertTriangle size={18} color="#F59E0B" />
           <Text style={[Typography.footnote, { color: palette.text, flex: 1, lineHeight: 18 }]}>
             Only send <Text style={{ fontWeight: '700', color: tokenDef.color }}>{tokenDef.id}</Text> to this address on {chainDef.name}. Sending any other token will result in permanent loss of funds.
           </Text>
@@ -448,7 +448,7 @@ export default function DepositTab() {
             style={[styles.miniCopy, { backgroundColor: palette.text }]}
             activeOpacity={0.8}
           >
-            <Ionicons name="copy-outline" size={15} color={palette.bg} />
+            <Copy size={15} color={palette.bg} />
           </TouchableOpacity>
         </View>
 
@@ -467,7 +467,7 @@ export default function DepositTab() {
       </View>
 
       <View style={[styles.noticeCard, { backgroundColor: 'rgba(52,211,153,0.1)', borderColor: 'rgba(52,211,153,0.3)' }]}>
-        <Ionicons name="time-outline" size={18} color="#34D399" />
+        <Clock size={18} color="#34D399" />
         <Text style={[Typography.footnote, { color: palette.text, flex: 1, lineHeight: 18 }]}>
           Bank transfers are credited to your Kudi balance automatically within 30 seconds of receipt.
         </Text>
@@ -500,7 +500,7 @@ export default function DepositTab() {
               <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>NGNC</Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={palette.textSecondary} />
+          <ChevronRight size={20} color={palette.textSecondary} />
         </View>
         <Text style={[Typography.title2, { color: palette.text, marginTop: 14 }]}>On-Chain Deposit</Text>
         <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 4, lineHeight: 18 }]}>
@@ -522,7 +522,7 @@ export default function DepositTab() {
               </View>
             ))}
           </View>
-          <Ionicons name="chevron-forward" size={20} color={palette.textSecondary} />
+          <ChevronRight size={20} color={palette.textSecondary} />
         </View>
         <Text style={[Typography.title2, { color: palette.text, marginTop: 14 }]}>Bank Transfer</Text>
         <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 4, lineHeight: 18 }]}>
@@ -547,7 +547,7 @@ export default function DepositTab() {
           style={[styles.backBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={20} color={palette.text} />
+          <ArrowLeft size={20} color={palette.text} />
         </TouchableOpacity>
         <Text style={[Typography.title1, { color: palette.text }]}>{headerTitle}</Text>
       </View>

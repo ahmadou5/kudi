@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Smartphone, Wifi, Zap, CreditCard, Receipt, LucideIcon } from 'lucide-react-native';
 import { useAppPalette } from '../../lib/theme';
 import { BalanceCard } from '../../components/BalanceCard';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
@@ -42,13 +42,13 @@ export default function HomeTab() {
 
   const quickActions: Array<{
     label: string;
-    iconName: keyof typeof Ionicons.glyphMap;
+    Icon: LucideIcon;
     route: string;
   }> = [
-    { label: 'Airtime', iconName: 'phone-portrait-outline', route: '/(tabs)/spend' },
-    { label: 'Data', iconName: 'cellular-outline', route: '/(tabs)/spend' },
-    { label: 'Electricity', iconName: 'flash-outline', route: '/(tabs)/spend' },
-    { label: 'Virtual Card', iconName: 'card-outline', route: '/(tabs)/card' }
+    { label: 'Airtime', Icon: Smartphone, route: '/(tabs)/spend' },
+    { label: 'Data', Icon: Wifi, route: '/(tabs)/spend' },
+    { label: 'Electricity', Icon: Zap, route: '/(tabs)/spend' },
+    { label: 'Virtual Card', Icon: CreditCard, route: '/(tabs)/card' }
   ];
 
   // Map live API transactions to TransactionData interface
@@ -128,21 +128,24 @@ export default function HomeTab() {
         </Text>
 
         <View style={styles.quickGrid}>
-          {quickActions.map((act) => (
-            <TouchableOpacity
-              key={act.label}
-              style={styles.quickItem}
-              onPress={() => router.push(act.route as any)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.quickCircle, { backgroundColor: palette.card, borderColor: palette.border }]}>
-                <Ionicons name={act.iconName} size={22} color={palette.text} />
-              </View>
-              <Text style={[Typography.subhead, { color: palette.textSecondary }]}>
-                {act.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {quickActions.map((act) => {
+            const ActionIcon = act.Icon;
+            return (
+              <TouchableOpacity
+                key={act.label}
+                style={styles.quickItem}
+                onPress={() => router.push(act.route as any)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.quickCircle, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                  <ActionIcon size={22} color={palette.text} />
+                </View>
+                <Text style={[Typography.subhead, { color: palette.textSecondary }]}>
+                  {act.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* Recent Live Activity Feed */}
@@ -174,7 +177,7 @@ export default function HomeTab() {
             ))
           ) : (
             <View style={[styles.emptyBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              <Ionicons name="receipt-outline" size={28} color={palette.textSecondary} />
+              <Receipt size={28} color={palette.textSecondary} />
               <Text style={[Typography.bodyBold, { color: palette.text }]}>No Activity Yet</Text>
               <Text style={[Typography.caption, { color: palette.textSecondary, textAlign: 'center' }]}>
                 Your deposits and payouts will appear here in real-time.

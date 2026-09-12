@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Image, ImageSourcePropType } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Zap, ArrowDownCircle, ArrowUpCircle, ArrowDown, ArrowUp, Clock, LucideIcon } from 'lucide-react-native';
 import { useAppPalette } from '../lib/theme';
 import { Typography } from '../constants/typography';
 import { ChainLogo } from './ui/ChainLogo';
@@ -33,7 +33,7 @@ export interface TransactionData {
   status: string;
   date: string;
   isDeposit?: boolean;
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: LucideIcon | string;
   provider?: BrandProvider | string;
   chain?: 'solana' | 'monad' | 'monad-testnet' | string;
   tokenSymbol?: 'USDC' | 'AUSD' | string;
@@ -138,7 +138,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
     if (provider === 'electricity') {
       return (
         <View style={[styles.brandContainer, { backgroundColor: '#F59E0B' }]}>
-          <Ionicons name="flash" size={20} color="#FFFFFF" />
+          <Zap size={20} color="#FFFFFF" />
         </View>
       );
     }
@@ -154,11 +154,11 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
           }
         ]}
       >
-        <Ionicons
-          name={item.icon || (isDeposit ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline')}
-          size={20}
-          color={isDeposit ? '#10B981' : '#F43F5E'}
-        />
+        {isDeposit ? (
+          <ArrowDownCircle size={20} color="#10B981" />
+        ) : (
+          <ArrowUpCircle size={20} color="#F43F5E" />
+        )}
       </View>
     );
   };
@@ -189,7 +189,11 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
               </View>
             ) : (
               <View style={[styles.directionOverlay, { backgroundColor: isDeposit ? '#10B981' : '#F43F5E', borderColor: palette.card }]}>
-                <Ionicons name={isDeposit ? 'arrow-down' : 'arrow-up'} size={9} color="#FFFFFF" />
+                {isDeposit ? (
+                  <ArrowDown size={9} color="#FFFFFF" />
+                ) : (
+                  <ArrowUp size={9} color="#FFFFFF" />
+                )}
               </View>
             )}
           </View>
@@ -237,7 +241,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
         </View>
 
         <View style={styles.dateGroup}>
-          <Ionicons name="time-outline" size={12} color={palette.textSecondary} />
+          <Clock size={12} color={palette.textSecondary} />
           <Text style={[Typography.footnote, { color: palette.textSecondary, fontSize: 11 }]}>
             {item.date}
           </Text>

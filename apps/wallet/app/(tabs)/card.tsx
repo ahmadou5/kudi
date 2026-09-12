@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, Easing } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Wifi, Clock } from 'lucide-react-native';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 
@@ -196,7 +196,7 @@ export default function CardTab() {
             <View style={[styles.cardChip, { backgroundColor: isDark ? '#475569' : '#CBD5E1' }]}>
               <View style={[styles.chipLine, { backgroundColor: isDark ? '#334155' : '#94A3B8' }]} />
             </View>
-            <Ionicons name="wifi-outline" size={24} color={palette.textSecondary} style={{ transform: [{ rotate: '90deg' }] }} />
+            <Wifi size={24} color={palette.textSecondary} style={{ transform: [{ rotate: '90deg' }] }} />
           </View>
 
           <View style={styles.cardBottomRow}>
@@ -220,7 +220,7 @@ export default function CardTab() {
 
       {/* Minimal Coming Soon Center Text */}
       <View style={styles.comingSoonCenter}>
-        <Ionicons name="time-outline" size={22} color={palette.textSecondary} />
+        <Clock size={22} color={palette.textSecondary} />
         <Text style={[Typography.bodyBold, { color: palette.textSecondary, marginTop: 6 }]}>
           Virtual Cards Coming Soon
         </Text>

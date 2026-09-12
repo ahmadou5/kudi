@@ -14,7 +14,7 @@ import {
   Platform
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowLeft, Camera, User, AtSign, Mail, Lock, Phone } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAppPalette, isLight } from '../../lib/theme';
 import { useAuthStore, AuthState } from '../../store/auth.store';
@@ -123,7 +123,7 @@ export default function EditProfileScreen() {
           style={[styles.circularBackBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={20} color={palette.text} />
+          <ArrowLeft size={20} color={palette.text} />
         </TouchableOpacity>
         <Text style={[Typography.title2, { color: palette.text }]}>Edit Profile</Text>
         <TouchableOpacity
@@ -153,7 +153,7 @@ export default function EditProfileScreen() {
               )}
             </View>
             <View style={[styles.cameraBadge, { backgroundColor: '#3B82F6', borderColor: palette.card }]}>
-              <Ionicons name="camera" size={14} color="#FFFFFF" />
+              <Camera size={14} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
           <TouchableOpacity onPress={handlePickAvatar} activeOpacity={0.7}>
@@ -167,7 +167,7 @@ export default function EditProfileScreen() {
           <View style={styles.inputField}>
             <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>FULL NAME</Text>
             <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-              <Ionicons name="person-outline" size={18} color={palette.textSecondary} />
+              <User size={18} color={palette.textSecondary} />
               <TextInput
                 style={[Typography.body, styles.textInput, { color: palette.text }]}
                 value={fullName}
@@ -183,7 +183,7 @@ export default function EditProfileScreen() {
           <View style={styles.inputField}>
             <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>USERNAME</Text>
             <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-              <Ionicons name="at-outline" size={18} color={palette.textSecondary} />
+              <AtSign size={18} color={palette.textSecondary} />
               <TextInput
                 style={[Typography.body, styles.textInput, { color: palette.text }]}
                 value={username}
@@ -199,9 +199,9 @@ export default function EditProfileScreen() {
           <View style={styles.inputField}>
             <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>EMAIL ADDRESS</Text>
             <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border, opacity: 0.7 }]}>
-              <Ionicons name="mail-outline" size={18} color={palette.textSecondary} />
+              <Mail size={18} color={palette.textSecondary} />
               <Text style={[Typography.body, { color: palette.textSecondary, flex: 1 }]}>{userEmail}</Text>
-              <Ionicons name="lock-closed" size={14} color={palette.textSecondary} />
+              <Lock size={14} color={palette.textSecondary} />
             </View>
           </View>
 
@@ -209,9 +209,9 @@ export default function EditProfileScreen() {
           <View style={styles.inputField}>
             <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>PHONE NUMBER</Text>
             <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border, opacity: 0.7 }]}>
-              <Ionicons name="call-outline" size={18} color={palette.textSecondary} />
+              <Phone size={18} color={palette.textSecondary} />
               <Text style={[Typography.body, { color: palette.textSecondary, flex: 1 }]}>{userPhone}</Text>
-              <Ionicons name="lock-closed" size={14} color={palette.textSecondary} />
+              <Lock size={14} color={palette.textSecondary} />
             </View>
           </View>
         </View>

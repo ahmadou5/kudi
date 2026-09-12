@@ -1,14 +1,13 @@
 import React from 'react';
 import { StyleSheet, View, TouchableOpacity, Text, ViewStyle } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Home, CreditCard, Clock, LucideIcon } from 'lucide-react-native';
 import { useAppPalette } from '../lib/theme';
 import { Typography } from '../constants/typography';
 
 export interface TabItemConfig {
   name: string;
   label: string;
-  iconName: keyof typeof Ionicons.glyphMap;
-  activeIconName?: keyof typeof Ionicons.glyphMap;
+  Icon: LucideIcon;
 }
 
 /**
@@ -16,9 +15,9 @@ export interface TabItemConfig {
  * Easily modify icons, labels, or add/remove routes here!
  */
 export const DEFAULT_TABS: TabItemConfig[] = [
-  { name: 'index', label: 'Home', iconName: 'home-outline', activeIconName: 'home' },
-  { name: 'card', label: 'Card', iconName: 'card-outline', activeIconName: 'card' },
-  { name: 'history', label: 'History', iconName: 'time-outline', activeIconName: 'time' },
+  { name: 'index', label: 'Home', Icon: Home },
+  { name: 'card', label: 'Card', Icon: CreditCard },
+  { name: 'history', label: 'History', Icon: Clock },
 ];
 
 export interface FloatingTabBarProps {
@@ -76,7 +75,7 @@ export function FloatingTabBar({
           const route = state.routes.find((r: any) => r.name === tab.name);
           const routeIndex = state.routes.findIndex((r: any) => r.name === tab.name);
           const isFocused = routeIndex !== -1 && state.index === routeIndex;
-          const icon = isFocused ? (tab.activeIconName || tab.iconName) : tab.iconName;
+          const TabIcon = tab.Icon;
 
           const onPress = () => {
             if (route) {
@@ -110,7 +109,7 @@ export function FloatingTabBar({
                 }
               ]}
             >
-              <Ionicons name={icon} size={iconSize} color={color} />
+              <TabIcon size={iconSize} color={color} />
               {showLabels && (
                 <Text
                   style={[

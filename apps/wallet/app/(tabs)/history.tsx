@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, ScrollView, RefreshControl } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Receipt } from 'lucide-react-native';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { TransactionCard, TransactionData } from '../../components/TransactionCard';
@@ -98,7 +98,7 @@ export default function HistoryTab() {
           ))
         ) : (
           <View style={[styles.emptyBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <Ionicons name="receipt-outline" size={32} color={palette.textSecondary} />
+            <Receipt size={32} color={palette.textSecondary} />
             <Text style={[Typography.bodyBold, { color: palette.text, marginTop: 6 }]}>No Activities Yet</Text>
             <Text style={[Typography.caption, { color: palette.textSecondary, textAlign: 'center' }]}>
               All your deposits, transfers, and payouts will appear here in real-time.

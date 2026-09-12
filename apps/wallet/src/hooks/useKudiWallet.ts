@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TabType } from '../components/TabBar';
 import { useAuthStore } from '../../store/auth.store';
-import { sdk } from '../lib/sdk';
+import { sdk, API_BASE_URL } from '../lib/sdk';
 import { socket } from '../../lib/socket';
 
 export type CryptoWithdrawalStatus = 'PENDING' | 'BROADCAST' | 'CONFIRMED' | 'FAILED' | 'CANCELLED';
@@ -44,8 +44,20 @@ export function useKudiWallet() {
     const handleDepositReceived = (data: any) => {
       console.log('💰 [Socket] Deposit Received event:', data);
 
-      queryClient.invalidateQueries({ queryKey: ['balance', userId] });
-      queryClient.invalidateQueries({ queryKey: ['transactions', userId] });
+      // 1. Optimistically update balance cache immediately
+      if (data?.newBalanceUSDC !== undefined) {
+        queryClient.setQueryData(['balance', userId], (oldData: any) => {
+          if (!oldData) return { balanceUSDC: String(data.newBalanceUSDC) };
+          return {
+            ...oldData,
+            balanceUSDC: String(data.newBalanceUSDC)
+          };
+        });
+      }
+
+      // 2. Trigger immediate background refetch for balance and transaction feed
+      queryClient.refetchQueries({ queryKey: ['balance', userId] });
+      queryClient.refetchQueries({ queryKey: ['transactions', userId] });
 
       if (data && data.amountUSDC) {
         setDepositNotification({
@@ -209,6 +221,16 @@ export function useKudiWallet() {
     return result;
   };
 
+  const triggerRescan = async () => {
+    try {
+      await fetch(`${API_BASE_URL}/api/v1/deposits/rescan`, { method: 'POST' });
+      await queryClient.refetchQueries({ queryKey: ['balance', userId] });
+      await queryClient.refetchQueries({ queryKey: ['transactions', userId] });
+    } catch {
+      // Ignore transient errors
+    }
+  };
+
   return {
     activeTab,
     setActiveTab,
@@ -220,6 +242,7 @@ export function useKudiWallet() {
     isTransactionsLoading: transactionsQuery.isLoading,
     refetchBalance: () => balanceQuery.refetch(),
     refetchTransactions: () => transactionsQuery.refetch(),
+    triggerRescan,
     spendSuccess,
     resolveAccount,
     spendToBank,

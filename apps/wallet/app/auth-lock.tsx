@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { LogOut, HelpCircle } from 'lucide-react-native';
 import { useAppPalette } from '../lib/theme';
 import { useAuthStore, AuthState } from '../store/auth.store';
 import { CustomNumericKeypad } from '../components/ui/CustomNumericKeypad';
@@ -78,7 +78,7 @@ export default function AuthLockScreen() {
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => logout()} style={styles.topAction} activeOpacity={0.7}>
           <View style={styles.logoutRow}>
-            <Ionicons name="log-out-outline" size={18} color={palette.error} />
+            <LogOut size={18} color={palette.error} />
             <Text style={[styles.logoutText, { color: palette.error }]}>Log out</Text>
           </View>
         </TouchableOpacity>
@@ -87,7 +87,7 @@ export default function AuthLockScreen() {
           style={[styles.helpPill, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="help-circle-outline" size={16} color={palette.text} />
+          <HelpCircle size={16} color={palette.text} />
           <Text style={[styles.helpText, { color: palette.text }]}>Help</Text>
         </TouchableOpacity>
       </View>

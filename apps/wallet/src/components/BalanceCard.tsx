@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Wallet, PlusCircle, Send } from 'lucide-react-native';
 import { Typography } from '../../constants/typography';
 
 interface BalanceCardProps {
@@ -35,7 +35,7 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
         <Text style={[Typography.caption, { color: isLight ? '#64748B' : '#CBD5E1' }]}>
           Spendable Balance (USDC Float)
         </Text>
-        <Ionicons name="wallet-outline" size={16} color={isLight ? '#64748B' : '#CBD5E1'} />
+        <Wallet size={16} color={isLight ? '#64748B' : '#CBD5E1'} />
       </View>
 
       <Text style={[Typography.currencyDisplay, styles.balanceValue, { color: isLight ? '#0F172A' : '#FFFFFF' }]}>
@@ -62,7 +62,7 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
           ]}
           activeOpacity={0.8}
         >
-          <Ionicons name="add-circle" size={18} color={isLight ? '#FFFFFF' : '#0F172A'} />
+          <PlusCircle size={18} color={isLight ? '#FFFFFF' : '#0F172A'} />
           <Text style={[Typography.bodyBold, { color: isLight ? '#FFFFFF' : '#0F172A' }]}>
             Deposit
           </Text>
@@ -79,7 +79,7 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
           ]}
           activeOpacity={0.8}
         >
-          <Ionicons name="paper-plane-outline" size={16} color={isLight ? '#0F172A' : '#FFFFFF'} />
+          <Send size={16} color={isLight ? '#0F172A' : '#FFFFFF'} />
           <Text style={[Typography.bodyBold, { color: isLight ? '#0F172A' : '#FFFFFF' }]}>
             Transfer
           </Text>

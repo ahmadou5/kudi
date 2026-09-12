@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Banknote, AlertTriangle } from 'lucide-react-native';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
@@ -32,7 +32,7 @@ export const Step2Amount: React.FC<Step2AmountProps> = ({
     <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
       <View style={styles.sectionHeader}>
         <View style={[styles.stepPill, { backgroundColor: 'rgba(10,132,255,0.08)', borderColor: palette.primary }]}>
-          <Ionicons name="cash-outline" size={16} color={palette.primary} />
+          <Banknote size={16} color={palette.primary} />
         </View>
         <View style={styles.sectionCopy}>
           <Text style={[styles.sectionTitle, { color: palette.text }]}>Transfer Amount</Text>
@@ -76,7 +76,7 @@ export const Step2Amount: React.FC<Step2AmountProps> = ({
       {/* Validation Warnings */}
       {numericAmount > balanceUSDC ? (
         <View style={[styles.statusCard, { backgroundColor: 'rgba(255,69,58,0.12)', borderColor: palette.error }]}>
-          <Ionicons name="warning-outline" size={18} color={palette.error} />
+          <AlertTriangle size={18} color={palette.error} />
           <Text style={[styles.statusTitle, { color: palette.error }]}>
             Amount exceeds available balance (${balanceUSDC.toFixed(2)})
           </Text>

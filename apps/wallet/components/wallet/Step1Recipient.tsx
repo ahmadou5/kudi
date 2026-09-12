@@ -8,7 +8,17 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import {
+  Building2,
+  Smartphone,
+  Send,
+  ChevronDown,
+  CheckCircle2,
+  Check,
+  CreditCard,
+  AlertCircle,
+  UserPlus,
+} from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
@@ -80,12 +90,12 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
         <View style={[styles.stepPill, { backgroundColor: 'rgba(10,132,255,0.08)', borderColor: palette.primary }]}>
           {spendType === 'offchain' ? (
             offchainMode === 'BANK' ? (
-              <Ionicons name="business-outline" size={16} color={palette.primary} />
+              <Building2 size={16} color={palette.primary} />
             ) : (
-              <Ionicons name="phone-portrait-outline" size={16} color={palette.primary} />
+              <Smartphone size={16} color={palette.primary} />
             )
           ) : (
-            <Ionicons name="paper-plane-outline" size={16} color={palette.primary} />
+            <Send size={16} color={palette.primary} />
           )}
         </View>
         <View style={styles.sectionCopy}>
@@ -119,12 +129,12 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
               <Text style={[styles.selectValue, { color: palette.text, flex: 1, marginLeft: 10 }]}>
                 {selectedBank.name}
               </Text>
-              <Ionicons name="chevron-down" size={18} color={palette.textSecondary} />
+              <ChevronDown size={18} color={palette.textSecondary} />
             </TouchableOpacity>
 
             <Text style={[styles.inputLabel, { color: palette.text, marginTop: 12 }]}>Account Number</Text>
             <View style={[styles.inputBox, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-              <Ionicons name="business-outline" size={18} color={palette.textSecondary} />
+              <Building2 size={18} color={palette.textSecondary} />
               <TextInput
                 value={accountNumber}
                 onChangeText={(t) => onChangeAccountNumber(t.replace(/\D/g, ''))}
@@ -144,7 +154,7 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
             ) : accountName ? (
               <View style={{ gap: 8, marginTop: 4 }}>
                 <View style={[styles.statusCard, { backgroundColor: 'rgba(48,209,88,0.12)', borderColor: palette.success }]}>
-                  <Ionicons name="checkmark-circle" size={20} color={palette.success} />
+                  <CheckCircle2 size={20} color={palette.success} />
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.statusTitle, { color: palette.success }]}>{accountName}</Text>
                     <Text style={[styles.statusMeta, { color: palette.textSecondary }]}>
@@ -172,7 +182,7 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
                       },
                     ]}
                   >
-                    {bankConfirmed ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+                    {bankConfirmed ? <Check size={14} color="#fff" /> : null}
                   </View>
                   <Text style={[styles.confirmText, { color: palette.text }]}>
                     I confirm this is the correct account
@@ -184,14 +194,14 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
                     onPress={onSaveBeneficiary}
                     style={[styles.saveCardRow, { borderColor: palette.primary, backgroundColor: 'rgba(10,132,255,0.05)' }]}
                   >
-                    <Ionicons name="card-outline" size={16} color={palette.primary} />
+                    <CreditCard size={16} color={palette.primary} />
                     <Text style={[styles.saveCardText, { color: palette.primary }]}>Save this bank account</Text>
                   </TouchableOpacity>
                 )}
               </View>
             ) : accountNumber.length === 10 ? (
               <View style={[styles.statusCard, { backgroundColor: 'rgba(255,69,58,0.12)', borderColor: palette.error }]}>
-                <Ionicons name="alert-circle" size={20} color={palette.error} />
+                <AlertCircle size={20} color={palette.error} />
                 <Text style={[styles.statusTitle, { color: palette.error }]}>Could not resolve bank account details.</Text>
               </View>
             ) : null}
@@ -200,7 +210,7 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
           <>
             <Text style={[styles.inputLabel, { color: palette.text }]}>Recipient Handle / Phone</Text>
             <View style={[styles.inputBox, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-              <Ionicons name="phone-portrait-outline" size={18} color={palette.textSecondary} />
+              <Smartphone size={18} color={palette.textSecondary} />
               <TextInput
                 value={recipientHandle}
                 onChangeText={onChangeRecipientHandle}
@@ -219,7 +229,7 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
             ) : resolvedUser ? (
               <View style={{ gap: 8, marginTop: 4 }}>
                 <View style={[styles.statusCard, { backgroundColor: 'rgba(48,209,88,0.12)', borderColor: palette.success }]}>
-                  <Ionicons name="checkmark-circle" size={20} color={palette.success} />
+                  <CheckCircle2 size={20} color={palette.success} />
                   <Text style={[styles.statusTitle, { color: palette.success }]}>{resolvedUser}</Text>
                 </View>
                 {!isSaved && (
@@ -227,7 +237,7 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
                     onPress={onSaveBeneficiary}
                     style={[styles.saveCardRow, { borderColor: palette.primary, backgroundColor: 'rgba(10,132,255,0.05)' }]}
                   >
-                    <Ionicons name="person-add-outline" size={16} color={palette.primary} />
+                    <UserPlus size={16} color={palette.primary} />
                     <Text style={[styles.saveCardText, { color: palette.primary }]}>Save this contact</Text>
                   </TouchableOpacity>
                 )}

@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Bell, Sun, Moon, Scan, Settings } from 'lucide-react-native';
 import { useAppPalette } from '../lib/theme';
 import { usePreferencesStore, PreferencesState } from '../store/preferences.store';
 import { Typography } from '../constants/typography';
@@ -84,7 +84,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
           style={[styles.iconBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="notifications-outline" size={18} color={palette.text} />
+          <Bell size={18} color={palette.text} />
         </TouchableOpacity>
 
         {/* Theme Toggle Button */}
@@ -93,7 +93,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
           style={[styles.iconBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="sunny-outline" size={18} color={palette.text} />
+          {isDark ? (
+            <Sun size={18} color={palette.text} />
+          ) : (
+            <Moon size={18} color={palette.text} />
+          )}
         </TouchableOpacity>
 
         {/* QR Scanner Button */}
@@ -102,7 +106,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
           style={[styles.iconBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="scan-outline" size={18} color={palette.text} />
+          <Scan size={18} color={palette.text} />
         </TouchableOpacity>
 
         {/* Settings Button */}
@@ -111,7 +115,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
           style={[styles.iconBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="settings-outline" size={18} color={palette.text} />
+          <Settings size={18} color={palette.text} />
         </TouchableOpacity>
       </View>
     </View>

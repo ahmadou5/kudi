@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Settings, Moon, Sun, QrCode } from 'lucide-react-native';
 import { Typography } from '../../constants/typography';
 
 export interface HeaderProps {
@@ -26,7 +26,7 @@ export const Header: React.FC<HeaderProps> = ({
         style={[styles.iconBtn, { backgroundColor: isLight ? '#F1F5F9' : 'rgba(255,255,255,0.08)', borderColor: isLight ? '#CBD5E1' : 'rgba(255,255,255,0.15)' }]}
         activeOpacity={0.7}
       >
-        <Ionicons name="settings-outline" size={19} color={isLight ? '#0F172A' : '#FFFFFF'} />
+        <Settings size={19} color={isLight ? '#0F172A' : '#FFFFFF'} />
       </TouchableOpacity>
 
       {/* Center: Title / Pill Badge */}
@@ -43,7 +43,11 @@ export const Header: React.FC<HeaderProps> = ({
           style={[styles.iconBtn, { backgroundColor: isLight ? '#F1F5F9' : 'rgba(255,255,255,0.08)', borderColor: isLight ? '#CBD5E1' : 'rgba(255,255,255,0.15)' }]}
           activeOpacity={0.7}
         >
-          <Ionicons name={isLight ? 'moon-outline' : 'sunny-outline'} size={18} color={isLight ? '#0F172A' : '#FFFFFF'} />
+          {isLight ? (
+            <Moon size={18} color="#0F172A" />
+          ) : (
+            <Sun size={18} color="#FFFFFF" />
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -51,7 +55,7 @@ export const Header: React.FC<HeaderProps> = ({
           style={[styles.iconBtn, { backgroundColor: isLight ? '#F1F5F9' : 'rgba(255,255,255,0.08)', borderColor: isLight ? '#CBD5E1' : 'rgba(255,255,255,0.15)' }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="qr-code-outline" size={18} color={isLight ? '#0F172A' : '#FFFFFF'} />
+          <QrCode size={18} color={isLight ? '#0F172A' : '#FFFFFF'} />
         </TouchableOpacity>
       </View>
     </View>

@@ -9,7 +9,7 @@ import {
   Image
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowLeft, Edit3, Check, ShieldCheck, Shield, ChevronRight, Copy, Gift, User, Lock, MessageSquare, Settings, LogOut } from 'lucide-react-native';
 import { useAppPalette, isLight } from '../lib/theme';
 import { useAuthStore, AuthState } from '../store/auth.store';
 import { Typography } from '../constants/typography';
@@ -87,7 +87,7 @@ export default function ProfileScreen() {
           style={[styles.circularBackBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={20} color={palette.text} />
+          <ArrowLeft size={20} color={palette.text} />
         </TouchableOpacity>
         <Text style={[Typography.title2, { color: palette.text }]}>Profile & Account</Text>
         <TouchableOpacity
@@ -95,7 +95,7 @@ export default function ProfileScreen() {
           style={[styles.circularBackBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="create-outline" size={20} color={palette.text} />
+          <Edit3 size={20} color={palette.text} />
         </TouchableOpacity>
       </View>
 
@@ -115,7 +115,7 @@ export default function ProfileScreen() {
             </View>
             {kycTierNum > 0 && (
               <View style={styles.verifiedBadge}>
-                <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                <Check size={10} color="#FFFFFF" />
               </View>
             )}
           </TouchableOpacity>
@@ -141,11 +141,11 @@ export default function ProfileScreen() {
             onPress={() => router.push('/kyc')}
             activeOpacity={0.7}
           >
-            <Ionicons
-              name={kycTierNum > 0 ? "shield-checkmark" : "shield-outline"}
-              size={14}
-              color={kycTierNum > 0 ? "#10B981" : "#F59E0B"}
-            />
+            {kycTierNum > 0 ? (
+              <ShieldCheck size={14} color="#10B981" />
+            ) : (
+              <Shield size={14} color="#F59E0B" />
+            )}
             <Text style={[
               Typography.caption,
               { color: kycTierNum > 0 ? "#10B981" : "#F59E0B", fontWeight: '700', marginLeft: 4 }
@@ -153,7 +153,7 @@ export default function ProfileScreen() {
               KYC {kycTierLabel}
             </Text>
             {kycTierNum < 2 && (
-              <Ionicons name="chevron-forward" size={12} color={kycTierNum > 0 ? "#10B981" : "#F59E0B"} style={{ marginLeft: 4 }} />
+              <ChevronRight size={12} color={kycTierNum > 0 ? "#10B981" : "#F59E0B"} style={{ marginLeft: 4 }} />
             )}
           </TouchableOpacity>
 
@@ -167,7 +167,7 @@ export default function ProfileScreen() {
             <Text style={[Typography.currencySub, { color: palette.text, fontSize: 11, flex: 1 }]} numberOfLines={1} ellipsizeMode="middle">
               SOL: {solanaAddress}
             </Text>
-            <Ionicons name="copy-outline" size={14} color="#9945FF" />
+            <Copy size={14} color="#9945FF" />
           </TouchableOpacity>
 
           {/* Deposit Address Strip: Monad Testnet EVM */}
@@ -180,7 +180,7 @@ export default function ProfileScreen() {
             <Text style={[Typography.currencySub, { color: palette.text, fontSize: 11, flex: 1 }]} numberOfLines={1} ellipsizeMode="middle">
               MONAD: {monadAddress}
             </Text>
-            <Ionicons name="copy-outline" size={14} color="#8352FF" />
+            <Copy size={14} color="#8352FF" />
           </TouchableOpacity>
         </View>
 
@@ -215,7 +215,7 @@ export default function ProfileScreen() {
         {/* Referral Card */}
         <View style={[styles.referralCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <View style={[styles.refIconBox, { backgroundColor: '#8B5CF620' }]}>
-            <Ionicons name="gift-outline" size={22} color="#8B5CF6" />
+            <Gift size={22} color="#8B5CF6" />
           </View>
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={[Typography.caption, { color: palette.textSecondary }]}>REFERRAL CODE</Text>
@@ -228,7 +228,7 @@ export default function ProfileScreen() {
             onPress={() => handleCopy(referralCode, 'Referral Code')}
             activeOpacity={0.8}
           >
-            <Ionicons name="copy" size={14} color={light ? '#FFFFFF' : '#0F172A'} />
+            <Copy size={14} color={light ? '#FFFFFF' : '#0F172A'} />
             <Text style={[Typography.caption, { color: light ? '#FFFFFF' : '#0F172A', fontWeight: '700', marginLeft: 4 }]}>
               Copy
             </Text>
@@ -244,14 +244,14 @@ export default function ProfileScreen() {
           >
             <View style={styles.menuLeft}>
               <View style={[styles.iconBox, { backgroundColor: '#10B98118' }]}>
-                <Ionicons name="person-outline" size={18} color="#10B981" />
+                <User size={18} color="#10B981" />
               </View>
               <View>
                 <Text style={[Typography.bodyBold, { color: palette.text }]}>Edit Profile</Text>
                 <Text style={[Typography.footnote, { color: palette.textSecondary }]}>Update photo, full name & username</Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
+            <ChevronRight size={18} color={palette.textSecondary} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -261,14 +261,14 @@ export default function ProfileScreen() {
           >
             <View style={styles.menuLeft}>
               <View style={[styles.iconBox, { backgroundColor: '#3B82F618' }]}>
-                <Ionicons name="shield-checkmark-outline" size={18} color="#3B82F6" />
+                <ShieldCheck size={18} color="#3B82F6" />
               </View>
               <View>
                 <Text style={[Typography.bodyBold, { color: palette.text }]}>KYC Verification</Text>
                 <Text style={[Typography.footnote, { color: palette.textSecondary }]}>Upgrade limits & virtual bank account</Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
+            <ChevronRight size={18} color={palette.textSecondary} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -278,14 +278,14 @@ export default function ProfileScreen() {
           >
             <View style={styles.menuLeft}>
               <View style={[styles.iconBox, { backgroundColor: '#EF444418' }]}>
-                <Ionicons name="lock-closed-outline" size={18} color="#EF4444" />
+                <Lock size={18} color="#EF4444" />
               </View>
               <View>
                 <Text style={[Typography.bodyBold, { color: palette.text }]}>Security & PIN</Text>
                 <Text style={[Typography.footnote, { color: palette.textSecondary }]}>PIN code, biometrics & app lock</Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
+            <ChevronRight size={18} color={palette.textSecondary} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -295,14 +295,14 @@ export default function ProfileScreen() {
           >
             <View style={styles.menuLeft}>
               <View style={[styles.iconBox, { backgroundColor: '#06B6D418' }]}>
-                <Ionicons name="chatbubble-ellipses-outline" size={18} color="#06B6D4" />
+                <MessageSquare size={18} color="#06B6D4" />
               </View>
               <View>
                 <Text style={[Typography.bodyBold, { color: palette.text }]}>Help & Support</Text>
                 <Text style={[Typography.footnote, { color: palette.textSecondary }]}>WhatsApp & email customer service</Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
+            <ChevronRight size={18} color={palette.textSecondary} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -312,14 +312,14 @@ export default function ProfileScreen() {
           >
             <View style={styles.menuLeft}>
               <View style={[styles.iconBox, { backgroundColor: '#8B5CF618' }]}>
-                <Ionicons name="settings-outline" size={18} color="#8B5CF6" />
+                <Settings size={18} color="#8B5CF6" />
               </View>
               <View>
                 <Text style={[Typography.bodyBold, { color: palette.text }]}>All Settings</Text>
                 <Text style={[Typography.footnote, { color: palette.textSecondary }]}>Appearance, notifications & preferences</Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
+            <ChevronRight size={18} color={palette.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -329,7 +329,7 @@ export default function ProfileScreen() {
           style={styles.logoutBtn}
           activeOpacity={0.8}
         >
-          <Ionicons name="log-out-outline" size={19} color="#EF4444" />
+          <LogOut size={19} color="#EF4444" />
           <Text style={[Typography.bodyBold, { color: '#EF4444' }]}>Log Out</Text>
         </TouchableOpacity>
         <AppModal config={modal.config} onClose={modal.hide} />

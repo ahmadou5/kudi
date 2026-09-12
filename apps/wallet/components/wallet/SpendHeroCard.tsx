@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Banknote } from 'lucide-react-native';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
@@ -30,7 +30,7 @@ export const SpendHeroCard: React.FC<SpendHeroCardProps> = ({
           <Text style={styles.heroValue}>{activeFlowTitle}</Text>
         </View>
         <View style={styles.heroIcon}>
-          <Ionicons name="cash-outline" size={20} color="#fff" />
+          <Banknote size={20} color="#fff" />
         </View>
       </View>
 

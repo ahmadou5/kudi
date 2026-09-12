@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Search, CheckCircle2 } from 'lucide-react-native';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
@@ -182,7 +182,7 @@ export function BankPickerModal({
           </View>
 
           <View style={[styles.searchBox, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-            <Ionicons name="search" size={16} color={palette.textSecondary} />
+            <Search size={16} color={palette.textSecondary} />
             <Pressable style={{ flex: 1 }}>
               <Text style={{ color: palette.textSecondary, fontSize: Typography.sm }}>
                 {search || 'Search bank name or code…'}
@@ -233,7 +233,7 @@ export function BankPickerModal({
                     </Text>
                     {active ? (
                       <View style={[styles.checkboxCheck, { backgroundColor: palette.primary }]}>
-                        <Ionicons name="checkmark-circle" size={16} color="#fff" />
+                        <CheckCircle2 size={16} color="#fff" />
                       </View>
                     ) : (
                       <View style={[styles.checkboxEmpty, { borderColor: palette.border }]} />
