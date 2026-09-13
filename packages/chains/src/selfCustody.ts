@@ -330,11 +330,9 @@ export class SelfCustodyProvider implements CustodyProvider {
   }): Promise<{ txHash: string }> {
     const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress } = params;
 
-    if (!this.privyAppId || !this.privyAppSecret) {
+    if (!this.privyAppId || !this.privyAppSecret || !treasuryWalletId) {
       // Sandbox fallback: generate deterministic mock tx hash
-      const mockHash = chain === 'solana'
-        ? Array.from({ length: 88 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz123456789'[Math.floor(Math.random() * 58)]).join('')
-        : `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+      const mockHash = `mock_${chain}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       console.log(`[SelfCustody] 🧪 Sandbox mode — mock broadcast for ${amountUSDC} USDC on ${chain}: ${mockHash.slice(0, 20)}...`);
       return { txHash: mockHash };
     }
