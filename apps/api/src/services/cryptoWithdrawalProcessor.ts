@@ -18,7 +18,7 @@ import { WithdrawalStatus } from '@kudi/types';
 import { LedgerService } from './ledgerService';
 
 const selfCustody = new SelfCustodyProvider();
-const ledgerService = new LedgerService();
+let defaultLedgerService: LedgerService | null = null;
 
 // Kudi treasury Privy wallet ID used for all custodial sends
 const TREASURY_WALLET_ID = process.env.PRIVY_TREASURY_WALLET_ID || '';
@@ -26,7 +26,8 @@ const TREASURY_WALLET_ID = process.env.PRIVY_TREASURY_WALLET_ID || '';
 // Backoff delays by attempt: 5s, 15s, 45s
 const BACKOFF_MS = [5_000, 15_000, 45_000];
 
-export async function processCryptoWithdrawals(): Promise<void> {
+export async function processCryptoWithdrawals(ledgerServiceInstance?: LedgerService): Promise<void> {
+  const ledgerService = ledgerServiceInstance || (defaultLedgerService ??= new LedgerService());
   const queue = CryptoWithdrawalQueue.getInstance();
   const jobs = queue.dequeueAll();
 

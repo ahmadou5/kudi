@@ -27,6 +27,8 @@ import { BankLogo, BankItem } from './BankPickerModal';
 import { BeneficiariesScroll, Beneficiary } from './BeneficiariesScroll';
 import { ChainLogo } from '../ui/ChainLogo';
 
+import { CardBackgroundPattern } from '../ui/CardBackgroundPattern';
+
 type SpendType = 'offchain' | 'onchain';
 type OffchainSubMode = 'BANK' | 'INTERAPP';
 type OnchainChain = 'solana' | 'monad';
@@ -86,6 +88,7 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
 
   return (
     <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
+      <CardBackgroundPattern />
       <View style={styles.sectionHeader}>
         <View style={[styles.stepPill, { backgroundColor: 'rgba(10,132,255,0.08)', borderColor: palette.primary }]}>
           {spendType === 'offchain' ? (
@@ -291,6 +294,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: Spacing.lg,
     gap: Spacing.md,
+    overflow: 'hidden',
+    position: 'relative',
   },
   sectionHeader: {
     flexDirection: 'row',

@@ -6,6 +6,8 @@ import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
 import { BankLogo, BankItem } from './BankPickerModal';
 
+import { CardBackgroundPattern } from '../ui/CardBackgroundPattern';
+
 type SpendType = 'offchain' | 'onchain';
 type OffchainSubMode = 'BANK' | 'INTERAPP';
 
@@ -44,6 +46,7 @@ export const Step3Review: React.FC<Step3ReviewProps> = ({
 
   return (
     <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
+      <CardBackgroundPattern glowColor="rgba(48,209,88,0.12)" />
       <View style={styles.sectionHeader}>
         <View style={[styles.stepPill, { backgroundColor: 'rgba(48,209,88,0.12)', borderColor: palette.success }]}>
           <CheckCircle2 size={16} color={palette.success} />
@@ -95,6 +98,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: Spacing.lg,
     gap: Spacing.md,
+    overflow: 'hidden',
+    position: 'relative',
   },
   sectionHeader: {
     flexDirection: 'row',

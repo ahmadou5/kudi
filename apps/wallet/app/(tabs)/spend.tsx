@@ -55,7 +55,7 @@ const INITIAL_BENEFICIARIES: Beneficiary[] = [
 
 export default function SpendTab() {
   const palette = useAppPalette();
-  const { balanceUSDC, rateNGN, resolveAccount, spendToBank, sendCrypto, setCryptoSendResult } = useKudiWallet();
+  const { balanceUSDC, rateNGN, resolveAccount, spendToBank, sendCrypto, cryptoSendResult, setCryptoSendResult } = useKudiWallet();
   const params = useLocalSearchParams<{ address?: string }>();
   const modal = useAppModal();
 
@@ -325,11 +325,14 @@ export default function SpendTab() {
 
         if (res && (res.status === 'CONFIRMED' || res.status === 'PENDING' || res.status === 'BROADCAST')) {
           setCryptoSendResult(res);
+          const isConfirmed = res.status === 'CONFIRMED';
           setResultModal({
             visible: true,
-            type: 'success',
-            title: `${onchainChain.toUpperCase()} Transfer Submitted`,
-            message: `Sent $${numericAmount.toFixed(2)} USDC on ${onchainChain.toUpperCase()} network.`,
+            type: isConfirmed ? 'success' : 'pending',
+            title: isConfirmed ? `${onchainChain.toUpperCase()} Transfer Confirmed` : `${onchainChain.toUpperCase()} Transfer Submitted`,
+            message: isConfirmed
+              ? `Successfully sent $${numericAmount.toFixed(2)} USDC on ${onchainChain.toUpperCase()} network.`
+              : `Sent $${numericAmount.toFixed(2)} USDC on ${onchainChain.toUpperCase()} network. Finalizing on-chain...`,
             amount: `$${numericAmount.toFixed(2)} USDC`,
             reference: res.txHash || res.reference || txRef
           });
@@ -349,6 +352,29 @@ export default function SpendTab() {
       setPinError(err instanceof Error ? err.message : 'Transfer execution failed.');
     }
   };
+
+  // Dynamically update result modal when background polling confirms transaction status
+  useEffect(() => {
+    if (!cryptoSendResult || !resultModal.visible) return;
+
+    if (cryptoSendResult.status === 'CONFIRMED') {
+      setResultModal((prev) => ({
+        ...prev,
+        type: 'success',
+        title: `${onchainChain.toUpperCase()} Transfer Confirmed!`,
+        message: `Transaction finalized on-chain.`,
+        reference: cryptoSendResult.txHash || cryptoSendResult.reference || prev.reference,
+      }));
+    } else if (cryptoSendResult.status === 'FAILED') {
+      setResultModal((prev) => ({
+        ...prev,
+        type: 'failed',
+        title: `${onchainChain.toUpperCase()} Transfer Failed`,
+        message: 'Transaction failed on network. Balance has been restored.',
+        reference: cryptoSendResult.reference || prev.reference,
+      }));
+    }
+  }, [cryptoSendResult, resultModal.visible, onchainChain]);
 
   const activeFlowTitle = useMemo(() => {
     if (spendType === 'offchain') {

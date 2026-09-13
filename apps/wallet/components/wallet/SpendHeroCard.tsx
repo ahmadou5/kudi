@@ -6,6 +6,8 @@ import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
 import { FlowProgressDots } from './WalletFlowProgress';
 
+import { CardBackgroundPattern } from '../ui/CardBackgroundPattern';
+
 interface SpendHeroCardProps {
   activeFlowTitle: string;
   currentStep: number;
@@ -24,6 +26,7 @@ export const SpendHeroCard: React.FC<SpendHeroCardProps> = ({
 
   return (
     <View style={[styles.heroCard, { backgroundColor: isDark ? '#06101E' : '#0F172A' }]}>
+      <CardBackgroundPattern glowColor="rgba(10, 132, 255, 0.12)" isDarkOverride={true} />
       <View style={styles.heroTop}>
         <View>
           <Text style={styles.heroLabel}>Active flow</Text>
@@ -48,6 +51,8 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: Spacing.lg,
     gap: Spacing.md,
+    overflow: 'hidden',
+    position: 'relative',
   },
   heroTop: {
     flexDirection: 'row',

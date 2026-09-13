@@ -142,7 +142,7 @@ async function main() {
   });
   rateService.startPolling(30_000);
   depositService.startPolling(3_000);
-  setInterval(processCryptoWithdrawals, 5000);
+  setInterval(() => processCryptoWithdrawals(ledgerService), 5000);
 
   console.log(`🚀 Kudi API server running on http://localhost:${port}`);
 }

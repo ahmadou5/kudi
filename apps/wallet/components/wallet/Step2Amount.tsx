@@ -6,6 +6,8 @@ import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
 import { AmountInput } from './AmountInput';
 
+import { CardBackgroundPattern } from '../ui/CardBackgroundPattern';
+
 interface Step2AmountProps {
   activeRecipientName: string;
   amount: string;
@@ -31,6 +33,7 @@ export const Step2Amount: React.FC<Step2AmountProps> = ({
 
   return (
     <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
+      <CardBackgroundPattern />
       <View style={styles.sectionHeader}>
         <View style={[styles.stepPill, { backgroundColor: 'rgba(10,132,255,0.08)', borderColor: palette.primary }]}>
           <Banknote size={16} color={palette.primary} />
@@ -114,6 +117,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: Spacing.lg,
     gap: Spacing.md,
+    overflow: 'hidden',
+    position: 'relative',
   },
   sectionHeader: {
     flexDirection: 'row',
