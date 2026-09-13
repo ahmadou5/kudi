@@ -754,11 +754,11 @@ export class LedgerService {
     prisma.ledgerEntry.create({
       data: {
         userId: params.userId,
-        type: 'CRYPTO_SEND_DEBIT',
+        type: 'SPEND_DEBIT',
         amountUSDC: params.amountUSDC,
         resultingBalanceUSDC: currentBalance - params.amountUSDC,
         referenceId: params.reference,
-        metadata: JSON.stringify(withdrawal)
+        metadata: JSON.stringify({ ...withdrawal, type: 'CRYPTO_SEND_DEBIT' })
       }
     }).catch(err => console.warn('[LedgerService] DB withdrawal debit record warning:', err?.message));
 
@@ -809,11 +809,11 @@ export class LedgerService {
     prisma.ledgerEntry.create({
       data: {
         userId,
-        type: 'CRYPTO_SEND_REVERSAL',
+        type: 'SPEND_REVERSAL',
         amountUSDC,
         resultingBalanceUSDC: restoredBal,
         referenceId: `rev_${reference}`,
-        metadata: JSON.stringify({ reference, reason: 'BROADCAST_FAILURE' })
+        metadata: JSON.stringify({ reference, reason: 'BROADCAST_FAILURE', type: 'CRYPTO_SEND_REVERSAL' })
       }
     }).catch(err => console.warn('[LedgerService] DB rollback entry creation warning:', err?.message));
 
