@@ -174,10 +174,12 @@ export class PayoutController {
     const { userId, pin, amountUSDC, toAddress, chain } = request.body as {
       userId: string;
       pin?: string;
-      amountUSDC: number;
+      amountUSDC: number | string;
       toAddress: string;
       chain: 'solana' | 'monad';
     };
+
+    const numAmountUSDC = typeof amountUSDC === 'number' ? amountUSDC : parseFloat(String(amountUSDC || 0)) || 0;
 
     // 1. PIN verification
     const user = this.ledgerService.getUser(userId);
@@ -193,7 +195,7 @@ export class PayoutController {
     }
 
     // 3. Minimum send guard
-    if (amountUSDC < 1.0) {
+    if (numAmountUSDC < 1.0) {
       return reply.status(400).send(
         errorResponse('BELOW_MINIMUM', 'Minimum crypto send is 1.00 USDC.', 400)
       );
@@ -201,7 +203,7 @@ export class PayoutController {
 
     // 4. Balance check
     const currentBalance = this.ledgerService.getBalance(userId);
-    if (currentBalance < amountUSDC) {
+    if (currentBalance < numAmountUSDC) {
       return reply.status(400).send(
         errorResponse('INSUFFICIENT_BALANCE', `Insufficient balance. Available: ${currentBalance.toFixed(2)} USDC`, 400)
       );
@@ -221,7 +223,7 @@ export class PayoutController {
     const withdrawal = this.ledgerService.createWithdrawal({
       reference,
       userId,
-      amountUSDC,
+      amountUSDC: numAmountUSDC,
       toAddress,
       chain
     });
@@ -231,15 +233,15 @@ export class PayoutController {
       await this.cryptoQueue.enqueue({
         reference,
         userId,
-        amountUSDC,
+        amountUSDC: numAmountUSDC,
         toAddress,
         chain
       });
 
-      console.log(`[PayoutController] 📤 Crypto withdrawal queued: ${reference} | ${amountUSDC} USDC → ${toAddress.slice(0, 8)}... on ${chain}`);
+      console.log(`[PayoutController] 📤 Crypto withdrawal queued: ${reference} | ${numAmountUSDC} USDC → ${toAddress.slice(0, 8)}... on ${chain}`);
     } catch (queueErr: unknown) {
       // If enqueue itself fails hard (rare), rollback immediately
-      this.ledgerService.rollbackWithdrawal(reference, userId, amountUSDC);
+      this.ledgerService.rollbackWithdrawal(reference, userId, numAmountUSDC);
       const msg = queueErr instanceof Error ? queueErr.message : String(queueErr);
       return reply.status(500).send(errorResponse('QUEUE_ERROR', `Failed to queue withdrawal: ${msg}`, 500));
     }
@@ -249,7 +251,7 @@ export class PayoutController {
       status: WithdrawalStatus.PENDING,
       chain,
       toAddress,
-      amountUSDC: amountUSDC.toFixed(2),
+      amountUSDC: numAmountUSDC.toFixed(2),
       newBalanceUSDC: this.ledgerService.getBalance(userId).toFixed(2),
       message: 'Your crypto send is being broadcast to the network. Check status using the reference.'
     }, 'Crypto send initiated');

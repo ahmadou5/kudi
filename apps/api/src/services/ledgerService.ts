@@ -110,13 +110,29 @@ export class LedgerService {
         }
 
         // Fetch latest balance from ledger entries in DB
-        const entries = await prisma.ledgerEntry.findMany({
-          where: { userId: u.id },
-          orderBy: { createdAt: 'desc' },
-          take: 1
-        });
-        if (entries.length > 0) {
-          this.ledger.set(u.id, Number(entries[0].resultingBalanceUSDC));
+        try {
+          const entries = await prisma.ledgerEntry.findMany({
+            where: { userId: u.id },
+            orderBy: { createdAt: 'desc' },
+            take: 1
+          });
+          if (entries.length > 0) {
+            this.ledger.set(u.id, Number(entries[0].resultingBalanceUSDC));
+          }
+        } catch {
+          try {
+            const rawEntries: any[] = await prisma.$queryRaw`
+              SELECT "resultingBalanceUSDC" FROM "LedgerEntry"
+              WHERE "userId" = ${u.id}
+              ORDER BY "createdAt" DESC
+              LIMIT 1
+            `;
+            if (rawEntries.length > 0) {
+              this.ledger.set(u.id, Number(rawEntries[0].resultingBalanceUSDC));
+            }
+          } catch {
+            // Ignore if raw query fails
+          }
         }
       }
 
@@ -459,45 +475,70 @@ export class LedgerService {
     }
 
     // 2. Load directly from Neon PostgreSQL DB ledger entries
+    let dbEntries: Array<{
+      referenceId: string;
+      type: string;
+      amountUSDC: number;
+      metadata: string | null;
+      createdAt: Date;
+    }> = [];
+
     try {
-      const dbEntries = await prisma.ledgerEntry.findMany({
+      dbEntries = await prisma.ledgerEntry.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' },
         take: 100
       });
-
-      for (const entry of dbEntries) {
-        if (!mergedMap.has(entry.referenceId)) {
-          let meta: Record<string, any> = {};
-          try {
-            if (entry.metadata) meta = JSON.parse(entry.metadata);
-          } catch {
-            meta = {};
-          }
-
-          const isDeposit = entry.type === 'DEPOSIT_CREDIT';
-          const isReversal = entry.type === 'CRYPTO_SEND_REVERSAL';
-
-          const txRecord: TransactionRecord = {
-            fromUserId: isDeposit ? 'CHAIN_DEPOSIT' : userId,
-            toUserId: isDeposit ? userId : (meta.toAddress || 'BANK_PAYOUT'),
-            amount: entry.amountUSDC,
-            currency: meta.chain === 'monad' ? 'AUSD' : 'USDC',
-            reference: entry.referenceId,
-            timestamp: entry.createdAt.toISOString(),
-            metadata: {
-              title: meta.title || (isDeposit ? 'USDC Deposit' : (isReversal ? 'Send Reversal' : 'Bank Payout')),
-              subtitle: meta.subtitle || (isDeposit ? `${(meta.chain || 'solana').toUpperCase()} Network` : 'Bank Transfer'),
-              type: entry.type,
-              ...meta
-            }
-          };
-
-          mergedMap.set(entry.referenceId, txRecord);
-        }
+    } catch {
+      try {
+        const rawRows: any[] = await prisma.$queryRaw`
+          SELECT "referenceId", type::text AS type, "amountUSDC", metadata, "createdAt"
+          FROM "LedgerEntry"
+          WHERE "userId" = ${userId}
+          ORDER BY "createdAt" DESC
+          LIMIT 100
+        `;
+        dbEntries = rawRows.map((r) => ({
+          referenceId: r.referenceId,
+          type: r.type,
+          amountUSDC: Number(r.amountUSDC),
+          metadata: r.metadata,
+          createdAt: new Date(r.createdAt),
+        }));
+      } catch (rawErr: any) {
+        console.warn('[LedgerService] Warning querying ledger entries from DB:', rawErr?.message || rawErr);
       }
-    } catch (err: any) {
-      console.warn('[LedgerService] Warning querying ledger entries from DB:', err?.message);
+    }
+
+    for (const entry of dbEntries) {
+      if (!mergedMap.has(entry.referenceId)) {
+        let meta: Record<string, any> = {};
+        try {
+          if (entry.metadata) meta = JSON.parse(entry.metadata);
+        } catch {
+          meta = {};
+        }
+
+        const isDeposit = entry.type === 'DEPOSIT_CREDIT';
+        const isReversal = entry.type === 'CRYPTO_SEND_REVERSAL';
+
+        const txRecord: TransactionRecord = {
+          fromUserId: isDeposit ? 'CHAIN_DEPOSIT' : userId,
+          toUserId: isDeposit ? userId : (meta.toAddress || 'BANK_PAYOUT'),
+          amount: entry.amountUSDC,
+          currency: meta.chain === 'monad' ? 'AUSD' : 'USDC',
+          reference: entry.referenceId,
+          timestamp: entry.createdAt.toISOString(),
+          metadata: {
+            title: meta.title || (isDeposit ? 'USDC Deposit' : (isReversal ? 'Send Reversal' : 'Bank Payout')),
+            subtitle: meta.subtitle || (isDeposit ? `${(meta.chain || 'solana').toUpperCase()} Network` : 'Bank Transfer'),
+            type: entry.type,
+            ...meta
+          }
+        };
+
+        mergedMap.set(entry.referenceId, txRecord);
+      }
     }
 
     const result = Array.from(mergedMap.values());

@@ -10,7 +10,7 @@ interface Step2AmountProps {
   activeRecipientName: string;
   amount: string;
   onChangeAmount: (val: string) => void;
-  balanceUSDC: number;
+  balanceUSDC: number | string;
   rateNGN: number;
   onContinueToReview: () => void;
 }
@@ -25,8 +25,9 @@ export const Step2Amount: React.FC<Step2AmountProps> = ({
 }) => {
   const palette = useAppPalette();
   const numericAmount = parseFloat(amount) || 0;
+  const numericBalance = typeof balanceUSDC === 'number' ? balanceUSDC : parseFloat(String(balanceUSDC || 0)) || 0;
   const amountNGN = numericAmount * rateNGN;
-  const isAmountValid = numericAmount >= 1.0 && numericAmount <= balanceUSDC;
+  const isAmountValid = numericAmount >= 1.0 && numericAmount <= numericBalance;
 
   return (
     <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
@@ -52,13 +53,13 @@ export const Step2Amount: React.FC<Step2AmountProps> = ({
         onChangeText={onChangeAmount}
         currencySymbol="$"
         placeholder="0.00"
-        helperText={`Available Balance: $${balanceUSDC.toFixed(2)} USDC (~₦${(balanceUSDC * rateNGN).toLocaleString('en-NG')})`}
+        helperText={`Available Balance: $${numericBalance.toFixed(2)} USDC (~₦${(numericBalance * rateNGN).toLocaleString('en-NG')})`}
         presetChips={[
           { label: '$10', amount: 10 },
           { label: '$25', amount: 25 },
           { label: '$50', amount: 50 },
           { label: '$100', amount: 100 },
-          { label: 'MAX', amount: balanceUSDC },
+          { label: 'MAX', amount: numericBalance },
         ]}
         onPresetSelect={(val) => onChangeAmount(val.toString())}
       />
@@ -83,11 +84,11 @@ export const Step2Amount: React.FC<Step2AmountProps> = ({
         </View>
       ) : null}
 
-      {numericAmount > balanceUSDC ? (
+      {numericAmount > numericBalance ? (
         <View style={[styles.statusCard, { backgroundColor: 'rgba(255,69,58,0.12)', borderColor: palette.error }]}>
           <AlertTriangle size={18} color={palette.error} />
           <Text style={[styles.statusTitle, { color: palette.error }]}>
-            Amount exceeds available balance (${balanceUSDC.toFixed(2)})
+            Amount exceeds available balance (${numericBalance.toFixed(2)})
           </Text>
         </View>
       ) : null}
