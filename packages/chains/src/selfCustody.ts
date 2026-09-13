@@ -347,16 +347,18 @@ export class SelfCustodyProvider implements CustodyProvider {
       // Solana: SPL token transfer via Privy signAndSendTransaction
       const mint = usdcMintAddress || process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
       const amountLamports = Math.floor(amountUSDC * 1_000_000); // USDC = 6 decimals
+      const txPayload = JSON.stringify({
+        type: 'USDC_SPL_TRANSFER',
+        mint,
+        recipient: toAddress,
+        amountLamports
+      });
       requestBody = {
         method: 'signAndSendTransaction',
         caip2: process.env.SOLANA_CAIP2 || 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1', // devnet
         params: {
-          transaction: JSON.stringify({
-            type: 'USDC_SPL_TRANSFER',
-            mint,
-            recipient: toAddress,
-            amountLamports
-          })
+          transaction: Buffer.from(txPayload).toString('base64'),
+          encoding: 'base64'
         }
       };
     } else {
