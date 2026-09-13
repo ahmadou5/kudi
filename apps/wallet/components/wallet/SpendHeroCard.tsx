@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Banknote } from 'lucide-react-native';
+import { Banknote, LucideBanknote } from 'lucide-react-native';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
@@ -25,16 +25,14 @@ export const SpendHeroCard: React.FC<SpendHeroCardProps> = ({
   const isDark = palette.text === '#FFFFFF';
 
   return (
-    <View style={[styles.heroCard, { backgroundColor: isDark ? '#06101E' : '#0F172A' }]}>
+    <View style={[styles.heroCard, { backgroundColor: palette.card }]}>
       <CardBackgroundPattern glowColor="rgba(10, 132, 255, 0.12)" isDarkOverride={true} />
       <View style={styles.heroTop}>
         <View>
-          <Text style={styles.heroLabel}>Active flow</Text>
+
           <Text style={styles.heroValue}>{activeFlowTitle}</Text>
         </View>
-        <View style={styles.heroIcon}>
-          <Banknote size={20} color="#fff" />
-        </View>
+
       </View>
 
       <FlowProgressDots

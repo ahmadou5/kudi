@@ -380,7 +380,7 @@ export default function SpendTab() {
     if (spendType === 'offchain') {
       return offchainMode === 'BANK' ? 'Bank transfer' : 'Inter-app transfer';
     }
-    return `Crypto transfer (${onchainChain.toUpperCase()})`;
+    return `Crypto transfer`;
   }, [spendType, offchainMode, onchainChain]);
 
   return (
@@ -403,9 +403,13 @@ export default function SpendTab() {
           >
             <ArrowLeft size={20} color={palette.text} />
           </TouchableOpacity>
-          <Text style={[Typography.title1, { color: palette.text }]}>
-            {spendType === 'select' ? 'Spend Funds' : activeFlowTitle}
-          </Text>
+          {
+            spendType === "select" && (
+              <Text style={[Typography.title1, { color: palette.text }]}>
+                Spend Funds
+              </Text>
+            )
+          }
         </View>
 
         {/* Root Spend Type Selection (Off-chain & On-chain Cards) */}
@@ -467,7 +471,7 @@ export default function SpendTab() {
                 >
                   <Smartphone size={16} color={offchainMode === 'INTERAPP' ? palette.primary : palette.textSecondary} />
                   <Text style={[Typography.footnote, { color: offchainMode === 'INTERAPP' ? '#FFF' : palette.textSecondary, fontWeight: offchainMode === 'INTERAPP' ? '700' : '500' }]}>
-                    Inter-App (@User)
+                    Inter-App
                   </Text>
                   {offchainMode === 'INTERAPP' && <View style={[styles.activeDot, { backgroundColor: palette.primary }]} />}
                 </TouchableOpacity>
@@ -486,9 +490,7 @@ export default function SpendTab() {
                   ]}
                 >
                   <ChainLogo chain="solana" size={16} />
-                  <Text style={[Typography.footnote, { color: onchainChain === 'solana' ? '#FFF' : palette.textSecondary, fontWeight: onchainChain === 'solana' ? '700' : '500' }]}>
-                    Solana (USDC)
-                  </Text>
+
                   {onchainChain === 'solana' && <View style={[styles.activeDot, { backgroundColor: '#9945FF' }]} />}
                 </TouchableOpacity>
 
@@ -504,9 +506,7 @@ export default function SpendTab() {
                   ]}
                 >
                   <ChainLogo chain="monad" size={16} />
-                  <Text style={[Typography.footnote, { color: onchainChain === 'monad' ? '#FFF' : palette.textSecondary, fontWeight: onchainChain === 'monad' ? '700' : '500' }]}>
-                    Monad (AUSD)
-                  </Text>
+
                   {onchainChain === 'monad' && <View style={[styles.activeDot, { backgroundColor: '#836EF9' }]} />}
                 </TouchableOpacity>
               </View>
@@ -643,7 +643,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sectionGap: { gap: Spacing.lg },
-  chainTabRow: { flexDirection: 'row', gap: 10 },
-  chainTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 28, borderWidth: 1 },
+  chainTabRow: { flexDirection: 'row', gap: 5, alignItems: 'flex-start', width: '50%' },
+  chainTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
   activeDot: { width: 6, height: 6, borderRadius: 3 },
 });
