@@ -41,9 +41,13 @@ export async function processCryptoWithdrawals(ledgerServiceInstance?: LedgerSer
     try {
       console.log(`[CryptoWithdrawalProcessor] 📤 Broadcasting withdrawal ${reference}...`);
 
+      const treasuryWalletId = chain === 'monad'
+        ? (process.env.KUDI_EVM_TREASURY_WALLET_ID || process.env.PRIVY_EVM_TREASURY_WALLET_ID || process.env.PRIVY_TREASURY_WALLET_ID || '')
+        : (process.env.KUDI_SOLANA_TREASURY_WALLET_ID || process.env.PRIVY_SOLANA_TREASURY_WALLET_ID || process.env.PRIVY_TREASURY_WALLET_ID || '');
+
       // Step 1: Broadcast tx via Privy treasury wallet
       const { txHash } = await selfCustody.sendCrypto({
-        treasuryWalletId: TREASURY_WALLET_ID,
+        treasuryWalletId,
         toAddress,
         amountUSDC,
         chain
