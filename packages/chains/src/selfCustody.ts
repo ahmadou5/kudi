@@ -29,11 +29,11 @@ export class SelfCustodyProvider implements CustodyProvider {
   private solanaRpcUrl: string;
 
   private get appId(): string {
-    return this.privyAppId || process.env.PRIVY_APP_ID || '';
+    return this.privyAppId || process.env.PRIVY_APP_ID || process.env.EXPO_PUBLIC_PRIVY_APP_ID || process.env.NEXT_PUBLIC_PRIVY_APP_ID || '';
   }
 
   private get appSecret(): string {
-    return this.privyAppSecret || process.env.PRIVY_APP_SECRET || '';
+    return this.privyAppSecret || process.env.PRIVY_APP_SECRET || process.env.PRIVY_SECRET || process.env.PRIVY_SECRET_KEY || '';
   }
 
   private get rpcUrlSolana(): string {
@@ -366,9 +366,14 @@ export class SelfCustodyProvider implements CustodyProvider {
     const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress } = params;
 
     if (!this.appId || !this.appSecret || !treasuryWalletId) {
-      // Sandbox fallback: generate deterministic mock tx hash
+      console.warn(`[SelfCustody] ⚠️ Sandbox mode triggered — Missing credentials:`, {
+        hasAppId: !!this.appId,
+        hasAppSecret: !!this.appSecret,
+        hasTreasuryWalletId: !!treasuryWalletId,
+        treasuryWalletIdProvided: treasuryWalletId,
+        chain
+      });
       const mockHash = `mock_${chain}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      console.log(`[SelfCustody] 🧪 Sandbox mode — mock broadcast for ${amountUSDC} USDC on ${chain}: ${mockHash.slice(0, 20)}...`);
       return { txHash: mockHash };
     }
 
@@ -384,7 +389,12 @@ export class SelfCustodyProvider implements CustodyProvider {
       const mintAddr = usdcMintAddress || process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
       const USDC_DECIMALS = 6; // USDC always has 6 decimals
 
-      const treasuryAddrStr = process.env.KUDI_TREASURY_SOLANA_ADDRESS || '';
+      const treasuryAddrStr =
+        process.env.KUDI_TREASURY_SOLANA_ADDRESS ||
+        process.env.PRIVY_TREASURY_SOLANA_ADDRESS ||
+        process.env.SOLANA_TREASURY_ADDRESS ||
+        process.env.TREASURY_SOLANA_ADDRESS || '';
+
       if (!treasuryAddrStr) {
         throw new Error('KUDI_TREASURY_SOLANA_ADDRESS env var is not set. Cannot build Solana transaction.');
       }
