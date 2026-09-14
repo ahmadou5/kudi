@@ -1,4 +1,15 @@
 import { CustodyProvider, CustodyTrack, DepositWallet } from '@kudi/types';
+import {
+  Connection,
+  PublicKey,
+  Transaction
+} from '@solana/web3.js';
+import {
+  createTransferCheckedInstruction,
+  getMint,
+  getAssociatedTokenAddressSync,
+  TOKEN_PROGRAM_ID
+} from '@solana/spl-token';
 
 export class SelfCustodyProvider implements CustodyProvider {
   public readonly track = CustodyTrack.TRACK_A_SELF_CUSTODY;
@@ -344,20 +355,59 @@ export class SelfCustodyProvider implements CustodyProvider {
     let requestBody: Record<string, unknown>;
 
     if (isSolana) {
-      // Solana: SPL token transfer via Privy signAndSendTransaction
-      const mint = usdcMintAddress || process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
-      const amountLamports = Math.floor(amountUSDC * 1_000_000); // USDC = 6 decimals
-      const txPayload = JSON.stringify({
-        type: 'USDC_SPL_TRANSFER',
-        mint,
-        recipient: toAddress,
-        amountLamports
+      // Solana: Build a real SPL USDC transfer transaction via @solana/web3.js
+      // then submit it to Privy signAndSendTransaction for server-wallet signing
+      const mintAddress = usdcMintAddress || process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
+      const connection = new Connection(this.solanaRpcUrl, 'confirmed');
+
+      // Derive the treasury wallet public key from Privy (it is the fee payer + sender)
+      // We need the treasury's actual Solana public key address — stored as KUDI_TREASURY_SOLANA_ADDRESS
+      const treasuryPubkeyStr = process.env.KUDI_TREASURY_SOLANA_ADDRESS || '';
+      if (!treasuryPubkeyStr) {
+        throw new Error('KUDI_TREASURY_SOLANA_ADDRESS env var is not set. Cannot build Solana transaction.');
+      }
+
+      const mintPubkey = new PublicKey(mintAddress);
+      const treasuryPubkey = new PublicKey(treasuryPubkeyStr);
+      const recipientPubkey = new PublicKey(toAddress);
+
+      // Fetch mint info (decimals) — USDC devnet is 6 decimals
+      const mintInfo = await getMint(connection, mintPubkey);
+      const amountRaw = BigInt(Math.floor(amountUSDC * Math.pow(10, mintInfo.decimals)));
+
+      const sourcePubkey = getAssociatedTokenAddressSync(mintPubkey, treasuryPubkey);
+      const destPubkey = getAssociatedTokenAddressSync(mintPubkey, recipientPubkey, true);
+
+      // Get a recent blockhash for the transaction
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+
+      const tx = new Transaction({
+        recentBlockhash: blockhash,
+        feePayer: treasuryPubkey
       });
+
+      // Add SPL token transfer instruction
+      tx.add(
+        createTransferCheckedInstruction(
+          sourcePubkey,          // source ATA (treasury's USDC account)
+          mintPubkey,            // USDC mint
+          destPubkey,            // destination ATA (recipient's USDC account)
+          treasuryPubkey,        // owner/authority (treasury wallet)
+          amountRaw,             // amount in raw token units
+          mintInfo.decimals,     // USDC decimals (6)
+          [],                    // no multi-signers
+          TOKEN_PROGRAM_ID
+        )
+      );
+
+      // Serialize the unsigned transaction (Privy signs it server-side)
+      const serializedTx = tx.serialize({ requireAllSignatures: false }).toString('base64');
+
       requestBody = {
         method: 'signAndSendTransaction',
         caip2: process.env.SOLANA_CAIP2 || 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1', // devnet
         params: {
-          transaction: Buffer.from(txPayload).toString('base64'),
+          transaction: serializedTx,
           encoding: 'base64'
         }
       };

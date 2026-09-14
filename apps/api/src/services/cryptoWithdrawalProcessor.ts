@@ -86,25 +86,21 @@ export async function processCryptoWithdrawals(ledgerServiceInstance?: LedgerSer
       }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error(`[CryptoWithdrawalProcessor] ⚠️ Withdrawal ${reference} error: ${errorMessage}`);
+      console.error(`[CryptoWithdrawalProcessor] ⚠️ Withdrawal ${reference} FAILED: ${errorMessage}`);
 
-      // Robust fallback for dev/sandbox: mark as CONFIRMED with mock transaction hash
-      const fallbackHash = `mock_${chain}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      ledgerService.updateWithdrawal(reference, {
-        status: WithdrawalStatus.CONFIRMED,
-        txHash: fallbackHash
-      });
+      // rollbackWithdrawal handles: balance restore + FAILED status update + failure notification
+      ledgerService.rollbackWithdrawal(reference, userId, amountUSDC);
 
-      ledgerService.addNotification(
-        userId,
-        'Crypto Send Confirmed ✅',
-        `Your transfer of ${amountUSDC.toFixed(2)} ${chain === 'solana' ? 'USDC' : 'AUSD'} has been processed.`,
-        'PAYMENT_SENT',
-        { reference, txHash: fallbackHash, amountUSDC, chain }
-      );
-
-      queue.remove(reference);
-      console.log(`[CryptoWithdrawalProcessor] 🧪 Withdrawal ${reference} finalized with fallback signature.`);
+      // Retry if attempts remain, otherwise remove from queue
+      const canRetry = queue.recordAttempt(reference);
+      if (!canRetry) {
+        queue.remove(reference);
+        console.log(`[CryptoWithdrawalProcessor] 🗑️  Withdrawal ${reference} removed after max retries.`);
+      } else {
+        console.log(`[CryptoWithdrawalProcessor] 🔄 Withdrawal ${reference} will retry (attempt ${job.attempts + 1}).`);
+      }
     }
   }
 }
+
+

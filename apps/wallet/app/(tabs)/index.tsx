@@ -45,11 +45,11 @@ export default function HomeTab() {
     Icon: LucideIcon;
     route: string;
   }> = [
-    { label: 'Airtime', Icon: Smartphone, route: '/(tabs)/spend' },
-    { label: 'Data', Icon: Wifi, route: '/(tabs)/spend' },
-    { label: 'Electricity', Icon: Zap, route: '/(tabs)/spend' },
-    { label: 'Virtual Card', Icon: CreditCard, route: '/(tabs)/card' }
-  ];
+      { label: 'Airtime', Icon: Smartphone, route: '/(tabs)/spend' },
+      { label: 'Data', Icon: Wifi, route: '/(tabs)/spend' },
+      { label: 'Electricity', Icon: Zap, route: '/(tabs)/spend' },
+      { label: 'Virtual Card', Icon: CreditCard, route: '/(tabs)/card' }
+    ];
 
   // Map live API transactions to TransactionData interface
   const formattedTransactions: TransactionData[] = (transactions || []).map((tx: any, idx: number) => {
@@ -121,8 +121,8 @@ export default function HomeTab() {
       >
         {/* Live Balance Card Component */}
         <BalanceCard balanceUSDC={balanceUSDC} rateNGN={rateNGN} depositNotification={depositNotification} />
-
-        {/* Quick Actions Grid */}
+        {/* TO DO */}
+        {/* Quick Actions Grid 
         <Text style={[Typography.title2, styles.sectionTitle, { color: palette.text }]}>
           Quick Services
         </Text>
@@ -147,7 +147,7 @@ export default function HomeTab() {
             );
           })}
         </View>
-
+*/}
         {/* Recent Live Activity Feed */}
         <View style={styles.activityHeaderRow}>
           <Text style={[Typography.title2, { color: palette.text }]}>
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4
   },
-  activityHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, marginBottom: 12 },
+  activityHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 30, marginBottom: 12 },
   viewAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   activityList: { gap: 10 },
   emptyBox: {
