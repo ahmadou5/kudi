@@ -91,14 +91,9 @@ export async function processCryptoWithdrawals(ledgerServiceInstance?: LedgerSer
       // rollbackWithdrawal handles: balance restore + FAILED status update + failure notification
       ledgerService.rollbackWithdrawal(reference, userId, amountUSDC);
 
-      // Retry if attempts remain, otherwise remove from queue
-      const canRetry = queue.recordAttempt(reference);
-      if (!canRetry) {
-        queue.remove(reference);
-        console.log(`[CryptoWithdrawalProcessor] 🗑️  Withdrawal ${reference} removed after max retries.`);
-      } else {
-        console.log(`[CryptoWithdrawalProcessor] 🔄 Withdrawal ${reference} will retry (attempt ${job.attempts + 1}).`);
-      }
+      // Remove from queue immediately so failed jobs don't retry in loops
+      queue.remove(reference);
+      console.log(`[CryptoWithdrawalProcessor] 🛑 Withdrawal ${reference} marked FAILED and removed from queue.`);
     }
   }
 }

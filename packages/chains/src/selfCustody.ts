@@ -414,7 +414,7 @@ export class SelfCustodyProvider implements CustodyProvider {
       const ATA_PROGRAM_ADDRESS = solanaAddress('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bRS' as Address);
       const addrEncoder = getAddressEncoder();
 
-      const [sourceAta] = await getProgramDerivedAddress({
+      const [derivedSourceAta] = await getProgramDerivedAddress({
         programAddress: ATA_PROGRAM_ADDRESS,
         seeds: [
           addrEncoder.encode(treasuryAddr),
@@ -422,6 +422,17 @@ export class SelfCustodyProvider implements CustodyProvider {
           addrEncoder.encode(mintPubkey)
         ]
       });
+
+      let sourceAta = derivedSourceAta;
+      try {
+        const tokenAccountsRes = await rpc.getTokenAccountsByOwner(treasuryAddr, { mint: mintPubkey }, { encoding: 'jsonParsed' }).send();
+        if (tokenAccountsRes.value?.[0]?.pubkey) {
+          sourceAta = solanaAddress(tokenAccountsRes.value[0].pubkey as Address);
+        }
+      } catch (err: unknown) {
+        // Fall back to derived ATA if RPC lookup fails
+      }
+
       const [destAta] = await getProgramDerivedAddress({
         programAddress: ATA_PROGRAM_ADDRESS,
         seeds: [
@@ -431,7 +442,37 @@ export class SelfCustodyProvider implements CustodyProvider {
         ]
       });
 
-      // Build the SPL Token transferChecked instruction
+      // Create source and destination Associated Token Accounts if they do not exist yet (idempotent)
+      // Account Roles: 0 = Readonly, 1 = Writable, 2 = Readonly Signer, 3 = Writable Signer
+      const SYSTEM_PROGRAM_ADDRESS = solanaAddress('11111111111111111111111111111111' as Address);
+
+      const createSourceAtaIx = {
+        programAddress: ATA_PROGRAM_ADDRESS,
+        accounts: [
+          { address: treasuryAddr, role: 3 as const },           // Writable Signer (Payer)
+          { address: sourceAta, role: 1 as const },              // Writable (Associated Token Account)
+          { address: treasuryAddr, role: 0 as const },          // Readonly (Owner)
+          { address: mintPubkey, role: 0 as const },             // Readonly (Mint)
+          { address: SYSTEM_PROGRAM_ADDRESS, role: 0 as const },  // Readonly (System Program)
+          { address: TOKEN_PROGRAM_ADDRESS, role: 0 as const }   // Readonly (Token Program)
+        ],
+        data: new Uint8Array([1]) // 1 = CreateIdempotent instruction
+      };
+
+      const createDestAtaIx = {
+        programAddress: ATA_PROGRAM_ADDRESS,
+        accounts: [
+          { address: treasuryAddr, role: 3 as const },           // Writable Signer (Payer)
+          { address: destAta, role: 1 as const },                // Writable (Associated Token Account)
+          { address: recipientAddr, role: 0 as const },          // Readonly (Owner)
+          { address: mintPubkey, role: 0 as const },             // Readonly (Mint)
+          { address: SYSTEM_PROGRAM_ADDRESS, role: 0 as const },  // Readonly (System Program)
+          { address: TOKEN_PROGRAM_ADDRESS, role: 0 as const }   // Readonly (Token Program)
+        ],
+        data: new Uint8Array([1]) // 1 = CreateIdempotent instruction
+      };
+
+      // SPL Token transferChecked instruction
       const amountRaw = BigInt(Math.floor(amountUSDC * Math.pow(10, USDC_DECIMALS)));
       const transferIx = getTransferCheckedInstruction({
         source: sourceAta,
@@ -442,23 +483,26 @@ export class SelfCustodyProvider implements CustodyProvider {
         decimals: USDC_DECIMALS
       });
 
-      // Compose the transaction message (functional pipe style — v2 API)
+      // Compose transaction message (functional pipe style — v2 API)
       const txMessage = pipe(
         createTransactionMessage({ version: 0 as const }),
         (tx) => setTransactionMessageFeePayer(treasuryAddr, tx),
         (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+        (tx) => appendTransactionMessageInstruction(createSourceAtaIx, tx),
+        (tx) => appendTransactionMessageInstruction(createDestAtaIx, tx),
         (tx) => appendTransactionMessageInstruction(transferIx, tx)
       );
 
       // Compile to wire format. v2 compileTransaction returns { messageBytes, signatures }.
       // Privy needs an unsigned wire-format transaction:
-      //   [compact-u16 numSigs=1] [64 zero bytes for empty signature] [message bytes]
+      //   [compact-u16 numSigs] [numSigs * 64 zero bytes for empty signature slots] [message bytes]
       const compiled = compileTransaction(txMessage);
       const msgBytes = compiled.messageBytes as unknown as Uint8Array;
-      const wireBytes = new Uint8Array(1 + 64 + msgBytes.length);
-      wireBytes[0] = 1; // compact-u16 for 1 required signature
-      // bytes 1–64: all zeros (unsigned signature slot — Privy fills this)
-      wireBytes.set(msgBytes, 65);
+      const numSigs = msgBytes[0] || 1; // First byte of header is number of required signatures
+      const wireBytes = new Uint8Array(1 + (numSigs * 64) + msgBytes.length);
+      wireBytes[0] = numSigs; // compact-u16 for required signature count
+      // bytes 1 to (1 + numSigs * 64): zero bytes (unsigned signature slots — Privy signs these)
+      wireBytes.set(msgBytes, 1 + (numSigs * 64));
       const serializedTx = Buffer.from(wireBytes).toString('base64');
 
       requestBody = {

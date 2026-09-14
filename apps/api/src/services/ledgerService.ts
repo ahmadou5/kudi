@@ -519,20 +519,40 @@ export class LedgerService {
           meta = {};
         }
 
-        const isDeposit = entry.type === 'DEPOSIT_CREDIT';
-        const isReversal = entry.type === 'CRYPTO_SEND_REVERSAL';
+        const type = meta.type || entry.type;
+        const isReversal = type === 'CRYPTO_SEND_REVERSAL' || entry.referenceId.startsWith('rev_');
+        const isDeposit = (type === 'DEPOSIT_CREDIT' || type === 'DEPOSIT') && !isReversal;
+        const isCryptoSend = type === 'CRYPTO_SEND_DEBIT' || type === 'SPEND_ONCHAIN' || entry.referenceId.startsWith('KUDI_ONCHAIN');
+
+        let title = meta.title;
+        let subtitle = meta.subtitle;
+
+        if (!title) {
+          if (isReversal) title = 'Crypto Send Reversal';
+          else if (isDeposit) title = 'USDC Deposit';
+          else if (isCryptoSend) title = `Send to ${(meta.chain || 'solana').toUpperCase()}`;
+          else title = 'Bank Payout';
+        }
+
+        if (!subtitle) {
+          if (isReversal) subtitle = 'Restored to Balance';
+          else if (isDeposit) subtitle = `${(meta.chain || 'solana').toUpperCase()} Network`;
+          else if (isCryptoSend && meta.toAddress) subtitle = `${meta.toAddress.slice(0, 6)}...${meta.toAddress.slice(-4)}`;
+          else subtitle = 'Bank Transfer';
+        }
 
         const txRecord: TransactionRecord = {
-          fromUserId: isDeposit ? 'CHAIN_DEPOSIT' : userId,
-          toUserId: isDeposit ? userId : (meta.toAddress || 'BANK_PAYOUT'),
+          fromUserId: isDeposit || isReversal ? 'CHAIN_DEPOSIT' : userId,
+          toUserId: isDeposit || isReversal ? userId : (meta.toAddress || 'BANK_PAYOUT'),
           amount: entry.amountUSDC,
           currency: meta.chain === 'monad' ? 'AUSD' : 'USDC',
           reference: entry.referenceId,
           timestamp: entry.createdAt.toISOString(),
           metadata: {
-            title: meta.title || (isDeposit ? 'USDC Deposit' : (isReversal ? 'Send Reversal' : 'Bank Payout')),
-            subtitle: meta.subtitle || (isDeposit ? `${(meta.chain || 'solana').toUpperCase()} Network` : 'Bank Transfer'),
-            type: entry.type,
+            title,
+            subtitle,
+            type,
+            status: meta.status || (isReversal ? WithdrawalStatus.FAILED : WithdrawalStatus.PENDING),
             ...meta
           }
         };
@@ -758,7 +778,12 @@ export class LedgerService {
         amountUSDC: params.amountUSDC,
         resultingBalanceUSDC: currentBalance - params.amountUSDC,
         referenceId: params.reference,
-        metadata: JSON.stringify({ ...withdrawal, type: 'CRYPTO_SEND_DEBIT' })
+        metadata: JSON.stringify({
+          ...withdrawal,
+          type: 'CRYPTO_SEND_DEBIT',
+          title: `Send to ${params.chain.toUpperCase()}`,
+          subtitle: `${params.toAddress.slice(0, 6)}...${params.toAddress.slice(-4)}`
+        })
       }
     }).catch(err => console.warn('[LedgerService] DB withdrawal debit record warning:', err?.message));
 
@@ -813,7 +838,13 @@ export class LedgerService {
         amountUSDC,
         resultingBalanceUSDC: restoredBal,
         referenceId: `rev_${reference}`,
-        metadata: JSON.stringify({ reference, reason: 'BROADCAST_FAILURE', type: 'CRYPTO_SEND_REVERSAL' })
+        metadata: JSON.stringify({
+          reference,
+          reason: 'BROADCAST_FAILURE',
+          type: 'CRYPTO_SEND_REVERSAL',
+          title: 'Crypto Send Reversal',
+          subtitle: 'Restored to Balance'
+        })
       }
     }).catch(err => console.warn('[LedgerService] DB rollback entry creation warning:', err?.message));
 
