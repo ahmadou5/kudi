@@ -37,10 +37,11 @@
   },
   "pnpm": {
     "overrides": {
-      "uuid": "^9.0.0",
-      "rpc-websockets": "^7.6.1"
+      "uuid": "9.0.1",
+      "rpc-websockets": "7.11.2"
     }
   },
+
   "engines": {
     "node": "20"
   }
