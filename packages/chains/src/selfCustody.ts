@@ -1,3 +1,8 @@
+import dns from 'dns';
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 import { CustodyProvider, CustodyTrack, DepositWallet } from '@kudi/types';
 import {
   address as solanaAddress,
@@ -471,25 +476,21 @@ export class SelfCustodyProvider implements CustodyProvider {
 
       if (!res.ok) {
         const errText = await res.text();
-        console.warn(`[SelfCustody] ⚠️ Privy RPC returned ${res.status}: ${errText}. Using fallback transaction hash.`);
-        const fallbackHash = `mock_${chain}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        return { txHash: fallbackHash };
+        throw new Error(`Privy RPC error ${res.status}: ${errText}`);
       }
 
       const data = await res.json() as any;
-      const txHash = data.data?.hash || data.hash || data.data?.signature || data.signature;
+      const txHash = data.data?.hash || data.hash || data.data?.signature || data.signature || data.result;
 
       if (!txHash) {
-        const fallbackHash = `mock_${chain}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        return { txHash: fallbackHash };
+        throw new Error(`Privy RPC returned success but no transaction hash/signature was found in response: ${JSON.stringify(data)}`);
       }
 
       console.log(`[SelfCustody] ✅ Broadcast ${amountUSDC} USDC on ${chain}: ${txHash.slice(0, 20)}...`);
       return { txHash };
     } catch (err: any) {
-      console.warn(`[SelfCustody] ⚠️ Privy broadcast error: ${err?.message || err}. Using fallback transaction hash.`);
-      const fallbackHash = `mock_${chain}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      return { txHash: fallbackHash };
+      console.error(`[SelfCustody] ❌ Privy broadcast failed: ${err?.message || err}`);
+      throw err;
     }
   }
 
