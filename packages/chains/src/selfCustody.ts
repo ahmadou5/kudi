@@ -28,11 +28,27 @@ export class SelfCustodyProvider implements CustodyProvider {
   private defaultRpcUrl: string;
   private solanaRpcUrl: string;
 
+  private get appId(): string {
+    return this.privyAppId || process.env.PRIVY_APP_ID || '';
+  }
+
+  private get appSecret(): string {
+    return this.privyAppSecret || process.env.PRIVY_APP_SECRET || '';
+  }
+
+  private get rpcUrlSolana(): string {
+    return this.solanaRpcUrl || process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+  }
+
+  private get rpcUrlDefault(): string {
+    return this.defaultRpcUrl || process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz';
+  }
+
   constructor(
-    privyAppId: string = process.env.PRIVY_APP_ID || '',
-    privyAppSecret: string = process.env.PRIVY_APP_SECRET || '',
-    defaultRpcUrl: string = process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz',
-    solanaRpcUrl: string = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com'
+    privyAppId = '',
+    privyAppSecret = '',
+    defaultRpcUrl = '',
+    solanaRpcUrl = ''
   ) {
     this.privyAppId = privyAppId;
     this.privyAppSecret = privyAppSecret;
@@ -41,14 +57,14 @@ export class SelfCustodyProvider implements CustodyProvider {
   }
 
   async generateWallet(userId: string, chain: string): Promise<DepositWallet> {
-    if (this.privyAppId && this.privyAppSecret) {
+    if (this.appId && this.appSecret) {
       try {
         // Call Privy Server Wallet API to generate server-side wallet for user across Solana or EVM
         const res = await fetch('https://api.privy.io/v1/wallets', {
           method: 'POST',
           headers: {
-            'privy-app-id': this.privyAppId,
-            Authorization: `Basic ${Buffer.from(`${this.privyAppId}:${this.privyAppSecret}`).toString('base64')}`,
+            'privy-app-id': this.appId,
+            Authorization: `Basic ${Buffer.from(`${this.appId}:${this.appSecret}`).toString('base64')}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
@@ -349,14 +365,14 @@ export class SelfCustodyProvider implements CustodyProvider {
   }): Promise<{ txHash: string }> {
     const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress } = params;
 
-    if (!this.privyAppId || !this.privyAppSecret || !treasuryWalletId) {
+    if (!this.appId || !this.appSecret || !treasuryWalletId) {
       // Sandbox fallback: generate deterministic mock tx hash
       const mockHash = `mock_${chain}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       console.log(`[SelfCustody] 🧪 Sandbox mode — mock broadcast for ${amountUSDC} USDC on ${chain}: ${mockHash.slice(0, 20)}...`);
       return { txHash: mockHash };
     }
 
-    const authHeader = `Basic ${Buffer.from(`${this.privyAppId}:${this.privyAppSecret}`).toString('base64')}`;
+    const authHeader = `Basic ${Buffer.from(`${this.appId}:${this.appSecret}`).toString('base64')}`;
     const isSolana = chain === 'solana';
 
     // Build chain-specific transaction payload
@@ -378,7 +394,7 @@ export class SelfCustodyProvider implements CustodyProvider {
       const recipientAddr = solanaAddress(toAddress as Address);
 
       // Create Solana JSON-RPC client (no WebSocket — HTTP only for blockhash fetch)
-      const rpc = createSolanaRpc(this.solanaRpcUrl);
+      const rpc = createSolanaRpc(this.rpcUrlSolana);
 
       // Fetch recent blockhash
       const { value: latestBlockhash } = await rpc.getLatestBlockhash({ commitment: 'confirmed' }).send();
@@ -467,7 +483,7 @@ export class SelfCustodyProvider implements CustodyProvider {
       const res = await fetch(`https://api.privy.io/v1/wallets/${treasuryWalletId}/rpc`, {
         method: 'POST',
         headers: {
-          'privy-app-id': this.privyAppId,
+          'privy-app-id': this.appId,
           Authorization: authHeader,
           'Content-Type': 'application/json'
         },
@@ -513,7 +529,7 @@ export class SelfCustodyProvider implements CustodyProvider {
 
     // Sandbox shortcut: mock hashes always confirm instantly
     if (
-      (!this.privyAppId || !this.privyAppSecret) ||
+      (!this.appId || !this.appSecret) ||
       txHash.startsWith('mock_') ||
       (isSolana && !txHash.startsWith('0x') && txHash.length < 20) ||
       (!isSolana && !txHash.startsWith('0x'))
