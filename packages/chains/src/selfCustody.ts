@@ -442,22 +442,9 @@ export class SelfCustodyProvider implements CustodyProvider {
         ]
       });
 
-      // Create source and destination Associated Token Accounts if they do not exist yet (idempotent)
+      // Create destination Associated Token Account if it does not exist yet (idempotent)
       // Account Roles: 0 = Readonly, 1 = Writable, 2 = Readonly Signer, 3 = Writable Signer
       const SYSTEM_PROGRAM_ADDRESS = solanaAddress('11111111111111111111111111111111' as Address);
-
-      const createSourceAtaIx = {
-        programAddress: ATA_PROGRAM_ADDRESS,
-        accounts: [
-          { address: treasuryAddr, role: 3 as const },           // Writable Signer (Payer)
-          { address: sourceAta, role: 1 as const },              // Writable (Associated Token Account)
-          { address: treasuryAddr, role: 0 as const },          // Readonly (Owner)
-          { address: mintPubkey, role: 0 as const },             // Readonly (Mint)
-          { address: SYSTEM_PROGRAM_ADDRESS, role: 0 as const },  // Readonly (System Program)
-          { address: TOKEN_PROGRAM_ADDRESS, role: 0 as const }   // Readonly (Token Program)
-        ],
-        data: new Uint8Array([1]) // 1 = CreateIdempotent instruction
-      };
 
       const createDestAtaIx = {
         programAddress: ATA_PROGRAM_ADDRESS,
@@ -488,7 +475,6 @@ export class SelfCustodyProvider implements CustodyProvider {
         createTransactionMessage({ version: 0 as const }),
         (tx) => setTransactionMessageFeePayer(treasuryAddr, tx),
         (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-        (tx) => appendTransactionMessageInstruction(createSourceAtaIx, tx),
         (tx) => appendTransactionMessageInstruction(createDestAtaIx, tx),
         (tx) => appendTransactionMessageInstruction(transferIx, tx)
       );
