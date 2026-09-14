@@ -406,8 +406,8 @@ export class SelfCustodyProvider implements CustodyProvider {
       // Create Solana JSON-RPC client (no WebSocket — HTTP only for blockhash fetch)
       const rpc = createSolanaRpc(this.rpcUrlSolana);
 
-      // Fetch recent blockhash
-      const { value: latestBlockhash } = await rpc.getLatestBlockhash({ commitment: 'confirmed' }).send();
+      // Fetch recent blockhash with finalized commitment to ensure Privy RPC node recognizes it
+      const { value: latestBlockhash } = await rpc.getLatestBlockhash({ commitment: 'finalized' }).send();
 
       // Derive source and destination Associated Token Accounts (ATAs)
       // ATA = PDA([owner, TOKEN_PROGRAM, mint], ATA_PROGRAM)

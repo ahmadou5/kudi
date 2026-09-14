@@ -809,7 +809,7 @@ export class LedgerService {
     prisma.ledgerEntry.create({
       data: {
         userId,
-        type: 'SPEND_REVERSAL',
+        type: 'DEPOSIT_CREDIT',
         amountUSDC,
         resultingBalanceUSDC: restoredBal,
         referenceId: `rev_${reference}`,
