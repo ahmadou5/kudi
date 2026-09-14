@@ -53,6 +53,37 @@ export interface NotificationRecord {
  * No JSON files, no disk fallback storage.
  */
 export class LedgerService {
+  /**
+   * Raw SQL ledger entry insert — bypasses Prisma's enum type check on the `type` column.
+   * The Neon DB `type` column may be a PostgreSQL enum; casting to ::text allows any string value.
+   */
+  private async createLedgerEntry(params: {
+    userId: string;
+    type: string;
+    amountUSDC: number;
+    resultingBalanceUSDC: number;
+    referenceId: string;
+    metadata?: string | null;
+  }): Promise<void> {
+    const { userId, type, amountUSDC, resultingBalanceUSDC, referenceId, metadata } = params;
+    try {
+      await prisma.$executeRaw`
+        INSERT INTO "LedgerEntry" (id, "userId", type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt")
+        VALUES (
+          gen_random_uuid(),
+          ${userId},
+          ${type}::text,
+          ${amountUSDC},
+          ${resultingBalanceUSDC},
+          ${referenceId},
+          ${metadata ?? null},
+          NOW()
+        )
+      `;
+    } catch (err: any) {
+      console.warn('[LedgerService] DB ledger entry raw insert warning:', err?.message || err);
+    }
+  }
   private users: Map<string, UserRecord> = new Map();
   private ledger: Map<string, number> = new Map();
   private spends: Map<string, any> = new Map();
@@ -380,24 +411,22 @@ export class LedgerService {
       }
     }).catch(err => console.warn('[LedgerService] DB spend transaction record warning:', err?.message));
 
-    // Record LedgerEntry debit directly in Neon DB
+    // Record LedgerEntry debit directly in Neon DB (raw SQL to bypass enum type mismatch)
     const currentBal = this.getBalance(record.userId);
-    prisma.ledgerEntry.create({
-      data: {
-        userId: record.userId,
-        type: 'SPEND_DEBIT',
-        amountUSDC: Number(record.amountUSDC) || 0,
-        resultingBalanceUSDC: currentBal,
-        referenceId: reference,
-        metadata: JSON.stringify({
-          title: 'Bank Payout',
-          subtitle: `${record.recipientAccountName || 'Bank Transfer'} (${record.recipientAccountNumber || ''})`,
-          amountNGN: record.amountNGN,
-          exchangeRateNGN: record.exchangeRateNGN,
-          recipientBankCode: record.recipientBankCode
-        })
-      }
-    }).catch(err => console.warn('[LedgerService] DB spend ledger entry warning:', err?.message));
+    void this.createLedgerEntry({
+      userId: record.userId,
+      type: 'SPEND_DEBIT',
+      amountUSDC: Number(record.amountUSDC) || 0,
+      resultingBalanceUSDC: currentBal,
+      referenceId: reference,
+      metadata: JSON.stringify({
+        title: 'Bank Payout',
+        subtitle: `${record.recipientAccountName || 'Bank Transfer'} (${record.recipientAccountNumber || ''})`,
+        amountNGN: record.amountNGN,
+        exchangeRateNGN: record.exchangeRateNGN,
+        recipientBankCode: record.recipientBankCode
+      })
+    });
   }
 
   public getSpend(reference: string): any {
@@ -415,36 +444,32 @@ export class LedgerService {
     if (record.metadata?.type === 'SPEND_INTER_APP') {
       const amount = Number(record.amount) || 0;
       const senderBal = this.getBalance(record.fromUserId);
-      prisma.ledgerEntry.create({
-        data: {
-          userId: record.fromUserId,
-          type: 'SPEND_DEBIT',
-          amountUSDC: amount,
-          resultingBalanceUSDC: senderBal,
-          referenceId: record.reference,
-          metadata: JSON.stringify({
-            title: record.metadata.title || 'Inter-App Transfer',
-            subtitle: record.metadata.subtitle || 'Kudi Transfer',
-            toUserId: record.toUserId
-          })
-        }
-      }).catch(err => console.warn('[LedgerService] DB inter-app sender ledger entry warning:', err?.message));
+      void this.createLedgerEntry({
+        userId: record.fromUserId,
+        type: 'SPEND_DEBIT',
+        amountUSDC: amount,
+        resultingBalanceUSDC: senderBal,
+        referenceId: record.reference,
+        metadata: JSON.stringify({
+          title: record.metadata.title || 'Inter-App Transfer',
+          subtitle: record.metadata.subtitle || 'Kudi Transfer',
+          toUserId: record.toUserId
+        })
+      });
 
       const recipientBal = this.getBalance(record.toUserId);
-      prisma.ledgerEntry.create({
-        data: {
-          userId: record.toUserId,
-          type: 'DEPOSIT_CREDIT',
-          amountUSDC: amount,
-          resultingBalanceUSDC: recipientBal,
-          referenceId: `rec_${record.reference}`,
-          metadata: JSON.stringify({
-            title: 'Inter-App Transfer Received',
-            subtitle: 'Kudi Transfer',
-            fromUserId: record.fromUserId
-          })
-        }
-      }).catch(err => console.warn('[LedgerService] DB inter-app recipient ledger entry warning:', err?.message));
+      void this.createLedgerEntry({
+        userId: record.toUserId,
+        type: 'DEPOSIT_CREDIT',
+        amountUSDC: amount,
+        resultingBalanceUSDC: recipientBal,
+        referenceId: `rec_${record.reference}`,
+        metadata: JSON.stringify({
+          title: 'Inter-App Transfer Received',
+          subtitle: 'Kudi Transfer',
+          fromUserId: record.fromUserId
+        })
+      });
     }
 
     return tx;
@@ -639,17 +664,15 @@ export class LedgerService {
       { amountUSDC, reference, ...metadata }
     );
 
-    // Save directly to Neon DB
-    prisma.ledgerEntry.create({
-      data: {
-        userId,
-        type: 'DEPOSIT_CREDIT',
-        amountUSDC,
-        resultingBalanceUSDC: newBal,
-        referenceId: reference || `dep_${Date.now()}`,
-        metadata: metadata ? JSON.stringify(metadata) : null
-      }
-    }).catch(err => console.warn('[LedgerService] DB ledger entry creation warning:', err?.message));
+    // Save directly to Neon DB (raw SQL to bypass enum type mismatch)
+    void this.createLedgerEntry({
+      userId,
+      type: 'DEPOSIT_CREDIT',
+      amountUSDC,
+      resultingBalanceUSDC: newBal,
+      referenceId: reference || `dep_${Date.now()}`,
+      metadata: metadata ? JSON.stringify(metadata) : null
+    });
 
     return newBal;
   }
@@ -771,21 +794,19 @@ export class LedgerService {
       }
     });
 
-    prisma.ledgerEntry.create({
-      data: {
-        userId: params.userId,
-        type: 'SPEND_DEBIT',
-        amountUSDC: params.amountUSDC,
-        resultingBalanceUSDC: currentBalance - params.amountUSDC,
-        referenceId: params.reference,
-        metadata: JSON.stringify({
-          ...withdrawal,
-          type: 'CRYPTO_SEND_DEBIT',
-          title: `Send to ${params.chain.toUpperCase()}`,
-          subtitle: `${params.toAddress.slice(0, 6)}...${params.toAddress.slice(-4)}`
-        })
-      }
-    }).catch(err => console.warn('[LedgerService] DB withdrawal debit record warning:', err?.message));
+    void this.createLedgerEntry({
+      userId: params.userId,
+      type: 'SPEND_DEBIT',
+      amountUSDC: params.amountUSDC,
+      resultingBalanceUSDC: currentBalance - params.amountUSDC,
+      referenceId: params.reference,
+      metadata: JSON.stringify({
+        ...withdrawal,
+        type: 'CRYPTO_SEND_DEBIT',
+        title: `Send to ${params.chain.toUpperCase()}`,
+        subtitle: `${params.toAddress.slice(0, 6)}...${params.toAddress.slice(-4)}`
+      })
+    });
 
     return withdrawal;
   }
@@ -831,22 +852,20 @@ export class LedgerService {
       { reference, amountUSDC }
     );
 
-    prisma.ledgerEntry.create({
-      data: {
-        userId,
-        type: 'DEPOSIT_CREDIT',
-        amountUSDC,
-        resultingBalanceUSDC: restoredBal,
-        referenceId: `rev_${reference}`,
-        metadata: JSON.stringify({
-          reference,
-          reason: 'BROADCAST_FAILURE',
-          type: 'CRYPTO_SEND_REVERSAL',
-          title: 'Crypto Send Reversal',
-          subtitle: 'Restored to Balance'
-        })
-      }
-    }).catch(err => console.warn('[LedgerService] DB rollback entry creation warning:', err?.message));
+    void this.createLedgerEntry({
+      userId,
+      type: 'DEPOSIT_CREDIT',
+      amountUSDC,
+      resultingBalanceUSDC: restoredBal,
+      referenceId: `rev_${reference}`,
+      metadata: JSON.stringify({
+        reference,
+        reason: 'BROADCAST_FAILURE',
+        type: 'CRYPTO_SEND_REVERSAL',
+        title: 'Crypto Send Reversal',
+        subtitle: 'Restored to Balance'
+      })
+    });
 
     console.log(`[LedgerService] 🔄 Rolled back ${amountUSDC} USDC for withdrawal ${reference} — balance restored for ${userId}`);
   }

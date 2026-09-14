@@ -482,9 +482,12 @@ export class SelfCustodyProvider implements CustodyProvider {
       // Compile to wire format. v2 compileTransaction returns { messageBytes, signatures }.
       // Privy needs an unsigned wire-format transaction:
       //   [compact-u16 numSigs] [numSigs * 64 zero bytes for empty signature slots] [message bytes]
+      // IMPORTANT: Do NOT read msgBytes[0] as numSigs — for versioned (v0) transactions the
+      // first byte of messageBytes is the version prefix 0x80, not the signer count.
+      // The signer count comes from compiled.signatures.size.
       const compiled = compileTransaction(txMessage);
       const msgBytes = compiled.messageBytes as unknown as Uint8Array;
-      const numSigs = msgBytes[0] || 1; // First byte of header is number of required signatures
+      const numSigs = Object.keys(compiled.signatures).length || 1; // Number of required signers from compiled tx
       const wireBytes = new Uint8Array(1 + (numSigs * 64) + msgBytes.length);
       wireBytes[0] = numSigs; // compact-u16 for required signature count
       // bytes 1 to (1 + numSigs * 64): zero bytes (unsigned signature slots — Privy signs these)
