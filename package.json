@@ -35,7 +35,14 @@
     "turbo": "^1.13.0",
     "typescript": "^5.3.3"
   },
+  "pnpm": {
+    "overrides": {
+      "uuid": "^9.0.0",
+      "rpc-websockets": "^7.6.1"
+    }
+  },
   "engines": {
     "node": "20"
   }
 }
+
