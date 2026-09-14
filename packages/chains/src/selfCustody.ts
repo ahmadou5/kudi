@@ -1,15 +1,18 @@
 import { CustodyProvider, CustodyTrack, DepositWallet } from '@kudi/types';
 import {
-  Connection,
-  PublicKey,
-  Transaction
-} from '@solana/web3.js';
-import {
-  createTransferCheckedInstruction,
-  getMint,
-  getAssociatedTokenAddressSync,
-  TOKEN_PROGRAM_ID
-} from '@solana/spl-token';
+  address as solanaAddress,
+  createSolanaRpc,
+  pipe,
+  createTransactionMessage,
+  setTransactionMessageFeePayer,
+  setTransactionMessageLifetimeUsingBlockhash,
+  appendTransactionMessageInstruction,
+  compileTransaction,
+  getProgramDerivedAddress,
+  getAddressEncoder,
+  type Address
+} from '@solana/kit';
+import { getTransferCheckedInstruction, TOKEN_PROGRAM_ADDRESS } from '@solana-program/token';
 
 export class SelfCustodyProvider implements CustodyProvider {
   public readonly track = CustodyTrack.TRACK_A_SELF_CUSTODY;
@@ -355,57 +358,81 @@ export class SelfCustodyProvider implements CustodyProvider {
     let requestBody: Record<string, unknown>;
 
     if (isSolana) {
-      // Solana: Build a real SPL USDC transfer transaction via @solana/web3.js
-      // then submit it to Privy signAndSendTransaction for server-wallet signing
-      const mintAddress = usdcMintAddress || process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
-      const connection = new Connection(this.solanaRpcUrl, 'confirmed');
+      // Solana: Build a real SPL USDC transfer via @solana/kit (v2 — no rpc-websockets dep)
+      // Uses functional transaction message API, then passes unsigned wire-format tx to Privy.
+      const mintAddr = usdcMintAddress || process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
+      const USDC_DECIMALS = 6; // USDC always has 6 decimals
 
-      // Derive the treasury wallet public key from Privy (it is the fee payer + sender)
-      // We need the treasury's actual Solana public key address — stored as KUDI_TREASURY_SOLANA_ADDRESS
-      const treasuryPubkeyStr = process.env.KUDI_TREASURY_SOLANA_ADDRESS || '';
-      if (!treasuryPubkeyStr) {
+      const treasuryAddrStr = process.env.KUDI_TREASURY_SOLANA_ADDRESS || '';
+      if (!treasuryAddrStr) {
         throw new Error('KUDI_TREASURY_SOLANA_ADDRESS env var is not set. Cannot build Solana transaction.');
       }
 
-      const mintPubkey = new PublicKey(mintAddress);
-      const treasuryPubkey = new PublicKey(treasuryPubkeyStr);
-      const recipientPubkey = new PublicKey(toAddress);
+      const mintPubkey   = solanaAddress(mintAddr as Address);
+      const treasuryAddr = solanaAddress(treasuryAddrStr as Address);
+      const recipientAddr = solanaAddress(toAddress as Address);
 
-      // Fetch mint info (decimals) — USDC devnet is 6 decimals
-      const mintInfo = await getMint(connection, mintPubkey);
-      const amountRaw = BigInt(Math.floor(amountUSDC * Math.pow(10, mintInfo.decimals)));
+      // Create Solana JSON-RPC client (no WebSocket — HTTP only for blockhash fetch)
+      const rpc = createSolanaRpc(this.solanaRpcUrl);
 
-      const sourcePubkey = getAssociatedTokenAddressSync(mintPubkey, treasuryPubkey);
-      const destPubkey = getAssociatedTokenAddressSync(mintPubkey, recipientPubkey, true);
+      // Fetch recent blockhash
+      const { value: latestBlockhash } = await rpc.getLatestBlockhash({ commitment: 'confirmed' }).send();
 
-      // Get a recent blockhash for the transaction
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+      // Derive source and destination Associated Token Accounts (ATAs)
+      // ATA = PDA([owner, TOKEN_PROGRAM, mint], ATA_PROGRAM)
+      const ATA_PROGRAM_ADDRESS = solanaAddress('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bRS' as Address);
+      const addrEncoder = getAddressEncoder();
 
-      const tx = new Transaction({
-        recentBlockhash: blockhash,
-        feePayer: treasuryPubkey
+      const [sourceAta] = await getProgramDerivedAddress({
+        programAddress: ATA_PROGRAM_ADDRESS,
+        seeds: [
+          addrEncoder.encode(treasuryAddr),
+          addrEncoder.encode(TOKEN_PROGRAM_ADDRESS),
+          addrEncoder.encode(mintPubkey)
+        ]
+      });
+      const [destAta] = await getProgramDerivedAddress({
+        programAddress: ATA_PROGRAM_ADDRESS,
+        seeds: [
+          addrEncoder.encode(recipientAddr),
+          addrEncoder.encode(TOKEN_PROGRAM_ADDRESS),
+          addrEncoder.encode(mintPubkey)
+        ]
       });
 
-      // Add SPL token transfer instruction
-      tx.add(
-        createTransferCheckedInstruction(
-          sourcePubkey,          // source ATA (treasury's USDC account)
-          mintPubkey,            // USDC mint
-          destPubkey,            // destination ATA (recipient's USDC account)
-          treasuryPubkey,        // owner/authority (treasury wallet)
-          amountRaw,             // amount in raw token units
-          mintInfo.decimals,     // USDC decimals (6)
-          [],                    // no multi-signers
-          TOKEN_PROGRAM_ID
-        )
+      // Build the SPL Token transferChecked instruction
+      const amountRaw = BigInt(Math.floor(amountUSDC * Math.pow(10, USDC_DECIMALS)));
+      const transferIx = getTransferCheckedInstruction({
+        source: sourceAta,
+        mint: mintPubkey,
+        destination: destAta,
+        authority: treasuryAddr,
+        amount: amountRaw,
+        decimals: USDC_DECIMALS
+      });
+
+      // Compose the transaction message (functional pipe style — v2 API)
+      const txMessage = pipe(
+        createTransactionMessage({ version: 0 as const }),
+        (tx) => setTransactionMessageFeePayer(treasuryAddr, tx),
+        (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+        (tx) => appendTransactionMessageInstruction(transferIx, tx)
       );
 
-      // Serialize the unsigned transaction (Privy signs it server-side)
-      const serializedTx = tx.serialize({ requireAllSignatures: false }).toString('base64');
+      // Compile to wire format. v2 compileTransaction returns { messageBytes, signatures }.
+      // Privy needs an unsigned wire-format transaction:
+      //   [compact-u16 numSigs=1] [64 zero bytes for empty signature] [message bytes]
+      const compiled = compileTransaction(txMessage);
+      const msgBytes = compiled.messageBytes as unknown as Uint8Array;
+      const wireBytes = new Uint8Array(1 + 64 + msgBytes.length);
+      wireBytes[0] = 1; // compact-u16 for 1 required signature
+      // bytes 1–64: all zeros (unsigned signature slot — Privy fills this)
+      wireBytes.set(msgBytes, 65);
+      const serializedTx = Buffer.from(wireBytes).toString('base64');
 
       requestBody = {
         method: 'signAndSendTransaction',
-        caip2: process.env.SOLANA_CAIP2 || 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1', // devnet
+        caip2: process.env.SOLANA_CAIP2 || 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
         params: {
           transaction: serializedTx,
           encoding: 'base64'
