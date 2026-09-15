@@ -17,7 +17,7 @@ import {
   getAddressEncoder,
   type Address
 } from '@solana/kit';
-import { getTransferCheckedInstruction, TOKEN_PROGRAM_ADDRESS } from '@solana-program/token';
+import { getTransferCheckedInstruction, TOKEN_PROGRAM_ADDRESS, ASSOCIATED_TOKEN_PROGRAM_ADDRESS } from '@solana-program/token';
 
 export class SelfCustodyProvider implements CustodyProvider {
   public readonly track = CustodyTrack.TRACK_A_SELF_CUSTODY;
@@ -411,11 +411,11 @@ export class SelfCustodyProvider implements CustodyProvider {
 
       // Derive source and destination Associated Token Accounts (ATAs)
       // ATA = PDA([owner, TOKEN_PROGRAM, mint], ATA_PROGRAM)
-      const ATA_PROGRAM_ADDRESS = solanaAddress('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bRS' as Address);
       const addrEncoder = getAddressEncoder();
+      const SYSTEM_PROGRAM_ADDRESS = solanaAddress('11111111111111111111111111111111' as Address);
 
       const [derivedSourceAta] = await getProgramDerivedAddress({
-        programAddress: ATA_PROGRAM_ADDRESS,
+        programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
         seeds: [
           addrEncoder.encode(treasuryAddr),
           addrEncoder.encode(TOKEN_PROGRAM_ADDRESS),
@@ -434,7 +434,7 @@ export class SelfCustodyProvider implements CustodyProvider {
       }
 
       const [destAta] = await getProgramDerivedAddress({
-        programAddress: ATA_PROGRAM_ADDRESS,
+        programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
         seeds: [
           addrEncoder.encode(recipientAddr),
           addrEncoder.encode(TOKEN_PROGRAM_ADDRESS),
@@ -442,21 +442,20 @@ export class SelfCustodyProvider implements CustodyProvider {
         ]
       });
 
-      // Create destination Associated Token Account if it does not exist yet (idempotent)
-      // Account Roles: 0 = Readonly, 1 = Writable, 2 = Readonly Signer, 3 = Writable Signer
-      const SYSTEM_PROGRAM_ADDRESS = solanaAddress('11111111111111111111111111111111' as Address);
-
+      // Create destination Associated Token Account if it does not exist yet (idempotent).
+      // Discriminator [1] = CreateIdempotent per SPL ATA program instruction enum.
+      // Account roles: 0=Readonly, 1=Writable, 2=ReadonlySigner, 3=WritableSigner
       const createDestAtaIx = {
-        programAddress: ATA_PROGRAM_ADDRESS,
+        programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
         accounts: [
-          { address: treasuryAddr, role: 3 as const },           // Writable Signer (Payer)
-          { address: destAta, role: 1 as const },                // Writable (Associated Token Account)
-          { address: recipientAddr, role: 0 as const },          // Readonly (Owner)
-          { address: mintPubkey, role: 0 as const },             // Readonly (Mint)
+          { address: treasuryAddr, role: 3 as const },            // Writable Signer (Payer)
+          { address: destAta,      role: 1 as const },            // Writable (ATA to create)
+          { address: recipientAddr, role: 0 as const },           // Readonly (Owner)
+          { address: mintPubkey,   role: 0 as const },            // Readonly (Mint)
           { address: SYSTEM_PROGRAM_ADDRESS, role: 0 as const },  // Readonly (System Program)
-          { address: TOKEN_PROGRAM_ADDRESS, role: 0 as const }   // Readonly (Token Program)
+          { address: TOKEN_PROGRAM_ADDRESS,  role: 0 as const }   // Readonly (SPL Token Program)
         ],
-        data: new Uint8Array([1]) // 1 = CreateIdempotent instruction
+        data: new Uint8Array([1]) // 1 = CreateIdempotent
       };
 
       // SPL Token transferChecked instruction

@@ -72,7 +72,7 @@ export class LedgerService {
         VALUES (
           gen_random_uuid(),
           ${userId},
-          ${type}::LedgerEntryType,
+          ${type}::text,
           ${amountUSDC},
           ${resultingBalanceUSDC},
           ${referenceId},
