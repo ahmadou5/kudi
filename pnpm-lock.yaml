@@ -220,6 +220,9 @@ importers:
       expo-auth-session:
         specifier: ^57.0.12
         version: 57.0.12(expo@57.0.23)(react-native@0.86.3)(react@19.2.3)
+      expo-blur:
+        specifier: ^57.0.3
+        version: 57.0.3(expo@57.0.23)(react-native@0.86.3)(react@19.2.3)
       expo-camera:
         specifier: ^57.0.5
         version: 57.0.5(@types/emscripten@1.41.6)(expo@57.0.23)(react-native-web@0.21.2)(react-native@0.86.3)(react@19.2.3)
@@ -6404,6 +6407,18 @@ packages:
     transitivePeerDependencies:
       - expo
       - supports-color
+    dev: false
+
+  /expo-blur@57.0.3(expo@57.0.23)(react-native@0.86.3)(react@19.2.3):
+    resolution: {integrity: sha512-uyBeJwxIuXzWXXNrnRub5pcF8VzQsiOz0VBTWDpMG2UztmaFyfAz6pI/GCwRtWpHhiOpLoJj79WLdg1GMB+9cg==}
+    peerDependencies:
+      expo: '*'
+      react: '*'
+      react-native: '*'
+    dependencies:
+      expo: 57.0.23(@babel/core@7.29.7)(@expo/dom-webview@57.0.1)(@expo/metro-runtime@57.0.15)(expo-router@57.0.21)(react-dom@19.2.3)(react-native-web@0.21.2)(react-native-webview@14.0.1)(react-native-worklets@0.10.4)(react-native@0.86.3)(react@19.2.3)(typescript@5.9.3)
+      react: 19.2.3
+      react-native: 0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1)(@types/react@19.2.18)(react@19.2.3)
     dev: false
 
   /expo-camera@57.0.5(@types/emscripten@1.41.6)(expo@57.0.23)(react-native-web@0.21.2)(react-native@0.86.3)(react@19.2.3):

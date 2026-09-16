@@ -7,7 +7,6 @@ export * from './partnerCustody';
 export * from './evmListener';
 export * from './solanaListener';
 export * from '@kudi/chains-core';
-export * from './cryptoWithdrawalQueue';
 
 export interface CustodyManagerConfig {
   privyAppId?: string;

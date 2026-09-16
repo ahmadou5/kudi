@@ -131,11 +131,21 @@ export class ChainDepositProcessor {
   }
 
   private async updateDepositSweep(signature: string, status: string, txHash?: string, error?: string): Promise<void> {
+    const shouldRetry = status === 'SWEEP_FAILED' || status === 'SWEEP_BLOCKED';
     await prisma.$executeRaw`
       UPDATE "Deposit"
       SET "sweepStatus" = ${status},
-          "sweepTxHash" = ${txHash ?? null},
+          "sweepTxHash" = COALESCE(${txHash ?? null}, "sweepTxHash"),
           "sweepError" = ${error ?? null},
+          "sweepAttemptCount" = CASE
+            WHEN ${status} = 'SWEEP_PROCESSING' THEN "sweepAttemptCount" + 1
+            ELSE "sweepAttemptCount"
+          END,
+          "nextSweepAttemptAt" = CASE
+            WHEN ${shouldRetry} THEN NOW() + (LEAST(GREATEST("sweepAttemptCount", 1), 3) * INTERVAL '5 minutes')
+            WHEN ${status} = 'SWEPT' THEN "nextSweepAttemptAt"
+            ELSE NOW()
+          END,
           "sweptAt" = CASE WHEN ${status} = 'SWEPT' THEN NOW() ELSE "sweptAt" END,
           "updatedAt" = NOW()
       WHERE signature = ${signature}
@@ -147,6 +157,7 @@ export class ChainDepositProcessor {
     wallet: DepositWalletRow;
     chain: string;
     amountUSDC: number;
+    alreadyMarkedProcessing?: boolean;
   }): Promise<void> {
     const normalizedChain = params.chain === 'solana' ? 'solana' : 'monad';
     const targetTreasury = this.targetTreasuryFor(normalizedChain);
@@ -161,25 +172,79 @@ export class ChainDepositProcessor {
       return;
     }
 
-    if (normalizedChain === 'solana') {
-      await this.updateDepositSweep(params.signature, 'SWEEP_UNSUPPORTED', undefined, 'Solana deposit-wallet sweep requires production-safe SPL transfer builder');
-      return;
-    }
-
     try {
-      await this.updateDepositSweep(params.signature, 'SWEEP_PROCESSING');
+      if (!params.alreadyMarkedProcessing) {
+        await this.updateDepositSweep(params.signature, 'SWEEP_PROCESSING');
+      }
       const { txHash } = await this.selfCustody.sendCrypto({
         treasuryWalletId: params.wallet.privyWalletId,
+        fromAddress: normalizedChain === 'solana' ? params.wallet.address : undefined,
         toAddress: targetTreasury,
         amountUSDC: params.amountUSDC,
-        chain: 'monad'
+        chain: normalizedChain
       });
+      const confirmed = await this.selfCustody.waitForConfirmation(txHash, normalizedChain);
+      if (!confirmed) {
+        throw new Error(`Sweep transaction ${txHash} was not confirmed before timeout`);
+      }
       await this.updateDepositSweep(params.signature, 'SWEPT', txHash);
-      console.log(`[Chain Processor] 🏦 EVM sweep successful for ${params.signature.slice(0, 12)}...: ${txHash}`);
+      console.log(`[Chain Processor] 🏦 ${normalizedChain.toUpperCase()} sweep confirmed for ${params.signature.slice(0, 12)}...: ${txHash}`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       await this.updateDepositSweep(params.signature, 'SWEEP_FAILED', undefined, message);
-      console.warn(`[Chain Processor] ⚠️ EVM sweep failed for ${params.signature.slice(0, 12)}...: ${message}`);
+      console.warn(`[Chain Processor] ⚠️ ${normalizedChain.toUpperCase()} sweep failed for ${params.signature.slice(0, 12)}...: ${message}`);
+    }
+  }
+
+  public async processSweepRetries(): Promise<void> {
+    const rows: any[] = await prisma.$transaction(async (tx) => {
+      const due: any[] = await tx.$queryRaw`
+        SELECT
+          d.signature, d.chain, d."amountUSDC", d."walletAddress", d."userId",
+          w.id AS "walletId", w.address, w."privyWalletId", w."custodyType"
+        FROM "Deposit" d
+        JOIN "Wallet" w ON w.address = d."walletAddress"
+        WHERE d."sweepStatus" IN ('SWEEP_PENDING', 'SWEEP_FAILED', 'SWEEP_BLOCKED')
+          AND d."nextSweepAttemptAt" <= NOW()
+          AND d."sweepAttemptCount" < 4
+        ORDER BY d."nextSweepAttemptAt" ASC, d."createdAt" ASC
+        LIMIT 10
+        FOR UPDATE SKIP LOCKED
+      `;
+
+      if (due.length === 0) return due;
+
+      const signatures = due.map((row) => row.signature);
+      await tx.$executeRaw`
+        UPDATE "Deposit"
+        SET "sweepStatus" = 'SWEEP_PROCESSING',
+            "sweepAttemptCount" = "sweepAttemptCount" + 1,
+            "updatedAt" = NOW()
+        WHERE signature = ANY(${signatures})
+      `;
+
+      return due;
+    });
+
+    if (rows.length > 0) {
+      console.log(`[Chain Processor] Retrying ${rows.length} due sweep(s).`);
+    }
+
+    for (const row of rows) {
+      await this.attemptSweep({
+        signature: row.signature,
+        chain: row.chain,
+        amountUSDC: Number(row.amountUSDC),
+        alreadyMarkedProcessing: true,
+        wallet: {
+          id: row.walletId,
+          userId: row.userId,
+          address: row.address,
+          chain: row.chain,
+          privyWalletId: row.privyWalletId,
+          custodyType: row.custodyType
+        }
+      });
     }
   }
 
@@ -280,7 +345,7 @@ export class ChainDepositProcessor {
         });
 
         await tx.$executeRaw`
-          INSERT INTO "Deposit" (id, "userId", "walletAddress", chain, "tokenSymbol", "amountUSDC", signature, "blockNumber", "creditStatus", "sweepStatus", "creditedAt", "createdAt", "updatedAt")
+          INSERT INTO "Deposit" (id, "userId", "walletAddress", chain, "tokenSymbol", "amountUSDC", signature, "blockNumber", "creditStatus", "sweepStatus", "sweepAttemptCount", "nextSweepAttemptAt", "creditedAt", "createdAt", "updatedAt")
           VALUES (
             gen_random_uuid(),
             ${wallet.userId},
@@ -292,13 +357,22 @@ export class ChainDepositProcessor {
             ${params.blockNumber ?? null},
             'CREDITED',
             'SWEEP_PENDING',
+            0,
+            NOW(),
             NOW(),
             NOW(),
             NOW()
           )
           ON CONFLICT (signature) DO UPDATE SET
             "creditStatus" = 'CREDITED',
-            "sweepStatus" = COALESCE("Deposit"."sweepStatus", 'SWEEP_PENDING'),
+            "sweepStatus" = CASE
+              WHEN "Deposit"."sweepStatus" IN ('SWEPT', 'SWEEP_PROCESSING') THEN "Deposit"."sweepStatus"
+              ELSE 'SWEEP_PENDING'
+            END,
+            "nextSweepAttemptAt" = CASE
+              WHEN "Deposit"."sweepStatus" = 'SWEPT' THEN "Deposit"."nextSweepAttemptAt"
+              ELSE NOW()
+            END,
             "updatedAt" = NOW()
         `;
 

@@ -3,12 +3,7 @@ import { LedgerService } from '../../services/ledgerService';
 import { RateService } from '../../services/rateService';
 import { KYCTier } from '@kudi/types';
 import { successResponse } from '../../utils/response';
-
-const DAILY_LIMITS_NGN = {
-  [KYCTier.UNVERIFIED]: 0,
-  [KYCTier.TIER_1]: 50000,
-  [KYCTier.TIER_2]: 5000000
-};
+import { dailyLimitForTier } from '../../utils/dailyLimits';
 
 export class BalanceController {
   constructor(
@@ -21,7 +16,7 @@ export class BalanceController {
     const balanceUSDC = await this.ledgerService.getBalanceAsync(userId);
     const user = this.ledgerService.getUser(userId);
     const tier = user?.kycTier || KYCTier.UNVERIFIED;
-    const dailyLimitNGN = DAILY_LIMITS_NGN[tier];
+    const dailyLimitNGN = dailyLimitForTier(tier);
     const currentRate = this.rateService.getCurrentRate();
     const spendableNGN = balanceUSDC * currentRate;
 

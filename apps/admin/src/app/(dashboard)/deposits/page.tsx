@@ -1,26 +1,46 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { loadDeposits, AdminDeposit } from '@/lib/admin-data';
+import { loadDeposits, loadOperatorAlerts, requeueSweep, AdminDeposit, OperatorAlert } from '@/lib/admin-data';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Search, Layers, ExternalLink, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Search, Layers, ExternalLink, CheckCircle2, AlertTriangle, Clock3, RotateCcw } from 'lucide-react';
 
 export default function DepositsPage() {
   const [deposits, setDeposits] = useState<AdminDeposit[]>([]);
+  const [alerts, setAlerts] = useState<OperatorAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [chainFilter, setChainFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [requeueing, setRequeueing] = useState<string | null>(null);
+
+  async function refreshDeposits() {
+    const [data, alertData] = await Promise.all([loadDeposits(), loadOperatorAlerts()]);
+    setDeposits(data);
+    setAlerts(alertData);
+    setLoading(false);
+  }
+
+  async function handleRequeue(signature: string) {
+    setRequeueing(signature);
+    const ok = await requeueSweep(signature);
+    if (ok) await refreshDeposits();
+    setRequeueing(null);
+  }
 
   useEffect(() => {
-    loadDeposits().then((data) => {
-      setDeposits(data);
-      setLoading(false);
-    });
+    void refreshDeposits();
   }, []);
+
+  const sweepSummary = deposits.reduce((acc, dep) => {
+    const status = dep.sweepStatus || 'UNKNOWN';
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  const exhausted = deposits.filter((dep) => ['SWEEP_FAILED', 'SWEEP_BLOCKED'].includes(dep.sweepStatus || '') && (dep.sweepAttemptCount || 0) >= 4);
 
   const filtered = deposits.filter((dep) => {
     if (chainFilter !== 'ALL' && !dep.chain.includes(chainFilter)) return false;
@@ -50,19 +70,46 @@ export default function DepositsPage() {
             <p className="text-xs text-muted-foreground mt-1 max-w-2xl leading-relaxed">
               Deposits are polled via EVM RPC & Solana SPL WebSocket listeners in{' '}
               <span className="font-mono text-foreground">apps/worker/chainDepositProcessor.ts</span>. Confirmed deposits
-              instantly credit customer balances in the float ledger.
+              instantly credit customer balances in the float ledger. Sweep state below shows whether treasury backing is complete or needs operator action.
             </p>
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <div className="rounded-xl border border-border/60 bg-card p-3 text-right">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">
-                Total Monad AUSD Received
-              </span>
-              <span className="font-mono text-base font-bold text-emerald-400">$148,250.00</span>
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Swept</span>
+              <span className="font-mono text-base font-bold text-emerald-400">{sweepSummary.SWEPT || 0}</span>
+            </div>
+            <div className="rounded-xl border border-border/60 bg-card p-3 text-right">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Needs Action</span>
+              <span className="font-mono text-base font-bold text-amber-300">{exhausted.length}</span>
             </div>
           </div>
         </div>
       </div>
+
+
+      {alerts.length > 0 ? (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-300" />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold text-foreground">Open Operator Alerts</div>
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                {alerts.slice(0, 4).map((alert) => (
+                  <div key={alert.id} className="rounded-lg border border-border/60 bg-card/70 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-xs font-semibold text-foreground">{alert.title}</span>
+                      <Badge variant={alert.severity === 'HIGH' || alert.severity === 'CRITICAL' ? 'warning' : 'silver'} className="text-[10px]">
+                        {alert.severity}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{alert.body}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -114,6 +161,7 @@ export default function DepositsPage() {
                   <th className="px-4 py-3 text-right">Amount Received</th>
                   <th className="px-4 py-3 text-center">Confirmations</th>
                   <th className="px-4 py-3 text-center">Ledger Credit</th>
+                  <th className="px-4 py-3 text-center">Sweep</th>
                   <th className="px-4 py-3 text-right">Timestamp</th>
                 </tr>
               </thead>
@@ -150,6 +198,42 @@ export default function DepositsPage() {
                       <Badge variant="success" className="text-[10px]">
                         CREDITED
                       </Badge>
+                    </td>
+                    <td className="px-4 py-3.5 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <Badge
+                          variant={dep.sweepStatus === 'SWEPT' ? 'success' : dep.sweepStatus === 'SWEEP_PROCESSING' ? 'silver' : 'warning'}
+                          className="text-[10px]"
+                        >
+                          {dep.sweepStatus || 'UNKNOWN'}
+                        </Badge>
+                        {['SWEEP_FAILED', 'SWEEP_BLOCKED'].includes(dep.sweepStatus || '') && (dep.sweepAttemptCount || 0) >= 4 ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-amber-300">
+                            <AlertTriangle className="h-3 w-3" /> action
+                          </span>
+                        ) : dep.nextSweepAttemptAt && dep.sweepStatus !== 'SWEPT' ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                            <Clock3 className="h-3 w-3" /> retry {dep.sweepAttemptCount || 0}/4
+                          </span>
+                        ) : null}
+                        {dep.sweepError ? (
+                          <span className="max-w-[180px] truncate text-[10px] text-muted-foreground" title={dep.sweepError}>
+                            {dep.sweepError}
+                          </span>
+                        ) : null}
+                        {['SWEEP_FAILED', 'SWEEP_BLOCKED'].includes(dep.sweepStatus || '') && (dep.sweepAttemptCount || 0) >= 4 ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-[10px]"
+                            disabled={requeueing === dep.txHash}
+                            onClick={() => handleRequeue(dep.txHash)}
+                          >
+                            <RotateCcw className="mr-1 h-3 w-3" />
+                            {requeueing === dep.txHash ? 'Requeueing' : 'Requeue'}
+                          </Button>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-4 py-3.5 text-right font-mono text-[11px] text-muted-foreground">
                       {dep.createdAt}

@@ -519,8 +519,9 @@ export class LedgerService {
     reference: string;
     type: string;
     metadata?: Record<string, any>;
+    dailyLimit?: { amountNGN: number; limitNGN: number; sourceType?: string; metadata?: Record<string, any> };
   }): Promise<number> {
-    const { userId, amountUSDC, reference, type, metadata } = params;
+    const { userId, amountUSDC, reference, type, metadata, dailyLimit } = params;
     if (!Number.isFinite(amountUSDC) || amountUSDC <= 0) {
       throw new Error('Debit amount must be positive');
     }
@@ -551,6 +552,36 @@ export class LedgerService {
       if (current < amountUSDC) {
         throw new Error(`INSUFFICIENT_BALANCE:${current}`);
       }
+
+      if (dailyLimit) {
+        const amountNGN = Math.max(0, Math.floor(dailyLimit.amountNGN));
+        const limitNGN = Math.max(0, Math.floor(dailyLimit.limitNGN));
+        await tx.$executeRaw`
+          INSERT INTO "SpendLimitWindow" (id, "userId", "spentDate", "createdAt", "updatedAt")
+          VALUES (gen_random_uuid(), ${userId}, date_trunc('day', NOW()), NOW(), NOW())
+          ON CONFLICT ("userId", "spentDate") DO UPDATE SET "updatedAt" = "SpendLimitWindow"."updatedAt"
+        `;
+        await tx.$queryRaw`
+          SELECT id
+          FROM "SpendLimitWindow"
+          WHERE "userId" = ${userId}
+            AND "spentDate" = date_trunc('day', NOW())
+          FOR UPDATE
+        `;
+
+        const spentRows: any[] = await tx.$queryRaw`
+          SELECT COALESCE(SUM("amountNGN"), 0) AS "spentTodayNGN"
+          FROM "SpendLimitEntry"
+          WHERE "userId" = ${userId}
+            AND "spentDate" = date_trunc('day', NOW())
+            AND status = 'APPLIED'
+        `;
+        const spentTodayNGN = spentRows.length ? Math.floor(Number(spentRows[0].spentTodayNGN || 0)) : 0;
+        if (limitNGN <= 0 || spentTodayNGN + amountNGN > limitNGN) {
+          throw new Error(`DAILY_LIMIT_EXCEEDED:${spentTodayNGN}:${limitNGN}:${amountNGN}`);
+        }
+      }
+
       const next = current - amountUSDC;
 
       await tx.$executeRaw`
@@ -565,11 +596,45 @@ export class LedgerService {
         ON CONFLICT (type, "referenceId") DO NOTHING
       `;
 
+      if (dailyLimit) {
+        await tx.$executeRaw`
+          INSERT INTO "SpendLimitEntry" (
+            id, "userId", reference, "sourceType", "amountUSDC", "amountNGN", "limitNGN", "spentDate", status, metadata, "createdAt", "updatedAt"
+          ) VALUES (
+            gen_random_uuid(),
+            ${userId},
+            ${reference},
+            ${dailyLimit.sourceType || type},
+            ${amountUSDC},
+            ${Math.max(0, Math.floor(dailyLimit.amountNGN))},
+            ${Math.max(0, Math.floor(dailyLimit.limitNGN))},
+            date_trunc('day', NOW()),
+            'APPLIED',
+            ${JSON.stringify(dailyLimit.metadata || metadata || {})},
+            NOW(),
+            NOW()
+          )
+          ON CONFLICT (reference) DO NOTHING
+        `;
+      }
+
       return next;
     });
 
     this.ledger.set(userId, newBalance);
     return newBalance;
+  }
+
+  public async releaseSpendLimitEntry(reference: string, reason: string): Promise<void> {
+    await prisma.$executeRaw`
+      UPDATE "SpendLimitEntry"
+      SET status = 'RELEASED',
+          "releasedAt" = NOW(),
+          "releaseReason" = ${reason},
+          "updatedAt" = NOW()
+      WHERE reference = ${reference}
+        AND status = 'APPLIED'
+    `;
   }
 
   public async creditBalanceAtomic(params: {
@@ -1001,6 +1066,7 @@ export class LedgerService {
     amountUSDC: number;
     toAddress: string;
     chain: 'solana' | 'monad';
+    dailyLimit?: { amountNGN: number; limitNGN: number; sourceType?: string; metadata?: Record<string, any> };
   }): Promise<CryptoWithdrawal> {
     const now = new Date().toISOString();
     const withdrawal: CryptoWithdrawal = {
@@ -1023,8 +1089,10 @@ export class LedgerService {
         ...withdrawal,
         type: 'CRYPTO_SEND_DEBIT',
         title: `Send to ${params.chain.toUpperCase()}`,
-        subtitle: `${params.toAddress.slice(0, 6)}...${params.toAddress.slice(-4)}`
-      }
+        subtitle: `${params.toAddress.slice(0, 6)}...${params.toAddress.slice(-4)}`,
+        amountNGN: params.dailyLimit?.amountNGN
+      },
+      dailyLimit: params.dailyLimit
     });
 
     this.recordTransaction({

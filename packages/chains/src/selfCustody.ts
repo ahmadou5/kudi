@@ -50,15 +50,15 @@ export class SelfCustodyProvider implements CustodyProvider {
   }
 
   constructor(
-    privyAppId = '',
-    privyAppSecret = '',
-    defaultRpcUrl = '',
-    solanaRpcUrl = '',
-    solanaUsdcMintAddress = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
-    solanaTreasuryAddress = '',
-    solanaCaip2 = 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
-    ausdTokenAddress = '0x534b2f3A21130d7a60830c2Df862319e593943A3',
-    monadChainId = 10143
+    privyAppId = process.env.PRIVY_APP_ID || '',
+    privyAppSecret = process.env.PRIVY_APP_SECRET || '',
+    defaultRpcUrl = process.env.MONAD_RPC_URL || process.env.EVM_RPC_URL || '',
+    solanaRpcUrl = process.env.SOLANA_RPC_URL || '',
+    solanaUsdcMintAddress = process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+    solanaTreasuryAddress = process.env.KUDI_TREASURY_SOLANA_ADDRESS || '',
+    solanaCaip2 = process.env.SOLANA_CAIP2 || 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
+    ausdTokenAddress = process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3',
+    monadChainId = Number(process.env.MONAD_CHAIN_ID || 10143)
   ) {
     this.privyAppId = privyAppId;
     this.privyAppSecret = privyAppSecret;
@@ -364,7 +364,8 @@ export class SelfCustodyProvider implements CustodyProvider {
    * Custodial model (Track B): Kudi signs from its own treasury Privy wallet
    * on behalf of the user. Supports Solana and Monad (EVM).
    *
-   * @param treasuryWalletId  - Privy wallet ID of the Kudi treasury wallet
+   * @param treasuryWalletId  - Privy wallet ID of the signing wallet
+   * @param fromAddress       - Optional Solana owner address for non-treasury signing wallets
    * @param toAddress         - Recipient on-chain address
    * @param amountUSDC        - Amount in USDC (will be converted to token units)
    * @param chain             - 'solana' | 'monad'
@@ -377,8 +378,9 @@ export class SelfCustodyProvider implements CustodyProvider {
     chain: 'solana' | 'monad';
     usdcMintAddress?: string;
     usdcContractAddress?: string;
+    fromAddress?: string;
   }): Promise<{ txHash: string }> {
-    const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress } = params;
+    const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress, fromAddress } = params;
 
     if (!this.appId || !this.appSecret || !treasuryWalletId) {
       const missing = {
@@ -410,14 +412,14 @@ export class SelfCustodyProvider implements CustodyProvider {
       const mintAddr = usdcMintAddress || this.solanaUsdcMintAddress;
       const USDC_DECIMALS = 6; // USDC always has 6 decimals
 
-      const treasuryAddrStr = this.solanaTreasuryAddress;
+      const signerAddrStr = fromAddress || this.solanaTreasuryAddress;
 
-      if (!treasuryAddrStr) {
-        throw new Error('Solana treasury address is not configured. Cannot build Solana transaction.');
+      if (!signerAddrStr) {
+        throw new Error('Solana signing address is not configured. Cannot build Solana transaction.');
       }
 
-      const mintPubkey   = solanaAddress(mintAddr as Address);
-      const treasuryAddr = solanaAddress(treasuryAddrStr as Address);
+      const mintPubkey = solanaAddress(mintAddr as Address);
+      const signerAddr = solanaAddress(signerAddrStr as Address);
       const recipientAddr = solanaAddress(toAddress as Address);
 
       // Create Solana JSON-RPC client (no WebSocket — HTTP only for blockhash fetch)
@@ -434,7 +436,7 @@ export class SelfCustodyProvider implements CustodyProvider {
       const [derivedSourceAta] = await getProgramDerivedAddress({
         programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
         seeds: [
-          addrEncoder.encode(treasuryAddr),
+          addrEncoder.encode(signerAddr),
           addrEncoder.encode(TOKEN_PROGRAM_ADDRESS),
           addrEncoder.encode(mintPubkey)
         ]
@@ -442,7 +444,7 @@ export class SelfCustodyProvider implements CustodyProvider {
 
       let sourceAta = derivedSourceAta;
       try {
-        const tokenAccountsRes = await rpc.getTokenAccountsByOwner(treasuryAddr, { mint: mintPubkey }, { encoding: 'jsonParsed' }).send();
+        const tokenAccountsRes = await rpc.getTokenAccountsByOwner(signerAddr, { mint: mintPubkey }, { encoding: 'jsonParsed' }).send();
         if (tokenAccountsRes.value?.[0]?.pubkey) {
           sourceAta = solanaAddress(tokenAccountsRes.value[0].pubkey as Address);
         }
@@ -465,7 +467,7 @@ export class SelfCustodyProvider implements CustodyProvider {
       const createDestAtaIx = {
         programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
         accounts: [
-          { address: treasuryAddr, role: 3 as const },            // Writable Signer (Payer)
+          { address: signerAddr, role: 3 as const },            // Writable Signer (Payer)
           { address: destAta,      role: 1 as const },            // Writable (ATA to create)
           { address: recipientAddr, role: 0 as const },           // Readonly (Owner)
           { address: mintPubkey,   role: 0 as const },            // Readonly (Mint)
@@ -481,7 +483,7 @@ export class SelfCustodyProvider implements CustodyProvider {
         source: sourceAta,
         mint: mintPubkey,
         destination: destAta,
-        authority: treasuryAddr,
+        authority: signerAddr,
         amount: amountRaw,
         decimals: USDC_DECIMALS
       });
@@ -489,7 +491,7 @@ export class SelfCustodyProvider implements CustodyProvider {
       // Compose transaction message (functional pipe style — v2 API)
       const txMessage = pipe(
         createTransactionMessage({ version: 0 as const }),
-        (tx) => setTransactionMessageFeePayer(treasuryAddr, tx),
+        (tx) => setTransactionMessageFeePayer(signerAddr, tx),
         (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
         (tx) => appendTransactionMessageInstruction(createDestAtaIx, tx),
         (tx) => appendTransactionMessageInstruction(transferIx, tx)

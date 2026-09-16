@@ -1,5 +1,14 @@
-import React from 'react';
-import { StyleSheet, View, TouchableOpacity, Text, ViewStyle } from 'react-native';
+import React, { useRef } from 'react';
+import {
+  StyleSheet,
+  View,
+  TouchableOpacity,
+  Text,
+  ViewStyle,
+  Animated,
+  Platform
+} from 'react-native';
+import { BlurView } from 'expo-blur';
 import { Home, CreditCard, Clock, LucideIcon } from 'lucide-react-native';
 import { useAppPalette } from '../lib/theme';
 import { Typography } from '../constants/typography';
@@ -33,45 +42,90 @@ export interface FloatingTabBarProps {
 
 /**
  * Reusable, easily customizable Floating Pill Tab Bar Component.
+ *
+ * Design notes (Apple Design skill):
+ *  - BlurView provides true backdrop blur = "translucent material" layer (§12)
+ *  - Bright top border edge = light catching the glass surface (§12)
+ *  - Active icon uses filled variant for clear affordance (§16 — familiarity)
+ *  - Active pill scale animation from current value on press (§1 — respond on down)
+ *  - Shadow is heavier to lift floating chrome over scrolling content (§12)
  */
 export function FloatingTabBar({
   state,
   descriptors,
   navigation,
   tabs = DEFAULT_TABS,
-  width = '55%',
+  width = '60%',
   showLabels = false,
-  iconSize = 18,
+  iconSize = 20,
   containerStyle
 }: FloatingTabBarProps) {
   const palette = useAppPalette();
 
+  // Per-tab animated scale for press feedback — instant on touch-down (§1)
+  const scales = useRef<Animated.Value[]>(tabs.map(() => new Animated.Value(1))).current;
+
   if (!state || !navigation) return null;
 
-  // Ensure tab bar ONLY shows on the 3 main tab screens: Home ('index'), Card ('card'), and History ('history')
   const currentRouteName = state.routes[state.index]?.name;
   const isAllowedTab = ['index', 'card', 'history'].includes(currentRouteName);
-  if (!isAllowedTab) {
-    return null;
-  }
+  if (!isAllowedTab) return null;
 
   const isDark = palette.text === '#FFFFFF';
-  const pillBg = isDark ? 'rgba(18, 20, 29, 0.73)' : 'rgba(255, 255, 255, 0.73)';
+
+  // Active accent — vivid white on dark, deep navy on light
+  const activeColor = isDark ? '#FFFFFF' : '#0F172A';
+  // Active pill background — subtle frosted highlight
+  const activePillBg = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(15,23,42,0.09)';
+  // Border: bright top edge = light catching glass (§12)
+  const borderColor = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.09)';
+  // Outer shadow glow colour
+  const shadowColor = isDark ? '#000' : '#1E293B';
+
+  const handlePressIn = (idx: number) => {
+    Animated.spring(scales[idx], {
+      toValue: 0.87,
+      useNativeDriver: true,
+      speed: 60,
+      bounciness: 0
+    }).start();
+  };
+
+  const handlePressOut = (idx: number) => {
+    Animated.spring(scales[idx], {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 40,
+      bounciness: 6
+    }).start();
+  };
 
   return (
-    <View style={styles.floatingContainer}>
-      <View
+    <View style={[styles.floatingContainer, { bottom: Platform.OS === 'ios' ? 28 : 20 }]}>
+      {/* Glass pill shell — BlurView provides the true backdrop blur material */}
+      <BlurView
+        intensity={isDark ? 70 : 55}
+        tint={isDark ? 'dark' : 'light'}
         style={[
           styles.pillTabBar,
           {
             width,
-            backgroundColor: pillBg,
-            borderColor: palette.border
+            borderColor,
+            shadowColor,
           },
           containerStyle
         ]}
       >
-        {tabs.map((tab) => {
+        {/* Bright top-edge inner highlight — simulates light catching the glass rim */}
+        <View
+          pointerEvents="none"
+          style={[
+            styles.topEdgeHighlight,
+            { backgroundColor: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.6)' }
+          ]}
+        />
+
+        {tabs.map((tab, idx) => {
           const route = state.routes.find((r: any) => r.name === tab.name);
           const routeIndex = state.routes.findIndex((r: any) => r.name === tab.name);
           const isFocused = routeIndex !== -1 && state.index === routeIndex;
@@ -84,7 +138,6 @@ export function FloatingTabBar({
                 target: route.key,
                 canPreventDefault: true
               });
-
               if (!isFocused && !event.defaultPrevented) {
                 navigation.navigate(tab.name);
               }
@@ -93,40 +146,54 @@ export function FloatingTabBar({
             }
           };
 
-          const color = isFocused
-            ? (palette.text === '#FFFFFF' ? '#FFFFFF' : '#0F172A')
-            : palette.textSecondary;
+          const iconColor = isFocused ? activeColor : (isDark ? 'rgba(255,255,255,0.38)' : 'rgba(15,23,42,0.35)');
 
           return (
-            <TouchableOpacity
+            <Animated.View
               key={tab.name}
-              onPress={onPress}
-              activeOpacity={0.7}
-              style={[
-                styles.tabItem,
-                isFocused && {
-                  backgroundColor: palette.text === '#FFFFFF' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(15, 23, 42, 0.08)'
-                }
-              ]}
+              style={[styles.tabItemWrap, { transform: [{ scale: scales[idx] }] }]}
             >
-              <TabIcon size={iconSize} color={color} />
-              {showLabels && (
-                <Text
-                  style={[
-                    Typography.footnote,
-                    {
-                      color,
-                      fontWeight: isFocused ? '700' : '500'
-                    }
-                  ]}
-                >
-                  {tab.label}
-                </Text>
-              )}
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={onPress}
+                onPressIn={() => handlePressIn(idx)}
+                onPressOut={() => handlePressOut(idx)}
+                activeOpacity={1}
+                style={[
+                  styles.tabItem,
+                  isFocused && { backgroundColor: activePillBg }
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={tab.label}
+                accessibilityState={{ selected: isFocused }}
+              >
+                {/* Active icon = filled; inactive = stroke-only (strokeWidth lowered) */}
+                <TabIcon
+                  size={iconSize}
+                  color={iconColor}
+                  fill={isFocused ? activeColor : 'transparent'}
+                  strokeWidth={isFocused ? 0 : 1.6}
+                />
+
+                {showLabels && (
+                  <Text
+                    style={[
+                      Typography.footnote,
+                      {
+                        color: iconColor,
+                        fontWeight: isFocused ? '700' : '400',
+                        letterSpacing: isFocused ? 0.1 : 0,
+                        marginTop: 1
+                      }
+                    ]}
+                  >
+                    {tab.label}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
           );
         })}
-      </View>
+      </BlurView>
     </View>
   );
 }
@@ -134,33 +201,50 @@ export function FloatingTabBar({
 const styles = StyleSheet.create({
   floatingContainer: {
     position: 'absolute',
-    bottom: 20,
     left: 0,
     right: 0,
     alignItems: 'center',
-    zIndex: 50
+    zIndex: 50,
+    // No pointer events on the wrapper — only on pill content
+    pointerEvents: 'box-none'
   },
   pillTabBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 35,
+    paddingVertical: 7,
+    paddingHorizontal: 6,
+    borderRadius: 40,
+    // Single-pixel border on all sides — glass rim
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 8
+    overflow: 'hidden',
+    // Deep, diffuse shadow = floating material over content (§12)
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 24,
+    elevation: 18
+  },
+  // Very thin frosted strip at top of pill — emulates light catching glass edge (§12)
+  topEdgeHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 16,
+    right: 16,
+    height: 1,
+    borderRadius: 1
+  },
+  tabItemWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   tabItem: {
-    flex: 1,
-    flexDirection: 'row',
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 3,
     paddingVertical: 10,
-    borderRadius: 25
-  }
+    paddingHorizontal: 8,
+    borderRadius: 30
+  },
 });

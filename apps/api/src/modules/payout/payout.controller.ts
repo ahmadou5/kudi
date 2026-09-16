@@ -8,12 +8,7 @@ import { RateService } from '../../services/rateService';
 import { errorResponse, successResponse } from '../../utils/response';
 import { verifyPin, generateReference } from '../../utils/hash';
 import { getAuthenticatedUser } from '../../utils/authGuards';
-
-const DAILY_LIMITS_NGN = {
-  [KYCTier.UNVERIFIED]: 0,
-  [KYCTier.TIER_1]: 50000,
-  [KYCTier.TIER_2]: 5000000
-};
+import { buildDailyLimitCheck, formatDailyLimitMessage, parseDailyLimitError } from '../../utils/dailyLimits';
 
 export class PayoutController {
   constructor(
@@ -58,18 +53,8 @@ export class PayoutController {
 
     const currentRate = this.rateService.getCurrentRate();
     const tier = user?.kycTier || KYCTier.UNVERIFIED;
-    const dailyLimitNGN = DAILY_LIMITS_NGN[tier];
-    const amountNGN = Math.floor(amountUSDC * currentRate);
-
-    if (amountNGN > dailyLimitNGN && dailyLimitNGN > 0) {
-      return reply.status(403).send(
-        errorResponse(
-          'DAILY_LIMIT_EXCEEDED',
-          `Transaction amount ₦${amountNGN.toLocaleString()} NGN exceeds your ${tier} daily limit of ₦${dailyLimitNGN.toLocaleString()} NGN.`,
-          403
-        )
-      );
-    }
+    const dailyLimit = { ...buildDailyLimitCheck(tier, amountUSDC, currentRate), sourceType: 'BANK_PAYOUT' };
+    const amountNGN = dailyLimit.amountNGN;
 
     const reference = generateReference('KUDI_SPEND');
     let newBalance: number;
@@ -85,7 +70,8 @@ export class PayoutController {
           amountNGN,
           exchangeRateNGN: currentRate,
           recipientBankCode: bankCode
-        }
+        },
+        dailyLimit
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -94,6 +80,14 @@ export class PayoutController {
         return reply
           .status(400)
           .send(errorResponse('INSUFFICIENT_BALANCE', `Requested spend ${amountUSDC} USDC exceeds balance ${available} USDC`));
+      }
+      const limitError = parseDailyLimitError(message);
+      if (limitError) {
+        return reply.status(403).send(errorResponse(
+          'DAILY_LIMIT_EXCEEDED',
+          formatDailyLimitMessage(limitError.amountNGN, limitError.spentTodayNGN, limitError.limitNGN, tier),
+          403
+        ));
       }
       return reply.status(500).send(errorResponse('BALANCE_DEBIT_FAILED', message, 500));
     }
@@ -130,6 +124,7 @@ export class PayoutController {
       });
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
+      await this.ledgerService.releaseSpendLimitEntry(reference, 'PAYOUT_FAILED');
       await this.ledgerService.creditBalanceAtomic({
         userId,
         amountUSDC,
@@ -174,6 +169,9 @@ export class PayoutController {
       recipient = this.ledgerService.getUser(toHandle) || this.ledgerService.registerUser(`usr_handle_${toHandle}`, undefined, `${toHandle}@kudi.app`);
     }
 
+    const transferRate = this.rateService.getCurrentRate();
+    const transferTier = sender?.kycTier || KYCTier.UNVERIFIED;
+    const transferDailyLimit = { ...buildDailyLimitCheck(transferTier, amountUSDC, transferRate), sourceType: 'INTER_APP_TRANSFER' };
     const reference = generateReference('KUDI_TRANSFER');
     let newSenderBalance: number;
     try {
@@ -185,8 +183,11 @@ export class PayoutController {
         metadata: {
           title: `Transfer to ${toHandle}`,
           subtitle: 'Kudi Inter-App Transfer',
-          toUserId: recipient.id
-        }
+          toUserId: recipient.id,
+          amountNGN: transferDailyLimit.amountNGN,
+          exchangeRateNGN: transferRate
+        },
+        dailyLimit: transferDailyLimit
       });
       await this.ledgerService.creditBalanceAtomic({
         userId: recipient.id,
@@ -204,6 +205,14 @@ export class PayoutController {
       if (message.startsWith('INSUFFICIENT_BALANCE:')) {
         const available = Number(message.split(':')[1] || 0);
         return reply.status(400).send(errorResponse('INSUFFICIENT_BALANCE', `Insufficient balance. Available: ${available} USDC`));
+      }
+      const limitError = parseDailyLimitError(message);
+      if (limitError) {
+        return reply.status(403).send(errorResponse(
+          'DAILY_LIMIT_EXCEEDED',
+          formatDailyLimitMessage(limitError.amountNGN, limitError.spentTodayNGN, limitError.limitNGN, transferTier),
+          403
+        ));
       }
       return reply.status(500).send(errorResponse('TRANSFER_FAILED', message, 500));
     }
@@ -275,7 +284,10 @@ export class PayoutController {
       );
     }
 
-    // 6. Create withdrawal record + optimistic debit (atomic in-process)
+    // 6. Create withdrawal record + optimistic debit.
+    const withdrawalRate = this.rateService.getCurrentRate();
+    const withdrawalTier = user?.kycTier || KYCTier.UNVERIFIED;
+    const withdrawalDailyLimit = { ...buildDailyLimitCheck(withdrawalTier, numAmountUSDC, withdrawalRate), sourceType: 'ONCHAIN_SEND' };
     const reference = generateReference('KUDI_ONCHAIN');
     let withdrawal;
     try {
@@ -284,7 +296,8 @@ export class PayoutController {
         userId,
         amountUSDC: numAmountUSDC,
         toAddress,
-        chain
+        chain,
+        dailyLimit: withdrawalDailyLimit
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -293,6 +306,14 @@ export class PayoutController {
         return reply.status(400).send(
           errorResponse('INSUFFICIENT_BALANCE', `Insufficient balance. Available: ${available.toFixed(2)} USDC`, 400)
         );
+      }
+      const limitError = parseDailyLimitError(message);
+      if (limitError) {
+        return reply.status(403).send(errorResponse(
+          'DAILY_LIMIT_EXCEEDED',
+          formatDailyLimitMessage(limitError.amountNGN, limitError.spentTodayNGN, limitError.limitNGN, withdrawalTier),
+          403
+        ));
       }
       return reply.status(500).send(errorResponse('WITHDRAWAL_CREATE_FAILED', message, 500));
     }

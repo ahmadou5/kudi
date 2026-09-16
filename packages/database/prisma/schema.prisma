@@ -40,6 +40,7 @@ model User {
   withdrawals     Withdrawal[]
   balanceAccounts BalanceAccount[]
   deposits        Deposit[]
+  spendLimitEntries SpendLimitEntry[]
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 }
@@ -86,14 +87,17 @@ model Deposit {
   blockNumber   Int?
   creditStatus  String   @default("CREDITED")
   sweepStatus   String   @default("SWEEP_PENDING")
-  sweepTxHash   String?
-  sweepError    String?
-  creditedAt    DateTime @default(now())
+  sweepTxHash        String?
+  sweepError         String?
+  sweepAttemptCount Int      @default(0)
+  nextSweepAttemptAt DateTime @default(now())
+  creditedAt         DateTime @default(now())
   sweptAt       DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@index([userId, createdAt])
+  @@index([sweepStatus, nextSweepAttemptAt])
   @@index([sweepStatus, createdAt])
   @@index([chain, createdAt])
 }
@@ -245,4 +249,88 @@ model WorkerHeartbeat {
   createdAt DateTime @default(now())
 
   @@index([role, lastSeen])
+}
+
+model SpendLimitWindow {
+  id        String   @id @default(uuid())
+  userId    String
+  spentDate DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, spentDate])
+  @@index([userId, spentDate])
+}
+
+model SpendLimitEntry {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reference       String    @unique
+  sourceType      String
+  amountUSDC      Float
+  amountNGN       Float
+  limitNGN        Float
+  spentDate       DateTime
+  status          String    @default("APPLIED")
+  releasedAt      DateTime?
+  releaseReason   String?
+  metadata        String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId, spentDate, status])
+  @@index([reference])
+}
+
+model ReconciliationSnapshot {
+  id                         String   @id @default(uuid())
+  totalLiabilityUSDC         Float    @default(0)
+  totalAvailableUSDC         Float    @default(0)
+  totalReservedUSDC          Float    @default(0)
+  pendingSweepUSDC           Float    @default(0)
+  processingSweepUSDC        Float    @default(0)
+  sweptUSDC                  Float    @default(0)
+  sweepFailedUSDC            Float    @default(0)
+  floatExposureUSDC          Float    @default(0)
+  unsupportedSweepUSDC       Float    @default(0)
+  pendingWithdrawalUSDC      Float    @default(0)
+  processingWithdrawalUSDC   Float    @default(0)
+  broadcastWithdrawalUSDC    Float    @default(0)
+  metadata                   String?
+  createdAt                  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model AdminAuditLog {
+  id        String   @id @default(uuid())
+  actorId   String?
+  actorEmail String?
+  action    String
+  targetType String
+  targetId  String
+  details   String?
+  createdAt DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([targetType, targetId])
+}
+
+model OperatorAlert {
+  id          String   @id @default(uuid())
+  type        String
+  severity    String
+  status      String   @default("OPEN")
+  title       String
+  body        String
+  reference   String?
+  metadata    String?
+  acknowledgedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, severity, createdAt])
+  @@unique([type, reference])
+  @@index([type, reference])
 }

@@ -34,28 +34,259 @@ Markers:
 | Phase 0B | [x] | PIN fail-closed and stronger new PIN hashing | `apps/api/src/utils/hash.ts`; `LedgerService.setUserPin` now hashes with salted PBKDF2 | Add PIN retry limits, lockouts, and migration job for legacy `hashed_` PINs |
 | Phase 0C | [x] | Disable implicit mock chain sends | `packages/chains/src/selfCustody.ts`; mock sends require explicit `ALLOW_MOCK_CHAIN_SENDS=true` and are blocked in production | Add startup checks for chain-specific treasury wallet IDs |
 | Phase 1A | [x] | Durable on-chain withdrawal handoff | `Withdrawal` model in Prisma; API persists withdrawals; worker polls DB instead of memory queue | Apply DB migration / `db:push` before deployment |
-| Phase 1B | [x] | Withdrawal processing lifecycle | Worker claims rows with `FOR UPDATE SKIP LOCKED`, marks `PROCESSING`, broadcasts, confirms, retries, marks failed/confirmed, and records reversal ledger entry | Add durable notification outbox and stale `PROCESSING` recovery watchdog |
-| Phase 2 | [~] | Transaction-first balance architecture | `BalanceAccount` model added; debit/credit flows use DB transactions/row locks; user-facing balance/profile reads prefer `BalanceAccount` | Some legacy in-memory helpers remain; multi-step inter-app transfer should become one single transaction; migrate money columns to `Decimal` |
+| Phase 1B | [x] | Withdrawal processing lifecycle | Worker claims rows with `FOR UPDATE SKIP LOCKED`, marks `PROCESSING`, broadcasts, confirms, retries, marks failed/confirmed, records reversal ledger entry, and requeues stale no-tx `PROCESSING` rows | Add durable notification outbox and recovery handling for stale broadcast rows with tx hashes |
+| Phase 2 | [~] | Transaction-first balance architecture | `BalanceAccount` model added; debit/credit flows use DB transactions/row locks; user-facing balance/profile reads prefer `BalanceAccount`; daily spend caps now run inside atomic debits | Some legacy in-memory helpers remain; multi-step inter-app transfer should become one single transaction; migrate money columns to `Decimal` |
 | Phase 3 | [x] | Atomic deposit crediting | Worker deposit processing now writes `ProcessedSignature`, `BalanceAccount`, `LedgerEntry`, and `Notification` in one DB transaction | Move push delivery to durable outbox; sweep lifecycle still belongs to Phase 4 |
-| Phase 4 | [~] | Sweep and treasury backing | `Deposit` lifecycle exists; wallet custody metadata/Privy IDs are persisted; worker attempts EVM/Monad server-custody sweeps and records Solana/float blockers explicitly | Solana sweep builder still incomplete; treasury reconciliation snapshots still needed |
-| Phase 5 | [ ] | Decimal money and reconciliation | Not started | Replace money `Float` columns with `Decimal`; add treasury liability snapshots |
+| Phase 4 | [~] | Sweep and treasury backing | `Deposit` lifecycle exists; wallet custody metadata/Privy IDs are persisted; worker attempts server-custody EVM/Monad and Solana sweeps, confirms before `SWEPT`, retries failed/blocked sweeps, exposes admin sweep visibility/manual requeue, audit logs requeues, raises operator alerts, and reconciliation snapshots summarize exposure | Validate Solana sweep on devnet/mainnet with live Privy wallet; compare snapshots against real treasury balances |
+| Phase 5 | [~] | Decimal money and reconciliation | `ReconciliationSnapshot` model and worker snapshot job added; daily spend limits now use first-class `SpendLimitWindow`/`SpendLimitEntry` rows and release bank payout failures | Replace money `Float` columns with `Decimal`; add admin-configurable limits; reconcile snapshots against provider/on-chain treasury balances and alert on drift |
 
 ## Finding Status Summary
 
 | # | Finding | Status After Latest Pass | Notes |
 |---:|---|---:|---|
-| 1 | On-chain send jobs are in-memory | [x] | API no longer uses in-process queue for handoff; `Withdrawal` table and DB worker processor added. Still needs DB migration and row-claim locking for multi-worker production. |
+| 1 | On-chain send jobs are in-memory | [x] | API no longer uses in-process queue for handoff; `Withdrawal` table and DB worker processor added; obsolete `CryptoWithdrawalQueue` code removed. Still needs DB migration confirmation. |
 | 2 | Spend/send routes trust body user IDs | [x] | Money controllers now derive actor from JWT and routes are guarded. |
 | 3 | PIN passes when missing and weak hash | [~] | Missing PIN now fails closed and new PINs are salted PBKDF2. Legacy `hashed_` PINs still verify during migration; retry lockout remains open. |
 | 4 | Balance changes are memory/not atomic | [~] | Debit-side flows and deposit credits now use `BalanceAccount`; main user-facing reads prefer DB. Some legacy memory paths and `Float` money columns remain. |
 | 5 | Deposit credit not transactional | [x] | Active worker deposit credit now atomically writes idempotency marker, balance credit, ledger entry, and notification row. |
-| 6 | Active worker does not sweep | [~] | Worker now attempts server-custody EVM/Monad sweeps and records `SWEPT`/`SWEEP_FAILED`; Solana and non-server-custody paths are explicitly marked. |
-| 7 | Sweep incomplete for Solana | [ ] | Still open. Solana deposits are now marked `SWEEP_UNSUPPORTED` rather than pretending sweep happened. |
+| 6 | Active worker does not sweep | [~] | Worker now attempts server-custody EVM/Monad and Solana sweeps, waits for confirmation before `SWEPT`, retries due failed/blocked sweeps, and records non-server-custody paths as float exposure. |
+| 7 | Sweep incomplete for Solana | [~] | Worker now calls the Solana SPL transfer builder through `SelfCustodyProvider` using the deposit wallet as signer/source and treasury as recipient. Needs live-chain validation. |
 | 8 | Mock hashes on missing credentials | [x] | Closed for production by requiring explicit mock flag outside production. |
 | 9 | Deposit debug/rescan public | [x] | Deposit ops routes are now admin-guarded. |
-| 10 | Daily limits incomplete | [ ] | Still open; needs DB transaction and aggregate spend window. |
+| 10 | Daily limits incomplete | [~] | Bank, inter-app, bill, and on-chain spends now enforce cumulative caps inside `debitBalanceAtomic` using `SpendLimitWindow`/`SpendLimitEntry`; bank payout provider failures release limit usage. Admin-configurable limits and broader reversal release paths remain open. |
+| 11 | No treasury/liability reconciliation snapshots | [~] | Worker now records DB snapshots for balance liability, sweep exposure, and pending/broadcast withdrawals; external treasury balance comparison and alerting remain open. |
 
 ## Change Log
+
+### 2026-09-16: Cleanup Pass
+
+Implemented by current agent:
+
+- Removed obsolete in-process `CryptoWithdrawalQueue` implementation from `packages/chains`.
+- Removed obsolete API-side `apps/api/src/services/cryptoWithdrawalProcessor.ts`; durable withdrawal processing now lives in the worker.
+- Removed the stale queue export from `packages/chains/src/index.ts`.
+- Removed generated `apps/admin/tsconfig.tsbuildinfo` and added `*.tsbuildinfo` to `.gitignore`.
+- Removed tracked scratch/ad-hoc scripts with hard-coded database URLs and obsolete flow assumptions.
+- Removed obsolete `packages/database/test-db.js` hard-coded Neon connection test.
+
+Verification run:
+
+- `pnpm --filter @kudi/chains lint` passed.
+- `pnpm --filter @kudi/api lint` passed.
+- `pnpm --filter @kudi/database lint` passed.
+- Secret-pattern scan for hard-coded DB URLs/keys returned no remaining hits.
+- `pnpm typecheck` passed across 17 workspaces.
+- `pnpm architecture:check` passed.
+- `pnpm smoke:test` passed.
+- `pnpm artifacts:check` passed.
+
+Remaining cleanup note:
+
+- Older API `DepositService`/`SweepService` are still referenced by admin deposit operational routes, so they were not deleted in this pass.
+
+### 2026-09-16: Sweep Audit and Operator Alert Completion Pass
+
+Implemented by current agent:
+
+- Added Prisma `AdminAuditLog` for administrative action tracking.
+- Added Prisma `OperatorAlert` with unique `(type, reference)` alerts to avoid polling spam.
+- Manual sweep requeues now write an admin audit row with actor, target, action, and details.
+- Added admin operator-alert endpoint at `/api/v1/admin/operator-alerts` and `/api/admin/operator-alerts`.
+- Operator alert generation covers exhausted sweep retries and treasury exposure from the latest reconciliation snapshot.
+- Admin deposits page now displays open operator alerts above the deposit table.
+
+Verification run:
+
+- `pnpm --filter @kudi/database lint` passed.
+- `pnpm --filter @kudi/api lint` passed.
+- `pnpm --filter @kudi/admin lint` passed.
+- `pnpm typecheck` passed across 17 workspaces.
+- `pnpm architecture:check` passed.
+- `pnpm smoke:test` passed.
+- `pnpm artifacts:check` passed.
+
+Remaining from this phase:
+
+- Validate Solana sweep with a live Privy server wallet before real funds.
+- Compare reconciliation snapshots with actual treasury balances from chain/provider APIs, not only internal sweep exposure.
+- Apply the Prisma migration before deployment.
+
+### 2026-09-16: Admin Manual Sweep Requeue Pass
+
+Implemented by current agent:
+
+- Added admin-only POST requeue endpoint for failed/blocked unswept deposits: `/api/v1/admin/sweeps/:signature/requeue` and `/api/admin/sweeps/:signature/requeue`.
+- Requeue resets the deposit to `SWEEP_PENDING`, clears the sweep error, zeroes `sweepAttemptCount`, and sets `nextSweepAttemptAt` to now.
+- Added admin client helper `requeueSweep`.
+- Added a `Requeue` action button on exhausted `SWEEP_FAILED`/`SWEEP_BLOCKED` deposits in the admin deposits page.
+
+Verification run:
+
+- `pnpm --filter @kudi/api lint` passed.
+- `pnpm --filter @kudi/admin lint` passed.
+- `pnpm typecheck` passed across 17 workspaces.
+- `pnpm architecture:check` passed.
+- `pnpm smoke:test` passed.
+- `pnpm artifacts:check` passed.
+
+Remaining from this pass:
+
+- Add audit log records for manual requeues.
+- Add automated alerts for exhausted `SWEEP_FAILED`/`SWEEP_BLOCKED` deposits and reconciliation drift.
+- Validate Solana sweep with a live Privy server wallet before real funds.
+
+### 2026-09-16: Admin Sweep Operator Visibility Pass
+
+Implemented by current agent:
+
+- Added admin API deposit listing backed by real `Deposit` rows at `/api/v1/admin/deposits` and `/api/admin/deposits`.
+- Added admin sweep health endpoint at `/api/v1/admin/sweeps/health` and `/api/admin/sweeps/health`.
+- Sweep health returns aggregate exposure by status plus exhausted failed/blocked rows.
+- Updated admin deposit data types to include sweep status, retry count, next retry, tx hash, and error fields.
+- Updated admin deposits page to show sweep status, retry progress, exhausted action state, and sweep error snippets.
+
+Verification run:
+
+- `pnpm --filter @kudi/api lint` passed.
+- `pnpm --filter @kudi/admin lint` passed.
+- `pnpm typecheck` passed across 17 workspaces.
+- `pnpm architecture:check` passed.
+- `pnpm smoke:test` passed.
+- `pnpm artifacts:check` passed.
+
+Remaining from this pass:
+
+- Add manual requeue controls for exhausted sweep rows.
+- Add automated alerts for exhausted `SWEEP_FAILED`/`SWEEP_BLOCKED` deposits and reconciliation drift.
+- Validate Solana sweep with a live Privy server wallet before real funds.
+
+### 2026-09-16: Deposit Sweep Retry Scheduling Pass
+
+Implemented by current agent:
+
+- Added retry metadata to Prisma `Deposit`: `sweepAttemptCount` and `nextSweepAttemptAt`.
+- Added an index for due sweep work: `[sweepStatus, nextSweepAttemptAt]`.
+- Updated sweep status transitions to schedule retry delays for `SWEEP_FAILED` and `SWEEP_BLOCKED`.
+- Added `ChainDepositProcessor.processSweepRetries()` to claim due sweep rows with `FOR UPDATE SKIP LOCKED`.
+- Worker now runs sweep retries every 60 seconds and once on startup.
+- Retry attempts are capped at four worker claims so persistent failures remain visible for operators.
+
+Verification run:
+
+- `pnpm --filter @kudi/worker lint` passed.
+- `pnpm --filter @kudi/database lint` passed.
+- `pnpm typecheck` passed across 17 workspaces.
+- `pnpm architecture:check` passed.
+- `pnpm smoke:test` passed.
+- `pnpm artifacts:check` passed.
+
+Remaining from this pass:
+
+- Add admin/manual controls to inspect and requeue exhausted sweep retries.
+- Add alerts when deposits remain `SWEEP_FAILED` or `SWEEP_BLOCKED` after retry exhaustion.
+- Validate Solana sweep with a live Privy server wallet before real funds.
+
+### 2026-09-16: Server-Custody Solana Sweep Enablement Pass
+
+Implemented by current agent:
+
+- Updated `SelfCustodyProvider` to read production credentials and chain config from environment by default.
+- Extended Solana `sendCrypto` support with an optional `fromAddress`, so the signing/source owner can be a server-custody deposit wallet instead of only the treasury wallet.
+- Updated the Solana SPL transaction builder to derive source ATA and fee payer from the signing wallet.
+- Enabled worker Solana sweeps for `SERVER_CUSTODY` wallets with a persisted Privy wallet ID.
+- Worker now waits for sweep transaction confirmation before marking deposits `SWEPT`; timeout/errors become `SWEEP_FAILED`.
+- Rebuilt `@kudi/chains` declarations so downstream workspace packages see the new `fromAddress` option.
+
+Verification run:
+
+- `pnpm --filter @kudi/chains build` passed.
+- `pnpm --filter @kudi/chains lint` passed.
+- `pnpm --filter @kudi/worker lint` passed.
+- `pnpm typecheck` passed across 17 workspaces.
+- `pnpm architecture:check` passed.
+- `pnpm smoke:test` passed.
+- `pnpm artifacts:check` passed.
+
+Remaining from this pass:
+
+- Validate the Solana sweep path against a live Privy server wallet on devnet/mainnet before real funds.
+- Add retry scheduling for `SWEEP_FAILED` deposits instead of waiting for a future rescan/manual action.
+- Compare `ReconciliationSnapshot` values against real Solana/EVM treasury balances and alert on drift.
+
+### 2026-09-16: First-Class Spend Limit Accounting Pass
+
+Implemented by current agent:
+
+- Added Prisma `SpendLimitWindow` and `SpendLimitEntry` models.
+- Updated `LedgerService.debitBalanceAtomic` to lock a per-user/day spend window before checking cumulative daily spend.
+- Daily limit usage is now recorded in `SpendLimitEntry` inside the same transaction as the balance debit and ledger entry.
+- Added `LedgerService.releaseSpendLimitEntry` for reversal-aware limit release.
+- Bank payout provider failure now releases the original daily-limit entry before restoring balance.
+- Spend sources are labeled as `BANK_PAYOUT`, `INTER_APP_TRANSFER`, `BILL_PAYMENT`, and `ONCHAIN_SEND`.
+
+Verification run:
+
+- `pnpm --filter @kudi/api lint` passed.
+- `pnpm --filter @kudi/database lint` passed.
+- `pnpm typecheck` passed across 17 workspaces.
+- `pnpm architecture:check` passed.
+- `pnpm smoke:test` passed.
+- `pnpm artifacts:check` passed.
+
+Remaining from this pass:
+
+- Add admin-configurable tier limits instead of hard-coded constants.
+- Release spend-limit entries for any future async reversal paths beyond bank payout provider failure.
+- Migrate money columns from `Float` to `Decimal`.
+
+### 2026-09-16: Cumulative Daily Spend Limit Pass
+
+Implemented by current agent:
+
+- Added shared daily limit helpers in `apps/api/src/utils/dailyLimits.ts`.
+- Moved daily limit enforcement into `LedgerService.debitBalanceAtomic`, where the user balance row is locked before checking cumulative spend.
+- Bank payout, inter-app transfer, bill payment, and on-chain send now pass daily-limit checks into the atomic debit path.
+- Unverified users now correctly fail spend attempts against a `0` NGN limit instead of bypassing the old one-transaction check.
+- Balance responses now read daily limit values from the centralized helper.
+
+Verification run:
+
+- `pnpm --filter @kudi/api lint` passed.
+- `pnpm --filter @kudi/database lint` passed.
+- `pnpm typecheck` passed across 17 workspaces.
+- `pnpm architecture:check` passed.
+- `pnpm smoke:test` passed.
+- `pnpm artifacts:check` passed.
+
+Remaining from this pass:
+
+- Add first-class spend-window tables or columns instead of deriving NGN totals from ledger metadata.
+- Make daily limits reversal-aware so provider-failed bank payouts do not consume a user's limit forever.
+- Add admin-configurable limits rather than hard-coded tier caps.
+
+### 2026-09-16: Reconciliation Snapshot and Stale Withdrawal Watchdog Pass
+
+Implemented by current agent:
+
+- Added Prisma `ReconciliationSnapshot` model for liability, sweep exposure, float exposure, unsupported sweep, and in-flight withdrawal rollups.
+- Added worker reconciliation processor that snapshots `BalanceAccount`, `Deposit`, and `Withdrawal` aggregates every five minutes.
+- Added a withdrawal watchdog that returns stale no-tx `PROCESSING` withdrawals to `PENDING` so worker crashes before broadcast do not strand rows forever.
+- Wired both jobs into the worker startup loop and initial boot pass.
+
+Verification run:
+
+- `pnpm --filter @kudi/worker lint` passed.
+- `pnpm --filter @kudi/database lint` passed.
+- `pnpm typecheck` passed across 17 workspaces.
+- `pnpm architecture:check` passed.
+- `pnpm smoke:test` passed.
+- `pnpm artifacts:check` passed.
+
+Remaining from this pass:
+
+- Add external treasury balance comparison and alerting against these snapshots.
+- Add recovery/confirmation handling for stale rows that already have a tx hash.
+- Migrate money columns from `Float` to `Decimal`.
 
 ### 2026-09-16: Chain-Aware Sweep Metadata and EVM Sweep Pass
 

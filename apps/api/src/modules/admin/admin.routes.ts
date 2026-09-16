@@ -10,6 +10,14 @@ export async function adminRoutes(server: FastifyInstance, controller: AdminCont
   server.post('/api/admin/rate-override', { preHandler: requireAdmin }, controller.overrideRate);
   server.get(apiRoutes.admin.config, { preHandler: requireAdmin }, controller.getConfig);
   server.get('/api/admin/config', { preHandler: requireAdmin }, controller.getConfig);
+  server.get('/api/v1/admin/deposits', { preHandler: requireAdmin }, controller.getDeposits);
+  server.get('/api/admin/deposits', { preHandler: requireAdmin }, controller.getDeposits);
+  server.get('/api/v1/admin/sweeps/health', { preHandler: requireAdmin }, controller.getSweepHealth);
+  server.get('/api/admin/sweeps/health', { preHandler: requireAdmin }, controller.getSweepHealth);
+  server.get('/api/v1/admin/operator-alerts', { preHandler: requireAdmin }, controller.getOperatorAlerts);
+  server.get('/api/admin/operator-alerts', { preHandler: requireAdmin }, controller.getOperatorAlerts);
+  server.post('/api/v1/admin/sweeps/:signature/requeue', { preHandler: requireAdmin }, controller.requeueSweep);
+  server.post('/api/admin/sweeps/:signature/requeue', { preHandler: requireAdmin }, controller.requeueSweep);
   server.post(apiRoutes.admin.setActiveProvider, { preHandler: requireAdmin }, controller.setActiveProvider);
   server.post('/api/admin/set-active-provider', { preHandler: requireAdmin }, controller.setActiveProvider);
   server.get(apiRoutes.admin.exportReconciliationCsv, { preHandler: requireAdmin }, controller.exportReconciliationCSV);

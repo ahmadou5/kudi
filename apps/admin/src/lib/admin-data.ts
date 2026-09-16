@@ -62,6 +62,12 @@ export type AdminDeposit = {
   amount: number;
   confirmations: number;
   status: 'CONFIRMED' | 'PENDING';
+  sweepStatus?: string;
+  sweepTxHash?: string | null;
+  sweepError?: string | null;
+  sweepAttemptCount?: number;
+  nextSweepAttemptAt?: string | null;
+  sweptAt?: string | null;
   createdAt: string;
 };
 
@@ -109,6 +115,19 @@ export type AdminChainItem = {
   rpcUrl: string;
   contractAddress: string;
   confirmationThreshold: number;
+};
+
+
+export type OperatorAlert = {
+  id: string;
+  type: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  status: string;
+  title: string;
+  body: string;
+  reference?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
 };
 
 export type AdminNotification = {
@@ -295,6 +314,8 @@ const fallbackDeposits: AdminDeposit[] = [
     amount: 150.0,
     confirmations: 24,
     status: 'CONFIRMED',
+    sweepStatus: 'SWEPT',
+    sweepAttemptCount: 1,
     createdAt: '2026-09-12 02:30:00'
   },
   {
@@ -307,6 +328,10 @@ const fallbackDeposits: AdminDeposit[] = [
     amount: 500.0,
     confirmations: 32,
     status: 'CONFIRMED',
+    sweepStatus: 'SWEEP_FAILED',
+    sweepError: 'Privy RPC timeout awaiting signature',
+    sweepAttemptCount: 4,
+    nextSweepAttemptAt: '2026-09-12 02:05:12',
     createdAt: '2026-09-12 01:50:12'
   },
   {
@@ -637,6 +662,22 @@ export async function loadDeposits(): Promise<AdminDeposit[]> {
   return adminFetch<AdminDeposit[]>('/deposits', fallbackDeposits);
 }
 
+export async function requeueSweep(signature: string): Promise<boolean> {
+  try {
+    const token = getAuthToken();
+    const response = await fetch(`${apiUrl}/api/v1/admin/sweeps/${encodeURIComponent(signature)}/requeue`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function loadKycQueue(): Promise<AdminKycQueueItem[]> {
   return adminFetch<AdminKycQueueItem[]>('/kyc', fallbackKycQueue);
 }
@@ -651,6 +692,11 @@ export async function loadRateEngineState(): Promise<AdminRateState> {
 
 export async function loadChainConfigs(): Promise<AdminChainItem[]> {
   return adminFetch<AdminChainItem[]>('/chains', fallbackChains);
+}
+
+
+export async function loadOperatorAlerts(): Promise<OperatorAlert[]> {
+  return adminFetch<OperatorAlert[]>('/operator-alerts', []);
 }
 
 export async function loadNotifications(): Promise<AdminNotification[]> {

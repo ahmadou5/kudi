@@ -76,6 +76,25 @@ async function claimPendingWithdrawals(): Promise<PendingWithdrawalRow[]> {
   }));
 }
 
+export async function recoverStaleProcessingWithdrawals(staleAfterMinutes = 5): Promise<number> {
+  const recovered = await prisma.$executeRaw`
+    UPDATE "Withdrawal"
+    SET status = 'PENDING',
+        "nextAttemptAt" = NOW(),
+        "failureReason" = 'Recovered stale PROCESSING withdrawal with no tx hash',
+        "updatedAt" = NOW()
+    WHERE status = 'PROCESSING'
+      AND "txHash" IS NULL
+      AND "updatedAt" < NOW() - (${staleAfterMinutes} * INTERVAL '1 minute')
+  `;
+
+  if (recovered > 0) {
+    console.warn(`[Worker CryptoWithdrawalProcessor] Recovered ${recovered} stale PROCESSING withdrawal(s).`);
+  }
+
+  return recovered;
+}
+
 async function markWithdrawal(reference: string, status: WithdrawalStatus, update: { txHash?: string; failureReason?: string; nextAttemptSeconds?: number } = {}): Promise<void> {
   await prisma.$executeRaw`
     UPDATE "Withdrawal"
