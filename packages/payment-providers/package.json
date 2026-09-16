@@ -14,7 +14,8 @@
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "build:runtime": "tsup src/index.ts --format cjs,esm"
   },
   "dependencies": {
     "@kudi/types": "workspace:*"

@@ -15,9 +15,9 @@
     "postinstall": "prisma generate",
     "build": "prisma generate && tsup src/index.ts --format cjs,esm --dts",
     "db:generate": "prisma generate",
-
     "db:push": "prisma db push",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "build:runtime": "prisma generate && tsup src/index.ts --format cjs,esm"
   },
   "dependencies": {
     "@prisma/client": "^5.10.2",
