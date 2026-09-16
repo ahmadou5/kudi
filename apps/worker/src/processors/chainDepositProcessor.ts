@@ -342,7 +342,7 @@ export class ChainDepositProcessor {
               blockNumber: params.blockNumber,
               title: `${params.tokenSymbol} Deposit`,
               subtitle: `${params.chain.toUpperCase()} Network`
-            })},
+            })}::jsonb,
             NOW()
           )
           ON CONFLICT (type, "referenceId") DO NOTHING
