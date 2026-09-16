@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import dotenv from 'dotenv';
 import { CustodyManager } from '@kudi/chains';
 import { PaymentProviderRegistry } from '@kudi/payment-providers';
+import { apiConfig } from '@kudi/config';
 import corsPlugin from './plugins/cors';
 import helmetPlugin from './plugins/helmet';
 import compressPlugin from './plugins/compress';
@@ -15,7 +16,6 @@ import { RateService } from './services/rateService';
 import { LedgerService } from './services/ledgerService';
 import { DepositService } from './services/depositService';
 import { SweepService } from './services/sweepService';
-import { processCryptoWithdrawals } from './services/cryptoWithdrawalProcessor';
 
 import { HealthController } from './modules/health/health.controller';
 import { healthRoutes } from './modules/health/health.routes';
@@ -49,7 +49,7 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 dotenv.config();
 
 // Initialize Sentry error monitoring & performance profiling
-initSentry();
+initSentry(apiConfig);
 
 const server = Fastify({ logger: true });
 
@@ -77,8 +77,28 @@ io.on('connection', (socket: Socket) => {
 });
 
 // Core shared infrastructure services
-const custodyManager = new CustodyManager();
-const paymentRegistry = new PaymentProviderRegistry();
+const custodyManager = new CustodyManager({
+  privyAppId: apiConfig.PRIVY_APP_ID,
+  privyAppSecret: apiConfig.PRIVY_APP_SECRET,
+  defaultRpcUrl: apiConfig.MONAD_RPC_URL,
+  solanaRpcUrl: apiConfig.SOLANA_RPC_URL,
+  partnerApiKey: apiConfig.VASP_PARTNER_API_KEY,
+  partnerApiUrl: apiConfig.VASP_PARTNER_API_URL,
+  solanaUsdcMintAddress: apiConfig.USDC_MINT_ADDRESS,
+  solanaTreasuryAddress: apiConfig.KUDI_TREASURY_SOLANA_ADDRESS,
+  solanaCaip2: apiConfig.SOLANA_CAIP2,
+  ausdTokenAddress: apiConfig.AUSD_TOKEN_ADDRESS,
+  monadChainId: apiConfig.MONAD_CHAIN_ID
+});
+const paymentRegistry = new PaymentProviderRegistry({
+  paystackSecretKey: apiConfig.PAYSTACK_SECRET_KEY,
+  monnifyApiKey: apiConfig.MONNIFY_API_KEY,
+  monnifySecretKey: apiConfig.MONNIFY_SECRET_KEY,
+  monnifyBaseUrl: apiConfig.MONNIFY_BASE_URL,
+  monnifySourceAccountNumber: apiConfig.MONNIFY_SOURCE_ACCOUNT,
+  squadSecretKey: apiConfig.SQUAD_SECRET_KEY,
+  squadBaseUrl: apiConfig.SQUAD_BASE_URL
+});
 const rateService = new RateService();
 const ledgerService = new LedgerService();
 const depositService = new DepositService(ledgerService, io);
@@ -134,15 +154,12 @@ async function main() {
     });
   });
 
-  const port = process.env.PORT ? parseInt(process.env.PORT) : 4000;
+  const port = apiConfig.PORT;
   await server.listen({ port, host: '0.0.0.0' });
 
   rateService.onRateUpdate((rateState) => {
     io.emit('rate:updated', rateState);
   });
-  rateService.startPolling(30_000);
-  depositService.startPolling(3_000);
-  setInterval(() => processCryptoWithdrawals(ledgerService), 5000);
 
   console.log(`🚀 Kudi API server running on http://localhost:${port}`);
 }

@@ -1,4 +1,4 @@
-import '../../lib/polyfills';
+import '../../src/lib/polyfills';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet,
@@ -13,9 +13,9 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Wifi, ArrowLeft, AlertCircle, Mail, XCircle, ArrowRight, CheckCircle2 } from 'lucide-react-native';
-import { Typography } from '../../constants/typography';
-import { useAppPalette } from '../../lib/theme';
-import { useAuthStore, AuthState } from '../../store/auth.store';
+import { Typography } from '../../src/constants/typography';
+import { useAppPalette } from '../../src/lib/theme';
+import { useAuthStore, AuthState } from '../../src/store/auth.store';
 import { useLoginWithEmail } from '@privy-io/expo';
 
 function AnimatedStackedCards() {

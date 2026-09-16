@@ -1,11 +1,11 @@
 import { FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 import fastifyJwt from '@fastify/jwt';
+import { apiConfig } from '@kudi/config';
 
 const jwtPlugin: FastifyPluginAsync = async (fastify) => {
-  const secret = process.env.JWT_SECRET || 'kudi-super-secret-jwt-key-change-in-production';
   await fastify.register(fastifyJwt, {
-    secret,
+    secret: apiConfig.JWT_SECRET || 'kudi-local-dev-jwt-secret',
   });
 };
 

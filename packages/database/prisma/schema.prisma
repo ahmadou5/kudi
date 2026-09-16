@@ -52,6 +52,8 @@ model VirtualAccount {
   currency      String   @default("NGN")
   provider      String
   createdAt     DateTime @default(now())
+
+  @@unique([provider, accountNumber])
 }
 
 model Wallet {
@@ -76,6 +78,7 @@ model LedgerEntry {
   createdAt            DateTime @default(now())
 
   @@index([userId, createdAt])
+  @@unique([type, referenceId])
 }
 
 model SpendTransaction {
@@ -149,4 +152,28 @@ model Notification {
 model ProcessedSignature {
   signature String   @id
   createdAt DateTime @default(now())
+}
+
+model ProcessedWebhook {
+  id             String   @id @default(uuid())
+  provider       String
+  eventId        String
+  idempotencyKey String   @unique
+  eventType      String?
+  payload        String?
+  createdAt      DateTime @default(now())
+
+  @@unique([provider, eventId])
+  @@index([provider, createdAt])
+}
+
+model WorkerHeartbeat {
+  id        String   @id
+  role      String
+  hostname  String?
+  pid       Int?
+  lastSeen  DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@index([role, lastSeen])
 }

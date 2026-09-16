@@ -13,9 +13,9 @@ import { router } from 'expo-router';
 import { Palette, Bell, User, ShieldCheck, Wallet, Receipt, Gauge, Lock, MessageSquare, ChevronRight, ArrowLeft, LogOut, LucideIcon } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
-import { useAppPalette, isLight } from '../../lib/theme';
-import { useAuthStore, AuthState } from '../../store/auth.store';
-import { Typography } from '../../constants/typography';
+import { useAppPalette, isLight } from '../../src/lib/theme';
+import { useAuthStore, AuthState } from '../../src/store/auth.store';
+import { Typography } from '../../src/constants/typography';
 
 type MenuItem = {
   id: string;

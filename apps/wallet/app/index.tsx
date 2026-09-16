@@ -1,10 +1,10 @@
 import React, { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
-import { useAuthStore, AuthState } from '../store/auth.store';
-import { useAppPalette } from '../lib/theme';
+import { useAuthStore, AuthState } from '../src/store/auth.store';
+import { useAppPalette } from '../src/lib/theme';
 
-import { registerPushToken } from '../lib/notifications';
+import { registerPushToken } from '../src/lib/notifications';
 
 export default function IndexScreen() {
   const palette = useAppPalette();

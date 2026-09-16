@@ -4,19 +4,43 @@ import { pollRateEngine } from './processors/ratePollerProcessor';
 import { WebhookProcessor } from './processors/webhookProcessor';
 import { processCryptoWithdrawals } from './processors/cryptoWithdrawalProcessor';
 import { EVMChainConfig, ChainType } from '@kudi/types';
+import { prisma } from '@kudi/database';
+import { workerConfig } from '@kudi/config';
 
 const monadTestnetConfig: EVMChainConfig = {
   id: 'monad-testnet',
   name: 'Monad Metropolis Testnet',
-  chainId: 10143,
+  chainId: workerConfig.MONAD_CHAIN_ID,
   type: ChainType.EVM,
-  rpcUrl: process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz',
-  tokenContractAddress: process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3',
+  rpcUrl: workerConfig.MONAD_RPC_URL,
+  tokenContractAddress: workerConfig.AUSD_TOKEN_ADDRESS,
   tokenSymbol: 'AUSD',
   tokenDecimals: 6,
   confirmationThreshold: 1,
   enabled: true
 };
+
+
+async function recordWorkerHeartbeat(): Promise<void> {
+  try {
+    await prisma.workerHeartbeat.upsert({
+      where: { id: 'kudi-background-worker' },
+      update: {
+        role: 'background-worker',
+        hostname: workerConfig.HOSTNAME,
+        pid: process.pid
+      },
+      create: {
+        id: 'kudi-background-worker',
+        role: 'background-worker',
+        hostname: workerConfig.HOSTNAME,
+        pid: process.pid
+      }
+    });
+  } catch (err: any) {
+    console.warn('[Worker] Heartbeat update failed:', err?.message || err);
+  }
+}
 
 const depositProcessor = new ChainDepositProcessor(monadTestnetConfig);
 const webhookProcessor = new WebhookProcessor();
@@ -30,5 +54,7 @@ console.log('📤 Crypto Withdrawal Processor active (polling every 5s)');
 setInterval(pollRateEngine, 10000);
 setInterval(() => depositProcessor.pollAllChains(), 15000);
 setInterval(() => processCryptoWithdrawals(), 5000);
+setInterval(recordWorkerHeartbeat, 30000);
 
 pollRateEngine();
+void recordWorkerHeartbeat();

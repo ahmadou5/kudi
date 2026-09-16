@@ -10,7 +10,7 @@ import {
   LucideIcon,
 } from 'lucide-react-native';
 import { TabType } from '../components/TabBar';
-import { Typography } from '../../constants/typography';
+import { Typography } from '../constants/typography';
 
 interface HomeScreenProps {
   onNavigate: (tab: TabType) => void;

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppPalette } from '../../lib/theme';
+import { useAppPalette } from '../../src/lib/theme';
 import { StyleSheet } from 'react-native';
 
 export default function SettingsLayout() {

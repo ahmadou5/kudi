@@ -7,7 +7,7 @@ import {
   TextInput,
   ActivityIndicator
 } from 'react-native';
-import { useAuthStore } from '../../store/auth.store';
+import { useAuthStore } from '../store/auth.store';
 
 import { KeyboardView } from '../components/ui/KeyboardView';
 

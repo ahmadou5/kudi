@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
-import { sdk } from '../src/lib/sdk';
+import { sdk } from '../lib/sdk';
 
 export interface User {
   id: string;

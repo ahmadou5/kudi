@@ -25,10 +25,12 @@
     "start:services": "turbo run start --filter=@kudi/api --filter=@kudi/worker --filter=@kudi/web --filter=@kudi/admin",
     "start:all": "turbo run start --filter=@kudi/api --filter=@kudi/worker --filter=@kudi/web --filter=@kudi/admin",
     "lint": "turbo run lint",
-
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    "typecheck": "turbo run lint",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "architecture:check": "node scripts/check-boundaries.mjs",
+    "artifacts:check": "node scripts/check-generated-artifacts.mjs"
   },
-
   "devDependencies": {
     "@types/node": "^20.11.19",
     "prettier": "^3.2.5",
@@ -39,5 +41,3 @@
     "node": "20"
   }
 }
-
-

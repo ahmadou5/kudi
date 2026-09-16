@@ -1,10 +1,11 @@
 import { FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 import fastifyRedis from '@fastify/redis';
+import { apiConfig } from '@kudi/config';
 
 const redisPlugin: FastifyPluginAsync = async (fastify) => {
-  const redisUrl = process.env.REDIS_URL;
-  const isRedisEnabled = process.env.ENABLE_REDIS === 'true';
+  const redisUrl = apiConfig.REDIS_URL;
+  const isRedisEnabled = apiConfig.ENABLE_REDIS === 'true';
 
   if (redisUrl && isRedisEnabled) {
     try {

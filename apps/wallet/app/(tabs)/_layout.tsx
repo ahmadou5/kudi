@@ -2,9 +2,9 @@ import React, { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppPalette } from '../../lib/theme';
-import { useAuthStore, AuthState } from '../../store/auth.store';
-import { FloatingTabBar } from '../../components/FloatingTabBar';
+import { useAppPalette } from '../../src/lib/theme';
+import { useAuthStore, AuthState } from '../../src/store/auth.store';
+import { FloatingTabBar } from '../../src/components/FloatingTabBar';
 
 export default function TabsLayout() {
   const palette = useAppPalette();

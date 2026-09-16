@@ -1,4 +1,4 @@
-import '../lib/polyfills';
+import '../src/lib/polyfills';
 import React, { useEffect } from 'react';
 import { View } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -8,14 +8,14 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import { useAppPalette, buildNavigationTheme, isLight } from '../lib/theme';
-import { useAuthStore, AuthState } from '../store/auth.store';
-import { usePreferencesStore, PreferencesState } from '../store/preferences.store';
-import { connectSocket, disconnectSocket } from '../lib/socket';
+import { useAppPalette, buildNavigationTheme, isLight } from '../src/lib/theme';
+import { useAuthStore, AuthState } from '../src/store/auth.store';
+import { usePreferencesStore, PreferencesState } from '../src/store/preferences.store';
+import { connectSocket, disconnectSocket } from '../src/lib/socket';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PrivyProvider } from '@privy-io/expo';
-import { AppModalProvider } from '../components/ui/AppModal';
+import { AppModalProvider } from '../src/components/ui/AppModal';
 
 // Prevent splash screen from auto-hiding until fonts are loaded (Percel pattern)
 SplashScreen.preventAutoHideAsync().catch(() => {});

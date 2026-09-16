@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, Easing } from 'react-native';
 import { Wifi, Clock } from 'lucide-react-native';
-import { useAppPalette } from '../../lib/theme';
-import { Typography } from '../../constants/typography';
+import { useAppPalette } from '../../src/lib/theme';
+import { Typography } from '../../src/constants/typography';
 
 export default function CardTab() {
   const palette = useAppPalette();

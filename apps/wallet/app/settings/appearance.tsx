@@ -9,9 +9,9 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Monitor, Sun, Moon, Check, LucideIcon } from 'lucide-react-native';
-import { useAppPalette, isLight } from '../../lib/theme';
-import { usePreferencesStore, PreferencesState, ThemeMode } from '../../store/preferences.store';
-import { Typography } from '../../constants/typography';
+import { useAppPalette, isLight } from '../../src/lib/theme';
+import { usePreferencesStore, PreferencesState, ThemeMode } from '../../src/store/preferences.store';
+import { Typography } from '../../src/constants/typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AppearanceScreen() {

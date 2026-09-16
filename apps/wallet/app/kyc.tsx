@@ -13,11 +13,11 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
-import { useAppPalette } from '../lib/theme';
-import { Typography } from '../constants/typography';
-import { useAuthStore } from '../store/auth.store';
+import { useAppPalette } from '../src/lib/theme';
+import { Typography } from '../src/constants/typography';
+import { useAuthStore } from '../src/store/auth.store';
 import { sdk } from '../src/lib/sdk';
-import { AppModal, useAppModal } from '../components/ui/AppModal';
+import { AppModal, useAppModal } from '../src/components/ui/AppModal';
 
 export default function KYCScreen() {
   const palette = useAppPalette();

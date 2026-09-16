@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { LogOut, HelpCircle } from 'lucide-react-native';
-import { useAppPalette } from '../lib/theme';
-import { useAuthStore, AuthState } from '../store/auth.store';
-import { CustomNumericKeypad } from '../components/ui/CustomNumericKeypad';
-import { AppModal, useAppModal } from '../components/ui/AppModal';
+import { useAppPalette } from '../src/lib/theme';
+import { useAuthStore, AuthState } from '../src/store/auth.store';
+import { CustomNumericKeypad } from '../src/components/ui/CustomNumericKeypad';
+import { AppModal, useAppModal } from '../src/components/ui/AppModal';
 
 export default function AuthLockScreen() {
   const palette = useAppPalette();

@@ -4,6 +4,13 @@
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
@@ -13,7 +20,8 @@
     "@kudi/types": "workspace:*",
     "@solana-program/token": "^0.16.1",
     "@solana/kit": "^8.3.0",
-    "ethers": "^6.11.1"
+    "ethers": "^6.11.1",
+    "@kudi/chains-core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.11.19",

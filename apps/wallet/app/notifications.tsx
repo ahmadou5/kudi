@@ -13,10 +13,10 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, CheckCheck, BellOff, X, ArrowDownCircle, ArrowUpCircle, ShieldCheck, Bell, Clock, LucideIcon } from 'lucide-react-native';
-import { useAppPalette, isLight } from '../lib/theme';
-import { Typography } from '../constants/typography';
+import { useAppPalette, isLight } from '../src/lib/theme';
+import { Typography } from '../src/constants/typography';
 import { API_BASE_URL } from '../src/lib/sdk';
-import { useAuthStore } from '../store/auth.store';
+import { useAuthStore } from '../src/store/auth.store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export interface AppNotification {

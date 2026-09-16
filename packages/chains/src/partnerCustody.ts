@@ -8,8 +8,8 @@ export class PartnerCustodyProvider implements CustodyProvider {
   private partnerApiUrl: string;
 
   constructor(
-    partnerApiKey: string = process.env.VASP_PARTNER_API_KEY || '',
-    partnerApiUrl: string = process.env.VASP_PARTNER_API_URL || 'https://api.busha.co/v1'
+    partnerApiKey: string = '',
+    partnerApiUrl: string = 'https://api.busha.co/v1'
   ) {
     this.partnerApiKey = partnerApiKey;
     this.partnerApiUrl = partnerApiUrl;

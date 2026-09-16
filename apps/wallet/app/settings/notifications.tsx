@@ -14,9 +14,9 @@ import {
 import { router } from 'expo-router';
 import { ArrowLeft, Bell, BellOff, Send, Info } from 'lucide-react-native';
 import * as Notifications from 'expo-notifications';
-import { useAppPalette, isLight } from '../../lib/theme';
-import { Typography } from '../../constants/typography';
-import { registerPushToken, triggerLocalTestNotification } from '../../lib/notifications';
+import { useAppPalette, isLight } from '../../src/lib/theme';
+import { Typography } from '../../src/constants/typography';
+import { registerPushToken, triggerLocalTestNotification } from '../../src/lib/notifications';
 import { API_BASE_URL } from '../../src/lib/sdk';
 
 export default function NotificationsScreen() {

@@ -13,15 +13,18 @@ export class MonnifyProvider implements PaymentProvider {
   private apiKey: string;
   private secretKey: string;
   private baseUrl: string;
+  private sourceAccountNumber: string;
 
   constructor(
-    apiKey: string = process.env.MONNIFY_API_KEY || '',
-    secretKey: string = process.env.MONNIFY_SECRET_KEY || '',
-    baseUrl: string = process.env.MONNIFY_BASE_URL || 'https://api.monnify.com'
+    apiKey: string = '',
+    secretKey: string = '',
+    baseUrl: string = 'https://api.monnify.com',
+    sourceAccountNumber: string = ''
   ) {
     this.apiKey = apiKey;
     this.secretKey = secretKey;
     this.baseUrl = baseUrl;
+    this.sourceAccountNumber = sourceAccountNumber;
   }
 
   private async getAccessToken(): Promise<string> {
@@ -98,7 +101,7 @@ export class MonnifyProvider implements PaymentProvider {
         destinationBankCode: request.bankCode,
         destinationAccountNumber: request.accountNumber,
         currency: 'NGN',
-        sourceAccountNumber: process.env.MONNIFY_SOURCE_ACCOUNT || ''
+        sourceAccountNumber: this.sourceAccountNumber
       })
     });
 

@@ -1,8 +1,18 @@
-import { PaymentProviderId } from '@kudi/types';
-
-export interface KudiClientConfig {
-  baseUrl: string;
-}
+import {
+  apiResponseSchema,
+  apiRoutes,
+  type ApiResponse,
+  type AuthenticatePrivyRequest,
+  type OverrideRateRequest,
+  type PayBillRequest,
+  type ResolveAccountRequest,
+  type SetActivePaymentProviderRequest,
+  type SpendOnChainRequest,
+  type SpendToBankRequest,
+  type SpendToUserRequest,
+  type UpdateUserProfileRequest,
+  type VerifyKycIdRequest
+} from '@kudi/api-contracts';
 
 export interface KudiClientConfig {
   baseUrl: string;
@@ -35,85 +45,84 @@ export class KudiSDK {
     return headers;
   }
 
-  async getHealth() {
-    const res = await fetch(`${this.baseUrl}/api/v1/health`);
-    return res.json();
+  private async parseJson<T = unknown>(res: Response): Promise<ApiResponse<T>> {
+    const payload = await res.json();
+    return apiResponseSchema.parse(payload) as ApiResponse<T>;
   }
 
-  async authenticatePrivy(payload: {
-    privyToken?: string;
-    privyUserId: string;
-    email?: string;
-    phoneNumber?: string;
-    name?: string;
-  }) {
-    const targetUrl = `${this.baseUrl}/api/v1/auth/privy-authenticate`;
+  async getHealth() {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.health}`);
+    return this.parseJson(res);
+  }
+
+  async authenticatePrivy(payload: AuthenticatePrivyRequest) {
+    const targetUrl = `${this.baseUrl}${apiRoutes.auth.privyAuthenticate}`;
     console.log('[Kudi SDK] Fetching Privy auth URL:', targetUrl);
     const res = await fetch(targetUrl, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
   async sendPrivyOTP(email: string) {
-    const res = await fetch(`${this.baseUrl}/api/v1/auth/privy-send-otp`, {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.auth.privySendOtp}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ email })
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
   async verifyPrivyOTP(email: string, code: string) {
-    const res = await fetch(`${this.baseUrl}/api/v1/auth/privy-verify-otp`, {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.auth.privyVerifyOtp}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ email, code })
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
   async refreshToken(refreshToken: string) {
-    const res = await fetch(`${this.baseUrl}/api/v1/auth/refresh`, {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.auth.refresh}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ refreshToken })
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
   async registerUser(phoneNumber: string, email: string) {
-    const res = await fetch(`${this.baseUrl}/api/v1/users/register`, {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.users.register}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ phoneNumber, email })
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
   async getUserProfile(userId: string) {
-    const res = await fetch(`${this.baseUrl}/api/v1/users/${userId}`, {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.users.byId(userId)}`, {
       headers: this.getHeaders()
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
-  async updateUserProfile(userId: string, payload: { fullName?: string; username?: string; avatarUrl?: string }) {
-    const res = await fetch(`${this.baseUrl}/api/v1/users/${userId}`, {
+  async updateUserProfile(userId: string, payload: UpdateUserProfileRequest) {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.users.byId(userId)}`, {
       method: 'PATCH',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
   async getBalance(userId: string) {
-    const res = await fetch(`${this.baseUrl}/api/v1/users/${userId}/balance`, {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.users.balance(userId)}`, {
       headers: this.getHeaders()
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
   async getTransactions(userId: string, options: { limit?: number; offset?: number; type?: string } = {}) {
@@ -123,118 +132,92 @@ export class KudiSDK {
     if (options.type) params.append('type', options.type);
     const queryString = params.toString() ? `?${params.toString()}` : '';
 
-    const res = await fetch(`${this.baseUrl}/api/v1/users/${userId}/transactions${queryString}`, {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.users.transactions(userId)}${queryString}`, {
       headers: this.getHeaders()
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
   async getVirtualAccounts(userId: string) {
-    const res = await fetch(`${this.baseUrl}/api/v1/users/${userId}/virtual-accounts`, {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.users.virtualAccounts(userId)}`, {
       headers: this.getHeaders()
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
-  async verifyKYCID(payload: {
-    userId: string;
-    idNumber: string;
-    idType: 'BVN' | 'NIN';
-    firstName: string;
-    lastName: string;
-    dob: string;
-  }) {
-    const res = await fetch(`${this.baseUrl}/api/v1/kyc/verify-id`, {
+  async verifyKYCID(payload: VerifyKycIdRequest) {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.kyc.verifyId}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
   async setPin(userId: string, pin: string) {
-    const res = await fetch(`${this.baseUrl}/api/v1/users/set-pin`, {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.users.setPin}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ userId, pin })
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
   async verifyPin(userId: string, pin: string) {
-    const res = await fetch(`${this.baseUrl}/api/v1/auth/pin/verify`, {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.auth.verifyPin}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ userId, pin })
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
   async getCurrentRates() {
-    const res = await fetch(`${this.baseUrl}/api/v1/rates/current`);
-    return res.json();
+    const res = await fetch(`${this.baseUrl}${apiRoutes.rates.current}`);
+    return this.parseJson(res);
   }
 
   async getSupportedBanks() {
-    const res = await fetch(`${this.baseUrl}/api/v1/payout/banks`, {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.payout.banks}`, {
       headers: this.getHeaders()
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
-  async resolveAccount(accountNumber: string, bankCode: string) {
-    const res = await fetch(`${this.baseUrl}/api/v1/payout/resolve-account`, {
+  async resolveAccount(accountNumber: ResolveAccountRequest['accountNumber'], bankCode: ResolveAccountRequest['bankCode']) {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.payout.resolveAccount}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ accountNumber, bankCode })
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
-  async spendToBank(payload: {
-    userId: string;
-    pin?: string;
-    amountUSDC: number;
-    bankCode: string;
-    accountNumber: string;
-    accountName: string;
-    narration?: string;
-  }) {
-    const res = await fetch(`${this.baseUrl}/api/v1/payout/spend`, {
+  async spendToBank(payload: SpendToBankRequest) {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.payout.spend}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
-  async spendToUser(payload: {
-    fromUserId: string;
-    toHandle: string;
-    amountUSDC: number;
-    pin?: string;
-  }) {
-    const res = await fetch(`${this.baseUrl}/api/v1/payout/spend-user`, {
+  async spendToUser(payload: SpendToUserRequest) {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.payout.spendUser}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
-  async spendOnChain(payload: {
-    userId: string;
-    pin?: string;
-    amountUSDC: number;
-    toAddress: string;
-    chain: 'solana' | 'monad';
-  }) {
-    const res = await fetch(`${this.baseUrl}/api/v1/payout/spend-onchain`, {
+  async spendOnChain(payload: SpendOnChainRequest) {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.payout.spendOnChain}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
   /**
@@ -242,19 +225,13 @@ export class KudiSDK {
    * Returns a reference and PENDING status immediately.
    * Poll getCryptoWithdrawalStatus() to track PENDING → BROADCAST → CONFIRMED.
    */
-  async sendCrypto(payload: {
-    userId: string;
-    pin?: string;
-    amountUSDC: number;
-    toAddress: string;
-    chain: 'solana' | 'monad';
-  }) {
-    const res = await fetch(`${this.baseUrl}/api/v1/payout/spend-onchain`, {
+  async sendCrypto(payload: SpendOnChainRequest) {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.payout.spendOnChain}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
   /**
@@ -262,65 +239,59 @@ export class KudiSDK {
    * Status lifecycle: PENDING → BROADCAST → CONFIRMED | FAILED
    */
   async getCryptoWithdrawalStatus(reference: string) {
-    const res = await fetch(`${this.baseUrl}/api/v1/payout/crypto-status/${reference}`, {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.payout.cryptoStatus(reference)}`, {
       headers: this.getHeaders()
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
 
-  async overrideRate(newRateNGN: number) {
-    const res = await fetch(`${this.baseUrl}/api/v1/admin/rate-override`, {
+  async overrideRate(newRateNGN: OverrideRateRequest['newRateNGN']) {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.admin.rateOverride}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ newRateNGN })
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
   async getReceiptHTML(reference: string): Promise<string> {
-    const res = await fetch(`${this.baseUrl}/api/v1/payout/receipt/${reference}`, {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.payout.receipt(reference)}`, {
       headers: this.getHeaders()
     });
     return res.text();
   }
 
-  async payBill(payload: {
-    userId: string;
-    billType: 'AIRTIME' | 'ELECTRICITY' | 'DATA';
-    billerName: string;
-    recipientIdentifier: string;
-    amountNGN: number;
-  }) {
-    const res = await fetch(`${this.baseUrl}/api/v1/bills/pay`, {
+  async payBill(payload: PayBillRequest) {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.bills.pay}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
   async exportAuditCSV(): Promise<string> {
-    const res = await fetch(`${this.baseUrl}/api/v1/admin/reconciliation/export-csv`, {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.admin.exportReconciliationCsv}`, {
       headers: this.getHeaders()
     });
     return res.text();
   }
 
   async getAdminConfig() {
-    const res = await fetch(`${this.baseUrl}/api/v1/admin/config`, {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.admin.config}`, {
       headers: this.getHeaders()
     });
-    return res.json();
+    return this.parseJson(res);
   }
 
-  async setActivePaymentProvider(providerId: PaymentProviderId) {
-    const res = await fetch(`${this.baseUrl}/api/v1/admin/set-active-provider`, {
+  async setActivePaymentProvider(providerId: SetActivePaymentProviderRequest['providerId']) {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.admin.setActiveProvider}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ providerId })
     });
-    return res.json();
+    return this.parseJson(res);
   }
 }
 

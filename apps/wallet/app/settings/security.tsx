@@ -11,10 +11,10 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, KeyRound, ChevronRight, Key } from 'lucide-react-native';
-import { useAppPalette, isLight } from '../../lib/theme';
-import { usePreferencesStore, PreferencesState } from '../../store/preferences.store';
-import { Typography } from '../../constants/typography';
-import { AppModal, useAppModal } from '../../components/ui/AppModal';
+import { useAppPalette, isLight } from '../../src/lib/theme';
+import { usePreferencesStore, PreferencesState } from '../../src/store/preferences.store';
+import { Typography } from '../../src/constants/typography';
+import { AppModal, useAppModal } from '../../src/components/ui/AppModal';
 
 export default function SecurityScreen() {
   const palette = useAppPalette();

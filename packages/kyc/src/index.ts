@@ -61,9 +61,9 @@ export class BVNAndBankKYCProvider {
   private paystackSecretKey: string;
 
   constructor(
-    dojahApiKey: string = process.env.DOJAH_API_KEY || '',
-    dojahAppId: string = process.env.DOJAH_APP_ID || '',
-    paystackSecretKey: string = process.env.PAYSTACK_SECRET_KEY || ''
+    dojahApiKey: string = '',
+    dojahAppId: string = '',
+    paystackSecretKey: string = ''
   ) {
     this.dojahApiKey = dojahApiKey;
     this.dojahAppId = dojahAppId;

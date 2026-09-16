@@ -1,9 +1,9 @@
 import React from 'react';
 import { StyleSheet, Text, View, ScrollView, RefreshControl } from 'react-native';
 import { Receipt } from 'lucide-react-native';
-import { useAppPalette } from '../../lib/theme';
-import { Typography } from '../../constants/typography';
-import { TransactionCard, TransactionData } from '../../components/TransactionCard';
+import { useAppPalette } from '../../src/lib/theme';
+import { Typography } from '../../src/constants/typography';
+import { TransactionCard, TransactionData } from '../../src/components/TransactionCard';
 import { useTransactions } from '../../src/hooks/useTransactions';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
 

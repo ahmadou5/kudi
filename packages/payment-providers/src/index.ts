@@ -7,6 +7,16 @@ export * from './paystack';
 export * from './monnify';
 export * from './squad';
 
+export interface PaymentProviderRegistryConfig {
+  paystackSecretKey?: string;
+  monnifyApiKey?: string;
+  monnifySecretKey?: string;
+  monnifyBaseUrl?: string;
+  monnifySourceAccountNumber?: string;
+  squadSecretKey?: string;
+  squadBaseUrl?: string;
+}
+
 export class PaymentProviderRegistry {
   private providers: Map<PaymentProviderId, PaymentProvider> = new Map();
   private activeProviderId: PaymentProviderId = PaymentProviderId.PAYSTACK;
@@ -16,11 +26,10 @@ export class PaymentProviderRegistry {
     PaymentProviderId.SQUAD
   ];
 
-  constructor() {
-    // Instantiate default providers
-    this.registerProvider(new PaystackProvider());
-    this.registerProvider(new MonnifyProvider());
-    this.registerProvider(new SquadProvider());
+  constructor(config: PaymentProviderRegistryConfig = {}) {
+    this.registerProvider(new PaystackProvider(config.paystackSecretKey));
+    this.registerProvider(new MonnifyProvider(config.monnifyApiKey, config.monnifySecretKey, config.monnifyBaseUrl, config.monnifySourceAccountNumber));
+    this.registerProvider(new SquadProvider(config.squadSecretKey, config.squadBaseUrl));
   }
 
   public registerProvider(provider: PaymentProvider): void {

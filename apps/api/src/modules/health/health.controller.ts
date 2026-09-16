@@ -1,6 +1,7 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { CustodyManager } from '@kudi/chains';
 import { PaymentProviderRegistry } from '@kudi/payment-providers';
+import { apiConfig } from '@kudi/config';
 
 export class HealthController {
   constructor(
@@ -14,7 +15,7 @@ export class HealthController {
       service: 'kudi-api',
       custodyTrack: this.custodyManager.getActiveTrack(),
       activePaymentProvider: this.paymentRegistry.getActiveProviderId(),
-      sentryEnabled: Boolean(process.env.SENTRY_DSN),
+      sentryEnabled: Boolean(apiConfig.SENTRY_DSN),
       timestamp: new Date().toISOString(),
     });
   };

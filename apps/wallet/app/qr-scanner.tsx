@@ -15,9 +15,9 @@ import { ArrowLeft, Camera, Zap, ZapOff, Image as ImageIcon, Clipboard as Clipbo
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as Clipboard from 'expo-clipboard';
-import { Typography } from '../constants/typography';
-import { useAppPalette } from '../lib/theme';
-import { AppModal, useAppModal } from '../components/ui/AppModal';
+import { Typography } from '../src/constants/typography';
+import { useAppPalette } from '../src/lib/theme';
+import { AppModal, useAppModal } from '../src/components/ui/AppModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const VIEWFINDER_SIZE = Math.min(260, SCREEN_WIDTH * 0.75);

@@ -10,13 +10,13 @@ import {
 } from 'react-native';
 import { ChevronRight, QrCode, Copy, Zap, ArrowDownCircle, ShieldCheck, AlertTriangle, Clock, ArrowLeft, RotateCw } from 'lucide-react-native';
 import { router } from 'expo-router';
-import { useAppPalette } from '../../lib/theme';
-import { Typography } from '../../constants/typography';
-import { AppModal, useAppModal } from '../../components/ui/AppModal';
-import { ChainLogo } from '../../components/ui/ChainLogo';
+import { useAppPalette } from '../../src/lib/theme';
+import { Typography } from '../../src/constants/typography';
+import { AppModal, useAppModal } from '../../src/components/ui/AppModal';
+import { ChainLogo } from '../../src/components/ui/ChainLogo';
 import * as Clipboard from 'expo-clipboard';
 import { useVirtualAccounts } from '../../src/hooks/useVirtualAccounts';
-import { useAuthStore } from '../../store/auth.store';
+import { useAuthStore } from '../../src/store/auth.store';
 import { API_BASE_URL } from '../../src/lib/sdk';
 
 // ─── Types ────────────────────────────────────────────────────────────────────

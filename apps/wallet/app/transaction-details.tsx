@@ -20,9 +20,9 @@ import {
   CheckCircle2,
   ExternalLink
 } from 'lucide-react-native';
-import { useAppPalette } from '../lib/theme';
-import { Typography } from '../constants/typography';
-import { ChainLogo } from '../components/ui/ChainLogo';
+import { useAppPalette } from '../src/lib/theme';
+import { Typography } from '../src/constants/typography';
+import { ChainLogo } from '../src/components/ui/ChainLogo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TransactionDetailsScreen() {

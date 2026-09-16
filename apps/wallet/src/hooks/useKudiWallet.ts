@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TabType } from '../components/TabBar';
-import { useAuthStore } from '../../store/auth.store';
+import { useAuthStore } from '../store/auth.store';
 import { sdk, API_BASE_URL } from '../lib/sdk';
-import { socket } from '../../lib/socket';
+import { socket } from '../lib/socket';
 
 export type CryptoWithdrawalStatus = 'PENDING' | 'BROADCAST' | 'CONFIRMED' | 'FAILED' | 'CANCELLED';
 
@@ -37,7 +37,7 @@ export function useKudiWallet() {
     if (!userId) return;
 
     // Register Expo Push Token on app launch / login
-    import('../../lib/notifications').then(({ registerPushToken }) => {
+    import('../lib/notifications').then(({ registerPushToken }) => {
       registerPushToken(userId).catch(err => console.warn('[PushToken] Registration error:', err));
     });
 
@@ -68,7 +68,7 @@ export function useKudiWallet() {
         });
 
         // Trigger top-of-screen local push banner when app is in foreground
-        import('../../lib/notifications').then(({ triggerLocalTestNotification }) => {
+        import('../lib/notifications').then(({ triggerLocalTestNotification }) => {
           triggerLocalTestNotification(
             'Deposit Received! 💰',
             `+${Number(data.amountUSDC).toFixed(2)} ${data.chain === 'monad' ? 'AUSD' : 'USDC'} landed on ${chainTitle}. Balance updated.`

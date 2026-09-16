@@ -12,7 +12,7 @@ export class PaystackProvider implements PaymentProvider {
 
   private secretKey: string;
 
-  constructor(secretKey: string = process.env.PAYSTACK_SECRET_KEY || '') {
+  constructor(secretKey: string = '') {
     this.secretKey = secretKey;
   }
 

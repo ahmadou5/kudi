@@ -10,8 +10,8 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, MessageCircle, Mail, ExternalLink, ChevronUp, ChevronDown, Heart } from 'lucide-react-native';
-import { useAppPalette, isLight } from '../../lib/theme';
-import { Typography } from '../../constants/typography';
+import { useAppPalette, isLight } from '../../src/lib/theme';
+import { Typography } from '../../src/constants/typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function HelpSupportScreen() {

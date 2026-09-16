@@ -27,33 +27,48 @@ export class SelfCustodyProvider implements CustodyProvider {
   private privyAppSecret: string;
   private defaultRpcUrl: string;
   private solanaRpcUrl: string;
+  private solanaUsdcMintAddress: string;
+  private solanaTreasuryAddress: string;
+  private solanaCaip2: string;
+  private ausdTokenAddress: string;
+  private monadChainId: number;
 
   private get appId(): string {
-    return this.privyAppId || process.env.PRIVY_APP_ID || process.env.EXPO_PUBLIC_PRIVY_APP_ID || process.env.NEXT_PUBLIC_PRIVY_APP_ID || '';
+    return this.privyAppId;
   }
 
   private get appSecret(): string {
-    return this.privyAppSecret || process.env.PRIVY_APP_SECRET || process.env.PRIVY_SECRET || process.env.PRIVY_SECRET_KEY || '';
+    return this.privyAppSecret;
   }
 
   private get rpcUrlSolana(): string {
-    return this.solanaRpcUrl || process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+    return this.solanaRpcUrl || 'https://api.devnet.solana.com';
   }
 
   private get rpcUrlDefault(): string {
-    return this.defaultRpcUrl || process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz';
+    return this.defaultRpcUrl || 'https://testnet-rpc.monad.xyz';
   }
 
   constructor(
     privyAppId = '',
     privyAppSecret = '',
     defaultRpcUrl = '',
-    solanaRpcUrl = ''
+    solanaRpcUrl = '',
+    solanaUsdcMintAddress = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+    solanaTreasuryAddress = '',
+    solanaCaip2 = 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
+    ausdTokenAddress = '0x534b2f3A21130d7a60830c2Df862319e593943A3',
+    monadChainId = 10143
   ) {
     this.privyAppId = privyAppId;
     this.privyAppSecret = privyAppSecret;
     this.defaultRpcUrl = defaultRpcUrl;
     this.solanaRpcUrl = solanaRpcUrl;
+    this.solanaUsdcMintAddress = solanaUsdcMintAddress;
+    this.solanaTreasuryAddress = solanaTreasuryAddress;
+    this.solanaCaip2 = solanaCaip2;
+    this.ausdTokenAddress = ausdTokenAddress;
+    this.monadChainId = monadChainId;
   }
 
   async generateWallet(userId: string, chain: string): Promise<DepositWallet> {
@@ -386,17 +401,13 @@ export class SelfCustodyProvider implements CustodyProvider {
     if (isSolana) {
       // Solana: Build a real SPL USDC transfer via @solana/kit (v2 — no rpc-websockets dep)
       // Uses functional transaction message API, then passes unsigned wire-format tx to Privy.
-      const mintAddr = usdcMintAddress || process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
+      const mintAddr = usdcMintAddress || this.solanaUsdcMintAddress;
       const USDC_DECIMALS = 6; // USDC always has 6 decimals
 
-      const treasuryAddrStr =
-        process.env.KUDI_TREASURY_SOLANA_ADDRESS ||
-        process.env.PRIVY_TREASURY_SOLANA_ADDRESS ||
-        process.env.SOLANA_TREASURY_ADDRESS ||
-        process.env.TREASURY_SOLANA_ADDRESS || '';
+      const treasuryAddrStr = this.solanaTreasuryAddress;
 
       if (!treasuryAddrStr) {
-        throw new Error('KUDI_TREASURY_SOLANA_ADDRESS env var is not set. Cannot build Solana transaction.');
+        throw new Error('Solana treasury address is not configured. Cannot build Solana transaction.');
       }
 
       const mintPubkey   = solanaAddress(mintAddr as Address);
@@ -495,7 +506,7 @@ export class SelfCustodyProvider implements CustodyProvider {
 
       requestBody = {
         method: 'signAndSendTransaction',
-        caip2: process.env.SOLANA_CAIP2 || 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
+        caip2: this.solanaCaip2,
         params: {
           transaction: serializedTx,
           encoding: 'base64'
@@ -503,14 +514,14 @@ export class SelfCustodyProvider implements CustodyProvider {
       };
     } else {
       // Monad EVM: ERC-20 transfer(address,uint256) via eth_sendTransaction
-      const contract = usdcContractAddress || process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3';
+      const contract = usdcContractAddress || this.ausdTokenAddress;
       const amountWei = BigInt(Math.floor(amountUSDC * 1_000_000)).toString(16).padStart(64, '0');
       const recipientPadded = toAddress.replace('0x', '').padStart(64, '0');
       // ERC-20 transfer(address,uint256) = selector 0xa9059cbb
       const data = `0xa9059cbb${recipientPadded}${amountWei}`;
       requestBody = {
         method: 'eth_sendTransaction',
-        caip2: `eip155:${process.env.MONAD_CHAIN_ID || '10143'}`,
+        caip2: `eip155:${this.monadChainId}`,
         params: {
           transaction: {
             to: contract,

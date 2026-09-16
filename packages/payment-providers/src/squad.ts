@@ -14,8 +14,8 @@ export class SquadProvider implements PaymentProvider {
   private baseUrl: string;
 
   constructor(
-    secretKey: string = process.env.SQUAD_SECRET_KEY || '',
-    baseUrl: string = process.env.SQUAD_BASE_URL || 'https://api-d.squadco.com'
+    secretKey: string = '',
+    baseUrl: string = 'https://api-d.squadco.com'
   ) {
     this.secretKey = secretKey;
     this.baseUrl = baseUrl;

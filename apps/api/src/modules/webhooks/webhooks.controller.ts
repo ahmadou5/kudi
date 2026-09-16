@@ -1,5 +1,6 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import crypto from 'crypto';
+import { prisma } from '@kudi/database';
 import { LedgerService } from '../../services/ledgerService';
 import { successResponse, errorResponse } from '../../utils/response';
 
@@ -30,6 +31,38 @@ export class WebhooksController {
     );
   }
 
+  private async reserveWebhookEvent(
+    provider: string,
+    eventId: string | undefined,
+    eventType: string | undefined,
+    payload: unknown
+  ): Promise<boolean> {
+    if (!eventId) {
+      return true;
+    }
+
+    const idempotencyKey = `${provider}:${eventId}`;
+
+    try {
+      await prisma.processedWebhook.create({
+        data: {
+          provider,
+          eventId,
+          idempotencyKey,
+          eventType,
+          payload: JSON.stringify(payload)
+        }
+      });
+      return true;
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        console.log(`ℹ️ Duplicate webhook skipped: ${idempotencyKey}`);
+        return false;
+      }
+      throw err;
+    }
+  }
+
   public handleSquadWebhook = async (request: FastifyRequest, reply: FastifyReply) => {
     const rawBody = JSON.stringify(request.body);
     const signature = request.headers['x-squad-signature'] as string | undefined;
@@ -45,8 +78,13 @@ export class WebhooksController {
 
     console.log(`📥 Received Squad Webhook Event: ${event}`, data);
 
+    const reference = data.transaction_ref || data.reference;
+    const accepted = await this.reserveWebhookEvent('squad', reference, event, body);
+    if (!accepted) {
+      return successResponse({ received: true, duplicate: true }, 'Duplicate Squad webhook skipped');
+    }
+
     if (event === 'charge.success' || event === 'virtual_account.deposit') {
-      const reference = data.transaction_ref || data.reference;
       const amount = data.amount ? String(data.amount / 100) : '0.00';
       const accountNumber = data.virtual_account_number || data.account_number;
 
@@ -80,8 +118,13 @@ export class WebhooksController {
 
     console.log(`📥 Received Monnify Webhook Event: ${eventType}`, eventData);
 
+    const reference = eventData.transactionReference;
+    const accepted = await this.reserveWebhookEvent('monnify', reference, eventType, body);
+    if (!accepted) {
+      return successResponse({ received: true, duplicate: true }, 'Duplicate Monnify webhook skipped');
+    }
+
     if (eventType === 'SUCCESSFUL_TRANSACTION') {
-      const reference = eventData.transactionReference;
       const amount = eventData.amountPaid ? String(eventData.amountPaid) : '0.00';
       const destinationAccount = eventData.destinationAccountInformation?.accountNumber;
 
@@ -114,8 +157,13 @@ export class WebhooksController {
 
     console.log(`📥 Received Paystack Webhook Event: ${event}`, data);
 
+    const reference = data.reference;
+    const accepted = await this.reserveWebhookEvent('paystack', reference, event, body);
+    if (!accepted) {
+      return successResponse({ received: true, duplicate: true }, 'Duplicate Paystack webhook skipped');
+    }
+
     if (event === 'charge.success') {
-      const reference = data.reference;
       const amount = data.amount ? String(data.amount / 100) : '0.00';
       const customerEmail = data.customer?.email;
 
@@ -148,8 +196,13 @@ export class WebhooksController {
 
     console.log(`📥 Received Korapay Webhook Event: ${event}`, data);
 
+    const reference = data.reference;
+    const accepted = await this.reserveWebhookEvent('korapay', reference, event, body);
+    if (!accepted) {
+      return successResponse({ received: true, duplicate: true }, 'Duplicate Korapay webhook skipped');
+    }
+
     if (event === 'charge.success' || event === 'transfer.success') {
-      const reference = data.reference;
       const amount = data.amount ? String(data.amount) : '0.00';
 
       if (reference) {
@@ -172,6 +225,11 @@ export class WebhooksController {
     const user = body.user || {};
 
     console.log(`📥 Received Privy Webhook Event: ${eventType}`, user);
+
+    const accepted = await this.reserveWebhookEvent('privy', body.id || user.id, eventType, body);
+    if (!accepted) {
+      return successResponse({ received: true, duplicate: true }, 'Duplicate Privy webhook skipped');
+    }
 
     if (eventType === 'user.created' && user.id) {
       this.ledgerService.registerUser(user.id, user.phone?.number || '', user.email?.address || '');

@@ -16,8 +16,8 @@ export class SolanaListener {
       id: 'solana-devnet',
       name: 'Solana Devnet',
       type: ChainType.SOLANA,
-      rpcUrl: config?.rpcUrl || process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com',
-      usdcMintAddress: config?.usdcMintAddress || process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+      rpcUrl: config?.rpcUrl || 'https://api.devnet.solana.com',
+      usdcMintAddress: config?.usdcMintAddress || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
       confirmationThreshold: 1,
       enabled: true
     };

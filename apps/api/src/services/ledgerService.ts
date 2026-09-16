@@ -93,6 +93,10 @@ export class LedgerService {
           }
         });
       } catch (err: any) {
+        if (err?.code === 'P2002') {
+          console.warn(`[LedgerService] Duplicate ledger entry skipped: ${type}:${referenceId}`);
+          return;
+        }
         console.error('[LedgerService] Critical: DB ledger entry creation error:', err?.message || err);
       }
     }

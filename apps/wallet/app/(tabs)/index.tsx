@@ -2,12 +2,12 @@ import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Smartphone, Wifi, Zap, CreditCard, Receipt, LucideIcon } from 'lucide-react-native';
-import { useAppPalette } from '../../lib/theme';
-import { BalanceCard } from '../../components/BalanceCard';
+import { useAppPalette } from '../../src/lib/theme';
+import { BalanceCard } from '../../src/components/BalanceCard';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
-import { Typography } from '../../constants/typography';
-import { Header } from '../../components/Header';
-import { TransactionCard, TransactionData } from '../../components/TransactionCard';
+import { Typography } from '../../src/constants/typography';
+import { Header } from '../../src/components/Header';
+import { TransactionCard, TransactionData } from '../../src/components/TransactionCard';
 
 function ActivitySkeleton({ palette }: { palette: any }) {
   return (

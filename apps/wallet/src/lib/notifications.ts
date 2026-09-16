@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import { API_BASE_URL } from '../src/lib/sdk';
+import { API_BASE_URL } from './sdk';
 
 // Guard: setNotificationHandler crashes in Expo Go (no native module).
 // Wrap in try/catch so the module loads safely even without a dev build.

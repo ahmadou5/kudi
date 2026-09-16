@@ -16,11 +16,11 @@ import {
 import { router } from 'expo-router';
 import { ArrowLeft, Camera, User, AtSign, Mail, Lock, Phone } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { useAppPalette, isLight } from '../../lib/theme';
-import { useAuthStore, AuthState } from '../../store/auth.store';
-import { Typography } from '../../constants/typography';
+import { useAppPalette, isLight } from '../../src/lib/theme';
+import { useAuthStore, AuthState } from '../../src/store/auth.store';
+import { Typography } from '../../src/constants/typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppModal, useAppModal } from '../../components/ui/AppModal';
+import { AppModal, useAppModal } from '../../src/components/ui/AppModal';
 
 export default function EditProfileScreen() {
   const palette = useAppPalette();
