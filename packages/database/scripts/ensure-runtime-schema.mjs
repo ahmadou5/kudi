@@ -18,6 +18,7 @@ const statements = [
     "archivedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reason TEXT NOT NULL
   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "LedgerEntryDuplicateArchive_ledgerEntryId_key" ON "LedgerEntryDuplicateArchive" ("ledgerEntryId")`,
   `CREATE INDEX IF NOT EXISTS "LedgerEntryDuplicateArchive_reference_idx" ON "LedgerEntryDuplicateArchive" (type, "referenceId")`,
   `WITH ranked AS (
     SELECT id, "userId", type::text AS type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt",
@@ -28,7 +29,7 @@ const statements = [
   SELECT gen_random_uuid()::text, id, "userId", type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt", 'DEDUP_BEFORE_LEDGER_UNIQUE_INDEX'
   FROM ranked
   WHERE rn > 1
-  ON CONFLICT (id) DO NOTHING`,
+  ON CONFLICT ("ledgerEntryId") DO NOTHING`,
   `WITH ranked AS (
     SELECT id, ROW_NUMBER() OVER (PARTITION BY type::text, "referenceId" ORDER BY "createdAt" ASC, id ASC) AS rn
     FROM "LedgerEntry"
