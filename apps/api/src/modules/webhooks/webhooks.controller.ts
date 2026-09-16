@@ -189,14 +189,45 @@ export class WebhooksController {
     }
 
     if (eventType === 'SUCCESSFUL_TRANSACTION') {
-      const amount = eventData.amountPaid ? String(eventData.amountPaid) : '0.00';
       const destinationAccount = eventData.destinationAccountInformation?.accountNumber;
+      const amountNGN = parseFloat(String(eventData.amountPaid || '0'));
 
-      if (destinationAccount && reference) {
+      let targetUserId: string | undefined;
+      const accRef = eventData.accountReference || eventData.product?.reference;
+      if (accRef && typeof accRef === 'string' && accRef.startsWith('KUDI_VA_')) {
+        targetUserId = accRef.replace('KUDI_VA_', '');
+      }
+
+      if (!targetUserId && destinationAccount) {
+        const va = await prisma.virtualAccount.findFirst({
+          where: { accountNumber: destinationAccount }
+        });
+        if (va) targetUserId = va.userId;
+      }
+
+      if (targetUserId && amountNGN > 0) {
+        const rate = this.rateService?.getCurrentRate() || 1500;
+        const amountUSDC = amountNGN / rate;
+
+        this.ledgerService.creditUserBalance(
+          targetUserId,
+          amountUSDC,
+          `MNF_WH_${reference}`,
+          {
+            type: 'NGN_VIRTUAL_ACCOUNT_DEPOSIT',
+            provider: 'MONNIFY',
+            accountNumber: destinationAccount,
+            amountNGN,
+            rateNGN: rate,
+            payerName: eventData.paymentDescription || eventData.customer?.name
+          }
+        );
+        console.log(`✅ [Monnify Webhook] Credited user ${targetUserId} with ${amountUSDC.toFixed(2)} USDC (₦${amountNGN}) via Monnify VA ${destinationAccount}`);
+      } else if (destinationAccount && reference) {
         this.ledgerService.recordTransaction({
           fromUserId: 'monnify_gateway',
-          toUserId: `user_acc_${destinationAccount}`,
-          amount,
+          toUserId: targetUserId || `user_acc_${destinationAccount}`,
+          amount: amountNGN || 0,
           currency: 'NGN',
           reference: `MNF_WH_${reference}`
         });
@@ -228,14 +259,46 @@ export class WebhooksController {
     }
 
     if (event === 'charge.success') {
-      const amount = data.amount ? String(data.amount / 100) : '0.00';
+      const amountNGN = data.amount ? Number(data.amount) / 100 : 0;
       const customerEmail = data.customer?.email;
+      const accountNumber = data.authorization?.account_number || data.dedicated_account?.account_number;
 
-      if (customerEmail && reference) {
+      let targetUserId: string | undefined;
+      if (accountNumber) {
+        const va = await prisma.virtualAccount.findFirst({
+          where: { accountNumber }
+        });
+        if (va) targetUserId = va.userId;
+      }
+
+      if (!targetUserId && customerEmail) {
+        const user = this.ledgerService.findUserByPrivyOrEmail(undefined, customerEmail);
+        if (user) targetUserId = user.id;
+      }
+
+      if (targetUserId && amountNGN > 0) {
+        const rate = this.rateService?.getCurrentRate() || 1500;
+        const amountUSDC = amountNGN / rate;
+
+        this.ledgerService.creditUserBalance(
+          targetUserId,
+          amountUSDC,
+          `PST_WH_${reference}`,
+          {
+            type: 'NGN_VIRTUAL_ACCOUNT_DEPOSIT',
+            provider: 'PAYSTACK',
+            accountNumber,
+            amountNGN,
+            rateNGN: rate,
+            customerEmail
+          }
+        );
+        console.log(`✅ [Paystack Webhook] Credited user ${targetUserId} with ${amountUSDC.toFixed(2)} USDC (₦${amountNGN}) via Paystack`);
+      } else if (customerEmail && reference) {
         this.ledgerService.recordTransaction({
           fromUserId: 'paystack_gateway',
-          toUserId: `user_email_${customerEmail}`,
-          amount,
+          toUserId: targetUserId || `user_email_${customerEmail}`,
+          amount: amountNGN || 0,
           currency: 'NGN',
           reference: `PST_WH_${reference}`
         });

@@ -838,17 +838,31 @@ export class LedgerService {
       }
     }
 
+    // Pass 1: build the map from ledger entries, skipping reversal entries
     for (const entry of dbEntries) {
       if (!mergedMap.has(entry.referenceId)) {
         let meta: Record<string, any> = {};
         try {
-          if (entry.metadata) meta = JSON.parse(entry.metadata);
+          if (entry.metadata) meta = typeof entry.metadata === 'string' ? JSON.parse(entry.metadata) : entry.metadata;
         } catch {
           meta = {};
         }
 
         const type = meta.type || entry.type;
         const isReversal = type === 'CRYPTO_SEND_REVERSAL' || entry.referenceId.startsWith('rev_');
+
+        // Reversals are internal accounting — mark the original send FAILED instead
+        if (isReversal) {
+          const originalRef = entry.referenceId.replace(/^rev_/, '');
+          const original = mergedMap.get(originalRef);
+          if (original) {
+            original.metadata = { ...original.metadata, status: 'FAILED' };
+            mergedMap.set(originalRef, original);
+          }
+          // Do NOT add a separate card for the reversal
+          continue;
+        }
+
         const isDeposit = (type === 'DEPOSIT_CREDIT' || type === 'DEPOSIT') && !isReversal;
         const isCryptoSend = type === 'CRYPTO_SEND_DEBIT' || type === 'SPEND_ONCHAIN' || entry.referenceId.startsWith('KUDI_ONCHAIN');
 
@@ -856,22 +870,20 @@ export class LedgerService {
         let subtitle = meta.subtitle;
 
         if (!title) {
-          if (isReversal) title = 'Crypto Send Reversal';
-          else if (isDeposit) title = 'USDC Deposit';
+          if (isDeposit) title = 'USDC Deposit';
           else if (isCryptoSend) title = `Send to ${(meta.chain || 'solana').toUpperCase()}`;
           else title = 'Bank Payout';
         }
 
         if (!subtitle) {
-          if (isReversal) subtitle = 'Restored to Balance';
-          else if (isDeposit) subtitle = `${(meta.chain || 'solana').toUpperCase()} Network`;
+          if (isDeposit) subtitle = `${(meta.chain || 'solana').toUpperCase()} Network`;
           else if (isCryptoSend && meta.toAddress) subtitle = `${meta.toAddress.slice(0, 6)}...${meta.toAddress.slice(-4)}`;
           else subtitle = 'Bank Transfer';
         }
 
         const txRecord: TransactionRecord = {
-          fromUserId: isDeposit || isReversal ? 'CHAIN_DEPOSIT' : userId,
-          toUserId: isDeposit || isReversal ? userId : (meta.toAddress || 'BANK_PAYOUT'),
+          fromUserId: isDeposit ? 'CHAIN_DEPOSIT' : userId,
+          toUserId: isDeposit ? userId : (meta.toAddress || 'BANK_PAYOUT'),
           amount: entry.amountUSDC,
           currency: meta.chain === 'monad' ? 'AUSD' : 'USDC',
           reference: entry.referenceId,
@@ -880,12 +892,30 @@ export class LedgerService {
             title,
             subtitle,
             type,
-            status: meta.status || (isReversal ? WithdrawalStatus.FAILED : WithdrawalStatus.PENDING),
+            status: meta.status || (isCryptoSend ? WithdrawalStatus.PENDING : 'SUCCESS'),
             ...meta
           }
         };
 
         mergedMap.set(entry.referenceId, txRecord);
+      }
+    }
+
+    // Pass 2: for any reversal entries, retroactively mark the original send FAILED
+    for (const entry of dbEntries) {
+      let meta: Record<string, any> = {};
+      try {
+        if (entry.metadata) meta = typeof entry.metadata === 'string' ? JSON.parse(entry.metadata) : entry.metadata;
+      } catch { meta = {}; }
+      const type = meta.type || entry.type;
+      const isReversal = type === 'CRYPTO_SEND_REVERSAL' || entry.referenceId.startsWith('rev_');
+      if (isReversal) {
+        const originalRef = entry.referenceId.replace(/^rev_/, '');
+        const original = mergedMap.get(originalRef);
+        if (original) {
+          original.metadata = { ...original.metadata, status: 'FAILED' };
+          mergedMap.set(originalRef, original);
+        }
       }
     }
 

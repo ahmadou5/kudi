@@ -60,7 +60,7 @@ export default function HistoryTab() {
       subtitle: tx.metadata?.subtitle || (isDeposit ? `${isMonad ? 'Monad Testnet' : 'Solana Network'}` : `${tx.currency || 'NGN'} Transfer`),
       amount: `${isDeposit ? '+' : '-'}$${amountNum.toFixed(2)} ${tokenSymbol}`,
       secondaryAmount: `≈ ₦${amountNGN.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN`,
-      status: tx.metadata?.status || 'SUCCESS',
+      status: tx.metadata?.status || (isDeposit ? 'SUCCESS' : 'PENDING'),
       date: formattedDate,
       isDeposit,
       chain: chainName,
