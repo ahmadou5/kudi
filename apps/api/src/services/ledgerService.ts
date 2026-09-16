@@ -1,5 +1,6 @@
 import { KYCStatus, KYCTier, CryptoWithdrawal, WithdrawalStatus } from '@kudi/types';
 import { prisma } from '@kudi/database';
+import { hashPin } from '../utils/hash';
 
 export interface UserRecord {
   id: string;
@@ -101,6 +102,53 @@ export class LedgerService {
       }
     }
   }
+  private async persistWithdrawal(withdrawal: CryptoWithdrawal): Promise<void> {
+    try {
+      await prisma.$executeRaw`
+        INSERT INTO "Withdrawal" (id, reference, "userId", "amountUSDC", "toAddress", chain, status, "txHash", "blockNumber", "failureReason", "createdAt", "updatedAt")
+        VALUES (
+          ${withdrawal.id},
+          ${withdrawal.reference},
+          ${withdrawal.userId},
+          ${withdrawal.amountUSDC},
+          ${withdrawal.toAddress},
+          ${withdrawal.chain},
+          ${withdrawal.status},
+          ${withdrawal.txHash ?? null},
+          ${withdrawal.blockNumber ?? null},
+          ${withdrawal.failureReason ?? null},
+          ${new Date(withdrawal.createdAt)},
+          ${new Date(withdrawal.updatedAt)}
+        )
+        ON CONFLICT (reference) DO UPDATE SET
+          status = EXCLUDED.status,
+          "txHash" = EXCLUDED."txHash",
+          "blockNumber" = EXCLUDED."blockNumber",
+          "failureReason" = EXCLUDED."failureReason",
+          "updatedAt" = NOW()
+      `;
+    } catch (err: any) {
+      console.warn('[LedgerService] DB withdrawal persistence warning:', err?.message || err);
+    }
+  }
+
+  private rowToWithdrawal(row: any): CryptoWithdrawal {
+    return {
+      id: row.id,
+      reference: row.reference,
+      userId: row.userId,
+      amountUSDC: Number(row.amountUSDC),
+      toAddress: row.toAddress,
+      chain: row.chain,
+      txHash: row.txHash || undefined,
+      blockNumber: row.blockNumber === null || row.blockNumber === undefined ? undefined : Number(row.blockNumber),
+      status: row.status as WithdrawalStatus,
+      failureReason: row.failureReason || undefined,
+      createdAt: new Date(row.createdAt).toISOString(),
+      updatedAt: new Date(row.updatedAt).toISOString()
+    };
+  }
+
   private users: Map<string, UserRecord> = new Map();
   private ledger: Map<string, number> = new Map();
   private spends: Map<string, any> = new Map();
@@ -255,7 +303,7 @@ export class LedgerService {
   /**
    * Upsert Wallet record in Neon DB.
    */
-  public async syncWalletToDb(userId: string, wallet: { chain: string; address: string; tokenAddress?: string }): Promise<void> {
+  public async syncWalletToDb(userId: string, wallet: { chain: string; address: string; tokenAddress?: string; metadata?: Record<string, any> }): Promise<void> {
     if (!wallet.address) return;
     try {
       const user = this.users.get(userId);
@@ -263,20 +311,21 @@ export class LedgerService {
         await this.syncUserToDb(user);
       }
 
-      await prisma.wallet.upsert({
-        where: { address: wallet.address },
-        update: {
-          userId,
-          chain: wallet.chain,
-          tokenAddress: wallet.tokenAddress || undefined
-        },
-        create: {
-          userId,
-          chain: wallet.chain,
-          address: wallet.address,
-          tokenAddress: wallet.tokenAddress || undefined
-        }
-      });
+      const privyWalletId = typeof wallet.metadata?.privyWalletId === 'string' ? wallet.metadata.privyWalletId : null;
+      const custodyType = privyWalletId ? 'SERVER_CUSTODY' : 'UNKNOWN';
+      const metadata = wallet.metadata ? JSON.stringify(wallet.metadata) : null;
+
+      await prisma.$executeRaw`
+        INSERT INTO "Wallet" (id, "userId", chain, address, "tokenAddress", "privyWalletId", "custodyType", metadata, "createdAt")
+        VALUES (gen_random_uuid(), ${userId}, ${wallet.chain}, ${wallet.address}, ${wallet.tokenAddress || null}, ${privyWalletId}, ${custodyType}, ${metadata}, NOW())
+        ON CONFLICT (address) DO UPDATE SET
+          "userId" = EXCLUDED."userId",
+          chain = EXCLUDED.chain,
+          "tokenAddress" = EXCLUDED."tokenAddress",
+          "privyWalletId" = COALESCE(EXCLUDED."privyWalletId", "Wallet"."privyWalletId"),
+          "custodyType" = EXCLUDED."custodyType",
+          metadata = COALESCE(EXCLUDED.metadata, "Wallet".metadata)
+      `;
       console.log(`[LedgerService] 🐘 Wallet ${wallet.chain}:${wallet.address.slice(0, 10)}... saved directly to Neon DB for ${userId}.`);
     } catch (err: any) {
       console.warn(`[LedgerService] ⚠️ Sync wallet ${wallet.address} to Neon DB error:`, err?.message);
@@ -384,7 +433,7 @@ export class LedgerService {
 
   public setUserPin(userId: string, pin: string): void {
     const user = this.users.get(userId) || { id: userId, kycStatus: KYCStatus.NOT_STARTED, kycTier: KYCTier.UNVERIFIED };
-    user.pinHash = `hashed_${pin}`;
+    user.pinHash = hashPin(pin);
     this.users.set(userId, user);
     void this.syncUserToDb(user);
   }
@@ -403,8 +452,180 @@ export class LedgerService {
     return this.ledger.get(userId) || 0.0;
   }
 
+  public async getBalanceAsync(userId: string): Promise<number> {
+    try {
+      const rows: any[] = await prisma.$queryRaw`
+        SELECT "availableUSDC"
+        FROM "BalanceAccount"
+        WHERE "userId" = ${userId} AND asset = 'USDC'
+        LIMIT 1
+      `;
+      if (rows.length) {
+        const balance = Number(rows[0].availableUSDC);
+        this.ledger.set(userId, balance);
+        return balance;
+      }
+      return await this.ensureBalanceAccount(userId);
+    } catch (err: any) {
+      console.warn('[LedgerService] BalanceAccount read warning:', err?.message || err);
+      return this.getBalance(userId);
+    }
+  }
+
   public setBalance(userId: string, newBalance: number): void {
     this.ledger.set(userId, newBalance);
+    void this.ensureBalanceAccount(userId, newBalance).catch((err) =>
+      console.warn('[LedgerService] BalanceAccount sync warning:', err?.message || err)
+    );
+  }
+
+  private async latestLedgerBalance(userId: string): Promise<number> {
+    const rows: any[] = await prisma.$queryRaw`
+      SELECT "resultingBalanceUSDC"
+      FROM "LedgerEntry"
+      WHERE "userId" = ${userId}
+      ORDER BY "createdAt" DESC
+      LIMIT 1
+    `;
+    return rows.length ? Number(rows[0].resultingBalanceUSDC) : (this.ledger.get(userId) || 0);
+  }
+
+  public async ensureBalanceAccount(userId: string, seedBalance?: number): Promise<number> {
+    const existing: any[] = await prisma.$queryRaw`
+      SELECT "availableUSDC"
+      FROM "BalanceAccount"
+      WHERE "userId" = ${userId} AND asset = 'USDC'
+      LIMIT 1
+    `;
+    if (existing.length) {
+      const balance = Number(existing[0].availableUSDC);
+      this.ledger.set(userId, balance);
+      return balance;
+    }
+
+    const initialBalance = seedBalance ?? await this.latestLedgerBalance(userId);
+    await prisma.$executeRaw`
+      INSERT INTO "BalanceAccount" (id, "userId", asset, "availableUSDC", "reservedUSDC", version, "createdAt", "updatedAt")
+      VALUES (gen_random_uuid(), ${userId}, 'USDC', ${initialBalance}, 0, 0, NOW(), NOW())
+      ON CONFLICT ("userId", asset) DO NOTHING
+    `;
+    this.ledger.set(userId, initialBalance);
+    return initialBalance;
+  }
+
+  public async debitBalanceAtomic(params: {
+    userId: string;
+    amountUSDC: number;
+    reference: string;
+    type: string;
+    metadata?: Record<string, any>;
+  }): Promise<number> {
+    const { userId, amountUSDC, reference, type, metadata } = params;
+    if (!Number.isFinite(amountUSDC) || amountUSDC <= 0) {
+      throw new Error('Debit amount must be positive');
+    }
+
+    const newBalance = await prisma.$transaction(async (tx) => {
+      const latestRows: any[] = await tx.$queryRaw`
+        SELECT "resultingBalanceUSDC"
+        FROM "LedgerEntry"
+        WHERE "userId" = ${userId}
+        ORDER BY "createdAt" DESC
+        LIMIT 1
+      `;
+      const initialBalance = latestRows.length ? Number(latestRows[0].resultingBalanceUSDC) : (this.ledger.get(userId) || 0);
+
+      await tx.$executeRaw`
+        INSERT INTO "BalanceAccount" (id, "userId", asset, "availableUSDC", "reservedUSDC", version, "createdAt", "updatedAt")
+        VALUES (gen_random_uuid(), ${userId}, 'USDC', ${initialBalance}, 0, 0, NOW(), NOW())
+        ON CONFLICT ("userId", asset) DO NOTHING
+      `;
+
+      const rows: any[] = await tx.$queryRaw`
+        SELECT "availableUSDC"
+        FROM "BalanceAccount"
+        WHERE "userId" = ${userId} AND asset = 'USDC'
+        FOR UPDATE
+      `;
+      const current = rows.length ? Number(rows[0].availableUSDC) : 0;
+      if (current < amountUSDC) {
+        throw new Error(`INSUFFICIENT_BALANCE:${current}`);
+      }
+      const next = current - amountUSDC;
+
+      await tx.$executeRaw`
+        UPDATE "BalanceAccount"
+        SET "availableUSDC" = ${next}, version = version + 1, "updatedAt" = NOW()
+        WHERE "userId" = ${userId} AND asset = 'USDC'
+      `;
+
+      await tx.$executeRaw`
+        INSERT INTO "LedgerEntry" (id, "userId", type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt")
+        VALUES (gen_random_uuid(), ${userId}, ${type}::text, ${amountUSDC}, ${next}, ${reference}, ${metadata ? JSON.stringify(metadata) : null}, NOW())
+        ON CONFLICT (type, "referenceId") DO NOTHING
+      `;
+
+      return next;
+    });
+
+    this.ledger.set(userId, newBalance);
+    return newBalance;
+  }
+
+  public async creditBalanceAtomic(params: {
+    userId: string;
+    amountUSDC: number;
+    reference: string;
+    type: string;
+    metadata?: Record<string, any>;
+  }): Promise<number> {
+    const { userId, amountUSDC, reference, type, metadata } = params;
+    if (!Number.isFinite(amountUSDC) || amountUSDC <= 0) {
+      throw new Error('Credit amount must be positive');
+    }
+
+    const newBalance = await prisma.$transaction(async (tx) => {
+      const latestRows: any[] = await tx.$queryRaw`
+        SELECT "resultingBalanceUSDC"
+        FROM "LedgerEntry"
+        WHERE "userId" = ${userId}
+        ORDER BY "createdAt" DESC
+        LIMIT 1
+      `;
+      const initialBalance = latestRows.length ? Number(latestRows[0].resultingBalanceUSDC) : (this.ledger.get(userId) || 0);
+
+      await tx.$executeRaw`
+        INSERT INTO "BalanceAccount" (id, "userId", asset, "availableUSDC", "reservedUSDC", version, "createdAt", "updatedAt")
+        VALUES (gen_random_uuid(), ${userId}, 'USDC', ${initialBalance}, 0, 0, NOW(), NOW())
+        ON CONFLICT ("userId", asset) DO NOTHING
+      `;
+
+      const rows: any[] = await tx.$queryRaw`
+        SELECT "availableUSDC"
+        FROM "BalanceAccount"
+        WHERE "userId" = ${userId} AND asset = 'USDC'
+        FOR UPDATE
+      `;
+      const current = rows.length ? Number(rows[0].availableUSDC) : 0;
+      const next = current + amountUSDC;
+
+      await tx.$executeRaw`
+        UPDATE "BalanceAccount"
+        SET "availableUSDC" = ${next}, version = version + 1, "updatedAt" = NOW()
+        WHERE "userId" = ${userId} AND asset = 'USDC'
+      `;
+
+      await tx.$executeRaw`
+        INSERT INTO "LedgerEntry" (id, "userId", type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt")
+        VALUES (gen_random_uuid(), ${userId}, ${type}::text, ${amountUSDC}, ${next}, ${reference}, ${metadata ? JSON.stringify(metadata) : null}, NOW())
+        ON CONFLICT (type, "referenceId") DO NOTHING
+      `;
+
+      return next;
+    });
+
+    this.ledger.set(userId, newBalance);
+    return newBalance;
   }
 
   public recordSpend(reference: string, record: any): void {
@@ -633,7 +854,7 @@ export class LedgerService {
 
       for (const w of wallets) {
         if (!w.address) continue;
-        void this.syncWalletToDb(userId, { chain: w.chain, address: w.address, tokenAddress: w.metadata?.tokenAddress });
+        void this.syncWalletToDb(userId, { chain: w.chain, address: w.address, tokenAddress: w.metadata?.tokenAddress, metadata: w.metadata });
       }
     }
   }
@@ -774,13 +995,13 @@ export class LedgerService {
     }).catch(err => console.warn('[LedgerService] DB processed signature record warning:', err?.message));
   }
 
-  public createWithdrawal(params: {
+  public async createWithdrawal(params: {
     reference: string;
     userId: string;
     amountUSDC: number;
     toAddress: string;
     chain: 'solana' | 'monad';
-  }): CryptoWithdrawal {
+  }): Promise<CryptoWithdrawal> {
     const now = new Date().toISOString();
     const withdrawal: CryptoWithdrawal = {
       id: `wd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -791,9 +1012,20 @@ export class LedgerService {
     };
 
     this.withdrawals.set(params.reference, withdrawal);
+    void this.persistWithdrawal(withdrawal);
 
-    const currentBalance = this.getBalance(params.userId);
-    this.setBalance(params.userId, currentBalance - params.amountUSDC);
+    const newBalance = await this.debitBalanceAtomic({
+      userId: params.userId,
+      amountUSDC: params.amountUSDC,
+      reference: params.reference,
+      type: 'SPEND_DEBIT',
+      metadata: {
+        ...withdrawal,
+        type: 'CRYPTO_SEND_DEBIT',
+        title: `Send to ${params.chain.toUpperCase()}`,
+        subtitle: `${params.toAddress.slice(0, 6)}...${params.toAddress.slice(-4)}`
+      }
+    });
 
     this.recordTransaction({
       fromUserId: params.userId,
@@ -809,20 +1041,6 @@ export class LedgerService {
         chain: params.chain,
         status: WithdrawalStatus.PENDING
       }
-    });
-
-    void this.createLedgerEntry({
-      userId: params.userId,
-      type: 'SPEND_DEBIT',
-      amountUSDC: params.amountUSDC,
-      resultingBalanceUSDC: currentBalance - params.amountUSDC,
-      referenceId: params.reference,
-      metadata: JSON.stringify({
-        ...withdrawal,
-        type: 'CRYPTO_SEND_DEBIT',
-        title: `Send to ${params.chain.toUpperCase()}`,
-        subtitle: `${params.toAddress.slice(0, 6)}...${params.toAddress.slice(-4)}`
-      })
     });
 
     return withdrawal;
@@ -844,6 +1062,8 @@ export class LedgerService {
       if (update.txHash) tx.metadata.txHash = update.txHash;
     }
 
+    void this.persistWithdrawal(withdrawal);
+
     return withdrawal;
   }
 
@@ -851,11 +1071,28 @@ export class LedgerService {
     return this.withdrawals.get(reference);
   }
 
-  public rollbackWithdrawal(reference: string, userId: string, amountUSDC: number): void {
-    const currentBalance = this.getBalance(userId);
-    const restoredBal = currentBalance + amountUSDC;
-    this.setBalance(userId, restoredBal);
+  public async getWithdrawalAsync(reference: string): Promise<CryptoWithdrawal | undefined> {
+    const cached = this.withdrawals.get(reference);
+    if (cached) return cached;
 
+    try {
+      const rows: any[] = await prisma.$queryRaw`
+        SELECT id, reference, "userId", "amountUSDC", "toAddress", chain, status, "txHash", "blockNumber", "failureReason", "createdAt", "updatedAt"
+        FROM "Withdrawal"
+        WHERE reference = ${reference}
+        LIMIT 1
+      `;
+      if (!rows.length) return undefined;
+      const withdrawal = this.rowToWithdrawal(rows[0]);
+      this.withdrawals.set(reference, withdrawal);
+      return withdrawal;
+    } catch (err: any) {
+      console.warn('[LedgerService] DB withdrawal lookup warning:', err?.message || err);
+      return undefined;
+    }
+  }
+
+  public rollbackWithdrawal(reference: string, userId: string, amountUSDC: number): void {
     this.updateWithdrawal(reference, {
       status: WithdrawalStatus.FAILED,
       failureReason: 'Balance restored after broadcast failure'
@@ -869,21 +1106,22 @@ export class LedgerService {
       { reference, amountUSDC }
     );
 
-    void this.createLedgerEntry({
+    void this.creditBalanceAtomic({
       userId,
-      type: 'DEPOSIT_CREDIT',
       amountUSDC,
-      resultingBalanceUSDC: restoredBal,
-      referenceId: `rev_${reference}`,
-      metadata: JSON.stringify({
+      reference: `rev_${reference}`,
+      type: 'DEPOSIT_CREDIT',
+      metadata: {
         reference,
         reason: 'BROADCAST_FAILURE',
         type: 'CRYPTO_SEND_REVERSAL',
         title: 'Crypto Send Reversal',
         subtitle: 'Restored to Balance'
-      })
+      }
+    }).then(() => {
+      console.log(`[LedgerService] 🔄 Rolled back ${amountUSDC} USDC for withdrawal ${reference} — balance restored for ${userId}`);
+    }).catch((err) => {
+      console.error(`[LedgerService] Critical rollback failure for ${reference}:`, err?.message || err);
     });
-
-    console.log(`[LedgerService] 🔄 Rolled back ${amountUSDC} USDC for withdrawal ${reference} — balance restored for ${userId}`);
   }
 }

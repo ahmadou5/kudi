@@ -4,6 +4,7 @@ import { LedgerService } from '../../services/ledgerService';
 import { successResponse, errorResponse } from '../../utils/response';
 import { signAccessToken, signRefreshToken } from '../../utils/jwt';
 import { verifyPin } from '../../utils/hash';
+import { getAuthenticatedUser } from '../../utils/authGuards';
 
 import { sendOTPEmail } from '../../services/emailService';
 import { sendPushNotification } from '../../lib/notifications';
@@ -187,16 +188,26 @@ export class AuthController {
   };
 
   public setPin = async (request: FastifyRequest, reply: FastifyReply) => {
-    const { userId, pin } = request.body as { userId: string; pin: string };
+    const authUser = getAuthenticatedUser(request);
+    const { pin } = request.body as { pin: string };
+    const userId = authUser?.userId;
     if (!pin || pin.length < 4) {
       return reply.status(400).send(errorResponse('INVALID_PIN', 'PIN must be at least 4 digits'));
+    }
+    if (!userId) {
+      return reply.status(401).send(errorResponse('UNAUTHORIZED', 'Authentication is required', 401));
     }
     this.ledgerService.setUserPin(userId, pin);
     return successResponse(null, 'Transaction PIN set successfully');
   };
 
   public verifyPin = async (request: FastifyRequest, reply: FastifyReply) => {
-    const { userId, pin } = request.body as { userId: string; pin: string };
+    const authUser = getAuthenticatedUser(request);
+    const { pin } = request.body as { pin: string };
+    const userId = authUser?.userId;
+    if (!userId) {
+      return reply.status(401).send(errorResponse('UNAUTHORIZED', 'Authentication is required', 401));
+    }
     const user = this.ledgerService.getUser(userId);
     if (!user) {
       return reply.status(404).send(errorResponse('USER_NOT_FOUND', 'User not found'));
@@ -214,7 +225,7 @@ export class AuthController {
     if (!user) {
       return reply.status(404).send(errorResponse('USER_NOT_FOUND', 'User not found'));
     }
-    const balance = this.ledgerService.getBalance(userId);
+    const balance = await this.ledgerService.getBalanceAsync(userId);
     const virtualAccounts = this.ledgerService.getUserVirtualAccounts(userId);
 
     // Always reuse stored wallets — never regenerate for an existing user
@@ -249,11 +260,15 @@ export class AuthController {
   };
 
   public registerPushToken = async (request: FastifyRequest, reply: FastifyReply) => {
-    const { userId, token } = (request.body || {}) as { userId?: string; token?: string };
+    const authUser = getAuthenticatedUser(request);
+    const { token } = (request.body || {}) as { token?: string };
     if (!token) {
       return reply.status(400).send(errorResponse('MISSING_TOKEN', 'Push notification token is required'));
     }
-    const targetUserId = userId || (request.user as any)?.id || 'usr_1788867509637';
+    const targetUserId = authUser?.userId;
+    if (!targetUserId) {
+      return reply.status(401).send(errorResponse('UNAUTHORIZED', 'Authentication is required', 401));
+    }
     this.ledgerService.saveUserPushToken(targetUserId, token);
     return successResponse({ registered: true, userId: targetUserId }, 'Push token registered successfully');
   };

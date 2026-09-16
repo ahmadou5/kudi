@@ -18,7 +18,7 @@ export class BalanceController {
 
   public getBalance = async (request: FastifyRequest, reply: FastifyReply) => {
     const { userId } = request.params as { userId: string };
-    const balanceUSDC = this.ledgerService.getBalance(userId);
+    const balanceUSDC = await this.ledgerService.getBalanceAsync(userId);
     const user = this.ledgerService.getUser(userId);
     const tier = user?.kycTier || KYCTier.UNVERIFIED;
     const dailyLimitNGN = DAILY_LIMITS_NGN[tier];

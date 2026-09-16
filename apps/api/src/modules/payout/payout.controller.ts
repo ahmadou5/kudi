@@ -2,12 +2,12 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { PaymentProviderRegistry } from '@kudi/payment-providers';
 import { ReceiptGenerator } from '@kudi/receipts';
 import { KYCTier, WithdrawalStatus } from '@kudi/types';
-import { CryptoWithdrawalQueue } from '@kudi/chains';
 import { validateCryptoAddress } from '@kudi/chains-core';
 import { LedgerService } from '../../services/ledgerService';
 import { RateService } from '../../services/rateService';
 import { errorResponse, successResponse } from '../../utils/response';
 import { verifyPin, generateReference } from '../../utils/hash';
+import { getAuthenticatedUser } from '../../utils/authGuards';
 
 const DAILY_LIMITS_NGN = {
   [KYCTier.UNVERIFIED]: 0,
@@ -19,8 +19,7 @@ export class PayoutController {
   constructor(
     private paymentRegistry: PaymentProviderRegistry,
     private ledgerService: LedgerService,
-    private rateService: RateService,
-    private cryptoQueue: CryptoWithdrawalQueue = CryptoWithdrawalQueue.getInstance()
+    private rateService: RateService
   ) {}
 
   public resolveAccount = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -37,8 +36,9 @@ export class PayoutController {
   };
 
   public spendToBank = async (request: FastifyRequest, reply: FastifyReply) => {
-    const { userId, pin, amountUSDC, bankCode, accountNumber, accountName, narration } = request.body as {
-      userId: string;
+    const authUser = getAuthenticatedUser(request);
+    const { pin, amountUSDC, bankCode, accountNumber, accountName, narration } = request.body as {
+      userId?: string;
       pin?: string;
       amountUSDC: number;
       bankCode: string;
@@ -47,6 +47,10 @@ export class PayoutController {
       narration?: string;
     };
 
+    const userId = authUser?.userId;
+    if (!userId) {
+      return reply.status(401).send(errorResponse('UNAUTHORIZED', 'Authentication is required', 401));
+    }
     const user = this.ledgerService.getUser(userId);
     if (!verifyPin(pin || '', user?.pinHash)) {
       return reply.status(401).send(errorResponse('INVALID_PIN', 'Incorrect transaction PIN entered', 401));
@@ -67,16 +71,32 @@ export class PayoutController {
       );
     }
 
-    const currentBalance = this.ledgerService.getBalance(userId);
-    if (currentBalance < amountUSDC) {
-      return reply
-        .status(400)
-        .send(errorResponse('INSUFFICIENT_BALANCE', `Requested spend ${amountUSDC} USDC exceeds balance ${currentBalance} USDC`));
-    }
-
     const reference = generateReference('KUDI_SPEND');
-    const newBalance = currentBalance - amountUSDC;
-    this.ledgerService.setBalance(userId, newBalance);
+    let newBalance: number;
+    try {
+      newBalance = await this.ledgerService.debitBalanceAtomic({
+        userId,
+        amountUSDC,
+        reference,
+        type: 'SPEND_DEBIT',
+        metadata: {
+          title: 'Bank Payout',
+          subtitle: `${accountName || 'Bank Transfer'} (${accountNumber || ''})`,
+          amountNGN,
+          exchangeRateNGN: currentRate,
+          recipientBankCode: bankCode
+        }
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.startsWith('INSUFFICIENT_BALANCE:')) {
+        const available = Number(message.split(':')[1] || 0);
+        return reply
+          .status(400)
+          .send(errorResponse('INSUFFICIENT_BALANCE', `Requested spend ${amountUSDC} USDC exceeds balance ${available} USDC`));
+      }
+      return reply.status(500).send(errorResponse('BALANCE_DEBIT_FAILED', message, 500));
+    }
 
     try {
       const transferRes = await this.paymentRegistry.initiateTransferWithFailover({
@@ -109,8 +129,20 @@ export class PayoutController {
         newBalanceUSDC: newBalance.toFixed(2)
       });
     } catch (err: unknown) {
-      this.ledgerService.setBalance(userId, currentBalance);
       const errorMessage = err instanceof Error ? err.message : String(err);
+      await this.ledgerService.creditBalanceAtomic({
+        userId,
+        amountUSDC,
+        reference: `rev_${reference}`,
+        type: 'DEPOSIT_CREDIT',
+        metadata: {
+          reference,
+          reason: 'PAYOUT_FAILED',
+          type: 'SPEND_REVERSAL',
+          title: 'Bank Payout Reversal',
+          subtitle: 'Restored to Balance'
+        }
+      });
       return reply
         .status(500)
         .send(errorResponse('PAYOUT_FAILED_REVERSED', `Payout failed: ${errorMessage}. Balance has been restored.`, 500));
@@ -118,21 +150,21 @@ export class PayoutController {
   };
 
   public spendToUser = async (request: FastifyRequest, reply: FastifyReply) => {
-    const { fromUserId, toHandle, amountUSDC, pin } = request.body as {
-      fromUserId: string;
+    const authUser = getAuthenticatedUser(request);
+    const { toHandle, amountUSDC, pin } = request.body as {
+      fromUserId?: string;
       toHandle: string;
       amountUSDC: number;
       pin?: string;
     };
 
+    const fromUserId = authUser?.userId;
+    if (!fromUserId) {
+      return reply.status(401).send(errorResponse('UNAUTHORIZED', 'Authentication is required', 401));
+    }
     const sender = this.ledgerService.getUser(fromUserId);
     if (!verifyPin(pin || '', sender?.pinHash)) {
       return reply.status(401).send(errorResponse('INVALID_PIN', 'Incorrect transaction PIN entered', 401));
-    }
-
-    const currentBalance = this.ledgerService.getBalance(fromUserId);
-    if (currentBalance < amountUSDC) {
-      return reply.status(400).send(errorResponse('INSUFFICIENT_BALANCE', `Insufficient balance. Available: ${currentBalance} USDC`));
     }
 
     // Resolve recipient
@@ -143,11 +175,38 @@ export class PayoutController {
     }
 
     const reference = generateReference('KUDI_TRANSFER');
-    const newSenderBalance = currentBalance - amountUSDC;
-    this.ledgerService.setBalance(fromUserId, newSenderBalance);
-
-    const recipientCurrentBalance = this.ledgerService.getBalance(recipient.id);
-    this.ledgerService.setBalance(recipient.id, recipientCurrentBalance + amountUSDC);
+    let newSenderBalance: number;
+    try {
+      newSenderBalance = await this.ledgerService.debitBalanceAtomic({
+        userId: fromUserId,
+        amountUSDC,
+        reference,
+        type: 'SPEND_DEBIT',
+        metadata: {
+          title: `Transfer to ${toHandle}`,
+          subtitle: 'Kudi Inter-App Transfer',
+          toUserId: recipient.id
+        }
+      });
+      await this.ledgerService.creditBalanceAtomic({
+        userId: recipient.id,
+        amountUSDC,
+        reference: `rec_${reference}`,
+        type: 'DEPOSIT_CREDIT',
+        metadata: {
+          title: 'Inter-App Transfer Received',
+          subtitle: 'Kudi Transfer',
+          fromUserId
+        }
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.startsWith('INSUFFICIENT_BALANCE:')) {
+        const available = Number(message.split(':')[1] || 0);
+        return reply.status(400).send(errorResponse('INSUFFICIENT_BALANCE', `Insufficient balance. Available: ${available} USDC`));
+      }
+      return reply.status(500).send(errorResponse('TRANSFER_FAILED', message, 500));
+    }
 
     this.ledgerService.recordTransaction({
       fromUserId,
@@ -172,8 +231,9 @@ export class PayoutController {
   };
 
   public spendOnChain = async (request: FastifyRequest, reply: FastifyReply) => {
-    const { userId, pin, amountUSDC, toAddress, chain } = request.body as {
-      userId: string;
+    const authUser = getAuthenticatedUser(request);
+    const { pin, amountUSDC, toAddress, chain } = request.body as {
+      userId?: string;
       pin?: string;
       amountUSDC: number | string;
       toAddress: string;
@@ -183,6 +243,10 @@ export class PayoutController {
     const numAmountUSDC = typeof amountUSDC === 'number' ? amountUSDC : parseFloat(String(amountUSDC || 0)) || 0;
 
     // 1. PIN verification
+    const userId = authUser?.userId;
+    if (!userId) {
+      return reply.status(401).send(errorResponse('UNAUTHORIZED', 'Authentication is required', 401));
+    }
     const user = this.ledgerService.getUser(userId);
     if (!verifyPin(pin || '', user?.pinHash)) {
       return reply.status(401).send(errorResponse('INVALID_PIN', 'Incorrect transaction PIN entered', 401));
@@ -202,15 +266,7 @@ export class PayoutController {
       );
     }
 
-    // 4. Balance check
-    const currentBalance = this.ledgerService.getBalance(userId);
-    if (currentBalance < numAmountUSDC) {
-      return reply.status(400).send(
-        errorResponse('INSUFFICIENT_BALANCE', `Insufficient balance. Available: ${currentBalance.toFixed(2)} USDC`, 400)
-      );
-    }
-
-    // 5. Self-send guard — block sending to own deposit address
+    // 4. Self-send guard — block sending to own deposit address
     const userWallets = this.ledgerService.getUserWallets(userId) || [];
     const isSelfSend = userWallets.some((w) => w.address.toLowerCase() === toAddress.toLowerCase());
     if (isSelfSend) {
@@ -221,31 +277,28 @@ export class PayoutController {
 
     // 6. Create withdrawal record + optimistic debit (atomic in-process)
     const reference = generateReference('KUDI_ONCHAIN');
-    const withdrawal = this.ledgerService.createWithdrawal({
-      reference,
-      userId,
-      amountUSDC: numAmountUSDC,
-      toAddress,
-      chain
-    });
-
-    // 7. Enqueue async broadcast job (fire-and-forget — worker handles broadcast + confirm + rollback)
+    let withdrawal;
     try {
-      await this.cryptoQueue.enqueue({
+      withdrawal = await this.ledgerService.createWithdrawal({
         reference,
         userId,
         amountUSDC: numAmountUSDC,
         toAddress,
         chain
       });
-
-      console.log(`[PayoutController] 📤 Crypto withdrawal queued: ${reference} | ${numAmountUSDC} USDC → ${toAddress.slice(0, 8)}... on ${chain}`);
-    } catch (queueErr: unknown) {
-      // If enqueue itself fails hard (rare), rollback immediately
-      this.ledgerService.rollbackWithdrawal(reference, userId, numAmountUSDC);
-      const msg = queueErr instanceof Error ? queueErr.message : String(queueErr);
-      return reply.status(500).send(errorResponse('QUEUE_ERROR', `Failed to queue withdrawal: ${msg}`, 500));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.startsWith('INSUFFICIENT_BALANCE:')) {
+        const available = Number(message.split(':')[1] || 0);
+        return reply.status(400).send(
+          errorResponse('INSUFFICIENT_BALANCE', `Insufficient balance. Available: ${available.toFixed(2)} USDC`, 400)
+        );
+      }
+      return reply.status(500).send(errorResponse('WITHDRAWAL_CREATE_FAILED', message, 500));
     }
+
+    // 7. Worker picks up the durable DB withdrawal record asynchronously.
+    console.log(`[PayoutController] 📤 Crypto withdrawal persisted: ${reference} | ${numAmountUSDC} USDC → ${toAddress.slice(0, 8)}... on ${chain}`);
 
     return successResponse({
       reference: withdrawal.reference,
@@ -253,14 +306,14 @@ export class PayoutController {
       chain,
       toAddress,
       amountUSDC: numAmountUSDC.toFixed(2),
-      newBalanceUSDC: this.ledgerService.getBalance(userId).toFixed(2),
+      newBalanceUSDC: (await this.ledgerService.getBalanceAsync(userId)).toFixed(2),
       message: 'Your crypto send is being broadcast to the network. Check status using the reference.'
     }, 'Crypto send initiated');
   };
 
   public getCryptoWithdrawalStatus = async (request: FastifyRequest, reply: FastifyReply) => {
     const { reference } = request.params as { reference: string };
-    const withdrawal = this.ledgerService.getWithdrawal(reference);
+    const withdrawal = await this.ledgerService.getWithdrawalAsync(reference);
     if (!withdrawal) {
       return reply.status(404).send(errorResponse('NOT_FOUND', `No withdrawal found for reference: ${reference}`, 404));
     }

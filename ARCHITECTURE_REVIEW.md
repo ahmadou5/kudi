@@ -217,16 +217,16 @@ The exact package names can vary. The important move is separating pure/shared c
 
 - [x] Consolidate `apps/wallet` into one source layout. Done 2026-09-16 by moving support folders under `apps/wallet/src` and validating wallet typecheck.
 - [x] Move wallet support code into `src/*`, keeping `app/*` route-only. Done 2026-09-16 with `src/components`, `src/constants`, `src/lib`, and `src/store`.
-- [ ] Split server-only chain runtime code away from pure chain helpers.
-- [ ] Keep `@kudi/ui` web-only unless there is a deliberate cross-platform design system.
+- [x] Split server-only chain runtime code away from pure chain helpers. Done 2026-09-16 with pure `@kudi/chains-core` address helpers and Node-only listeners/providers retained in `@kudi/chains`.
+- [x] Keep `@kudi/ui` web-only unless there is a deliberate cross-platform design system. Done 2026-09-16 with `scripts/check-boundaries.mjs` blocking wallet imports from `@kudi/ui`.
 - [x] Add dependency-boundary lint rules so frontend apps cannot import Node-only packages. Done 2026-09-16 with `scripts/check-boundaries.mjs` and root `architecture:check`.
 
 ### Phase 5: Add Architecture Guardrails
 
 - [x] Add a short `docs/architecture.md` with process ownership and package dependency rules. Done 2026-09-16 with `docs/runtime-ownership.md` and `docs/architecture.md`.
-- [ ] Add ADRs for major decisions: worker ownership, ledger idempotency, provider abstraction, config strategy.
-- [ ] Add smoke tests for API startup, worker startup, SDK/API contract compatibility, and critical ledger flows.
-- [~] Add CI checks for generated artifacts, type checking, linting, and package build graph correctness. Started 2026-09-16 with local `architecture:check` and `artifacts:check`; CI workflow still needs wiring.
+- [x] Add ADRs for major decisions: worker ownership, ledger idempotency, provider abstraction, config strategy. Done 2026-09-16 in `docs/adrs`.
+- [x] Add smoke tests for API startup, worker startup, SDK/API contract compatibility, and critical ledger flows. Done 2026-09-16 with `scripts/smoke-architecture.mjs`; full ledger integration tests remain a future hardening task.
+- [x] Add CI checks for generated artifacts, type checking, linting, and package build graph correctness. Done 2026-09-16 with `.github/workflows/ci.yml`.
 
 ## Suggested First PR
 

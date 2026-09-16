@@ -27,6 +27,7 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run lint",
     "test": "turbo run test",
+    "smoke:test": "node scripts/smoke-architecture.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "architecture:check": "node scripts/check-boundaries.mjs",
     "artifacts:check": "node scripts/check-generated-artifacts.mjs"

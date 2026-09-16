@@ -1,16 +1,27 @@
-import { GeneralizedEVMListener, SolanaListener, EVMDepositEvent, SolanaDepositEvent } from '@kudi/chains';
+import { GeneralizedEVMListener, SolanaListener, EVMDepositEvent, SolanaDepositEvent, SelfCustodyProvider } from '@kudi/chains';
 import { EVMChainConfig } from '@kudi/types';
 import { prisma } from '@kudi/database';
+
+interface DepositWalletRow {
+  id: string;
+  userId: string;
+  address: string;
+  chain: string;
+  privyWalletId?: string | null;
+  custodyType?: string | null;
+}
 
 export class ChainDepositProcessor {
   private evmListener: GeneralizedEVMListener;
   private solanaListener: SolanaListener;
   private watchedEvmAddresses: string[] = [];
   private watchedSolanaAddresses: string[] = [];
+  private selfCustody: SelfCustodyProvider;
 
   constructor(monadConfig: EVMChainConfig) {
     this.evmListener = new GeneralizedEVMListener([monadConfig]);
     this.solanaListener = new SolanaListener();
+    this.selfCustody = new SelfCustodyProvider();
   }
 
   public getSolanaConfig() {
@@ -113,6 +124,65 @@ export class ChainDepositProcessor {
     }
   }
 
+
+  private targetTreasuryFor(chain: string): string | undefined {
+    if (chain === 'solana') return process.env.KUDI_TREASURY_SOLANA_ADDRESS;
+    return process.env.KUDI_TREASURY_EVM_ADDRESS || process.env.KUDI_MONAD_TREASURY_ADDRESS || process.env.KUDI_TREASURY_EVM_ADDRESS;
+  }
+
+  private async updateDepositSweep(signature: string, status: string, txHash?: string, error?: string): Promise<void> {
+    await prisma.$executeRaw`
+      UPDATE "Deposit"
+      SET "sweepStatus" = ${status},
+          "sweepTxHash" = ${txHash ?? null},
+          "sweepError" = ${error ?? null},
+          "sweptAt" = CASE WHEN ${status} = 'SWEPT' THEN NOW() ELSE "sweptAt" END,
+          "updatedAt" = NOW()
+      WHERE signature = ${signature}
+    `;
+  }
+
+  private async attemptSweep(params: {
+    signature: string;
+    wallet: DepositWalletRow;
+    chain: string;
+    amountUSDC: number;
+  }): Promise<void> {
+    const normalizedChain = params.chain === 'solana' ? 'solana' : 'monad';
+    const targetTreasury = this.targetTreasuryFor(normalizedChain);
+
+    if (!targetTreasury) {
+      await this.updateDepositSweep(params.signature, 'SWEEP_BLOCKED', undefined, `Missing treasury address for ${normalizedChain}`);
+      return;
+    }
+
+    if (!params.wallet.privyWalletId || params.wallet.custodyType !== 'SERVER_CUSTODY') {
+      await this.updateDepositSweep(params.signature, 'FLOAT_EXPOSURE', undefined, 'Wallet is not server-custody sweepable');
+      return;
+    }
+
+    if (normalizedChain === 'solana') {
+      await this.updateDepositSweep(params.signature, 'SWEEP_UNSUPPORTED', undefined, 'Solana deposit-wallet sweep requires production-safe SPL transfer builder');
+      return;
+    }
+
+    try {
+      await this.updateDepositSweep(params.signature, 'SWEEP_PROCESSING');
+      const { txHash } = await this.selfCustody.sendCrypto({
+        treasuryWalletId: params.wallet.privyWalletId,
+        toAddress: targetTreasury,
+        amountUSDC: params.amountUSDC,
+        chain: 'monad'
+      });
+      await this.updateDepositSweep(params.signature, 'SWEPT', txHash);
+      console.log(`[Chain Processor] 🏦 EVM sweep successful for ${params.signature.slice(0, 12)}...: ${txHash}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      await this.updateDepositSweep(params.signature, 'SWEEP_FAILED', undefined, message);
+      console.warn(`[Chain Processor] ⚠️ EVM sweep failed for ${params.signature.slice(0, 12)}...: ${message}`);
+    }
+  }
+
   /**
    * Processes deposit event: checks idempotency, credits LedgerEntry in Neon DB, and sends notification.
    */
@@ -127,81 +197,141 @@ export class ChainDepositProcessor {
     if (!params.signature || params.amountUSDC <= 0) return;
 
     try {
-      // 1. Idempotency check: skip signatures already processed in DB
-      const existingSig = await prisma.processedSignature.findUnique({
-        where: { signature: params.signature }
-      });
-      if (existingSig) {
-        return;
-      }
-
-      // 2. Resolve wallet owner in Neon DB
+      // 1. Resolve wallet owner in Neon DB before entering the credit transaction.
       const searchAddresses = params.address.startsWith('0x')
         ? [params.address, params.address.toLowerCase()]
         : [params.address];
 
-      const wallet = await prisma.wallet.findFirst({
-        where: {
-          address: { in: searchAddresses }
-        }
-      });
+      const walletRows: DepositWalletRow[] = await prisma.$queryRaw`
+        SELECT id, "userId", address, chain, "privyWalletId", "custodyType"
+        FROM "Wallet"
+        WHERE address IN (${searchAddresses[0]}, ${searchAddresses[1] ?? searchAddresses[0]})
+        LIMIT 1
+      `;
+      const wallet = walletRows[0];
 
       if (!wallet) {
         console.warn(`[Chain Processor] ⚠️ No registered user found for deposit address ${params.address}`);
         return;
       }
 
-      // 3. Mark signature as processed in Neon DB
-      await prisma.processedSignature.create({
-        data: { signature: params.signature }
-      });
+      let credited = false;
+      let newBal = 0;
 
-      // 4. Compute user's latest balance from DB
-      const latestLedger = await prisma.ledgerEntry.findFirst({
-        where: { userId: wallet.userId },
-        orderBy: { createdAt: 'desc' }
-      });
+      await prisma.$transaction(async (tx) => {
+        const inserted: Array<{ signature: string }> = await tx.$queryRaw`
+          INSERT INTO "ProcessedSignature" (signature, "createdAt")
+          VALUES (${params.signature}, NOW())
+          ON CONFLICT (signature) DO NOTHING
+          RETURNING signature
+        `;
 
-      const currentBal = latestLedger ? Number(latestLedger.resultingBalanceUSDC) : 0;
-      const newBal = currentBal + params.amountUSDC;
-
-      // 5. Create LedgerEntry in Neon DB
-      await prisma.ledgerEntry.create({
-        data: {
-          userId: wallet.userId,
-          type: 'DEPOSIT_CREDIT',
-          amountUSDC: params.amountUSDC,
-          resultingBalanceUSDC: newBal,
-          referenceId: params.signature,
-          metadata: JSON.stringify({
-            chain: params.chain,
-            walletAddress: params.address,
-            signature: params.signature,
-            tokenSymbol: params.tokenSymbol,
-            blockNumber: params.blockNumber,
-            title: `${params.tokenSymbol} Deposit`,
-            subtitle: `${params.chain.toUpperCase()} Network`
-          })
+        if (inserted.length === 0) {
+          return;
         }
-      });
 
-      // 6. Create Notification in Neon DB
-      await prisma.notification.create({
-        data: {
-          userId: wallet.userId,
-          title: 'Deposit Received 💰',
-          body: `You received ${params.amountUSDC.toFixed(2)} ${params.tokenSymbol} into your Kudi wallet balance.`,
-          type: 'PAYMENT_RECEIVED',
-          data: JSON.stringify({
+        const latestLedger: any[] = await tx.$queryRaw`
+          SELECT "resultingBalanceUSDC"
+          FROM "LedgerEntry"
+          WHERE "userId" = ${wallet.userId}
+          ORDER BY "createdAt" DESC
+          LIMIT 1
+        `;
+        const initialBalance = latestLedger.length ? Number(latestLedger[0].resultingBalanceUSDC) : 0;
+
+        await tx.$executeRaw`
+          INSERT INTO "BalanceAccount" (id, "userId", asset, "availableUSDC", "reservedUSDC", version, "createdAt", "updatedAt")
+          VALUES (gen_random_uuid(), ${wallet.userId}, 'USDC', ${initialBalance}, 0, 0, NOW(), NOW())
+          ON CONFLICT ("userId", asset) DO NOTHING
+        `;
+
+        const balanceRows: any[] = await tx.$queryRaw`
+          SELECT "availableUSDC"
+          FROM "BalanceAccount"
+          WHERE "userId" = ${wallet.userId} AND asset = 'USDC'
+          FOR UPDATE
+        `;
+        const currentBal = balanceRows.length ? Number(balanceRows[0].availableUSDC) : initialBalance;
+        newBal = currentBal + params.amountUSDC;
+
+        await tx.$executeRaw`
+          UPDATE "BalanceAccount"
+          SET "availableUSDC" = ${newBal}, version = version + 1, "updatedAt" = NOW()
+          WHERE "userId" = ${wallet.userId} AND asset = 'USDC'
+        `;
+
+        await tx.ledgerEntry.create({
+          data: {
+            userId: wallet.userId,
+            type: 'DEPOSIT_CREDIT',
             amountUSDC: params.amountUSDC,
-            chain: params.chain,
-            txHash: params.signature,
-            reference: params.signature
-          })
-        }
+            resultingBalanceUSDC: newBal,
+            referenceId: params.signature,
+            metadata: JSON.stringify({
+              chain: params.chain,
+              walletAddress: params.address,
+              signature: params.signature,
+              tokenSymbol: params.tokenSymbol,
+              blockNumber: params.blockNumber,
+              title: `${params.tokenSymbol} Deposit`,
+              subtitle: `${params.chain.toUpperCase()} Network`
+            })
+          }
+        });
+
+        await tx.$executeRaw`
+          INSERT INTO "Deposit" (id, "userId", "walletAddress", chain, "tokenSymbol", "amountUSDC", signature, "blockNumber", "creditStatus", "sweepStatus", "creditedAt", "createdAt", "updatedAt")
+          VALUES (
+            gen_random_uuid(),
+            ${wallet.userId},
+            ${params.address},
+            ${params.chain},
+            ${params.tokenSymbol},
+            ${params.amountUSDC},
+            ${params.signature},
+            ${params.blockNumber ?? null},
+            'CREDITED',
+            'SWEEP_PENDING',
+            NOW(),
+            NOW(),
+            NOW()
+          )
+          ON CONFLICT (signature) DO UPDATE SET
+            "creditStatus" = 'CREDITED',
+            "sweepStatus" = COALESCE("Deposit"."sweepStatus", 'SWEEP_PENDING'),
+            "updatedAt" = NOW()
+        `;
+
+        await tx.notification.create({
+          data: {
+            userId: wallet.userId,
+            title: 'Deposit Received 💰',
+            body: `You received ${params.amountUSDC.toFixed(2)} ${params.tokenSymbol} into your Kudi wallet balance.`,
+            type: 'PAYMENT_RECEIVED',
+            data: JSON.stringify({
+              amountUSDC: params.amountUSDC,
+              chain: params.chain,
+              txHash: params.signature,
+              reference: params.signature
+            })
+          }
+        });
+
+        credited = true;
       });
 
-      console.log(`[Chain Processor] 🐘 Successfully credited +${params.amountUSDC.toFixed(2)} ${params.tokenSymbol} to user ${wallet.userId} in Neon DB (New Balance: $${newBal.toFixed(2)} USDC)`);
+      if (!credited) {
+        return;
+      }
+
+      console.log(`[Chain Processor] 🐘 Successfully credited +${params.amountUSDC.toFixed(2)} ${params.tokenSymbol} to user ${wallet.userId} in Neon DB (New Balance: $${newBal.toFixed(2)} USDC; Sweep: PENDING)`);
+
+      await this.attemptSweep({
+        signature: params.signature,
+        wallet,
+        chain: params.chain,
+        amountUSDC: params.amountUSDC
+      });
 
       // 7. Dispatch Expo Push Notification to user's mobile device
       try {

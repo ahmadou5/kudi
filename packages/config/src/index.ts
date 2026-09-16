@@ -9,6 +9,7 @@ const apiEnvSchema = z
     NODE_ENV: nodeEnvSchema,
     PORT: z.coerce.number().int().positive().default(4000),
     JWT_SECRET: z.string().optional(),
+    ADMIN_API_KEY: z.string().optional(),
     CORS_ORIGIN: z.string().optional(),
     REDIS_URL: z.string().optional(),
     ENABLE_REDIS: z.enum(['true', 'false']).default('false'),
@@ -32,7 +33,8 @@ const apiEnvSchema = z
     KUDI_TREASURY_SOLANA_ADDRESS: z.string().optional(),
     SOLANA_CAIP2: z.string().default('solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1'),
     VASP_PARTNER_API_KEY: z.string().optional(),
-    VASP_PARTNER_API_URL: z.string().url().default('https://api.busha.co/v1')
+    VASP_PARTNER_API_URL: z.string().url().default('https://api.busha.co/v1'),
+    ALLOW_MOCK_CHAIN_SENDS: z.enum(['true', 'false']).default('false')
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === 'production' && !env.JWT_SECRET) {
@@ -40,6 +42,34 @@ const apiEnvSchema = z
         code: z.ZodIssueCode.custom,
         path: ['JWT_SECRET'],
         message: 'JWT_SECRET is required in production'
+      });
+    }
+    if (env.NODE_ENV === 'production' && !env.ADMIN_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ADMIN_API_KEY'],
+        message: 'ADMIN_API_KEY is required in production'
+      });
+    }
+    if (env.NODE_ENV === 'production' && !env.PRIVY_APP_ID) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PRIVY_APP_ID'],
+        message: 'PRIVY_APP_ID is required in production'
+      });
+    }
+    if (env.NODE_ENV === 'production' && !env.PRIVY_APP_SECRET) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PRIVY_APP_SECRET'],
+        message: 'PRIVY_APP_SECRET is required in production'
+      });
+    }
+    if (env.NODE_ENV === 'production' && !env.KUDI_TREASURY_SOLANA_ADDRESS) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['KUDI_TREASURY_SOLANA_ADDRESS'],
+        message: 'KUDI_TREASURY_SOLANA_ADDRESS is required in production'
       });
     }
   });

@@ -3,13 +3,15 @@ import { KYCStatus, KYCTier } from '@kudi/types';
 import { LedgerService } from '../../services/ledgerService';
 import { successResponse, errorResponse } from '../../utils/response';
 import { verifyIdentityAndProvisionVirtualAccount } from '../../lib/identityVerification';
+import { getAuthenticatedUser } from '../../utils/authGuards';
 
 export class KYCController {
   constructor(private ledgerService: LedgerService) {}
 
   public verifyID = async (request: FastifyRequest, reply: FastifyReply) => {
-    const { userId, idNumber, idType, firstName, lastName, dob, email, phone } = request.body as {
-      userId: string;
+    const authUser = getAuthenticatedUser(request);
+    const { idNumber, idType, firstName, lastName, dob, email, phone } = request.body as {
+      userId?: string;
       idNumber: string;
       idType: 'BVN' | 'NIN';
       firstName?: string;
@@ -19,8 +21,9 @@ export class KYCController {
       phone?: string;
     };
 
+    const userId = authUser?.userId;
     if (!userId || !idNumber) {
-      return reply.status(400).send(errorResponse('MISSING_FIELDS', 'userId and idNumber are required', 400));
+      return reply.status(400).send(errorResponse('MISSING_FIELDS', 'Authenticated user and idNumber are required', 400));
     }
 
     try {

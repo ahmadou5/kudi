@@ -381,13 +381,19 @@ export class SelfCustodyProvider implements CustodyProvider {
     const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress } = params;
 
     if (!this.appId || !this.appSecret || !treasuryWalletId) {
-      console.warn(`[SelfCustody] ⚠️ Sandbox mode triggered — Missing credentials:`, {
+      const missing = {
         hasAppId: !!this.appId,
         hasAppSecret: !!this.appSecret,
         hasTreasuryWalletId: !!treasuryWalletId,
         treasuryWalletIdProvided: treasuryWalletId,
         chain
-      });
+      };
+
+      if (process.env.NODE_ENV === 'production' || process.env.ALLOW_MOCK_CHAIN_SENDS !== 'true') {
+        throw new Error(`[SelfCustody] Missing production chain-send credentials: ${JSON.stringify(missing)}`);
+      }
+
+      console.warn(`[SelfCustody] ⚠️ Explicit mock chain-send mode triggered — Missing credentials:`, missing);
       const mockHash = `mock_${chain}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       return { txHash: mockHash };
     }
