@@ -160,7 +160,7 @@ async function recordWithdrawalReversal(job: PendingWithdrawalRow, reason: strin
         })}::jsonb,
         NOW()
       )
-      ON CONFLICT DO NOTHING
+      ON CONFLICT (type, "referenceId") DO NOTHING
     `;
   });
 }

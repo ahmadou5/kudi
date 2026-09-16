@@ -5,6 +5,38 @@ const prisma = new PrismaClient();
 const statements = [
   `CREATE EXTENSION IF NOT EXISTS pgcrypto`,
   `ALTER TABLE "LedgerEntry" ALTER COLUMN type TYPE TEXT USING type::text`,
+  `CREATE TABLE IF NOT EXISTS "LedgerEntryDuplicateArchive" (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    "ledgerEntryId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    type TEXT NOT NULL,
+    "amountUSDC" DOUBLE PRECISION NOT NULL,
+    "resultingBalanceUSDC" DOUBLE PRECISION NOT NULL,
+    "referenceId" TEXT NOT NULL,
+    metadata JSONB,
+    "originalCreatedAt" TIMESTAMP(3) NOT NULL,
+    "archivedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reason TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS "LedgerEntryDuplicateArchive_reference_idx" ON "LedgerEntryDuplicateArchive" (type, "referenceId")`,
+  `WITH ranked AS (
+    SELECT id, "userId", type::text AS type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt",
+           ROW_NUMBER() OVER (PARTITION BY type::text, "referenceId" ORDER BY "createdAt" ASC, id ASC) AS rn
+    FROM "LedgerEntry"
+  )
+  INSERT INTO "LedgerEntryDuplicateArchive" (id, "ledgerEntryId", "userId", type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "originalCreatedAt", reason)
+  SELECT gen_random_uuid()::text, id, "userId", type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt", 'DEDUP_BEFORE_LEDGER_UNIQUE_INDEX'
+  FROM ranked
+  WHERE rn > 1
+  ON CONFLICT (id) DO NOTHING`,
+  `WITH ranked AS (
+    SELECT id, ROW_NUMBER() OVER (PARTITION BY type::text, "referenceId" ORDER BY "createdAt" ASC, id ASC) AS rn
+    FROM "LedgerEntry"
+  )
+  DELETE FROM "LedgerEntry" le
+  USING ranked r
+  WHERE le.id = r.id AND r.rn > 1`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "LedgerEntry_type_referenceId_key" ON "LedgerEntry" (type, "referenceId")`,
   `CREATE TABLE IF NOT EXISTS "Deposit" (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     "userId" TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,

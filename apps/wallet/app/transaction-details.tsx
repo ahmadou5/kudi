@@ -18,7 +18,11 @@ import {
   Clock,
   Copy,
   CheckCircle2,
-  ExternalLink
+  ExternalLink,
+  ArrowLeft,
+  BadgeCheck,
+  BadgeAlert,
+  BadgeX
 } from 'lucide-react-native';
 import { useAppPalette } from '../src/lib/theme';
 import { Typography } from '../src/constants/typography';
@@ -107,7 +111,7 @@ export default function TransactionDetailsScreen() {
           style={[styles.closeBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <X size={18} color={palette.text} />
+          <ArrowLeft size={18} color={palette.text} />
         </TouchableOpacity>
         <Text style={[Typography.title3, { color: palette.text }]}>Transaction Details</Text>
         <View style={{ width: 36 }} />
@@ -118,7 +122,7 @@ export default function TransactionDetailsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Main Hero Card */}
-        <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+        <View style={[styles.heroCard]}>
           {/* Dual Token + Chain Badge Avatar */}
           <View style={styles.avatarWrapper}>
             <View style={[styles.tokenLogoCircle, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: palette.border }]}>
@@ -143,18 +147,15 @@ export default function TransactionDetailsScreen() {
             {amount}
           </Text>
 
-          {!!secondaryAmount && (
-            <Text style={[Typography.bodyBold, { color: palette.textSecondary }]}>
-              {secondaryAmount}
-            </Text>
-          )}
+
 
           {/* Status Badge */}
           <View style={[styles.statusBadge, { backgroundColor: statusBg, borderColor: statusColor + '40' }]}>
-            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-            <Text style={[Typography.caption, { color: statusColor, fontWeight: '700' }]}>
-              {status}
-            </Text>
+
+            {isSuccess && (<BadgeCheck size={16} color={statusColor} />)}
+            {isPending && (<BadgeAlert size={16} color={statusColor} />)}
+            {!isSuccess && !isPending && (<BadgeX size={16} color={statusColor} />)}
+
           </View>
         </View>
 
@@ -273,7 +274,7 @@ export default function TransactionDetailsScreen() {
           <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
           <View style={styles.infoRow}>
-            <Text style={[Typography.caption, { color: palette.textSecondary }]}>Network / Chain</Text>
+            <Text style={[Typography.caption, { color: palette.textSecondary }]}>Network</Text>
             <View style={styles.rowRightGroup}>
               {(isMonad || isSolana) && <ChainLogo chain={isMonad ? 'monad' : 'solana'} size={16} />}
               <Text style={[Typography.bodyBold, { color: palette.text }]}>
@@ -285,7 +286,7 @@ export default function TransactionDetailsScreen() {
           <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
           <View style={styles.infoRow}>
-            <Text style={[Typography.caption, { color: palette.textSecondary }]}>Asset / Currency</Text>
+            <Text style={[Typography.caption, { color: palette.textSecondary }]}>Asset</Text>
             <Text style={[Typography.bodyBold, { color: palette.text }]}>
               {tokenSymbol}
             </Text>
@@ -305,7 +306,7 @@ export default function TransactionDetailsScreen() {
           {/* Reference Row with Copy Button */}
           <View style={styles.infoRowVertical}>
             <View style={styles.refHeaderRow}>
-              <Text style={[Typography.caption, { color: palette.textSecondary }]}>Reference / Hash</Text>
+              <Text style={[Typography.caption, { color: palette.textSecondary }]}>Reference</Text>
               <TouchableOpacity onPress={handleCopyRef} activeOpacity={0.7} style={styles.copyBtn}>
                 {copied ? (
                   <CheckCircle2 size={14} color={palette.success} />
@@ -411,8 +412,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
     marginTop: 4

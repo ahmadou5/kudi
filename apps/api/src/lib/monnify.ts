@@ -88,8 +88,14 @@ export async function createMonnifyReservedAccount(
         };
       }
     } catch (err) {
-      // Fall through to fallback mock
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(`[Monnify API] Reserved account creation failed in production: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('[Monnify API] Missing MONNIFY credentials in production. Cannot issue simulated virtual accounts.');
   }
 
   return {

@@ -23,6 +23,9 @@ export class SquadProvider implements PaymentProvider {
 
   async resolveAccount(accountNumber: string, bankCode: string): Promise<BankAccountResolution> {
     if (!this.secretKey) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[SquadProvider] Missing SQUAD_SECRET_KEY in production.');
+      }
       return {
         accountNumber,
         bankCode,
@@ -58,6 +61,9 @@ export class SquadProvider implements PaymentProvider {
 
   async initiateTransfer(request: TransferRequest): Promise<TransferResponse> {
     if (!this.secretKey) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[SquadProvider] Missing SQUAD_SECRET_KEY in production. Cannot execute payout.');
+      }
       return {
         reference: request.reference,
         transferCode: `TRF_SQUAD_MOCK_${Date.now()}`,
@@ -105,6 +111,9 @@ export class SquadProvider implements PaymentProvider {
 
   async checkTransferStatus(reference: string): Promise<TransferResponse> {
     if (!this.secretKey) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[SquadProvider] Missing SQUAD_SECRET_KEY in production. Cannot verify transfer.');
+      }
       return {
         reference,
         status: 'success',

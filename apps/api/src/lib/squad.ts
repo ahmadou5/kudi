@@ -121,8 +121,15 @@ export async function createSquadVirtualAccount(
         };
       }
     } catch (err) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(`[Squad API] Dedicated VA creation failed in production: ${err instanceof Error ? err.message : String(err)}`);
+      }
       console.warn('[Squad API] Dedicated VA creation error, falling back to simulated VA:', err instanceof Error ? err.message : String(err));
     }
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('[Squad API] Missing SQUAD_SECRET_KEY in production. Cannot issue simulated virtual accounts.');
   }
 
   // Consistent simulated virtual account for sandbox & development

@@ -18,6 +18,9 @@ export class PaystackProvider implements PaymentProvider {
 
   async resolveAccount(accountNumber: string, bankCode: string): Promise<BankAccountResolution> {
     if (!this.secretKey) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[PaystackProvider] PAYSTACK_SECRET_KEY is required in production environment.');
+      }
       // Return sandbox / mock resolution when secret key is not set
       return {
         accountNumber,
@@ -51,6 +54,9 @@ export class PaystackProvider implements PaymentProvider {
 
   async initiateTransfer(request: TransferRequest): Promise<TransferResponse> {
     if (!this.secretKey) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[PaystackProvider] Missing PAYSTACK_SECRET_KEY in production. Cannot execute payout.');
+      }
       // Mock successful transfer for sandbox testing
       return {
         reference: request.reference,
@@ -122,6 +128,9 @@ export class PaystackProvider implements PaymentProvider {
 
   async checkTransferStatus(reference: string): Promise<TransferResponse> {
     if (!this.secretKey) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[PaystackProvider] Missing PAYSTACK_SECRET_KEY in production. Cannot verify transfer.');
+      }
       return {
         reference,
         status: 'success',

@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Image, ImageSourcePropType } from 'react-native';
-import { Zap, ArrowDownCircle, ArrowUpCircle, ArrowDown, ArrowUp, Clock, LucideIcon } from 'lucide-react-native';
+import { Zap, ArrowDownCircle, ArrowUpCircle, ArrowDown, ArrowUp, Clock, LucideIcon, BadgeAlert, BadgeCheck, BadgeX } from 'lucide-react-native';
 import { useAppPalette } from '../lib/theme';
 import { Typography } from '../constants/typography';
 import { ChainLogo } from './ui/ChainLogo';
@@ -91,14 +91,14 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
   const statusBg = isSuccess
     ? 'rgba(52, 211, 153, 0.15)'
     : isPending
-    ? 'rgba(251, 191, 36, 0.15)'
-    : 'rgba(244, 63, 94, 0.15)';
+      ? 'rgba(251, 191, 36, 0.15)'
+      : 'rgba(244, 63, 94, 0.15)';
 
   const statusColor = isSuccess
     ? '#34D399'
     : isPending
-    ? '#FBBF24'
-    : '#F43F5E';
+      ? '#FBBF24'
+      : '#F43F5E';
 
   const handleCardPress = () => {
     if (onPress) {
@@ -211,11 +211,12 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
         </View>
 
         {/* Right Status Badge */}
-        <View style={[styles.statusBadge, { backgroundColor: statusBg, borderColor: statusColor + '40' }]}>
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-          <Text style={[Typography.caption, { color: statusColor, fontWeight: '700', fontSize: 10 }]}>
-            {item.status}
-          </Text>
+        <View style={[styles.statusBadge]}>
+
+          {isPending && <BadgeAlert size={16} color={statusColor} />}
+          {isSuccess && <BadgeCheck size={16} color={statusColor} />}
+          {!isPending && !isSuccess && <BadgeX size={16} color={statusColor} />}
+
         </View>
       </View>
 
@@ -327,10 +328,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 0.8
+    paddingHorizontal: 7,
+    paddingVertical: 7,
+
   },
   statusDot: {
     width: 5,

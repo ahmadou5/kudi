@@ -593,7 +593,7 @@ export class LedgerService {
       await tx.$executeRaw`
         INSERT INTO "LedgerEntry" (id, "userId", type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt")
         VALUES (gen_random_uuid(), ${userId}, ${type}::"LedgerEntryType", ${amountUSDC}, ${next}, ${reference}, ${metadata ? JSON.stringify(metadata) : null}::jsonb, NOW())
-        ON CONFLICT DO NOTHING
+        ON CONFLICT (type, "referenceId") DO NOTHING
       `;
 
       if (dailyLimit) {
@@ -683,7 +683,7 @@ export class LedgerService {
       await tx.$executeRaw`
         INSERT INTO "LedgerEntry" (id, "userId", type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt")
         VALUES (gen_random_uuid(), ${userId}, ${type}::"LedgerEntryType", ${amountUSDC}, ${next}, ${reference}, ${metadata ? JSON.stringify(metadata) : null}::jsonb, NOW())
-        ON CONFLICT DO NOTHING
+        ON CONFLICT (type, "referenceId") DO NOTHING
       `;
 
       return next;
@@ -734,6 +734,103 @@ export class LedgerService {
 
   public getSpend(reference: string): any {
     return this.spends.get(reference);
+  }
+
+  public async reverseSpendTransaction(
+    reference: string,
+    reason: string = 'PAYOUT_FAILED'
+  ): Promise<{ reversed: boolean; message: string }> {
+    let spend = this.spends.get(reference);
+
+    if (!spend) {
+      try {
+        const dbSpend = await prisma.spendTransaction.findUnique({
+          where: { reference }
+        });
+        if (dbSpend) {
+          spend = {
+            userId: dbSpend.userId,
+            reference: dbSpend.reference,
+            amountUSDC: String(dbSpend.amountUSDC),
+            amountNGN: dbSpend.amountNGN,
+            status: dbSpend.status
+          };
+          this.spends.set(reference, spend);
+        }
+      } catch (err: any) {
+        console.warn('[LedgerService] Spend lookup error:', err?.message || err);
+      }
+    }
+
+    if (!spend) {
+      return { reversed: false, message: `Spend transaction ${reference} not found` };
+    }
+
+    if (spend.status === 'FAILED' || spend.status === 'REVERSED') {
+      return { reversed: false, message: `Spend transaction ${reference} already marked as ${spend.status}` };
+    }
+
+    spend.status = 'REVERSED';
+    this.spends.set(reference, spend);
+
+    try {
+      await prisma.spendTransaction.update({
+        where: { reference },
+        data: { status: 'REVERSED' }
+      });
+    } catch (err: any) {
+      console.warn('[LedgerService] Failed to update SpendTransaction status:', err?.message || err);
+    }
+
+    await this.releaseSpendLimitEntry(reference, reason);
+
+    const amountUSDC = Number(spend.amountUSDC) || 0;
+    if (amountUSDC > 0) {
+      await this.creditBalanceAtomic({
+        userId: spend.userId,
+        amountUSDC,
+        reference: `rev_${reference}`,
+        type: 'DEPOSIT_CREDIT',
+        metadata: {
+          reference,
+          reason,
+          type: 'SPEND_REVERSAL',
+          title: 'Bank Payout Reversal',
+          subtitle: `Restored to Balance (${reason})`
+        }
+      });
+
+      this.addNotification(
+        spend.userId,
+        'Payout Reversed — Balance Restored 🔄',
+        `Your payout of ₦${spend.amountNGN || 0} (${amountUSDC.toFixed(2)} USDC) was not completed by the bank and has been refunded to your wallet.`,
+        'PAYMENT_FAILED',
+        { reference, reason, amountUSDC }
+      );
+    }
+
+    return { reversed: true, message: `Spend transaction ${reference} reversed and balance refunded` };
+  }
+
+  public async confirmSpendTransaction(
+    reference: string
+  ): Promise<{ updated: boolean }> {
+    const spend = this.spends.get(reference);
+    if (spend) {
+      spend.status = 'SUCCESS';
+      this.spends.set(reference, spend);
+    }
+
+    try {
+      await prisma.spendTransaction.update({
+        where: { reference },
+        data: { status: 'SUCCESS' }
+      });
+    } catch (err: any) {
+      // Ignored if not found
+    }
+
+    return { updated: true };
   }
 
   public recordTransaction(record: TransactionRecord): TransactionRecord {

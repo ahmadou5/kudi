@@ -162,6 +162,13 @@ export class WebhooksController {
           reference: `SQUAD_WH_${reference}`
         });
       }
+    } else if (event === 'transfer_successful' || event === 'payout.success') {
+      console.log(`✅ [Squad Webhook] Outbound transfer confirmed: ${reference}`);
+      await this.ledgerService.confirmSpendTransaction(reference);
+    } else if (event === 'transfer_failed' || event === 'payout.failed') {
+      const reason = data.message || data.remark || 'Squad transfer rejected by banking network';
+      console.warn(`⚠️ [Squad Webhook] Outbound transfer failed for ${reference}: ${reason}. Triggering balance reversal.`);
+      await this.ledgerService.reverseSpendTransaction(reference, reason);
     }
 
     return successResponse({ received: true }, 'Squad webhook processed successfully');
@@ -232,6 +239,13 @@ export class WebhooksController {
           reference: `MNF_WH_${reference}`
         });
       }
+    } else if (eventType === 'DISBURSEMENT_SUCCESSFUL') {
+      console.log(`✅ [Monnify Webhook] Outbound transfer confirmed: ${reference}`);
+      await this.ledgerService.confirmSpendTransaction(reference);
+    } else if (eventType === 'DISBURSEMENT_FAILED') {
+      const reason = eventData.responseMessage || eventData.comment || 'Monnify disbursement rejected by banking network';
+      console.warn(`⚠️ [Monnify Webhook] Outbound transfer failed for ${reference}: ${reason}. Triggering balance reversal.`);
+      await this.ledgerService.reverseSpendTransaction(reference, reason);
     }
 
     return successResponse({ received: true }, 'Monnify webhook processed successfully');
@@ -303,6 +317,13 @@ export class WebhooksController {
           reference: `PST_WH_${reference}`
         });
       }
+    } else if (event === 'transfer.success') {
+      console.log(`✅ [Paystack Webhook] Outbound transfer confirmed: ${reference}`);
+      await this.ledgerService.confirmSpendTransaction(reference);
+    } else if (event === 'transfer.failed' || event === 'transfer.reversed') {
+      const reason = data.reason || data.gateway_response || 'Paystack transfer rejected by banking network';
+      console.warn(`⚠️ [Paystack Webhook] Outbound transfer failed for ${reference}: ${reason}. Triggering balance reversal.`);
+      await this.ledgerService.reverseSpendTransaction(reference, reason);
     }
 
     return successResponse({ received: true }, 'Paystack webhook processed successfully');

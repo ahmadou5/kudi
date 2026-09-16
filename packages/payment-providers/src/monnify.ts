@@ -46,6 +46,9 @@ export class MonnifyProvider implements PaymentProvider {
 
   async resolveAccount(accountNumber: string, bankCode: string): Promise<BankAccountResolution> {
     if (!this.apiKey || !this.secretKey) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[MonnifyProvider] Missing MONNIFY_API_KEY or MONNIFY_SECRET_KEY in production.');
+      }
       return {
         accountNumber,
         bankCode,
@@ -77,6 +80,9 @@ export class MonnifyProvider implements PaymentProvider {
 
   async initiateTransfer(request: TransferRequest): Promise<TransferResponse> {
     if (!this.apiKey || !this.secretKey) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[MonnifyProvider] Missing MONNIFY_API_KEY or MONNIFY_SECRET_KEY in production. Cannot execute payout.');
+      }
       return {
         reference: request.reference,
         transferCode: `TRF_MONNIFY_MOCK_${Date.now()}`,
@@ -126,6 +132,9 @@ export class MonnifyProvider implements PaymentProvider {
 
   async checkTransferStatus(reference: string): Promise<TransferResponse> {
     if (!this.apiKey || !this.secretKey) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[MonnifyProvider] Missing MONNIFY_API_KEY or MONNIFY_SECRET_KEY in production. Cannot verify transfer.');
+      }
       return {
         reference,
         status: 'success',
