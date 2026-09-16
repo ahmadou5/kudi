@@ -9,7 +9,7 @@
     "build": "tsup src/index.ts --format cjs,esm",
     "dev": "tsx watch src/index.ts",
     "build:runtime": "pnpm --workspace-concurrency=1 --filter @kudi/worker^... run build:runtime && pnpm run build",
-    "start": "pnpm --filter @kudi/database db:generate && pnpm run build:runtime && node dist/index.js",
+    "start": "pnpm --filter @kudi/database db:sync && pnpm --filter @kudi/database db:generate && pnpm run build:runtime && node dist/index.js",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

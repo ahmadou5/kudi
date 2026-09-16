@@ -46,6 +46,15 @@ async function recordWorkerHeartbeat(): Promise<void> {
 const depositProcessor = new ChainDepositProcessor(monadTestnetConfig);
 const webhookProcessor = new WebhookProcessor();
 
+function runWorkerTask(name: string, task: () => Promise<unknown> | unknown): void {
+  Promise.resolve()
+    .then(task)
+    .catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[Worker] ' + name + ' failed: ' + message);
+    });
+}
+
 console.log('⚡ Kudi Background Worker started');
 console.log(`🔗 Listening on Solana USDC Mint: ${depositProcessor.getSolanaConfig().usdcMintAddress}`);
 console.log(`🔗 Listening on EVM Chain: ${monadTestnetConfig.name} (${monadTestnetConfig.tokenSymbol})`);
@@ -54,16 +63,16 @@ console.log('📤 Crypto Withdrawal Processor active (polling every 5s)');
 console.log('🧾 Reconciliation snapshots active (every 5m)');
 console.log('🏦 Deposit sweep retry processor active (every 60s)');
 
-setInterval(pollRateEngine, 10000);
-setInterval(() => depositProcessor.pollAllChains(), 15000);
-setInterval(() => processCryptoWithdrawals(), 5000);
-setInterval(() => recoverStaleProcessingWithdrawals(), 60000);
-setInterval(() => depositProcessor.processSweepRetries(), 60000);
-setInterval(() => recordReconciliationSnapshot(), 300000);
-setInterval(recordWorkerHeartbeat, 30000);
+setInterval(() => runWorkerTask('rate poller', pollRateEngine), 10000);
+setInterval(() => runWorkerTask('chain deposit poller', () => depositProcessor.pollAllChains()), 15000);
+setInterval(() => runWorkerTask('crypto withdrawal processor', processCryptoWithdrawals), 5000);
+setInterval(() => runWorkerTask('stale withdrawal recovery', recoverStaleProcessingWithdrawals), 60000);
+setInterval(() => runWorkerTask('deposit sweep retries', () => depositProcessor.processSweepRetries()), 60000);
+setInterval(() => runWorkerTask('reconciliation snapshot', recordReconciliationSnapshot), 300000);
+setInterval(() => runWorkerTask('worker heartbeat', recordWorkerHeartbeat), 30000);
 
-pollRateEngine();
-void recordWorkerHeartbeat();
-void recoverStaleProcessingWithdrawals();
-void depositProcessor.processSweepRetries();
-void recordReconciliationSnapshot();
+runWorkerTask('rate poller', pollRateEngine);
+runWorkerTask('worker heartbeat', recordWorkerHeartbeat);
+runWorkerTask('stale withdrawal recovery', recoverStaleProcessingWithdrawals);
+runWorkerTask('deposit sweep retries', () => depositProcessor.processSweepRetries());
+runWorkerTask('reconciliation snapshot', recordReconciliationSnapshot);

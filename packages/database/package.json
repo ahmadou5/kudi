@@ -17,7 +17,8 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "lint": "tsc --noEmit",
-    "build:runtime": "prisma generate && tsup src/index.ts --format cjs,esm"
+    "build:runtime": "prisma generate && tsup src/index.ts --format cjs,esm",
+    "db:sync": "prisma db push --skip-generate"
   },
   "dependencies": {
     "@prisma/client": "^5.10.2",
