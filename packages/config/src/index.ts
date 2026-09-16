@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 const nodeEnvSchema = z.enum(['development', 'test', 'production']).default('development');
 
-const optionalUrl = z.string().url().optional();
+const emptyStringToUndefined = (value: unknown) =>
+  typeof value === 'string' && value.trim() === '' ? undefined : value;
+
+const optionalUrl = z.preprocess(emptyStringToUndefined, z.string().url().optional());
 
 const apiEnvSchema = z
   .object({
@@ -106,12 +109,42 @@ function parseEnv<T extends z.ZodTypeAny>(schema: T, env: NodeJS.ProcessEnv, nam
   return result.data;
 }
 
-export const apiConfig = parseEnv(apiEnvSchema, process.env, 'api');
-export const workerConfig = parseEnv(workerEnvSchema, process.env, 'worker');
-export const adminConfig = parseEnv(adminEnvSchema, process.env, 'admin');
-export const walletPublicConfig = parseEnv(walletPublicEnvSchema, process.env, 'wallet public');
+function lazyConfig<T extends z.ZodTypeAny>(schema: T, name: string): z.infer<T> {
+  let parsed: z.infer<T> | undefined;
 
-export type ApiConfig = typeof apiConfig;
-export type WorkerConfig = typeof workerConfig;
-export type AdminConfig = typeof adminConfig;
-export type WalletPublicConfig = typeof walletPublicConfig;
+  const getParsed = () => {
+    if (!parsed) {
+      parsed = parseEnv(schema, process.env, name);
+    }
+    return parsed;
+  };
+
+  return new Proxy({} as z.infer<T>, {
+    get(_target, property) {
+      const config = getParsed() as Record<PropertyKey, unknown>;
+      return config[property];
+    },
+    has(_target, property) {
+      const config = getParsed() as Record<PropertyKey, unknown>;
+      return property in config;
+    },
+    ownKeys() {
+      return Reflect.ownKeys(getParsed() as object);
+    },
+    getOwnPropertyDescriptor(_target, property) {
+      const config = getParsed() as object;
+      if (!(property in config)) return undefined;
+      return { enumerable: true, configurable: true };
+    }
+  });
+}
+
+export const apiConfig = lazyConfig(apiEnvSchema, 'api');
+export const workerConfig = lazyConfig(workerEnvSchema, 'worker');
+export const adminConfig = lazyConfig(adminEnvSchema, 'admin');
+export const walletPublicConfig = lazyConfig(walletPublicEnvSchema, 'wallet public');
+
+export type ApiConfig = z.infer<typeof apiEnvSchema>;
+export type WorkerConfig = z.infer<typeof workerEnvSchema>;
+export type AdminConfig = z.infer<typeof adminEnvSchema>;
+export type WalletPublicConfig = z.infer<typeof walletPublicEnvSchema>;
