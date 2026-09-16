@@ -164,12 +164,15 @@ export function FloatingTabBar({
                 accessibilityLabel={tab.label}
                 accessibilityState={{ selected: isFocused }}
               >
-                {/* Active icon = filled; inactive = stroke-only (strokeWidth lowered) */}
+                {/* Duotone: active keeps stroke lines + semi-transparent fill behind them */}
                 <TabIcon
                   size={iconSize}
                   color={iconColor}
-                  fill={isFocused ? activeColor : 'transparent'}
-                  strokeWidth={isFocused ? 0 : 1.6}
+                  fill={isFocused
+                    ? (isDark ? 'rgba(255,255,255,0.22)' : 'rgba(15,23,42,0.18)')
+                    : 'transparent'
+                  }
+                  strokeWidth={isFocused ? 1.8 : 1.6}
                 />
 
                 {showLabels && (

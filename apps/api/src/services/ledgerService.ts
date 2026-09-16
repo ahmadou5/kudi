@@ -593,7 +593,7 @@ export class LedgerService {
       await tx.$executeRaw`
         INSERT INTO "LedgerEntry" (id, "userId", type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt")
         VALUES (gen_random_uuid(), ${userId}, ${type}::"LedgerEntryType", ${amountUSDC}, ${next}, ${reference}, ${metadata ? JSON.stringify(metadata) : null}::jsonb, NOW())
-        ON CONFLICT (type, "referenceId") DO NOTHING
+        ON CONFLICT DO NOTHING
       `;
 
       if (dailyLimit) {
@@ -683,7 +683,7 @@ export class LedgerService {
       await tx.$executeRaw`
         INSERT INTO "LedgerEntry" (id, "userId", type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt")
         VALUES (gen_random_uuid(), ${userId}, ${type}::"LedgerEntryType", ${amountUSDC}, ${next}, ${reference}, ${metadata ? JSON.stringify(metadata) : null}::jsonb, NOW())
-        ON CONFLICT (type, "referenceId") DO NOTHING
+        ON CONFLICT DO NOTHING
       `;
 
       return next;

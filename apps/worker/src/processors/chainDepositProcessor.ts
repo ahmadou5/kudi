@@ -345,7 +345,7 @@ export class ChainDepositProcessor {
             })}::jsonb,
             NOW()
           )
-          ON CONFLICT (type, "referenceId") DO NOTHING
+          ON CONFLICT DO NOTHING
         `;
 
         await tx.$executeRaw`
