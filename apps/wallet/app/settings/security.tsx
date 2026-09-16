@@ -6,13 +6,13 @@ import {
   TouchableOpacity,
   SafeAreaView,
   ScrollView,
-  Switch,
-  Alert
+  Switch
 } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, KeyRound, ChevronRight, Key } from 'lucide-react-native';
 import { useAppPalette, isLight } from '../../src/lib/theme';
 import { usePreferencesStore, PreferencesState } from '../../src/store/preferences.store';
+import { useAuthStore } from '../../src/store/auth.store';
 import { Typography } from '../../src/constants/typography';
 import { AppModal, useAppModal } from '../../src/components/ui/AppModal';
 
@@ -21,6 +21,7 @@ export default function SecurityScreen() {
   const light = isLight(palette.bg);
   const appLockEnabled = usePreferencesStore((s: PreferencesState) => s.appLockEnabled);
   const setAppLockEnabled = usePreferencesStore((s: PreferencesState) => s.setAppLockEnabled);
+  const hasPin = useAuthStore((s) => s.hasPin);
   const modal = useAppModal();
 
   return (
@@ -45,7 +46,7 @@ export default function SecurityScreen() {
         <View style={[styles.cardGroup, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <TouchableOpacity
             style={[styles.rowItem, { borderBottomColor: palette.border }]}
-            onPress={() => modal.alert('Change PIN', 'Enter your current 4-digit PIN to set a new one.', 'info')}
+            onPress={() => router.push('/settings/set-pin')}
             activeOpacity={0.7}
           >
             <View style={styles.itemLeft}>
@@ -53,8 +54,12 @@ export default function SecurityScreen() {
                 <KeyRound size={18} color={palette.text} />
               </View>
               <View>
-                <Text style={[Typography.bodyBold, { color: palette.text }]}>Change 4-Digit PIN</Text>
-                <Text style={[Typography.subhead, { color: palette.textSecondary }]}>Used to confirm transactions</Text>
+                <Text style={[Typography.bodyBold, { color: palette.text }]}>
+                  {hasPin ? 'Change 4-Digit PIN' : 'Create 4-Digit PIN'}
+                </Text>
+                <Text style={[Typography.subhead, { color: palette.textSecondary }]}>
+                  {hasPin ? 'Update your transaction PIN' : 'Set a PIN to confirm transactions'}
+                </Text>
               </View>
             </View>
             <ChevronRight size={18} color={palette.textSecondary} />

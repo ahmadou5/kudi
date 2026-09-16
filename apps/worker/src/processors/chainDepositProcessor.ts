@@ -325,14 +325,16 @@ export class ChainDepositProcessor {
           WHERE "userId" = ${wallet.userId} AND asset = 'USDC'
         `;
 
-        await tx.ledgerEntry.create({
-          data: {
-            userId: wallet.userId,
-            type: 'DEPOSIT_CREDIT',
-            amountUSDC: params.amountUSDC,
-            resultingBalanceUSDC: newBal,
-            referenceId: params.signature,
-            metadata: JSON.stringify({
+        await tx.$executeRaw`
+          INSERT INTO "LedgerEntry" (id, "userId", type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt")
+          VALUES (
+            gen_random_uuid(),
+            ${wallet.userId},
+            'DEPOSIT_CREDIT'::"LedgerEntryType",
+            ${params.amountUSDC},
+            ${newBal},
+            ${params.signature},
+            ${JSON.stringify({
               chain: params.chain,
               walletAddress: params.address,
               signature: params.signature,
@@ -340,9 +342,11 @@ export class ChainDepositProcessor {
               blockNumber: params.blockNumber,
               title: `${params.tokenSymbol} Deposit`,
               subtitle: `${params.chain.toUpperCase()} Network`
-            })
-          }
-        });
+            })},
+            NOW()
+          )
+          ON CONFLICT (type, "referenceId") DO NOTHING
+        `;
 
         await tx.$executeRaw`
           INSERT INTO "Deposit" (id, "userId", "walletAddress", chain, "tokenSymbol", "amountUSDC", signature, "blockNumber", "creditStatus", "sweepStatus", "sweepAttemptCount", "nextSweepAttemptAt", "creditedAt", "createdAt", "updatedAt")

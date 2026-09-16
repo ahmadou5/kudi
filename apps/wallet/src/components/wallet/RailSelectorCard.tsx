@@ -59,15 +59,15 @@ export const RailSelectorCard: React.FC<RailSelectorCardProps> = ({
         <View style={styles.choiceTop}>
           <View style={styles.choiceBadgesRow}>
             <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
-              <Image source={require('../../assets/logos/usdc.png')} style={styles.miniLogo} />
+              <Image source={require('../../../assets/logos/usdc.png')} style={styles.miniLogo} />
               <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>USDC</Text>
             </View>
             <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
-              <Image source={require('../../assets/logos/ausd.png')} style={styles.miniLogo} />
+              <Image source={require('../../../assets/logos/ausd.png')} style={styles.miniLogo} />
               <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>AUSD</Text>
             </View>
             <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
-              <Image source={require('../../assets/logos/ngnc.png')} style={styles.miniLogo} />
+              <Image source={require('../../../assets/logos/ngnc.png')} style={styles.miniLogo} />
               <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>NGNC</Text>
             </View>
           </View>

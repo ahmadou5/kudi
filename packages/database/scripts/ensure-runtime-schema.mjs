@@ -4,6 +4,7 @@ const prisma = new PrismaClient();
 
 const statements = [
   `CREATE EXTENSION IF NOT EXISTS pgcrypto`,
+  `ALTER TABLE "LedgerEntry" ALTER COLUMN type TYPE TEXT USING type::text`,
   `CREATE TABLE IF NOT EXISTS "Deposit" (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     "userId" TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,

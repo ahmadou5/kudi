@@ -29,6 +29,7 @@ export interface AuthState {
   isUnlocked: boolean;
   isLoading: boolean;
   pin: string;
+  hasPin: boolean;
 
   hydrate: () => Promise<void>;
   sendPrivyOTP: (email: string) => Promise<{ success: boolean; error?: string }>;
@@ -46,6 +47,7 @@ export interface AuthState {
   lock: () => void;
   verifyPin: (inputPin: string) => boolean;
   setPin: (newPin: string) => Promise<void>;
+  clearPin: () => Promise<void>;
 }
 
 const getSecureItem = async (key: string): Promise<string | null> => {
@@ -93,6 +95,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   isUnlocked: false,
   isLoading: true,
   pin: '1234',
+  hasPin: false,
 
   hydrate: async () => {
     try {
@@ -115,7 +118,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           isAuthenticated: true,
           isUnlocked: false,
           isLoading: false,
-          pin: storedPin || '1234'
+          pin: storedPin || '1234',
+          hasPin: !!storedPin
         });
       } else {
         set({ isAuthenticated: false, isLoading: false });
@@ -280,6 +284,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         console.warn('Failed to sync PIN with server:', e);
       }
     }
-    set({ pin: newPin });
+    set({ pin: newPin, hasPin: true });
+  },
+
+  clearPin: async () => {
+    await setSecureItem('kudi_user_pin', '');
+    set({ pin: '1234', hasPin: false });
   }
 }));

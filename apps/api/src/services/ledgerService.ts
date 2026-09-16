@@ -56,7 +56,7 @@ export interface NotificationRecord {
 export class LedgerService {
   /**
    * Raw SQL ledger entry insert — bypasses Prisma's enum type check on the `type` column.
-   * The Neon DB `type` column may be a PostgreSQL enum; casting to ::text allows any string value.
+   * The Neon DB `type` column may still be a PostgreSQL enum; casting to the live enum keeps writes compatible until bootstrap normalizes it to text.
    */
   private async createLedgerEntry(params: {
     userId: string;
@@ -73,7 +73,7 @@ export class LedgerService {
         VALUES (
           gen_random_uuid(),
           ${userId},
-          ${type}::text,
+          ${type}::"LedgerEntryType",
           ${amountUSDC},
           ${resultingBalanceUSDC},
           ${referenceId},
@@ -592,7 +592,7 @@ export class LedgerService {
 
       await tx.$executeRaw`
         INSERT INTO "LedgerEntry" (id, "userId", type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt")
-        VALUES (gen_random_uuid(), ${userId}, ${type}::text, ${amountUSDC}, ${next}, ${reference}, ${metadata ? JSON.stringify(metadata) : null}, NOW())
+        VALUES (gen_random_uuid(), ${userId}, ${type}::"LedgerEntryType", ${amountUSDC}, ${next}, ${reference}, ${metadata ? JSON.stringify(metadata) : null}, NOW())
         ON CONFLICT (type, "referenceId") DO NOTHING
       `;
 
@@ -682,7 +682,7 @@ export class LedgerService {
 
       await tx.$executeRaw`
         INSERT INTO "LedgerEntry" (id, "userId", type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt")
-        VALUES (gen_random_uuid(), ${userId}, ${type}::text, ${amountUSDC}, ${next}, ${reference}, ${metadata ? JSON.stringify(metadata) : null}, NOW())
+        VALUES (gen_random_uuid(), ${userId}, ${type}::"LedgerEntryType", ${amountUSDC}, ${next}, ${reference}, ${metadata ? JSON.stringify(metadata) : null}, NOW())
         ON CONFLICT (type, "referenceId") DO NOTHING
       `;
 

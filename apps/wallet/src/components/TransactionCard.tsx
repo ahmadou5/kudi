@@ -10,16 +10,16 @@ import { router } from 'expo-router';
 export type BrandProvider = 'usdc' | 'ausd' | 'solana' | 'monad' | 'mtn' | 'airtel' | 'glo' | '9mobile' | 'electricity' | 'gtbank' | 'zenith' | 'paystack' | 'monnify' | 'generic';
 
 const BRAND_LOGOS: Record<string, ImageSourcePropType> = {
-  usdc: require('../assets/logos/usdc.png'),
-  ausd: require('../assets/logos/ausd.png'),
-  solana: require('../assets/logos/solana.png'),
-  monad: require('../assets/logos/monad.png'),
-  mtn: require('../assets/logos/mtn.png'),
-  airtel: require('../assets/logos/airtel.png'),
-  glo: require('../assets/logos/glo.png'),
-  '9mobile': require('../assets/logos/9mobile.png'),
-  gtbank: require('../assets/logos/gtbank.png'),
-  zenith: require('../assets/logos/zenith.png'),
+  usdc: require('../../assets/logos/usdc.png'),
+  ausd: require('../../assets/logos/ausd.png'),
+  solana: require('../../assets/logos/solana.png'),
+  monad: require('../../assets/logos/monad.png'),
+  mtn: require('../../assets/logos/mtn.png'),
+  airtel: require('../../assets/logos/airtel.png'),
+  glo: require('../../assets/logos/glo.png'),
+  '9mobile': require('../../assets/logos/9mobile.png'),
+  gtbank: require('../../assets/logos/gtbank.png'),
+  zenith: require('../../assets/logos/zenith.png'),
 };
 
 export interface TransactionData {

@@ -8,7 +8,6 @@ import {
   Animated,
   Platform
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { Home, CreditCard, Clock, LucideIcon } from 'lucide-react-native';
 import { useAppPalette } from '../lib/theme';
 import { Typography } from '../constants/typography';
@@ -102,16 +101,15 @@ export function FloatingTabBar({
 
   return (
     <View style={[styles.floatingContainer, { bottom: Platform.OS === 'ios' ? 28 : 20 }]}>
-      {/* Glass pill shell — BlurView provides the true backdrop blur material */}
-      <BlurView
-        intensity={isDark ? 70 : 55}
-        tint={isDark ? 'dark' : 'light'}
+      {/* Glass pill shell — layered rgba glass effect */}
+      <View
         style={[
           styles.pillTabBar,
           {
             width,
             borderColor,
             shadowColor,
+            backgroundColor: isDark ? 'rgba(18,18,22,0.78)' : 'rgba(255,255,255,0.82)',
           },
           containerStyle
         ]}
@@ -193,7 +191,7 @@ export function FloatingTabBar({
             </Animated.View>
           );
         })}
-      </BlurView>
+      </View>
     </View>
   );
 }

@@ -14,7 +14,7 @@ export const ChainLogo: React.FC<ChainLogoProps> = ({ chain, size = 20 }) => {
   if (normalized.includes('solana') || normalized.includes('sol')) {
     return (
       <Image
-        source={require('../../assets/logos/solana.png')}
+        source={require('../../../assets/logos/solana.png')}
         style={{ width: size, height: size, borderRadius: size / 2 }}
         resizeMode="contain"
       />
@@ -24,7 +24,7 @@ export const ChainLogo: React.FC<ChainLogoProps> = ({ chain, size = 20 }) => {
   if (normalized.includes('monad')) {
     return (
       <Image
-        source={require('../../assets/logos/monad.png')}
+        source={require('../../../assets/logos/monad.png')}
         style={{ width: size, height: size, borderRadius: size / 2 }}
         resizeMode="contain"
       />

@@ -76,7 +76,7 @@ export function TransactionResultModal({
         <Animated.View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border, opacity, transform: [{ scale }] }]}>
           <View style={styles.brandRow}>
             <Image
-              source={require('../assets/logos/usdc.png')}
+              source={require('../../assets/logos/usdc.png')}
               style={styles.brandLogo}
               resizeMode="contain"
             />

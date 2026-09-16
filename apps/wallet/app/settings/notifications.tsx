@@ -18,10 +18,12 @@ import { useAppPalette, isLight } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
 import { registerPushToken, triggerLocalTestNotification } from '../../src/lib/notifications';
 import { API_BASE_URL } from '../../src/lib/sdk';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function NotificationsScreen() {
   const palette = useAppPalette();
   const light = isLight(palette.bg);
+  const insets = useSafeAreaInsets();
 
   const [permissionStatus, setPermissionStatus] = useState<Notifications.PermissionStatus | null>(null);
   const [pushAlerts, setPushAlerts] = useState(true);
@@ -105,7 +107,7 @@ export default function NotificationsScreen() {
   const isGranted = permissionStatus === Notifications.PermissionStatus.GRANTED;
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg, paddingTop: insets.top }]}>
       <View style={[styles.header, { borderColor: palette.border }]}>
         <TouchableOpacity
           onPress={() => router.back()}

@@ -147,7 +147,7 @@ async function recordWithdrawalReversal(job: PendingWithdrawalRow, reason: strin
       VALUES (
         gen_random_uuid(),
         ${job.userId},
-        'DEPOSIT_CREDIT',
+        'DEPOSIT_CREDIT'::"LedgerEntryType",
         ${job.amountUSDC},
         ${restoredBalance},
         ${`rev_${job.reference}`},
