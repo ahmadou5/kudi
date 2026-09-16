@@ -90,10 +90,12 @@ export class SweepService {
     try {
       console.log(`[SweepService] 🔄 Initiating ${chain.toUpperCase()} sweep: ${amountUSDC} → ${targetTreasury.slice(0, 8)}...`);
 
-      const result = await this.callPrivySolanaTransfer(privyWalletId, targetTreasury, amountUSDC);
+      const result = chain === 'monad'
+        ? await this.callPrivyMonadTransfer(privyWalletId, targetTreasury, amountUSDC)
+        : await this.callPrivySolanaTransfer(privyWalletId, targetTreasury, amountUSDC);
 
       if (result.txHash) {
-        console.log(`[SweepService] ✅ Sweep executed on-chain: ${amountUSDC} → treasury | Tx: ${result.txHash.slice(0, 16)}...`);
+        console.log(`[SweepService] ✅ ${chain.toUpperCase()} sweep executed on-chain: ${amountUSDC} → treasury | Tx: ${result.txHash.slice(0, 16)}...`);
       }
 
       return {
@@ -113,6 +115,53 @@ export class SweepService {
         error: err?.message
       };
     }
+  }
+
+  /**
+   * Call Privy's API to sign and submit an AUSD ERC-20 transfer on Monad EVM.
+   */
+  private async callPrivyMonadTransfer(
+    privyWalletId: string,
+    recipientAddress: string,
+    amountAUSD: number
+  ): Promise<{ txHash?: string }> {
+    if (!this.privyAppId || !this.privyAppSecret) {
+      throw new Error('Privy credentials not configured');
+    }
+
+    const authHeader = `Basic ${Buffer.from(`${this.privyAppId}:${this.privyAppSecret}`).toString('base64')}`;
+    const tokenContract = process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3';
+    const amountWei = BigInt(Math.floor(amountAUSD * 1_000_000)).toString(16).padStart(64, '0');
+    const recipientPadded = recipientAddress.replace('0x', '').padStart(64, '0');
+    const dataHex = `0xa9059cbb${recipientPadded}${amountWei}`;
+
+    const res = await fetch(`https://api.privy.io/v1/wallets/${privyWalletId}/rpc`, {
+      method: 'POST',
+      headers: {
+        'privy-app-id': this.privyAppId,
+        Authorization: authHeader,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        method: 'eth_sendTransaction',
+        caip2: `eip155:${process.env.MONAD_CHAIN_ID || '10143'}`,
+        params: {
+          transaction: {
+            to: tokenContract,
+            data: dataHex,
+            value: '0x0'
+          }
+        }
+      })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Privy EVM RPC failed (${res.status}): ${errText}`);
+    }
+
+    const data = await res.json() as any;
+    return { txHash: data.data?.hash || data.hash };
   }
 
   /**
