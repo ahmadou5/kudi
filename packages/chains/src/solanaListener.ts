@@ -162,22 +162,37 @@ export class SolanaListener {
 
           const preBalances: any[] = tx.meta.preTokenBalances || [];
           const postBalances: any[] = tx.meta.postTokenBalances || [];
+          const accountKeys: any[] = tx.transaction?.message?.accountKeys || [];
 
-          // Find balance entries for our wallet's USDC token account
-          // Match by owner (wallet address) AND mint (USDC mint)
-          const pre = preBalances.find(
-            (b: any) => b.owner === walletAddress && b.mint === this.config.usdcMintAddress
-          );
-          const post = postBalances.find(
-            (b: any) => b.owner === walletAddress && b.mint === this.config.usdcMintAddress
-          );
+          const getPubkey = (idx: number): string => {
+            const k = accountKeys[idx];
+            if (!k) return '';
+            return typeof k === 'string' ? k : (k.pubkey || '');
+          };
 
-          // If no post balance found for this owner/mint, this tx isn't relevant
+          const isMatchingBalance = (b: any) => {
+            const pubkeyMatches = getPubkey(b.accountIndex) === tokenAccountAddress;
+            const ownerMatches = b.owner === walletAddress;
+            const mintMatches = !b.mint || b.mint === this.config.usdcMintAddress;
+            return (pubkeyMatches || ownerMatches) && mintMatches;
+          };
+
+          const pre = preBalances.find(isMatchingBalance);
+          const post = postBalances.find(isMatchingBalance);
+
+          // If no post balance found for this owner/token account, skip
           if (!post) continue;
 
-          const postAmount = post.uiTokenAmount?.uiAmount ?? 0;
-          // pre may not exist if this was the first USDC receipt (account created in same tx)
-          const preAmount = pre?.uiTokenAmount?.uiAmount ?? 0;
+          const parseUiAmount = (b: any): number => {
+            if (!b || !b.uiTokenAmount) return 0;
+            if (typeof b.uiTokenAmount.uiAmount === 'number') return b.uiTokenAmount.uiAmount;
+            if (b.uiTokenAmount.uiAmountString) return Number(b.uiTokenAmount.uiAmountString);
+            if (b.uiTokenAmount.amount) return Number(b.uiTokenAmount.amount) / 1e6;
+            return 0;
+          };
+
+          const postAmount = parseUiAmount(post);
+          const preAmount = parseUiAmount(pre);
           const diff = postAmount - preAmount;
 
           if (diff > 0) {

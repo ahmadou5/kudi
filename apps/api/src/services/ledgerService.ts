@@ -80,8 +80,21 @@ export class LedgerService {
           NOW()
         )
       `;
-    } catch (err: any) {
-      console.warn('[LedgerService] DB ledger entry raw insert warning:', err?.message || err);
+    } catch {
+      try {
+        await prisma.ledgerEntry.create({
+          data: {
+            userId,
+            type,
+            amountUSDC,
+            resultingBalanceUSDC,
+            referenceId,
+            metadata: metadata ?? null
+          }
+        });
+      } catch (err: any) {
+        console.error('[LedgerService] Critical: DB ledger entry creation error:', err?.message || err);
+      }
     }
   }
   private users: Map<string, UserRecord> = new Map();
