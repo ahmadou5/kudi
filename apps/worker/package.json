@@ -8,7 +8,8 @@
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm",
     "dev": "tsx watch src/index.ts",
-    "start": "pnpm --filter @kudi/database db:generate && node dist/index.js",
+    "build:runtime": "pnpm --filter @kudi/worker... build",
+    "start": "pnpm --filter @kudi/database db:generate && pnpm run build:runtime && node dist/index.js",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
