@@ -151,7 +151,9 @@ export default function TransactionDetailsScreen() {
 
           {/* Status Badge */}
           <View style={[styles.statusBadge, { backgroundColor: statusBg, borderColor: statusColor + '40' }]}>
-
+            <Text style={[Typography.footnote, { color: statusColor }]}>
+              {status}
+            </Text>
             {isSuccess && (<BadgeCheck size={16} color={statusColor} />)}
             {isPending && (<BadgeAlert size={16} color={statusColor} />)}
             {!isSuccess && !isPending && (<BadgeX size={16} color={statusColor} />)}

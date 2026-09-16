@@ -73,8 +73,30 @@ export default function DashboardPage() {
         body: JSON.stringify({ providerId: provId }),
       });
       setActiveProvider(provId);
+      setSnapshot((prev) =>
+        prev
+          ? {
+              ...prev,
+              payoutRails: prev.payoutRails.map((r) => ({
+                ...r,
+                active: r.id === provId,
+              })),
+            }
+          : prev
+      );
     } catch {
       setActiveProvider(provId);
+      setSnapshot((prev) =>
+        prev
+          ? {
+              ...prev,
+              payoutRails: prev.payoutRails.map((r) => ({
+                ...r,
+                active: r.id === provId,
+              })),
+            }
+          : prev
+      );
     }
   };
 

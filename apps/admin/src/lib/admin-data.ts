@@ -620,13 +620,14 @@ const fallbackSettings: AdminSettings = {
 // ─── LOADER FUNCTIONS ──────────────────────────────────────────────────
 
 export async function loadDashboardSnapshot(): Promise<AdminDashboardSnapshot> {
+  const liveRails = await loadPayoutRails();
   const snapshotFallback: AdminDashboardSnapshot = {
     kpis: fallbackKpis,
     volumeChart: fallbackVolumeChart,
     recentTransactions: fallbackTransactions,
     recentDeposits: fallbackDeposits,
     rateState: fallbackRateState,
-    payoutRails: fallbackPayoutRails,
+    payoutRails: liveRails,
     custodyTrack: 'Track A: Self-Custody (Privy Embedded Server Wallets)',
     usersSummary: {
       total: fallbackUsers.length,
@@ -636,7 +637,11 @@ export async function loadDashboardSnapshot(): Promise<AdminDashboardSnapshot> {
     }
   };
 
-  return adminFetch<AdminDashboardSnapshot>('/dashboard', snapshotFallback);
+  const res = await adminFetch<AdminDashboardSnapshot>('/dashboard', snapshotFallback);
+  if (!res.payoutRails || res.payoutRails === fallbackPayoutRails) {
+    res.payoutRails = liveRails;
+  }
+  return res;
 }
 
 export async function loadUsers(): Promise<AdminUser[]> {

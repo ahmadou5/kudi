@@ -52,11 +52,12 @@ export class PaymentProviderRegistry {
     return provider;
   }
 
-  public setActiveProvider(id: PaymentProviderId): void {
-    if (!this.providers.has(id)) {
+  public setActiveProvider(id: PaymentProviderId | string): void {
+    const normalized = (typeof id === 'string' ? id.toLowerCase() : id) as PaymentProviderId;
+    if (!this.providers.has(normalized)) {
       throw new Error(`Cannot set active provider to unregistered id: ${id}`);
     }
-    this.activeProviderId = id;
+    this.activeProviderId = normalized;
   }
 
   public getActiveProviderId(): PaymentProviderId {

@@ -30,10 +30,12 @@ export default function WalletRailsPage() {
         body: JSON.stringify({ providerId: id }),
       });
       setActiveRailId(id);
+      setRails((prev) => prev.map((r) => ({ ...r, active: r.id === id })));
       setFeedback(`Active primary payout rail switched to ${id}`);
       setTimeout(() => setFeedback(null), 4000);
     } catch {
       setActiveRailId(id);
+      setRails((prev) => prev.map((r) => ({ ...r, active: r.id === id })));
       setFeedback(`Active primary payout rail switched to ${id} (mock mode)`);
       setTimeout(() => setFeedback(null), 4000);
     }

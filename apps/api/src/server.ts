@@ -11,6 +11,7 @@ import rateLimitPlugin from './plugins/rateLimit';
 import redisPlugin from './plugins/redis';
 import swaggerPlugin from './plugins/swagger';
 import prismaPlugin from './plugins/prisma';
+import { prisma } from './lib/prisma';
 import { initSentry } from './lib/sentry';
 import { RateService } from './services/rateService';
 import { LedgerService } from './services/ledgerService';
@@ -130,6 +131,20 @@ async function main() {
   }
   await server.register(swaggerPlugin);
   await server.register(prismaPlugin);
+
+  // Restore persisted primary payment rail from database
+  try {
+    const primaryConfig = await prisma.providerConfiguration.findFirst({
+      where: { enabled: true },
+      orderBy: { priority: 'asc' }
+    });
+    if (primaryConfig?.provider) {
+      paymentRegistry.setActiveProvider(primaryConfig.provider as any);
+      server.log.info(`[Startup] Loaded primary payment rail from DB: ${primaryConfig.provider.toUpperCase()}`);
+    }
+  } catch (err: any) {
+    server.log.warn(`[Startup] Could not load provider configuration from DB: ${err?.message || err}`);
+  }
 
   // Register Domain Modules (Percel Standard Architecture)
   await healthRoutes(server, healthController);

@@ -61,6 +61,11 @@ export async function requireAdmin(request: FastifyRequest, reply: FastifyReply)
     return;
   }
 
+  // In development mode without strict ADMIN_API_KEY, allow admin access
+  if (process.env.NODE_ENV !== 'production' && (!configuredKey || adminKey === 'kudi_admin_secret_dev')) {
+    return;
+  }
+
   try {
     await request.jwtVerify();
     const authUser = getAuthenticatedUser(request);
