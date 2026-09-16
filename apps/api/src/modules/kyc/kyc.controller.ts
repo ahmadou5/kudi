@@ -47,6 +47,17 @@ export class KYCController {
       const assignedTier = KYCTier.TIER_2;
       this.ledgerService.updateUserKYC(userId, KYCStatus.VERIFIED, assignedTier);
 
+      if (verification.virtualAccount) {
+        await this.ledgerService.addVirtualAccount(userId, {
+          accountNumber: verification.virtualAccount.accountNumber,
+          accountName: verification.virtualAccount.accountName,
+          bankName: verification.virtualAccount.bankName,
+          bankCode: verification.virtualAccount.bankCode,
+          currency: 'NGN',
+          provider: verification.virtualAccount.provider,
+        });
+      }
+
       return successResponse({
         verified: true,
         tier: assignedTier,

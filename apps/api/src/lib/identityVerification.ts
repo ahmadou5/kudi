@@ -144,7 +144,16 @@ export async function verifyIdentityAndProvisionVirtualAccount(params: {
         provider: 'MONNIFY',
       };
     } else if (preferredPayoutProvider === 'SQUAD') {
-      const squadAcc = await createSquadVirtualAccount(`KUDI_VA_${params.userId}`, params.firstName || 'Kudi', params.lastName || 'User', params.phone || '08000000000', params.idNumber);
+      const squadAcc = await createSquadVirtualAccount({
+        customerIdentifier: `KUDI_VA_${params.userId}`,
+        firstName: params.firstName || 'Kudi',
+        lastName: params.lastName || 'User',
+        mobileNum: params.phone || '08000000000',
+        bvn: params.idNumber,
+        dob: params.dob,
+        email: customerEmail,
+        address: 'Victoria Island, Lagos, Nigeria'
+      });
       verificationResult.virtualAccount = {
         accountNumber: squadAcc.virtual_account_number,
         accountName: squadAcc.account_name,

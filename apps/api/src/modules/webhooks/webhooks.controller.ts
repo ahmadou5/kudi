@@ -2,10 +2,14 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import crypto from 'crypto';
 import { prisma } from '@kudi/database';
 import { LedgerService } from '../../services/ledgerService';
+import { RateService } from '../../services/rateService';
 import { successResponse, errorResponse } from '../../utils/response';
 
 export class WebhooksController {
-  constructor(private ledgerService: LedgerService) {}
+  constructor(
+    private ledgerService: LedgerService,
+    private rateService?: RateService
+  ) {}
 
   private verifyHmacSignature(
     payload: string,
@@ -65,35 +69,95 @@ export class WebhooksController {
 
   public handleSquadWebhook = async (request: FastifyRequest, reply: FastifyReply) => {
     const rawBody = JSON.stringify(request.body);
-    const signature = request.headers['x-squad-signature'] as string | undefined;
+    const signature = (request.headers['x-squad-signature'] || request.headers['x-squad-encrypted-body']) as string | undefined;
     const secretKey = process.env.SQUAD_SECRET_KEY || '';
 
-    if (!this.verifyHmacSignature(rawBody, signature, secretKey)) {
-      return reply.status(401).send(errorResponse('UNAUTHORIZED_WEBHOOK', 'Invalid Squad HMAC Signature'));
-    }
-
     const body = request.body as any;
-    const event = body.event || body.event_type;
-    const data = body.data || body;
+    const event = body.event || body.event_type || body.Event || (body.channel === 'virtual-account' ? 'virtual-account.credit' : undefined);
+    const data = body.data || body.Body || body;
+
+    // Verify signature: supports raw body HMAC-SHA512 and pipe-delimited Squad format
+    if (secretKey && signature) {
+      const rawMatch = this.verifyHmacSignature(rawBody, signature, secretKey);
+      let pipeMatch = false;
+      if (!rawMatch && data.virtual_account_number) {
+        const pipeString = `${data.transaction_reference || ''}|${data.virtual_account_number || ''}|${data.currency || 'NGN'}|${data.principal_amount || ''}|${data.settled_amount || ''}|${data.customer_identifier || ''}`;
+        pipeMatch = this.verifyHmacSignature(pipeString, signature, secretKey);
+      }
+      if (!rawMatch && !pipeMatch) {
+        return reply.status(401).send(errorResponse('UNAUTHORIZED_WEBHOOK', 'Invalid Squad HMAC Signature'));
+      }
+    }
 
     console.log(`📥 Received Squad Webhook Event: ${event}`, data);
 
-    const reference = data.transaction_ref || data.reference;
+    const reference = data.transaction_reference || data.transaction_ref || data.reference || body.TransactionRef;
     const accepted = await this.reserveWebhookEvent('squad', reference, event, body);
     if (!accepted) {
       return successResponse({ received: true, duplicate: true }, 'Duplicate Squad webhook skipped');
     }
 
-    if (event === 'charge.success' || event === 'virtual_account.deposit') {
-      const amount = data.amount ? String(data.amount / 100) : '0.00';
-      const accountNumber = data.virtual_account_number || data.account_number;
+    const isVirtualAccountDeposit =
+      body.channel === 'virtual-account' ||
+      data.channel === 'virtual-account' ||
+      event === 'virtual_account.deposit' ||
+      event === 'virtual-account.credit' ||
+      event === 'charge.success' ||
+      body.Event === 'charge_successful' ||
+      data.transaction_indicator === 'C';
 
-      if (accountNumber && reference) {
-        // Record deposit into double-entry ledger
+    if (isVirtualAccountDeposit) {
+      const accountNumber = data.virtual_account_number || data.account_number;
+      let amountNGN = 0;
+
+      if (data.principal_amount) {
+        amountNGN = parseFloat(String(data.principal_amount));
+      } else if (data.settled_amount) {
+        amountNGN = parseFloat(String(data.settled_amount));
+      } else if (data.amount) {
+        amountNGN = Number(data.amount) / 100;
+      }
+
+      // Resolve user by customer_identifier (KUDI_VA_${userId}) or by virtual account number in DB
+      let targetUserId: string | undefined;
+      const custId = data.customer_identifier || body.customer_identifier;
+      if (custId && typeof custId === 'string' && custId.startsWith('KUDI_VA_')) {
+        targetUserId = custId.replace('KUDI_VA_', '');
+      }
+
+      if (!targetUserId && accountNumber) {
+        const va = await prisma.virtualAccount.findFirst({
+          where: { accountNumber }
+        });
+        if (va) {
+          targetUserId = va.userId;
+        }
+      }
+
+      if (targetUserId && amountNGN > 0) {
+        const rate = this.rateService?.getCurrentRate() || 1500;
+        const amountUSDC = amountNGN / rate;
+
+        this.ledgerService.creditUserBalance(
+          targetUserId,
+          amountUSDC,
+          `SQUAD_WH_${reference}`,
+          {
+            type: 'NGN_VIRTUAL_ACCOUNT_DEPOSIT',
+            provider: 'SQUAD',
+            accountNumber,
+            amountNGN,
+            rateNGN: rate,
+            senderRemarks: data.remarks || data.sender_name
+          }
+        );
+        console.log(`✅ [Squad Webhook] Credited user ${targetUserId} with ${amountUSDC.toFixed(2)} USDC (₦${amountNGN}) via Squad VA ${accountNumber}`);
+      } else if (accountNumber && reference) {
+        // Fallback transaction recording into double-entry ledger
         this.ledgerService.recordTransaction({
           fromUserId: 'squad_gateway',
-          toUserId: `user_acc_${accountNumber}`,
-          amount,
+          toUserId: targetUserId || `user_acc_${accountNumber}`,
+          amount: amountNGN || 0,
           currency: 'NGN',
           reference: `SQUAD_WH_${reference}`
         });

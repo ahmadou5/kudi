@@ -40,7 +40,7 @@ export class BalanceController {
 
   public getVirtualAccounts = async (request: FastifyRequest, reply: FastifyReply) => {
     const { userId } = request.params as { userId: string };
-    const accounts = this.ledgerService.getUserVirtualAccounts(userId);
+    const accounts = await this.ledgerService.getUserVirtualAccountsAsync(userId);
     return successResponse({ accounts });
   };
 }

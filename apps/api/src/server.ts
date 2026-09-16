@@ -112,7 +112,7 @@ const kycController = new KYCController(ledgerService);
 const payoutController = new PayoutController(paymentRegistry, ledgerService, rateService);
 const adminController = new AdminController(custodyManager, paymentRegistry, rateService);
 const billsController = new BillsController(ledgerService, rateService);
-const webhooksController = new WebhooksController(ledgerService);
+const webhooksController = new WebhooksController(ledgerService, rateService);
 const depositsController = new DepositsController(depositService, sweepService);
 
 async function main() {

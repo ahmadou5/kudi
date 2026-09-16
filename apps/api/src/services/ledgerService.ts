@@ -364,8 +364,8 @@ export class LedgerService {
       {
         accountNumber: '9920148201',
         accountName: `KUDI / ${cleanEmail ? cleanEmail.split('@')[0].toUpperCase() : 'USER'}`,
-        bankName: 'Wema Bank (Squad)',
-        bankCode: '035',
+        bankName: 'GTBank (Squad)',
+        bankCode: '058',
         currency: 'NGN',
         provider: 'SQUAD'
       },
@@ -898,12 +898,77 @@ export class LedgerService {
       {
         accountNumber: '9920148201',
         accountName: 'KUDI / DEMO USER',
-        bankName: 'Wema Bank',
-        bankCode: '035',
+        bankName: 'GTBank (Squad)',
+        bankCode: '058',
         currency: 'NGN',
         provider: 'SQUAD'
       }
     ];
+  }
+
+  public async addVirtualAccount(userId: string, va: VirtualAccountRecord): Promise<void> {
+    const existing = this.virtualAccounts.get(userId) || [];
+    const filtered = existing.filter(a => !(a.provider === va.provider && a.accountNumber === va.accountNumber));
+    filtered.push(va);
+    this.virtualAccounts.set(userId, filtered);
+
+    try {
+      await prisma.virtualAccount.upsert({
+        where: {
+          provider_accountNumber: {
+            provider: va.provider,
+            accountNumber: va.accountNumber,
+          }
+        },
+        update: {
+          accountName: va.accountName,
+          bankName: va.bankName,
+          bankCode: va.bankCode,
+          currency: va.currency || 'NGN',
+          userId,
+        },
+        create: {
+          userId,
+          accountNumber: va.accountNumber,
+          accountName: va.accountName,
+          bankName: va.bankName,
+          bankCode: va.bankCode,
+          currency: va.currency || 'NGN',
+          provider: va.provider,
+        }
+      });
+    } catch (err: any) {
+      console.warn('[LedgerService] Failed to upsert virtual account into DB:', err?.message || err);
+    }
+  }
+
+  public async getUserVirtualAccountsAsync(userId: string): Promise<VirtualAccountRecord[]> {
+    const memAccounts = this.virtualAccounts.get(userId);
+    if (memAccounts && memAccounts.length > 0) {
+      return memAccounts;
+    }
+
+    try {
+      const dbAccounts = await prisma.virtualAccount.findMany({
+        where: { userId }
+      });
+      if (dbAccounts.length > 0) {
+        const mapped: VirtualAccountRecord[] = dbAccounts.map(va => ({
+          accountNumber: va.accountNumber,
+          accountName: va.accountName,
+          bankName: va.bankName,
+          bankCode: va.bankCode,
+          currency: va.currency,
+          provider: va.provider
+        }));
+        this.virtualAccounts.set(userId, mapped);
+        return mapped;
+      }
+    } catch (err: any) {
+      console.warn('[LedgerService] VirtualAccount DB query warning:', err?.message || err);
+    }
+
+    return this.getUserVirtualAccounts(userId);
   }
 
   public getUserWallets(userId: string): Array<{ chain: string; address: string; metadata?: Record<string, any> }> | undefined {
