@@ -311,6 +311,71 @@ export class AuthController {
     return successResponse({ updated: count }, 'All notifications marked read');
   };
 
+
+  public setupAdmin = async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = request.body as { email?: string; password?: string; setupToken?: string; fullName?: string };
+    const cleanEmail = body.email?.trim().toLowerCase();
+    const password = body.password || '';
+    const providedToken = body.setupToken || (request.headers['x-setup-token'] as string | undefined) || '';
+    const setupToken = process.env.SETUP_ADMIN_TOKEN || process.env.ADMIN_API_KEY || '';
+
+    if (!setupToken) {
+      return reply.status(503).send(errorResponse('SETUP_NOT_CONFIGURED', 'Admin setup is not configured', 503));
+    }
+    if (providedToken !== setupToken) {
+      return reply.status(401).send(errorResponse('INVALID_SETUP_TOKEN', 'Invalid setup token', 401));
+    }
+    if (!cleanEmail || !cleanEmail.includes('@') || password.length < 6) {
+      return reply.status(400).send(errorResponse('INVALID_ADMIN_SETUP', 'Valid email and password with at least 6 characters are required', 400));
+    }
+
+    const passwordHash = hashPassword(password);
+    const existing = await prisma.user.findFirst({ where: { email: cleanEmail } });
+    const user = existing
+      ? await prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            fullName: body.fullName || existing.fullName || cleanEmail.split('@')[0],
+            passwordHash,
+            role: 'ADMIN',
+            status: 'ACTIVE',
+            kycStatus: 'VERIFIED',
+            kycTier: 'TIER_2'
+          }
+        })
+      : await prisma.user.create({
+          data: {
+            id: 'usr_admin_' + Date.now(),
+            email: cleanEmail,
+            fullName: body.fullName || cleanEmail.split('@')[0],
+            passwordHash,
+            role: 'ADMIN',
+            status: 'ACTIVE',
+            kycStatus: 'VERIFIED',
+            kycTier: 'TIER_2'
+          }
+        });
+
+    this.ledgerService.syncFromDatabase().catch(() => {});
+
+    const payload = { userId: user.id, email: user.email || undefined, phoneNumber: user.phoneNumber || undefined, role: user.role || 'ADMIN' };
+    return successResponse({
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        status: user.status,
+        kycTier: user.kycTier,
+        kycStatus: user.kycStatus
+      },
+      tokens: {
+        accessToken: signAccessToken(request.server, payload),
+        refreshToken: signRefreshToken(request.server, payload)
+      }
+    }, existing ? 'Admin user updated' : 'Admin user created');
+  };
+
   public login = async (request: FastifyRequest, reply: FastifyReply) => {
     const body = request.body as { email?: string; identifier?: string; password?: string };
     const rawIdentifier = (body?.email || body?.identifier || '').trim();

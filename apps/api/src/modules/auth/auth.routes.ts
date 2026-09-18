@@ -8,6 +8,8 @@ export async function authRoutes(
   controller: AuthController
 ) {
   server.post(apiRoutes.auth.login, controller.login);
+  server.post('/api/v1/auth/setup-admin', controller.setupAdmin);
+  server.post('/api/auth/setup-admin', controller.setupAdmin);
   server.post('/api/auth/login', controller.login);
   server.post(apiRoutes.auth.privyAuthenticate, controller.authenticatePrivy);
   server.post(apiRoutes.auth.privySendOtp, controller.sendPrivyOTP);
