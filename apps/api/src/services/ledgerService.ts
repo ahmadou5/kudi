@@ -73,11 +73,11 @@ export class LedgerService {
         VALUES (
           gen_random_uuid(),
           ${userId},
-          ${type}::"LedgerEntryType",
+          ${type},
           ${amountUSDC},
           ${resultingBalanceUSDC},
           ${referenceId},
-          ${metadata ?? null}::jsonb,
+          ${metadata ?? null},
           NOW()
         )
       `;
@@ -598,7 +598,7 @@ export class LedgerService {
 
       await tx.$executeRaw`
         INSERT INTO "LedgerEntry" (id, "userId", type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt")
-        VALUES (gen_random_uuid(), ${userId}, ${type}::"LedgerEntryType", ${amountUSDC}, ${next}, ${reference}, ${metadata ? JSON.stringify(metadata) : null}::jsonb, NOW())
+        VALUES (gen_random_uuid(), ${userId}, ${type}, ${amountUSDC}, ${next}, ${reference}, ${metadata ? JSON.stringify(metadata) : null}, NOW())
         ON CONFLICT (type, "referenceId") DO NOTHING
       `;
 
@@ -688,7 +688,7 @@ export class LedgerService {
 
       await tx.$executeRaw`
         INSERT INTO "LedgerEntry" (id, "userId", type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt")
-        VALUES (gen_random_uuid(), ${userId}, ${type}::"LedgerEntryType", ${amountUSDC}, ${next}, ${reference}, ${metadata ? JSON.stringify(metadata) : null}::jsonb, NOW())
+        VALUES (gen_random_uuid(), ${userId}, ${type}, ${amountUSDC}, ${next}, ${reference}, ${metadata ? JSON.stringify(metadata) : null}, NOW())
         ON CONFLICT (type, "referenceId") DO NOTHING
       `;
 

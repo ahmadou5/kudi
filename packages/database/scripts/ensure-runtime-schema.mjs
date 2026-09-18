@@ -5,6 +5,7 @@ const prisma = new PrismaClient();
 const statements = [
   `CREATE EXTENSION IF NOT EXISTS pgcrypto`,
   `ALTER TABLE "LedgerEntry" ALTER COLUMN type TYPE TEXT USING type::text`,
+  `ALTER TABLE "LedgerEntry" ALTER COLUMN metadata TYPE TEXT USING metadata::text`,
   `CREATE TABLE IF NOT EXISTS "LedgerEntryDuplicateArchive" (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     "ledgerEntryId" TEXT NOT NULL,
@@ -13,11 +14,12 @@ const statements = [
     "amountUSDC" DOUBLE PRECISION NOT NULL,
     "resultingBalanceUSDC" DOUBLE PRECISION NOT NULL,
     "referenceId" TEXT NOT NULL,
-    metadata JSONB,
+    metadata TEXT,
     "originalCreatedAt" TIMESTAMP(3) NOT NULL,
     "archivedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reason TEXT NOT NULL
   )`,
+  `ALTER TABLE "LedgerEntryDuplicateArchive" ALTER COLUMN metadata TYPE TEXT USING metadata::text`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "LedgerEntryDuplicateArchive_ledgerEntryId_key" ON "LedgerEntryDuplicateArchive" ("ledgerEntryId")`,
   `CREATE INDEX IF NOT EXISTS "LedgerEntryDuplicateArchive_reference_idx" ON "LedgerEntryDuplicateArchive" (type, "referenceId")`,
   `WITH ranked AS (
@@ -186,7 +188,7 @@ const statements = [
   `ALTER TABLE "Wallet" ADD COLUMN IF NOT EXISTS "custodyType" TEXT NOT NULL DEFAULT 'SERVER_CUSTODY'`,
   `ALTER TABLE "Wallet" ADD COLUMN IF NOT EXISTS metadata TEXT`,
   `UPDATE "Wallet"
-   SET "custodyType" = 'UNKNOWN', "privyWalletId" = NULL, "updatedAt" = NOW()
+   SET "custodyType" = 'UNKNOWN', "privyWalletId" = NULL
    WHERE "privyWalletId" LIKE 'privy_srv_wlet_%'`,
   `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "pinHash" TEXT`,
   `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "expoPushToken" TEXT`

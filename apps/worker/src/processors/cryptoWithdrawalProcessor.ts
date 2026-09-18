@@ -147,7 +147,7 @@ async function recordWithdrawalReversal(job: PendingWithdrawalRow, reason: strin
       VALUES (
         gen_random_uuid(),
         ${job.userId},
-        'DEPOSIT_CREDIT'::"LedgerEntryType",
+        'DEPOSIT_CREDIT',
         ${job.amountUSDC},
         ${restoredBalance},
         ${`rev_${job.reference}`},
@@ -157,7 +157,7 @@ async function recordWithdrawalReversal(job: PendingWithdrawalRow, reason: strin
           type: 'CRYPTO_SEND_REVERSAL',
           title: 'Crypto Send Reversal',
           subtitle: 'Restored to Balance'
-        })}::jsonb,
+        })},
         NOW()
       )
       ON CONFLICT (type, "referenceId") DO NOTHING

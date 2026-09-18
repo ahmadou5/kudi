@@ -67,6 +67,7 @@ Implemented by current agent:
 - Marked local/dev fallback wallets as explicit mock wallets with `generatedBy: MOCK_PRIVY_SERVER_WALLET` and no `privyWalletId`.
 - Updated API wallet persistence so mock/fallback Privy IDs such as `privy_srv_wlet_*` are stored as `UNKNOWN` custody, not `SERVER_CUSTODY`.
 - Added runtime schema repair to clear legacy fake `Wallet.privyWalletId` values and downgrade them to `UNKNOWN`, preventing impossible backend sweep attempts.
+- Fixed runtime schema repair to avoid writing nonexistent `Wallet.updatedAt` and aligned ledger raw writes with text `LedgerEntry.type`/`metadata` columns to stop Prisma enum/jsonb startup and deposit-write crashes.
 
 Why this matters:
 
@@ -80,6 +81,7 @@ Verification run:
 - `pnpm --filter @kudi/chains build:runtime` passed.
 - `pnpm --filter @kudi/api build:runtime` passed.
 - `pnpm --filter @kudi/worker build:runtime` passed.
+- Follow-up Prisma runtime fix re-ran `pnpm --filter @kudi/api lint`, `pnpm --filter @kudi/worker lint`, `node --check packages/database/scripts/ensure-runtime-schema.mjs`, `pnpm --filter @kudi/api build:runtime`, and `pnpm --filter @kudi/worker build:runtime`; all passed.
 
 Remaining from this pass:
 
