@@ -185,6 +185,9 @@ const statements = [
   `ALTER TABLE "Wallet" ADD COLUMN IF NOT EXISTS "privyWalletId" TEXT`,
   `ALTER TABLE "Wallet" ADD COLUMN IF NOT EXISTS "custodyType" TEXT NOT NULL DEFAULT 'SERVER_CUSTODY'`,
   `ALTER TABLE "Wallet" ADD COLUMN IF NOT EXISTS metadata TEXT`,
+  `UPDATE "Wallet"
+   SET "custodyType" = 'UNKNOWN', "privyWalletId" = NULL, "updatedAt" = NOW()
+   WHERE "privyWalletId" LIKE 'privy_srv_wlet_%'`,
   `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "pinHash" TEXT`,
   `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "expoPushToken" TEXT`
 ];

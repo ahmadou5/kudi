@@ -196,6 +196,23 @@ export class ChainDepositProcessor {
     }
   }
 
+  public async recoverStaleProcessingSweeps(maxAgeMinutes = 10): Promise<void> {
+    const rows: Array<{ signature: string }> = await prisma.$queryRaw`
+      UPDATE "Deposit"
+      SET "sweepStatus" = 'SWEEP_FAILED',
+          "sweepError" = CONCAT('Recovered stale SWEEP_PROCESSING after ', ${maxAgeMinutes}, ' minutes; will retry'),
+          "nextSweepAttemptAt" = NOW(),
+          "updatedAt" = NOW()
+      WHERE "sweepStatus" = 'SWEEP_PROCESSING'
+        AND "sweptAt" IS NULL
+        AND "updatedAt" < NOW() - (${maxAgeMinutes} * INTERVAL '1 minute')
+      RETURNING signature
+    `;
+
+    if (rows.length > 0) {
+      console.warn('[Chain Processor] Recovered ' + rows.length + ' stale sweep(s) from SWEEP_PROCESSING.');
+    }
+  }
   public async processSweepRetries(): Promise<void> {
     const rows: any[] = await prisma.$transaction(async (tx) => {
       const due: any[] = await tx.$queryRaw`

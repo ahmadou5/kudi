@@ -334,3 +334,11 @@ model OperatorAlert {
   @@unique([type, reference])
   @@index([type, reference])
 }
+
+model AppConfig {
+  key       String   @id
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+

@@ -41,6 +41,10 @@ export class SweepService {
   public readonly evmTreasuryAddress: string;
   public readonly treasuryAddress: string;
 
+  private shouldSponsorTransactions(): boolean {
+    return process.env.PRIVY_SPONSOR_TRANSACTIONS === 'true' || process.env.PRIVY_SPONSOR_SWEEPS === 'true';
+  }
+
   constructor(private ledgerService: LedgerService) {
     this.privyAppId = process.env.PRIVY_APP_ID || '';
     this.privyAppSecret = process.env.PRIVY_APP_SECRET || '';
@@ -130,6 +134,7 @@ export class SweepService {
     }
 
     const authHeader = `Basic ${Buffer.from(`${this.privyAppId}:${this.privyAppSecret}`).toString('base64')}`;
+    const sponsor = this.shouldSponsorTransactions();
     const tokenContract = process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3';
     const amountWei = BigInt(Math.floor(amountAUSD * 1_000_000)).toString(16).padStart(64, '0');
     const recipientPadded = recipientAddress.replace('0x', '').padStart(64, '0');
@@ -145,6 +150,7 @@ export class SweepService {
       body: JSON.stringify({
         method: 'eth_sendTransaction',
         caip2: `eip155:${process.env.MONAD_CHAIN_ID || '10143'}`,
+        ...(sponsor ? { sponsor: true } : {}),
         params: {
           transaction: {
             to: tokenContract,
@@ -185,6 +191,7 @@ export class SweepService {
     }
 
     const authHeader = `Basic ${Buffer.from(`${this.privyAppId}:${this.privyAppSecret}`).toString('base64')}`;
+    const sponsor = this.shouldSponsorTransactions();
 
     // Build the USDC transfer instruction via Privy's Solana RPC
     // Privy accepts a transaction object in their format
@@ -198,6 +205,7 @@ export class SweepService {
       body: JSON.stringify({
         method: 'signAndSendTransaction',
         caip2: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1', // Solana devnet chain ID
+        ...(sponsor ? { sponsor: true } : {}),
         params: {
           transaction: await this.buildUSDCTransferTransaction(recipientAddress, amountUSDC)
         }

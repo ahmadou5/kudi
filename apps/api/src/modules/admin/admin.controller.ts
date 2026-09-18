@@ -259,6 +259,34 @@ export class AdminController {
       LIMIT 50
     `;
 
+    const accessibilityRows: any[] = await prisma.$queryRaw`
+      SELECT
+        d."sweepStatus",
+        d.chain,
+        CASE
+          WHEN w."privyWalletId" IS NULL THEN 'NO_PRIVY_WALLET_ID'
+          WHEN w."custodyType" <> 'SERVER_CUSTODY' THEN 'NOT_SERVER_CUSTODY'
+          ELSE 'SERVER_CUSTODY'
+        END AS "accessMode",
+        COUNT(*)::int AS count,
+        COALESCE(SUM(d."amountUSDC"), 0) AS "amountUSDC"
+      FROM "Deposit" d
+      LEFT JOIN "Wallet" w ON w.address = d."walletAddress"
+      WHERE d."sweepStatus" <> 'SWEPT'
+      GROUP BY d."sweepStatus", d.chain, "accessMode"
+      ORDER BY d."sweepStatus", d.chain, "accessMode"
+    `;
+
+    const staleProcessingRows: any[] = await prisma.$queryRaw`
+      SELECT id, "userId", chain, "tokenSymbol", "amountUSDC", signature, "sweepAttemptCount", "updatedAt", "createdAt"
+      FROM "Deposit"
+      WHERE "sweepStatus" = 'SWEEP_PROCESSING'
+        AND "sweptAt" IS NULL
+        AND "updatedAt" < NOW() - INTERVAL '10 minutes'
+      ORDER BY "updatedAt" ASC
+      LIMIT 50
+    `;
+
     const summary = summaryRows[0] || {};
     return successResponse({
       summary: {
@@ -272,6 +300,24 @@ export class AdminController {
         totalDeposits: Number(summary.totalDeposits || 0),
         exhaustedCount: Number(summary.exhaustedCount || 0)
       },
+      accessibility: accessibilityRows.map((row) => ({
+        sweepStatus: row.sweepStatus,
+        chain: row.chain,
+        accessMode: row.accessMode,
+        count: Number(row.count || 0),
+        amountUSDC: Number(row.amountUSDC || 0)
+      })),
+      staleProcessing: staleProcessingRows.map((row) => ({
+        id: row.id,
+        userId: row.userId,
+        chain: row.chain,
+        tokenSymbol: row.tokenSymbol,
+        amountUSDC: Number(row.amountUSDC || 0),
+        signature: row.signature,
+        sweepAttemptCount: Number(row.sweepAttemptCount || 0),
+        updatedAt: row.updatedAt?.toISOString?.() || row.updatedAt,
+        createdAt: row.createdAt?.toISOString?.() || row.createdAt
+      })),
       exhausted: exhaustedRows.map((row) => ({
         id: row.id,
         userId: row.userId,

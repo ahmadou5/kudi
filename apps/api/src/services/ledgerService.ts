@@ -311,7 +311,13 @@ export class LedgerService {
         await this.syncUserToDb(user);
       }
 
-      const privyWalletId = typeof wallet.metadata?.privyWalletId === 'string' ? wallet.metadata.privyWalletId : null;
+      const rawPrivyWalletId = typeof wallet.metadata?.privyWalletId === 'string' ? wallet.metadata.privyWalletId : null;
+      const isMockWallet =
+        wallet.metadata?.mock === true ||
+        wallet.metadata?.generatedBy === 'MOCK_PRIVY_SERVER_WALLET' ||
+        rawPrivyWalletId?.startsWith('mock_') ||
+        rawPrivyWalletId?.startsWith('privy_srv_wlet_');
+      const privyWalletId = isMockWallet ? null : rawPrivyWalletId;
       const custodyType = privyWalletId ? 'SERVER_CUSTODY' : 'UNKNOWN';
       const metadata = wallet.metadata ? JSON.stringify(wallet.metadata) : null;
 

@@ -37,7 +37,7 @@ Markers:
 | Phase 1B | [x] | Withdrawal processing lifecycle | Worker claims rows with `FOR UPDATE SKIP LOCKED`, marks `PROCESSING`, broadcasts, confirms, retries, marks failed/confirmed, records reversal ledger entry, and requeues stale no-tx `PROCESSING` rows | Add durable notification outbox and recovery handling for stale broadcast rows with tx hashes |
 | Phase 2 | [~] | Transaction-first balance architecture | `BalanceAccount` model added; debit/credit flows use DB transactions/row locks; user-facing balance/profile reads prefer `BalanceAccount`; daily spend caps now run inside atomic debits | Some legacy in-memory helpers remain; multi-step inter-app transfer should become one single transaction; migrate money columns to `Decimal` |
 | Phase 3 | [x] | Atomic deposit crediting | Worker deposit processing now writes `ProcessedSignature`, `BalanceAccount`, `LedgerEntry`, and `Notification` in one DB transaction | Move push delivery to durable outbox; sweep lifecycle still belongs to Phase 4 |
-| Phase 4 | [~] | Sweep and treasury backing | `Deposit` lifecycle exists; wallet custody metadata/Privy IDs are persisted; worker attempts server-custody EVM/Monad and Solana sweeps, confirms before `SWEPT`, retries failed/blocked sweeps, exposes admin sweep visibility/manual requeue, audit logs requeues, raises operator alerts, and reconciliation snapshots summarize exposure | Validate Solana sweep on devnet/mainnet with live Privy wallet; compare snapshots against real treasury balances |
+| Phase 4 | [~] | Sweep and treasury backing | `Deposit` lifecycle exists; wallet custody metadata/Privy IDs are persisted; worker attempts server-custody EVM/Monad and Solana sweeps, confirms before `SWEPT`, retries failed/blocked sweeps, exposes admin sweep visibility/manual requeue, audit logs requeues, raises operator alerts, rejects mock Privy custody as unsweepable, and reconciliation snapshots summarize exposure | Validate Solana/EVM sweep on devnet/testnet with a real Privy server wallet and funded sponsorship; compare snapshots against real treasury balances |
 | Phase 5 | [~] | Decimal money and reconciliation | `ReconciliationSnapshot` model and worker snapshot job added; daily spend limits now use first-class `SpendLimitWindow`/`SpendLimitEntry` rows and release bank payout failures | Replace money `Float` columns with `Decimal`; add admin-configurable limits; reconcile snapshots against provider/on-chain treasury balances and alert on drift |
 
 ## Finding Status Summary
@@ -49,7 +49,7 @@ Markers:
 | 3 | PIN passes when missing and weak hash | [~] | Missing PIN now fails closed and new PINs are salted PBKDF2. Legacy `hashed_` PINs still verify during migration; retry lockout remains open. |
 | 4 | Balance changes are memory/not atomic | [~] | Debit-side flows and deposit credits now use `BalanceAccount`; main user-facing reads prefer DB. Some legacy memory paths and `Float` money columns remain. |
 | 5 | Deposit credit not transactional | [x] | Active worker deposit credit now atomically writes idempotency marker, balance credit, ledger entry, and notification row. |
-| 6 | Active worker does not sweep | [~] | Worker now attempts server-custody EVM/Monad and Solana sweeps, waits for confirmation before `SWEPT`, retries due failed/blocked sweeps, and records non-server-custody paths as float exposure. |
+| 6 | Active worker does not sweep | [~] | Worker now attempts server-custody EVM/Monad and Solana sweeps, waits for confirmation before `SWEPT`, retries due failed/blocked sweeps, rejects mock/fallback Privy IDs as non-server-custody, and records non-server-custody paths as float exposure. |
 | 7 | Sweep incomplete for Solana | [~] | Worker now calls the Solana SPL transfer builder through `SelfCustodyProvider` using the deposit wallet as signer/source and treasury as recipient. Needs live-chain validation. |
 | 8 | Mock hashes on missing credentials | [x] | Closed for production by requiring explicit mock flag outside production. |
 | 9 | Deposit debug/rescan public | [x] | Deposit ops routes are now admin-guarded. |
@@ -57,6 +57,35 @@ Markers:
 | 11 | No treasury/liability reconciliation snapshots | [~] | Worker now records DB snapshots for balance liability, sweep exposure, and pending/broadcast withdrawals; external treasury balance comparison and alerting remain open. |
 
 ## Change Log
+
+### 2026-09-18: Privy Sponsorship and Custody Boundary Pass
+
+Implemented by current agent:
+
+- Added optional Privy gas sponsorship on backend Solana and EVM sweep/send broadcasts when `PRIVY_SPONSOR_TRANSACTIONS=true` or `PRIVY_SPONSOR_SWEEPS=true`.
+- Made Privy server-wallet creation fail loudly in production when credentials/API calls are missing or failing instead of silently creating fake sweepable wallet IDs.
+- Marked local/dev fallback wallets as explicit mock wallets with `generatedBy: MOCK_PRIVY_SERVER_WALLET` and no `privyWalletId`.
+- Updated API wallet persistence so mock/fallback Privy IDs such as `privy_srv_wlet_*` are stored as `UNKNOWN` custody, not `SERVER_CUSTODY`.
+- Added runtime schema repair to clear legacy fake `Wallet.privyWalletId` values and downgrade them to `UNKNOWN`, preventing impossible backend sweep attempts.
+
+Why this matters:
+
+- Sponsorship only pays gas; it does not give the backend signing authority over user-controlled wallets. Backend sweeps are valid only for real Privy server wallets. User/embedded wallets must still be swept through a user-signed or policy-authorized flow.
+
+Verification run:
+
+- `pnpm --filter @kudi/chains lint` passed.
+- `pnpm --filter @kudi/api lint` passed.
+- `node --check packages/database/scripts/ensure-runtime-schema.mjs` passed.
+- `pnpm --filter @kudi/chains build:runtime` passed.
+- `pnpm --filter @kudi/api build:runtime` passed.
+- `pnpm --filter @kudi/worker build:runtime` passed.
+
+Remaining from this pass:
+
+- Re-run worker startup so `db:sync` clears any legacy fake wallet IDs in Neon.
+- Create a fresh account/deposit wallet after real Privy credentials are configured, then test sweep with `PRIVY_SPONSOR_SWEEPS=true` and Privy sponsorship funded/enabled for the app.
+- For old user-controlled deposit wallets, build a user-authorized sweep flow; backend sponsorship can pay gas, but backend cannot move those funds without signing authority.
 
 ### 2026-09-16: Cleanup Pass
 

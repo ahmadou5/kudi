@@ -49,6 +49,14 @@ export class SelfCustodyProvider implements CustodyProvider {
     return this.defaultRpcUrl || 'https://testnet-rpc.monad.xyz';
   }
 
+  private shouldSponsorTransactions(): boolean {
+    return process.env.PRIVY_SPONSOR_TRANSACTIONS === 'true' || process.env.PRIVY_SPONSOR_SWEEPS === 'true';
+  }
+
+  private allowsMockWalletFallback(): boolean {
+    return process.env.NODE_ENV !== 'production' || process.env.ALLOW_MOCK_PRIVY_WALLETS === 'true';
+  }
+
   constructor(
     privyAppId = process.env.PRIVY_APP_ID || '',
     privyAppSecret = process.env.PRIVY_APP_SECRET || '',
@@ -72,6 +80,8 @@ export class SelfCustodyProvider implements CustodyProvider {
   }
 
   async generateWallet(userId: string, chain: string): Promise<DepositWallet> {
+    let privyFailure: string | null = null;
+
     if (this.appId && this.appSecret) {
       try {
         // Call Privy Server Wallet API to generate server-side wallet for user across Solana or EVM
@@ -100,14 +110,23 @@ export class SelfCustodyProvider implements CustodyProvider {
         }
 
         const errText = await res.text();
-        console.warn(`⚠️ [SelfCustody] Privy Server Wallet API response (${res.status}): ${errText}`);
+        privyFailure = `Privy Server Wallet API response (${res.status}): ${errText}`;
+        console.warn(`⚠️ [SelfCustody] ${privyFailure}`);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`⚠️ [SelfCustody] Privy API call error: ${msg}`);
+        privyFailure = `Privy API call error: ${msg}`;
+        console.warn(`⚠️ [SelfCustody] ${privyFailure}`);
       }
+    } else {
+      privyFailure = 'PRIVY_APP_ID/PRIVY_APP_SECRET are not configured';
     }
 
-    // Return deterministic sandbox testnet deposit address for testing without live Privy credentials
+    if (!this.allowsMockWalletFallback()) {
+      throw new Error(`[SelfCustody] Cannot create deposit wallet: ${privyFailure || 'Privy wallet creation failed'}`);
+    }
+
+    // Return deterministic sandbox testnet deposit address for local/dev testing only.
+    // These wallets are intentionally marked mock so the API never treats them as sweepable server custody.
     const mockAddress = chain.includes('solana')
       ? `Sol${Buffer.from(`user_${userId}_${chain}`).toString('hex').slice(0, 32)}`
       : `0x${Buffer.from(`user_${userId}_${chain}`).toString('hex').slice(0, 40)}`;
@@ -116,8 +135,9 @@ export class SelfCustodyProvider implements CustodyProvider {
       address: mockAddress,
       chain,
       metadata: {
-        privyWalletId: `privy_srv_wlet_${userId}_${chain.replace(/[^a-zA-Z0-9]/g, '_')}`,
-        generatedBy: 'Privy_Server_Wallet_Managed',
+        mock: true,
+        generatedBy: 'MOCK_PRIVY_SERVER_WALLET',
+        mockReason: privyFailure || 'Privy wallet creation failed',
         createdAt: new Date().toISOString()
       }
     };
@@ -402,6 +422,7 @@ export class SelfCustodyProvider implements CustodyProvider {
 
     const authHeader = `Basic ${Buffer.from(`${this.appId}:${this.appSecret}`).toString('base64')}`;
     const isSolana = chain === 'solana';
+    const sponsor = this.shouldSponsorTransactions();
 
     // Build chain-specific transaction payload
     let requestBody: Record<string, unknown>;
@@ -515,6 +536,7 @@ export class SelfCustodyProvider implements CustodyProvider {
       requestBody = {
         method: 'signAndSendTransaction',
         caip2: this.solanaCaip2,
+        ...(sponsor ? { sponsor: true } : {}),
         params: {
           transaction: serializedTx,
           encoding: 'base64'
@@ -530,6 +552,7 @@ export class SelfCustodyProvider implements CustodyProvider {
       requestBody = {
         method: 'eth_sendTransaction',
         caip2: `eip155:${this.monadChainId}`,
+        ...(sponsor ? { sponsor: true } : {}),
         params: {
           transaction: {
             to: contract,
@@ -563,7 +586,7 @@ export class SelfCustodyProvider implements CustodyProvider {
         throw new Error(`Privy RPC returned success but no transaction hash/signature was found in response: ${JSON.stringify(data)}`);
       }
 
-      console.log(`[SelfCustody] ✅ Broadcast ${amountUSDC} USDC on ${chain}: ${txHash.slice(0, 20)}...`);
+      console.log(`[SelfCustody] ✅ Broadcast ${amountUSDC} USDC on ${chain}${sponsor ? ' (gas sponsored)' : ''}: ${txHash.slice(0, 20)}...`);
       return { txHash };
     } catch (err: any) {
       console.error(`[SelfCustody] ❌ Privy broadcast failed: ${err?.message || err}`);

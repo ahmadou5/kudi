@@ -67,6 +67,7 @@ setInterval(() => runWorkerTask('rate poller', pollRateEngine), 10000);
 setInterval(() => runWorkerTask('chain deposit poller', () => depositProcessor.pollAllChains()), 15000);
 setInterval(() => runWorkerTask('crypto withdrawal processor', processCryptoWithdrawals), 5000);
 setInterval(() => runWorkerTask('stale withdrawal recovery', recoverStaleProcessingWithdrawals), 60000);
+setInterval(() => runWorkerTask('stale deposit sweep recovery', () => depositProcessor.recoverStaleProcessingSweeps()), 60000);
 setInterval(() => runWorkerTask('deposit sweep retries', () => depositProcessor.processSweepRetries()), 60000);
 setInterval(() => runWorkerTask('reconciliation snapshot', recordReconciliationSnapshot), 300000);
 setInterval(() => runWorkerTask('worker heartbeat', recordWorkerHeartbeat), 30000);
@@ -74,5 +75,6 @@ setInterval(() => runWorkerTask('worker heartbeat', recordWorkerHeartbeat), 3000
 runWorkerTask('rate poller', pollRateEngine);
 runWorkerTask('worker heartbeat', recordWorkerHeartbeat);
 runWorkerTask('stale withdrawal recovery', recoverStaleProcessingWithdrawals);
+runWorkerTask('stale deposit sweep recovery', () => depositProcessor.recoverStaleProcessingSweeps());
 runWorkerTask('deposit sweep retries', () => depositProcessor.processSweepRetries());
 runWorkerTask('reconciliation snapshot', recordReconciliationSnapshot);
