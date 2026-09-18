@@ -16,6 +16,7 @@ import { connectSocket, disconnectSocket } from '../src/lib/socket';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PrivyProvider } from '@privy-io/expo';
 import { AppModalProvider } from '../src/components/ui/AppModal';
+import { MaintenanceOverlay } from '../src/components/MaintenanceOverlay';
 
 // Prevent splash screen from auto-hiding until fonts are loaded (Percel pattern)
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -84,6 +85,7 @@ export default function RootLayout() {
             <ThemeProvider value={buildNavigationTheme(palette)}>
               <AppModalProvider>
                 <StatusBar style={isLight(palette.bg) ? 'dark' : 'light'} />
+                <MaintenanceOverlay />
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="(auth)" />
                   <Stack.Screen name="auth-lock" />
