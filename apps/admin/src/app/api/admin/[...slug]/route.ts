@@ -2,23 +2,35 @@ import { NextResponse } from 'next/server';
 
 const apiUrl = process.env.KUDI_API_URL ?? 'http://localhost:4000';
 
+function getAdminKey(): string | undefined {
+  return process.env.ADMIN_API_KEY;
+}
+
+async function parseJson(res: Response) {
+  return res.json().catch(() => ({ success: false, message: 'Invalid API response' }));
+}
+
 export async function GET(request: Request, { params }: { params: { slug: string[] } }) {
   const path = params.slug.join('/');
   const authHeader = request.headers.get('authorization');
-  const adminKey = request.headers.get('x-admin-key') || process.env.ADMIN_API_KEY || 'kudi_admin_secret_dev';
+  const adminKey = getAdminKey();
+
+  if (!adminKey) {
+    return NextResponse.json({ success: false, message: 'ADMIN_API_KEY is not configured on the admin app' }, { status: 503 });
+  }
 
   try {
-    const res = await fetch(`${apiUrl}/api/v1/admin/${path}`, {
+    const res = await fetch(apiUrl + '/api/v1/admin/' + path, {
       headers: {
         'Content-Type': 'application/json',
         ...(authHeader ? { Authorization: authHeader } : {}),
         'x-admin-key': adminKey,
       },
+      cache: 'no-store',
     });
-    const data = await res.json();
-    return NextResponse.json(data);
+    return NextResponse.json(await parseJson(res), { status: res.status });
   } catch {
-    return NextResponse.json({ success: true, message: `Mock GET response for ${path}` });
+    return NextResponse.json({ success: false, message: 'Admin API is unreachable' }, { status: 502 });
   }
 }
 
@@ -26,10 +38,14 @@ export async function POST(request: Request, { params }: { params: { slug: strin
   const path = params.slug.join('/');
   const body = await request.json().catch(() => ({}));
   const authHeader = request.headers.get('authorization');
-  const adminKey = request.headers.get('x-admin-key') || process.env.ADMIN_API_KEY || 'kudi_admin_secret_dev';
+  const adminKey = getAdminKey();
+
+  if (!adminKey) {
+    return NextResponse.json({ success: false, message: 'ADMIN_API_KEY is not configured on the admin app' }, { status: 503 });
+  }
 
   try {
-    const res = await fetch(`${apiUrl}/api/v1/admin/${path}`, {
+    const res = await fetch(apiUrl + '/api/v1/admin/' + path, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -38,14 +54,8 @@ export async function POST(request: Request, { params }: { params: { slug: strin
       },
       body: JSON.stringify(body),
     });
-    const data = await res.json();
-    return NextResponse.json(data);
+    return NextResponse.json(await parseJson(res), { status: res.status });
   } catch {
-    // If backend is offline, return successful simulated payload
-    return NextResponse.json({
-      success: true,
-      message: `Action ${path} processed successfully`,
-      data: body,
-    });
+    return NextResponse.json({ success: false, message: 'Admin API is unreachable' }, { status: 502 });
   }
 }

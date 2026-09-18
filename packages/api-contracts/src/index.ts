@@ -3,6 +3,7 @@ import { PaymentProviderId } from '@kudi/types';
 
 export const apiRoutes = {
   health: '/api/v1/health',
+  healthConfig: '/api/v1/health/config',
   auth: {
     privyAuthenticate: '/api/v1/auth/privy-authenticate',
     privySendOtp: '/api/v1/auth/privy-send-otp',
@@ -43,6 +44,7 @@ export const apiRoutes = {
   admin: {
     rateOverride: '/api/v1/admin/rate-override',
     config: '/api/v1/admin/config',
+    maintenance: '/api/v1/admin/config/maintenance',
     setActiveProvider: '/api/v1/admin/set-active-provider',
     exportReconciliationCsv: '/api/v1/admin/reconciliation/export-csv'
   },
@@ -100,6 +102,17 @@ export const spendOnChainRequestSchema = z.object({ userId: z.string().min(1), p
 export const overrideRateRequestSchema = z.object({ newRateNGN: z.number().positive() });
 export const payBillRequestSchema = z.object({ userId: z.string().min(1), billType: z.enum(['AIRTIME', 'ELECTRICITY', 'DATA']), billerName: z.string().min(1), recipientIdentifier: z.string().min(1), amountNGN: z.number().positive() });
 export const setActivePaymentProviderRequestSchema = z.object({ providerId: z.nativeEnum(PaymentProviderId) });
+export const maintenanceConfigSchema = z.object({
+  enabled: z.boolean(),
+  message: z.string().default(''),
+  estimatedMinutes: z.number().nullable().optional(),
+  updatedAt: z.string().optional()
+});
+export const setMaintenanceConfigRequestSchema = z.object({
+  enabled: z.boolean(),
+  message: z.string().optional(),
+  estimatedMinutes: z.number().nullable().optional()
+});
 
 export type AuthenticatePrivyRequest = z.infer<typeof authenticatePrivyRequestSchema>;
 export type SendPrivyOtpRequest = z.infer<typeof sendPrivyOtpRequestSchema>;
@@ -117,3 +130,5 @@ export type SpendOnChainRequest = z.infer<typeof spendOnChainRequestSchema>;
 export type OverrideRateRequest = z.infer<typeof overrideRateRequestSchema>;
 export type PayBillRequest = z.infer<typeof payBillRequestSchema>;
 export type SetActivePaymentProviderRequest = z.infer<typeof setActivePaymentProviderRequestSchema>;
+export type MaintenanceConfig = z.infer<typeof maintenanceConfigSchema>;
+export type SetMaintenanceConfigRequest = z.infer<typeof setMaintenanceConfigRequestSchema>;

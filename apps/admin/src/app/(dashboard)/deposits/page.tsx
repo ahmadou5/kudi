@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { loadDeposits, loadOperatorAlerts, requeueSweep, AdminDeposit, OperatorAlert } from '@/lib/admin-data';
+import { loadDeposits, loadOperatorAlerts, requeueSweep, recheckSweep, AdminDeposit, OperatorAlert } from '@/lib/admin-data';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Search, Layers, ExternalLink, CheckCircle2, AlertTriangle, Clock3, RotateCcw } from 'lucide-react';
+import { Search, Layers, ExternalLink, CheckCircle2, AlertTriangle, Clock3, RotateCcw, RefreshCw } from 'lucide-react';
 
 export default function DepositsPage() {
   const [deposits, setDeposits] = useState<AdminDeposit[]>([]);
@@ -16,6 +16,7 @@ export default function DepositsPage() {
   const [chainFilter, setChainFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [requeueing, setRequeueing] = useState<string | null>(null);
+  const [rechecking, setRechecking] = useState<string | null>(null);
 
   async function refreshDeposits() {
     const [data, alertData] = await Promise.all([loadDeposits(), loadOperatorAlerts()]);
@@ -29,6 +30,13 @@ export default function DepositsPage() {
     const ok = await requeueSweep(signature);
     if (ok) await refreshDeposits();
     setRequeueing(null);
+  }
+
+  async function handleRecheck(signature: string) {
+    setRechecking(signature);
+    const ok = await recheckSweep(signature);
+    if (ok) await refreshDeposits();
+    setRechecking(null);
   }
 
   useEffect(() => {
@@ -126,6 +134,10 @@ export default function DepositsPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => void refreshDeposits()}>
+            <RefreshCw className="h-3.5 w-3.5" />
+            Refresh
+          </Button>
           {['ALL', 'Monad', 'Solana', 'Polygon'].map((chain) => (
             <button
               key={chain}
@@ -216,22 +228,41 @@ export default function DepositsPage() {
                             <Clock3 className="h-3 w-3" /> retry {dep.sweepAttemptCount || 0}/4
                           </span>
                         ) : null}
+                        {dep.sweepTxHash ? (
+                          <span className="max-w-[180px] truncate font-mono text-[10px] text-emerald-300" title={dep.sweepTxHash}>
+                            sweep {dep.sweepTxHash.slice(0, 10)}...{dep.sweepTxHash.slice(-6)}
+                          </span>
+                        ) : null}
                         {dep.sweepError ? (
                           <span className="max-w-[180px] truncate text-[10px] text-muted-foreground" title={dep.sweepError}>
                             {dep.sweepError}
                           </span>
                         ) : null}
-                        {['SWEEP_FAILED', 'SWEEP_BLOCKED'].includes(dep.sweepStatus || '') && (dep.sweepAttemptCount || 0) >= 4 ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-[10px]"
-                            disabled={requeueing === dep.txHash}
-                            onClick={() => handleRequeue(dep.txHash)}
-                          >
-                            <RotateCcw className="mr-1 h-3 w-3" />
-                            {requeueing === dep.txHash ? 'Requeueing' : 'Requeue'}
-                          </Button>
+                        {dep.sweepStatus !== 'SWEPT' ? (
+                          <div className="flex flex-wrap items-center justify-center gap-1">
+                            {['SWEEP_FAILED', 'SWEEP_BLOCKED'].includes(dep.sweepStatus || '') ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-[10px]"
+                                disabled={requeueing === dep.txHash || rechecking === dep.txHash}
+                                onClick={() => handleRequeue(dep.txHash)}
+                              >
+                                <RotateCcw className="mr-1 h-3 w-3" />
+                                {requeueing === dep.txHash ? 'Retrying' : 'Retry'}
+                              </Button>
+                            ) : null}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-[10px]"
+                              disabled={requeueing === dep.txHash || rechecking === dep.txHash}
+                              onClick={() => handleRecheck(dep.txHash)}
+                            >
+                              <RefreshCw className="mr-1 h-3 w-3" />
+                              {rechecking === dep.txHash ? 'Checking' : 'Recheck'}
+                            </Button>
+                          </div>
                         ) : null}
                       </div>
                     </td>

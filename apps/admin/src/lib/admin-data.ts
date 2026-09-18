@@ -49,6 +49,10 @@ export type AdminSpendTransaction = {
   payoutProvider: string;
   status: 'PENDING' | 'SUCCESS' | 'FAILED';
   failureReason?: string;
+  sweepStatus?: string;
+  sweepTxHash?: string | null;
+  sweepError?: string | null;
+  sweepAttemptCount?: number;
   createdAt: string;
 };
 
@@ -166,12 +170,10 @@ export type AdminDashboardSnapshot = {
   usersSummary: { total: number; tier1: number; tier2: number; verifiedKycPct: number };
 };
 
-const apiUrl = process.env.KUDI_API_URL ?? 'http://localhost:4000';
-
 async function adminFetch<T>(path: string, fallback: T): Promise<T> {
   try {
     const token = getAuthToken();
-    const response = await fetch(`${apiUrl}/api/v1/admin${path}`, {
+    const response = await fetch('/api/admin' + path, {
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -182,14 +184,20 @@ async function adminFetch<T>(path: string, fallback: T): Promise<T> {
     if (response.ok) {
       const payload = await response.json();
       if (payload?.data) return payload.data as T;
+      if (payload?.success === false) throw new Error(payload.message || 'Admin API failed');
       if (payload) return payload as T;
     }
-  } catch {
-    // API not reachable or offline, use rich fallback data
+  } catch (error) {
+    console.warn('[AdminData] Live admin fetch failed:', path, error instanceof Error ? error.message : error);
   }
+
+  if (process.env.NEXT_PUBLIC_ADMIN_ALLOW_DEMO_DATA === 'true') {
+    return fallback;
+  }
+
+  if (Array.isArray(fallback)) return [] as T;
   return fallback;
 }
-
 // ─── MOCK / FALLBACK DATASETS ──────────────────────────────────────────
 
 const fallbackKpis: KpiCard[] = [
@@ -670,7 +678,23 @@ export async function loadDeposits(): Promise<AdminDeposit[]> {
 export async function requeueSweep(signature: string): Promise<boolean> {
   try {
     const token = getAuthToken();
-    const response = await fetch(`${apiUrl}/api/v1/admin/sweeps/${encodeURIComponent(signature)}/requeue`, {
+    const response = await fetch('/api/admin/sweeps/' + encodeURIComponent(signature) + '/requeue', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function recheckSweep(signature: string): Promise<boolean> {
+  try {
+    const token = getAuthToken();
+    const response = await fetch('/api/admin/sweeps/' + encodeURIComponent(signature) + '/recheck', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

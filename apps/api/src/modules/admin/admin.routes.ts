@@ -6,6 +6,12 @@ import { requireAdmin } from '../../utils/authGuards';
 export async function adminRoutes(server: FastifyInstance, controller: AdminController) {
   server.get(apiRoutes.rates.current, controller.getCurrentRates);
   server.get('/api/rates/current', controller.getCurrentRates);
+  server.get('/api/v1/admin/dashboard', { preHandler: requireAdmin }, controller.getDashboard);
+  server.get('/api/admin/dashboard', { preHandler: requireAdmin }, controller.getDashboard);
+  server.get('/api/v1/admin/users', { preHandler: requireAdmin }, controller.getUsers);
+  server.get('/api/admin/users', { preHandler: requireAdmin }, controller.getUsers);
+  server.get('/api/v1/admin/transactions', { preHandler: requireAdmin }, controller.getTransactions);
+  server.get('/api/admin/transactions', { preHandler: requireAdmin }, controller.getTransactions);
   server.post(apiRoutes.admin.rateOverride, { preHandler: requireAdmin }, controller.overrideRate);
   server.post('/api/admin/rate-override', { preHandler: requireAdmin }, controller.overrideRate);
   server.get(apiRoutes.admin.config, { preHandler: requireAdmin }, controller.getConfig);
@@ -18,6 +24,8 @@ export async function adminRoutes(server: FastifyInstance, controller: AdminCont
   server.get('/api/admin/operator-alerts', { preHandler: requireAdmin }, controller.getOperatorAlerts);
   server.post('/api/v1/admin/sweeps/:signature/requeue', { preHandler: requireAdmin }, controller.requeueSweep);
   server.post('/api/admin/sweeps/:signature/requeue', { preHandler: requireAdmin }, controller.requeueSweep);
+  server.post('/api/v1/admin/sweeps/:signature/recheck', { preHandler: requireAdmin }, controller.recheckSweep);
+  server.post('/api/admin/sweeps/:signature/recheck', { preHandler: requireAdmin }, controller.recheckSweep);
   server.post(apiRoutes.admin.setActiveProvider, { preHandler: requireAdmin }, controller.setActiveProvider);
   server.post('/api/admin/set-active-provider', { preHandler: requireAdmin }, controller.setActiveProvider);
   server.get('/api/v1/admin/rails', { preHandler: requireAdmin }, controller.getPayoutRails);

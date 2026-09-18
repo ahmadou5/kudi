@@ -133,6 +133,7 @@ export default function TransactionsPage() {
                   <th className="px-4 py-3 text-right">Naira Disbursed</th>
                   <th className="px-4 py-3 text-center">Provider</th>
                   <th className="px-4 py-3 text-center">Status</th>
+                  <th className="px-4 py-3 text-center">Sweep</th>
                   <th className="px-4 py-3 text-right">Action</th>
                 </tr>
               </thead>
@@ -183,6 +184,22 @@ export default function TransactionsPage() {
                       >
                         {tx.status}
                       </Badge>
+                    </td>
+                    <td className="px-4 py-3.5 text-center">
+                      {tx.sweepStatus ? (
+                        <div className="flex flex-col items-center gap-1">
+                          <Badge variant={tx.sweepStatus === 'SWEPT' ? 'success' : tx.sweepStatus === 'SWEEP_PROCESSING' ? 'silver' : 'warning'} className="text-[10px]">
+                            {tx.sweepStatus}
+                          </Badge>
+                          {tx.sweepTxHash ? (
+                            <span className="max-w-[130px] truncate font-mono text-[10px] text-emerald-300" title={tx.sweepTxHash}>
+                              {tx.sweepTxHash.slice(0, 8)}...{tx.sweepTxHash.slice(-5)}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">-</span>
+                      )}
                     </td>
                     <td className="px-4 py-3.5 text-right">
                       <Button
@@ -235,6 +252,26 @@ export default function TransactionsPage() {
                   {selectedTx.status}
                 </Badge>
               </div>
+
+              {selectedTx.sweepStatus ? (
+                <div className="rounded-xl border border-border/60 p-3">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">
+                    Sweep / Treasury Backing
+                  </span>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Badge variant={selectedTx.sweepStatus === 'SWEPT' ? 'success' : selectedTx.sweepStatus === 'SWEEP_PROCESSING' ? 'silver' : 'warning'}>
+                      {selectedTx.sweepStatus}
+                    </Badge>
+                    <span className="font-mono text-[11px] text-muted-foreground">attempts {selectedTx.sweepAttemptCount || 0}</span>
+                  </div>
+                  {selectedTx.sweepTxHash ? (
+                    <p className="mt-2 break-all font-mono text-[11px] text-emerald-300">{selectedTx.sweepTxHash}</p>
+                  ) : null}
+                  {selectedTx.sweepError ? (
+                    <p className="mt-2 text-[11px] text-amber-300">{selectedTx.sweepError}</p>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl border border-border/60 p-3">

@@ -191,7 +191,13 @@ const statements = [
    SET "custodyType" = 'UNKNOWN', "privyWalletId" = NULL
    WHERE "privyWalletId" LIKE 'privy_srv_wlet_%'`,
   `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "pinHash" TEXT`,
-  `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "expoPushToken" TEXT`
+  `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "expoPushToken" TEXT`,
+  `CREATE TABLE IF NOT EXISTS "AppConfig" (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`
 ];
 
 try {

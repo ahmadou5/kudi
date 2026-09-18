@@ -371,6 +371,42 @@ export class AdminController {
     return successResponse({ signature, status: 'SWEEP_PENDING' }, 'Sweep requeued');
   };
 
+  public recheckSweep = async (request: FastifyRequest, reply: FastifyReply) => {
+    const { signature } = request.params as { signature: string };
+    if (!signature) {
+      return reply.status(400).send(errorResponse('INVALID_SIGNATURE', 'Deposit signature is required', 400));
+    }
+
+    const rows: Array<{ signature: string; sweepStatus: string }> = await prisma.$queryRaw`
+      UPDATE "Deposit"
+      SET "sweepStatus" = 'SWEEP_PENDING',
+          "nextSweepAttemptAt" = NOW(),
+          "sweepError" = NULL,
+          "updatedAt" = NOW()
+      WHERE signature = ${signature}
+        AND "sweptAt" IS NULL
+        AND "sweepStatus" <> 'SWEPT'
+      RETURNING signature, "sweepStatus"
+    `;
+
+    if (rows.length === 0) {
+      return reply.status(404).send(errorResponse(
+        'SWEEP_NOT_RECHECKABLE',
+        'No unswept deposit found for that signature',
+        404
+      ));
+    }
+
+    await this.recordAdminAudit(request, {
+      action: 'SWEEP_RECHECK',
+      targetType: 'Deposit',
+      targetId: signature,
+      details: { status: 'SWEEP_PENDING' }
+    });
+
+    return successResponse({ signature, status: 'SWEEP_PENDING' }, 'Sweep recheck scheduled');
+  };
+
   public getOperatorAlerts = async (request: FastifyRequest, reply: FastifyReply) => {
     await this.generateSweepAlerts();
     const rows: any[] = await prisma.$queryRaw`
@@ -395,6 +431,111 @@ export class AdminController {
       createdAt: row.createdAt?.toISOString?.() || row.createdAt,
       updatedAt: row.updatedAt?.toISOString?.() || row.updatedAt
     })));
+  };
+
+  private formatDate(value: unknown): string {
+    if (value instanceof Date) return value.toISOString();
+    return typeof value === 'string' ? value : new Date().toISOString();
+  }
+
+  private mapLedgerTransaction(row: any, rate: number) {
+    const amountUSDC = Math.abs(Number(row.amountUSDC || 0));
+    return {
+      id: row.id,
+      reference: row.referenceId,
+      userId: row.userId,
+      userName: row.userName,
+      userEmail: row.userEmail || '',
+      amountUSDC,
+      exchangeRateNGN: rate,
+      amountNGN: amountUSDC * rate,
+      feeNGN: 0,
+      recipientBankName: row.type,
+      recipientBankCode: '',
+      recipientAccountNumber: '',
+      recipientAccountName: row.type,
+      payoutProvider: 'LEDGER',
+      status: 'SUCCESS',
+      createdAt: this.formatDate(row.createdAt),
+      sweepStatus: row.sweepStatus || undefined,
+      sweepTxHash: row.sweepTxHash || undefined,
+      sweepError: row.sweepError || undefined,
+      sweepAttemptCount: row.sweepAttemptCount === undefined ? undefined : Number(row.sweepAttemptCount || 0)
+    };
+  }
+
+  private mapDeposit(row: any) {
+    return {
+      id: row.id,
+      userId: row.userId,
+      userName: row.userName,
+      chain: row.chain === 'solana' ? 'Solana' : 'Monad Testnet',
+      txHash: row.signature,
+      token: row.tokenSymbol,
+      amount: Number(row.amountUSDC || 0),
+      confirmations: row.blockNumber ? 1 : 0,
+      status: row.creditStatus === 'CREDITED' ? 'CONFIRMED' : 'PENDING',
+      sweepStatus: row.sweepStatus,
+      sweepTxHash: row.sweepTxHash,
+      sweepError: row.sweepError,
+      sweepAttemptCount: Number(row.sweepAttemptCount || 0),
+      nextSweepAttemptAt: row.nextSweepAttemptAt?.toISOString?.() || row.nextSweepAttemptAt,
+      sweptAt: row.sweptAt?.toISOString?.() || row.sweptAt,
+      createdAt: this.formatDate(row.createdAt)
+    };
+  }
+
+  public getDashboard = async (_request: FastifyRequest, _reply: FastifyReply) => {
+    const rateState = this.rateService.getRateState();
+    const rate = rateState.currentRateNGN;
+    const activeId = this.paymentRegistry.getActiveProviderId();
+    const payoutRails = [
+      { id: 'PAYSTACK', name: 'Paystack Transfers API', active: activeId === 'paystack', balanceNGN: 0, latencyMs: 0, successRate: 0, supportedRails: ['NIP Instant Transfer'] },
+      { id: 'MONNIFY', name: 'Monnify Direct Payout', active: activeId === 'monnify', balanceNGN: 0, latencyMs: 0, successRate: 0, supportedRails: ['NIP Transfer'] },
+      { id: 'SQUAD', name: 'Squad GTCO Payout', active: activeId === 'squad', balanceNGN: 0, latencyMs: 0, successRate: 0, supportedRails: ['NIP Interbank'] }
+    ];
+
+    const [userStats, balanceStats, depositStats, recentDeposits, recentTransactions] = await Promise.all([
+      prisma.$queryRawUnsafe<any[]>("SELECT COUNT(*)::int AS total, COALESCE(SUM(CASE WHEN \"kycTier\" = 'TIER_1' THEN 1 ELSE 0 END), 0)::int AS tier1, COALESCE(SUM(CASE WHEN \"kycTier\" = 'TIER_2' THEN 1 ELSE 0 END), 0)::int AS tier2, COALESCE(SUM(CASE WHEN \"kycStatus\" = 'VERIFIED' THEN 1 ELSE 0 END), 0)::int AS verified FROM \"User\""),
+      prisma.$queryRawUnsafe<any[]>("SELECT COALESCE(SUM(\"availableUSDC\"), 0) AS \"availableUSDC\", COUNT(*)::int AS wallets FROM \"BalanceAccount\""),
+      prisma.$queryRawUnsafe<any[]>("SELECT COALESCE(SUM(\"amountUSDC\"), 0) AS \"depositUSDC\", COUNT(*)::int AS count, COALESCE(SUM(CASE WHEN \"sweepStatus\" = 'SWEPT' THEN \"amountUSDC\" ELSE 0 END), 0) AS \"sweptUSDC\", COALESCE(SUM(CASE WHEN \"sweepStatus\" <> 'SWEPT' THEN \"amountUSDC\" ELSE 0 END), 0) AS \"unsweptUSDC\" FROM \"Deposit\" WHERE \"createdAt\" >= NOW() - INTERVAL '24 hours'"),
+      prisma.$queryRawUnsafe<any[]>("SELECT d.id, d.\"userId\", COALESCE(u.\"fullName\", u.email, u.\"phoneNumber\", d.\"userId\") AS \"userName\", d.chain, d.\"tokenSymbol\", d.\"amountUSDC\", d.signature, d.\"blockNumber\", d.\"creditStatus\", d.\"sweepStatus\", d.\"sweepTxHash\", d.\"sweepError\", d.\"sweepAttemptCount\", d.\"nextSweepAttemptAt\", d.\"sweptAt\", d.\"createdAt\" FROM \"Deposit\" d LEFT JOIN \"User\" u ON u.id = d.\"userId\" ORDER BY d.\"createdAt\" DESC LIMIT 10"),
+      prisma.$queryRawUnsafe<any[]>("SELECT le.id, le.\"referenceId\", le.\"userId\", COALESCE(u.\"fullName\", u.email, u.\"phoneNumber\", le.\"userId\") AS \"userName\", u.email AS \"userEmail\", le.type, le.\"amountUSDC\", le.\"createdAt\", d.\"sweepStatus\", d.\"sweepTxHash\", d.\"sweepError\", d.\"sweepAttemptCount\" FROM \"LedgerEntry\" le LEFT JOIN \"User\" u ON u.id = le.\"userId\" LEFT JOIN \"Deposit\" d ON d.signature = le.\"referenceId\" ORDER BY le.\"createdAt\" DESC LIMIT 10")
+    ]);
+
+    const users = userStats[0] || {};
+    const balances = balanceStats[0] || {};
+    const deposits = depositStats[0] || {};
+    const totalUsers = Number(users.total || 0);
+    const depositUSDC = Number(deposits.depositUSDC || 0);
+
+    return successResponse({
+      kpis: [
+        { label: '24h Deposit Volume', value: '$' + depositUSDC.toFixed(2), delta: Number(deposits.count || 0) + ' deposits', tone: 'primary', description: 'NGN ' + Math.round(depositUSDC * rate).toLocaleString() + ' equivalent' },
+        { label: 'User Liabilities', value: '$' + Number(balances.availableUSDC || 0).toFixed(2), delta: Number(balances.wallets || 0) + ' accounts', tone: 'success', description: 'Current internal available USDC liability' },
+        { label: 'Live Exchange Rate', value: 'NGN ' + rate.toFixed(2), delta: "LIVE", tone: 'warning', description: 'Current rate engine value' },
+        { label: 'Unswept Exposure', value: '$' + Number(deposits.unsweptUSDC || 0).toFixed(2), delta: '$' + Number(deposits.sweptUSDC || 0).toFixed(2) + ' swept', tone: 'muted', description: '24h deposits not marked SWEPT' }
+      ],
+      volumeChart: [],
+      recentTransactions: recentTransactions.map((row) => this.mapLedgerTransaction(row, rate)),
+      recentDeposits: recentDeposits.map((row) => this.mapDeposit(row)),
+      rateState,
+      payoutRails,
+      custodyTrack: this.custodyManager.getActiveTrack(),
+      usersSummary: { total: totalUsers, tier1: Number(users.tier1 || 0), tier2: Number(users.tier2 || 0), verifiedKycPct: totalUsers ? Math.round((Number(users.verified || 0) / totalUsers) * 100) : 0 }
+    });
+  };
+
+  public getUsers = async (_request: FastifyRequest, _reply: FastifyReply) => {
+    const rows: any[] = await prisma.$queryRawUnsafe("SELECT u.id, u.\"fullName\", u.email, u.\"phoneNumber\", u.\"kycTier\", u.\"kycStatus\", u.\"createdAt\", COALESCE(ba.\"availableUSDC\", 0) AS \"balanceUSDC\", COALESCE(SUM(CASE WHEN le.\"amountUSDC\" < 0 THEN ABS(le.\"amountUSDC\") ELSE 0 END), 0) AS \"totalSpendUSDC\", COUNT(CASE WHEN le.\"amountUSDC\" < 0 THEN 1 END)::int AS \"spendCount\" FROM \"User\" u LEFT JOIN \"BalanceAccount\" ba ON ba.\"userId\" = u.id AND ba.asset = 'USDC' LEFT JOIN \"LedgerEntry\" le ON le.\"userId\" = u.id GROUP BY u.id, ba.\"availableUSDC\" ORDER BY u.\"createdAt\" DESC LIMIT 100");
+    const rate = this.rateService.getRateState().currentRateNGN;
+    return successResponse(rows.map((row) => ({ id: row.id, fullName: row.fullName || row.email || row.phoneNumber || row.id, email: row.email || '', phoneNumber: row.phoneNumber || '', kycTier: row.kycTier, kycStatus: row.kycStatus, balanceUSDC: Number(row.balanceUSDC || 0), totalSpendNGN: Number(row.totalSpendUSDC || 0) * rate, spendCount: Number(row.spendCount || 0), wallets: [], virtualAccounts: [], createdAt: this.formatDate(row.createdAt), lastActive: this.formatDate(row.createdAt) })));
+  };
+
+  public getTransactions = async (_request: FastifyRequest, _reply: FastifyReply) => {
+    const rows: any[] = await prisma.$queryRawUnsafe("SELECT le.id, le.\"referenceId\", le.\"userId\", COALESCE(u.\"fullName\", u.email, u.\"phoneNumber\", le.\"userId\") AS \"userName\", u.email AS \"userEmail\", le.type, le.\"amountUSDC\", le.\"createdAt\", d.\"sweepStatus\", d.\"sweepTxHash\", d.\"sweepError\", d.\"sweepAttemptCount\" FROM \"LedgerEntry\" le LEFT JOIN \"User\" u ON u.id = le.\"userId\" LEFT JOIN \"Deposit\" d ON d.signature = le.\"referenceId\" ORDER BY le.\"createdAt\" DESC LIMIT 100");
+    const rate = this.rateService.getRateState().currentRateNGN;
+    return successResponse(rows.map((row) => this.mapLedgerTransaction(row, rate)));
   };
 
   public exportReconciliationCSV = async (request: FastifyRequest, reply: FastifyReply) => {
