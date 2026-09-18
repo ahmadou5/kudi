@@ -3,6 +3,11 @@ import { PaymentProviderId } from '@kudi/types';
 import { KudiSDK } from '@kudi/sdk';
 import { ChainConfigItem } from '../components/ChainConfigCard';
 
+type AdminConfigResponse = {
+  activePaymentProvider?: string;
+  rateState?: { currentRateNGN?: number };
+};
+
 const sdk = new KudiSDK({ baseUrl: 'http://localhost:4000' });
 
 export function useAdminDashboard() {
@@ -15,7 +20,8 @@ export function useAdminDashboard() {
 
   useEffect(() => {
     sdk.getAdminConfig()
-      .then((cfg) => {
+      .then((response) => {
+        const cfg = (response?.data || {}) as AdminConfigResponse;
         if (cfg.activePaymentProvider) {
           setActiveProvider(cfg.activePaymentProvider as PaymentProviderId);
         }

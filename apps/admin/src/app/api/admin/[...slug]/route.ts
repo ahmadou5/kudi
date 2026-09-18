@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 
 const apiUrl = process.env.KUDI_API_URL ?? 'http://localhost:4000';
 
-function getAdminKey(): string | undefined {
-  return process.env.ADMIN_API_KEY;
+function getAdminKey(): string {
+  return process.env.ADMIN_API_KEY || 'kudi_admin_secret_dev';
 }
 
 async function parseJson(res: Response) {

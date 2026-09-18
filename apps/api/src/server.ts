@@ -17,6 +17,7 @@ import { RateService } from './services/rateService';
 import { LedgerService } from './services/ledgerService';
 import { DepositService } from './services/depositService';
 import { SweepService } from './services/sweepService';
+import { MaintenanceService } from './services/maintenanceService';
 
 import { HealthController } from './modules/health/health.controller';
 import { healthRoutes } from './modules/health/health.routes';
@@ -65,6 +66,13 @@ const io = new SocketIOServer(server.server, {
 io.on('connection', (socket: Socket) => {
   server.log.info(`⚡ [Socket.io] Client connected: ${socket.id}`);
 
+  // Send initial maintenance state to connecting clients
+  maintenanceService.getMaintenanceConfig().then((m) => {
+    if (m.enabled) {
+      socket.emit('system:maintenance', m);
+    }
+  }).catch(() => {});
+
   socket.on('join:room', (userId: string) => {
     if (userId) {
       socket.join(userId);
@@ -104,14 +112,15 @@ const rateService = new RateService();
 const ledgerService = new LedgerService();
 const depositService = new DepositService(ledgerService, io);
 const sweepService = new SweepService(ledgerService);
+const maintenanceService = new MaintenanceService(io);
 
 // Domain Controllers
-const healthController = new HealthController(custodyManager, paymentRegistry);
+const healthController = new HealthController(custodyManager, paymentRegistry, maintenanceService);
 const authController = new AuthController(custodyManager, ledgerService);
 const balanceController = new BalanceController(ledgerService, rateService);
 const kycController = new KYCController(ledgerService);
 const payoutController = new PayoutController(paymentRegistry, ledgerService, rateService);
-const adminController = new AdminController(custodyManager, paymentRegistry, rateService);
+const adminController = new AdminController(custodyManager, paymentRegistry, rateService, maintenanceService);
 const billsController = new BillsController(ledgerService, rateService);
 const webhooksController = new WebhooksController(ledgerService, rateService);
 const depositsController = new DepositsController(depositService, sweepService);
@@ -145,6 +154,30 @@ async function main() {
   } catch (err: any) {
     server.log.warn(`[Startup] Could not load provider configuration from DB: ${err?.message || err}`);
   }
+
+  // Maintenance mode gatekeeper
+  server.addHook('preHandler', async (request, reply) => {
+    if (maintenanceService.isBypassedUrl(request.url)) {
+      return;
+    }
+
+    const maintenance = await maintenanceService.getMaintenanceConfig();
+    if (maintenance.enabled) {
+      return reply.status(503).send({
+        success: false,
+        code: 'MAINTENANCE_MODE',
+        message: maintenance.message || 'Metropolis is currently undergoing scheduled maintenance. Please try again shortly.',
+        data: {
+          maintenance: {
+            enabled: true,
+            message: maintenance.message,
+            estimatedMinutes: maintenance.estimatedMinutes,
+            updatedAt: maintenance.updatedAt
+          }
+        }
+      });
+    }
+  });
 
   // Register Domain Modules (Percel Standard Architecture)
   await healthRoutes(server, healthController);

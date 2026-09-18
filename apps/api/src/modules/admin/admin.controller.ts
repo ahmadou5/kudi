@@ -6,12 +6,14 @@ import { RateService } from '../../services/rateService';
 import { errorResponse, successResponse } from '../../utils/response';
 import { prisma } from '@kudi/database';
 import { getAuthenticatedUser } from '../../utils/authGuards';
+import { MaintenanceService } from '../../services/maintenanceService';
 
 export class AdminController {
   constructor(
     private custodyManager: CustodyManager,
     private paymentRegistry: PaymentProviderRegistry,
-    private rateService: RateService
+    private rateService: RateService,
+    private maintenanceService?: MaintenanceService
   ) {}
 
   private async recordAdminAudit(request: FastifyRequest, params: { action: string; targetType: string; targetId: string; details?: Record<string, unknown> }): Promise<void> {
@@ -123,6 +125,76 @@ export class AdminController {
       failoverOrder: this.paymentRegistry.getFailoverOrder(),
       rateState: this.rateService.getRateState()
     });
+  };
+
+  public getMaintenanceConfig = async (_request: FastifyRequest, _reply: FastifyReply) => {
+    if (this.maintenanceService) {
+      const config = await this.maintenanceService.getMaintenanceConfig();
+      return successResponse(config, 'Maintenance mode config retrieved');
+    }
+
+    let maintenance = { enabled: false, message: '', estimatedMinutes: null as number | null, updatedAt: null as string | null };
+    try {
+      const config = await prisma.appConfig.findUnique({
+        where: { key: 'maintenance' }
+      });
+      if (config?.value) {
+        try {
+          const parsed = JSON.parse(config.value);
+          maintenance = {
+            enabled: Boolean(parsed.enabled),
+            message: parsed.message || '',
+            estimatedMinutes: parsed.estimatedMinutes ?? null,
+            updatedAt: parsed.updatedAt || config.updatedAt?.toISOString?.() || null
+          };
+        } catch {
+          // ignore parse error
+        }
+      }
+    } catch (err: any) {
+      console.warn('[AdminController] Failed to fetch maintenance config:', err?.message || err);
+    }
+
+    return successResponse(maintenance, 'Maintenance mode config retrieved');
+  };
+
+  public setMaintenanceConfig = async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = request.body as { enabled?: boolean; message?: string; estimatedMinutes?: number | null };
+    if (typeof body?.enabled !== 'boolean') {
+      return reply.status(400).send(errorResponse('INVALID_BODY', 'Field "enabled" is required as boolean', 400));
+    }
+
+    let updated;
+    if (this.maintenanceService) {
+      updated = await this.maintenanceService.setMaintenanceConfig({
+        enabled: body.enabled,
+        message: body.message,
+        estimatedMinutes: body.estimatedMinutes
+      });
+    } else {
+      const payload = {
+        enabled: body.enabled,
+        message: body.message?.trim() || '',
+        estimatedMinutes: typeof body.estimatedMinutes === 'number' ? body.estimatedMinutes : null,
+        updatedAt: new Date().toISOString()
+      };
+      const configValue = JSON.stringify(payload);
+      await prisma.appConfig.upsert({
+        where: { key: 'maintenance' },
+        update: { value: configValue },
+        create: { key: 'maintenance', value: configValue }
+      });
+      updated = payload;
+    }
+
+    await this.recordAdminAudit(request, {
+      action: updated.enabled ? 'MAINTENANCE_ENABLE' : 'MAINTENANCE_DISABLE',
+      targetType: 'SYSTEM_CONFIG',
+      targetId: 'maintenance',
+      details: { ...updated }
+    });
+
+    return successResponse(updated, 'Maintenance mode updated');
   };
 
   public getPayoutRails = async (_request: FastifyRequest, _reply: FastifyReply) => {

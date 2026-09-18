@@ -735,3 +735,40 @@ export async function loadNotifications(): Promise<AdminNotification[]> {
 export async function loadSystemSettings(): Promise<AdminSettings> {
   return adminFetch<AdminSettings>('/settings', fallbackSettings);
 }
+
+export type AdminMaintenanceConfig = {
+  enabled: boolean;
+  message: string;
+  estimatedMinutes: number | null;
+  updatedAt?: string | null;
+};
+
+export async function loadMaintenanceConfig(): Promise<AdminMaintenanceConfig> {
+  const fallback: AdminMaintenanceConfig = {
+    enabled: false,
+    message: '',
+    estimatedMinutes: null,
+    updatedAt: null
+  };
+  return adminFetch<AdminMaintenanceConfig>('/config/maintenance', fallback);
+}
+
+export async function updateMaintenanceConfig(config: {
+  enabled: boolean;
+  message?: string;
+  estimatedMinutes?: number | null;
+}): Promise<AdminMaintenanceConfig | null> {
+  try {
+    const res = await fetch('/api/admin/config/maintenance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    const json = await res.json();
+    return json?.data ?? json;
+  } catch (err) {
+    console.error('Failed to update maintenance config', err);
+    return null;
+  }
+}
+

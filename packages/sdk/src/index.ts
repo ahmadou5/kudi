@@ -295,5 +295,26 @@ export class KudiSDK {
     });
     return this.parseJson(res);
   }
+
+  async getHealthConfig(): Promise<ApiResponse<{ maintenance: MaintenanceConfig }>> {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.healthConfig}`);
+    return this.parseJson<{ maintenance: MaintenanceConfig }>(res);
+  }
+
+  async getMaintenanceConfig(): Promise<ApiResponse<MaintenanceConfig>> {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.admin.maintenance}`, {
+      headers: this.getHeaders()
+    });
+    return this.parseJson<MaintenanceConfig>(res);
+  }
+
+  async setMaintenanceConfig(payload: SetMaintenanceConfigRequest): Promise<ApiResponse<{ success: boolean }>> {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.admin.maintenance}`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return this.parseJson<{ success: boolean }>(res);
+  }
 }
 

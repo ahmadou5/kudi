@@ -2,15 +2,36 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { LogOut, Search, Bell, Sun, Moon, Download } from 'lucide-react';
+import Link from 'next/link';
+import { LogOut, Search, Bell, Sun, Moon, Download, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CommandSearchModal } from './command-search-modal';
+import { loadMaintenanceConfig } from '@/lib/admin-data';
 
 export function Topbar() {
   const pathname = usePathname();
   const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
   const [isDark, setIsDark] = useState(true);
+  const [maintenanceActive, setMaintenanceActive] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const check = () => {
+      loadMaintenanceConfig().then((m) => {
+        if (active && m) {
+          setMaintenanceActive(Boolean(m.enabled));
+        }
+      }).catch(() => {});
+    };
+
+    check();
+    const interval = setInterval(check, 15000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [pathname]);
 
   useEffect(() => {
     const stored = localStorage.getItem('kudi_theme');
@@ -101,6 +122,23 @@ export function Topbar() {
 
   return (
     <>
+      {maintenanceActive && (
+        <div className="sticky top-0 z-40 bg-rose-500/15 border-b border-rose-500/30 px-4 py-2 text-rose-300 text-xs font-medium flex items-center justify-between backdrop-blur-md">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+            <span>
+              <strong>MAINTENANCE MODE ACTIVE:</strong> Customer mobile apps are locked behind the upgrade screen.
+            </span>
+          </div>
+          <Link
+            href="/settings"
+            className="text-[11px] underline hover:text-white font-bold transition-colors"
+          >
+            Manage Status &rarr;
+          </Link>
+        </div>
+      )}
+
       <header className="sticky top-0 z-30 border-b border-border/80 bg-background/90 px-4 py-3 backdrop-blur-xl md:px-6 lg:px-8">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4">
           {/* Title & Subtitle */}
