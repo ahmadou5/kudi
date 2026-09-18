@@ -11,6 +11,7 @@
     "postinstall": "pnpm --filter @kudi/database db:generate",
     "db:generate": "pnpm --filter @kudi/database db:generate",
     "db:push": "pnpm --filter @kudi/database db:push",
+    "create-admin": "node scripts/create-admin.mjs",
     "dev": "turbo run dev",
     "dev:api": "pnpm --filter @kudi/api dev",
     "dev:wallet": "pnpm --filter @kudi/wallet dev",

@@ -4,6 +4,7 @@ export interface TokenPayload {
   userId: string;
   email?: string;
   phoneNumber?: string;
+  role?: string;
 }
 
 export function signAccessToken(server: FastifyInstance, payload: TokenPayload): string {

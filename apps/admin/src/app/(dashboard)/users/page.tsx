@@ -109,6 +109,7 @@ export default function UsersPage() {
               <thead className="border-b border-border/70 bg-muted/40 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3">Customer Profile</th>
+                  <th className="px-4 py-3 text-center">Role</th>
                   <th className="px-4 py-3">Phone Number</th>
                   <th className="px-4 py-3 text-center">KYC Tier</th>
                   <th className="px-4 py-3 text-center">KYC Status</th>
@@ -124,6 +125,15 @@ export default function UsersPage() {
                     <td className="px-4 py-3.5">
                       <div className="font-semibold text-foreground">{u.fullName}</div>
                       <div className="font-mono text-[10px] text-muted-foreground">{u.email}</div>
+                    </td>
+                    <td className="px-4 py-3.5 text-center">
+                      <span className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-bold ${
+                        u.role === 'ADMIN'
+                          ? 'border border-amber-500/40 bg-amber-500/10 text-amber-400'
+                          : 'border border-border/80 bg-muted text-muted-foreground'
+                      }`}>
+                        {u.role || 'USER'}
+                      </span>
                     </td>
                     <td className="px-4 py-3.5 font-mono text-[11px] text-muted-foreground">
                       {u.phoneNumber}

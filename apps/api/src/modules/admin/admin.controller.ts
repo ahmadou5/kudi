@@ -7,13 +7,15 @@ import { errorResponse, successResponse } from '../../utils/response';
 import { prisma } from '@kudi/database';
 import { getAuthenticatedUser } from '../../utils/authGuards';
 import { MaintenanceService } from '../../services/maintenanceService';
+import { LedgerService } from '../../services/ledgerService';
 
 export class AdminController {
   constructor(
     private custodyManager: CustodyManager,
     private paymentRegistry: PaymentProviderRegistry,
     private rateService: RateService,
-    private maintenanceService?: MaintenanceService
+    private maintenanceService?: MaintenanceService,
+    private ledgerService?: LedgerService
   ) {}
 
   private async recordAdminAudit(request: FastifyRequest, params: { action: string; targetType: string; targetId: string; details?: Record<string, unknown> }): Promise<void> {
@@ -599,9 +601,75 @@ export class AdminController {
   };
 
   public getUsers = async (_request: FastifyRequest, _reply: FastifyReply) => {
-    const rows: any[] = await prisma.$queryRawUnsafe("SELECT u.id, u.\"fullName\", u.email, u.\"phoneNumber\", u.\"kycTier\", u.\"kycStatus\", u.\"createdAt\", COALESCE(ba.\"availableUSDC\", 0) AS \"balanceUSDC\", COALESCE(SUM(CASE WHEN le.\"amountUSDC\" < 0 THEN ABS(le.\"amountUSDC\") ELSE 0 END), 0) AS \"totalSpendUSDC\", COUNT(CASE WHEN le.\"amountUSDC\" < 0 THEN 1 END)::int AS \"spendCount\" FROM \"User\" u LEFT JOIN \"BalanceAccount\" ba ON ba.\"userId\" = u.id AND ba.asset = 'USDC' LEFT JOIN \"LedgerEntry\" le ON le.\"userId\" = u.id GROUP BY u.id, ba.\"availableUSDC\" ORDER BY u.\"createdAt\" DESC LIMIT 100");
     const rate = this.rateService.getRateState().currentRateNGN;
-    return successResponse(rows.map((row) => ({ id: row.id, fullName: row.fullName || row.email || row.phoneNumber || row.id, email: row.email || '', phoneNumber: row.phoneNumber || '', kycTier: row.kycTier, kycStatus: row.kycStatus, balanceUSDC: Number(row.balanceUSDC || 0), totalSpendNGN: Number(row.totalSpendUSDC || 0) * rate, spendCount: Number(row.spendCount || 0), wallets: [], virtualAccounts: [], createdAt: this.formatDate(row.createdAt), lastActive: this.formatDate(row.createdAt) })));
+    try {
+      const rows: any[] = await prisma.$queryRawUnsafe("SELECT u.id, u.\"fullName\", u.email, u.\"phoneNumber\", COALESCE(u.\"role\", 'USER') AS \"role\", COALESCE(u.\"status\", 'ACTIVE') AS \"status\", u.\"kycTier\", u.\"kycStatus\", u.\"createdAt\", COALESCE(ba.\"availableUSDC\", 0) AS \"balanceUSDC\", COALESCE(SUM(CASE WHEN le.\"amountUSDC\" < 0 THEN ABS(le.\"amountUSDC\") ELSE 0 END), 0) AS \"totalSpendUSDC\", COUNT(CASE WHEN le.\"amountUSDC\" < 0 THEN 1 END)::int AS \"spendCount\" FROM \"User\" u LEFT JOIN \"BalanceAccount\" ba ON ba.\"userId\" = u.id AND ba.asset = 'USDC' LEFT JOIN \"LedgerEntry\" le ON le.\"userId\" = u.id GROUP BY u.id, ba.\"availableUSDC\" ORDER BY u.\"createdAt\" DESC LIMIT 100");
+      if (rows && rows.length > 0) {
+        return successResponse(rows.map((row) => ({
+          id: row.id,
+          fullName: row.fullName || row.email || row.phoneNumber || row.id,
+          email: row.email || '',
+          phoneNumber: row.phoneNumber || '',
+          role: row.role || 'USER',
+          status: row.status || 'ACTIVE',
+          kycTier: row.kycTier,
+          kycStatus: row.kycStatus,
+          balanceUSDC: Number(row.balanceUSDC || 0),
+          totalSpendNGN: Number(row.totalSpendUSDC || 0) * rate,
+          spendCount: Number(row.spendCount || 0),
+          wallets: [],
+          virtualAccounts: [],
+          createdAt: this.formatDate(row.createdAt),
+          lastActive: this.formatDate(row.createdAt)
+        })));
+      }
+    } catch (err: any) {
+      console.warn('[AdminController] DB getUsers query warning, using ledgerService:', err?.message || err);
+    }
+
+    const inMem = this.ledgerService ? this.ledgerService.getAllUsers() : [];
+    return successResponse(inMem.map((u) => ({
+      id: u.id,
+      fullName: u.fullName || u.email || u.phoneNumber || u.id,
+      email: u.email || '',
+      phoneNumber: u.phoneNumber || '',
+      role: u.role || 'USER',
+      status: u.status || 'ACTIVE',
+      kycTier: u.kycTier,
+      kycStatus: u.kycStatus,
+      balanceUSDC: this.ledgerService?.getBalance(u.id) || 0,
+      totalSpendNGN: 0,
+      spendCount: 0,
+      wallets: u.wallets || [],
+      virtualAccounts: [],
+      createdAt: new Date().toISOString(),
+      lastActive: new Date().toISOString()
+    })));
+  };
+
+  public updateUserRole = async (request: FastifyRequest, reply: FastifyReply) => {
+    const { userId } = request.params as { userId: string };
+    const { role } = request.body as { role: string };
+    if (!role || !['ADMIN', 'OPERATOR', 'USER'].includes(role.toUpperCase())) {
+      return reply.status(400).send(errorResponse('INVALID_ROLE', 'Valid role (ADMIN, OPERATOR, USER) is required', 400));
+    }
+
+    const normalizedRole = role.toUpperCase();
+    const updated = this.ledgerService?.updateUserRole(userId, normalizedRole);
+    try {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { role: normalizedRole }
+      });
+    } catch (err: any) {
+      console.warn('[AdminController] DB update user role warning:', err?.message || err);
+    }
+
+    return successResponse({
+      userId,
+      role: normalizedRole,
+      user: updated
+    }, `User role updated to ${normalizedRole}`);
   };
 
   public getTransactions = async (_request: FastifyRequest, _reply: FastifyReply) => {

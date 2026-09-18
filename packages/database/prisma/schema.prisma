@@ -28,6 +28,9 @@ model User {
   fullName        String?
   username        String?
   avatarUrl       String?
+  role            String             @default("USER")
+  passwordHash    String?
+  status          String             @default("ACTIVE")
   expoPushToken   String?
   kycTier         KYCTier            @default(UNVERIFIED)
   kycStatus       KYCStatus          @default(NOT_STARTED)

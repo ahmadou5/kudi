@@ -69,7 +69,7 @@ export async function requireAdmin(request: FastifyRequest, reply: FastifyReply)
   try {
     await request.jwtVerify();
     const authUser = getAuthenticatedUser(request);
-    if (authUser?.role === 'admin') return;
+    if (authUser?.role?.toUpperCase() === 'ADMIN') return;
   } catch {
     // Fall through to the forbidden response below.
   }

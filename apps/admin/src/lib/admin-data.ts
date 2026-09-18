@@ -21,6 +21,8 @@ export type AdminUser = {
   fullName: string;
   email: string;
   phoneNumber: string;
+  role?: string;
+  status?: string;
   kycTier: 'UNVERIFIED' | 'TIER_1' | 'TIER_2';
   kycStatus: 'NOT_STARTED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
   balanceUSDC: number;
@@ -660,6 +662,23 @@ export async function getUserDetail(id: string): Promise<AdminUser | null> {
   const users = await loadUsers();
   const user = users.find((u) => u.id === id);
   return user ?? users[0] ?? null;
+}
+
+export async function updateUserRole(userId: string, role: string): Promise<boolean> {
+  try {
+    const token = getAuthToken();
+    const response = await fetch('/api/admin/users/' + encodeURIComponent(userId) + '/role', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({ role })
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 export async function loadTransactions(): Promise<AdminSpendTransaction[]> {

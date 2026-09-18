@@ -10,6 +10,9 @@ export interface UserRecord {
   fullName?: string;
   username?: string;
   avatarUrl?: string;
+  role?: string;
+  passwordHash?: string;
+  status?: string;
   pinHash?: string;
   expoPushToken?: string;
   kycStatus: KYCStatus;
@@ -182,6 +185,9 @@ export class LedgerService {
           fullName: u.fullName || undefined,
           username: u.username || undefined,
           avatarUrl: u.avatarUrl || undefined,
+          role: u.role || 'USER',
+          passwordHash: u.passwordHash || undefined,
+          status: u.status || 'ACTIVE',
           pinHash: u.pinHash || undefined,
           expoPushToken: u.expoPushToken || undefined,
           kycStatus: u.kycStatus as KYCStatus,
@@ -275,6 +281,9 @@ export class LedgerService {
           fullName: user.fullName || undefined,
           username: user.username || undefined,
           avatarUrl: user.avatarUrl || undefined,
+          role: user.role || undefined,
+          passwordHash: user.passwordHash || undefined,
+          status: user.status || undefined,
           pinHash: user.pinHash || undefined,
           expoPushToken: user.expoPushToken || undefined,
           kycStatus: user.kycStatus,
@@ -288,6 +297,9 @@ export class LedgerService {
           fullName: user.fullName || undefined,
           username: user.username || undefined,
           avatarUrl: user.avatarUrl || undefined,
+          role: user.role || 'USER',
+          passwordHash: user.passwordHash || undefined,
+          status: user.status || 'ACTIVE',
           pinHash: user.pinHash || undefined,
           expoPushToken: user.expoPushToken || undefined,
           kycStatus: user.kycStatus || 'NOT_STARTED',
@@ -359,6 +371,8 @@ export class LedgerService {
       privyUserId: cleanPrivy,
       phoneNumber: cleanPhone,
       email: cleanEmail,
+      role: 'USER',
+      status: 'ACTIVE',
       kycStatus: KYCStatus.NOT_STARTED,
       kycTier: KYCTier.UNVERIFIED,
       wallets: []
@@ -449,6 +463,52 @@ export class LedgerService {
     if (data.fullName !== undefined) user.fullName = data.fullName;
     if (data.username !== undefined) user.username = data.username;
     if (data.avatarUrl !== undefined) user.avatarUrl = data.avatarUrl;
+    this.users.set(userId, user);
+    void this.syncUserToDb(user);
+    return user;
+  }
+
+  public registerAdminUser(userId: string, email: string, passwordHash?: string, fullName?: string): UserRecord {
+    const cleanEmail = email.trim().toLowerCase();
+    const existing = this.findUserByPrivyOrEmail(undefined, cleanEmail);
+    if (existing) {
+      existing.role = 'ADMIN';
+      if (passwordHash) existing.passwordHash = passwordHash;
+      if (fullName && !existing.fullName) existing.fullName = fullName;
+      this.users.set(existing.id, existing);
+      void this.syncUserToDb(existing);
+      return existing;
+    }
+
+    const adminUser: UserRecord = {
+      id: userId,
+      email: cleanEmail,
+      fullName: fullName || cleanEmail.split('@')[0],
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      passwordHash,
+      kycStatus: KYCStatus.VERIFIED,
+      kycTier: KYCTier.TIER_2,
+      wallets: []
+    };
+    this.users.set(userId, adminUser);
+    void this.syncUserToDb(adminUser);
+    return adminUser;
+  }
+
+  public updateUserRole(userId: string, role: string): UserRecord | undefined {
+    const user = this.users.get(userId);
+    if (!user) return undefined;
+    user.role = role;
+    this.users.set(userId, user);
+    void this.syncUserToDb(user);
+    return user;
+  }
+
+  public setUserPassword(userId: string, passwordHash: string): UserRecord | undefined {
+    const user = this.users.get(userId);
+    if (!user) return undefined;
+    user.passwordHash = passwordHash;
     this.users.set(userId, user);
     void this.syncUserToDb(user);
     return user;

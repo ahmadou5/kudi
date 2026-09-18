@@ -192,6 +192,9 @@ const statements = [
    WHERE "privyWalletId" LIKE 'privy_srv_wlet_%'`,
   `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "pinHash" TEXT`,
   `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "expoPushToken" TEXT`,
+  `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "role" TEXT NOT NULL DEFAULT 'USER'`,
+  `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "passwordHash" TEXT`,
+  `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'ACTIVE'`,
   `CREATE TABLE IF NOT EXISTS "AppConfig" (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
@@ -205,6 +208,9 @@ try {
     await prisma.$executeRawUnsafe(statement);
   }
   console.log('[database] Runtime schema bootstrap complete');
+} catch (err) {
+  console.warn('[database] Runtime schema bootstrap warning (database offline or unreachable):', err?.message || err);
 } finally {
-  await prisma.$disconnect();
+  await prisma.$disconnect().catch(() => {});
 }
+

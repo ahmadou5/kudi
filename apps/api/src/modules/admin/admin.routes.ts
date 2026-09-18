@@ -10,6 +10,8 @@ export async function adminRoutes(server: FastifyInstance, controller: AdminCont
   server.get('/api/admin/dashboard', { preHandler: requireAdmin }, controller.getDashboard);
   server.get('/api/v1/admin/users', { preHandler: requireAdmin }, controller.getUsers);
   server.get('/api/admin/users', { preHandler: requireAdmin }, controller.getUsers);
+  server.post(apiRoutes.admin.userRole(), { preHandler: requireAdmin }, controller.updateUserRole);
+  server.post('/api/admin/users/:userId/role', { preHandler: requireAdmin }, controller.updateUserRole);
   server.get('/api/v1/admin/transactions', { preHandler: requireAdmin }, controller.getTransactions);
   server.get('/api/admin/transactions', { preHandler: requireAdmin }, controller.getTransactions);
   server.post(apiRoutes.admin.rateOverride, { preHandler: requireAdmin }, controller.overrideRate);

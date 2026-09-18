@@ -5,6 +5,7 @@ export const apiRoutes = {
   health: '/api/v1/health',
   healthConfig: '/api/v1/health/config',
   auth: {
+    login: '/api/v1/auth/login',
     privyAuthenticate: '/api/v1/auth/privy-authenticate',
     privySendOtp: '/api/v1/auth/privy-send-otp',
     privyVerifyOtp: '/api/v1/auth/privy-verify-otp',
@@ -42,6 +43,8 @@ export const apiRoutes = {
     current: '/api/v1/rates/current'
   },
   admin: {
+    users: '/api/v1/admin/users',
+    userRole: (userId = ':userId') => `/api/v1/admin/users/${userId}/role`,
     rateOverride: '/api/v1/admin/rate-override',
     config: '/api/v1/admin/config',
     maintenance: '/api/v1/admin/config/maintenance',
@@ -70,6 +73,18 @@ export const authenticatePrivyRequestSchema = z.object({
   name: z.string().optional()
 }).refine((value) => Boolean(value.privyUserId || value.email || value.phoneNumber), {
   message: 'privyUserId, email, or phoneNumber is required'
+});
+
+export const loginRequestSchema = z.object({
+  email: z.string().email().optional(),
+  identifier: z.string().optional(),
+  password: z.string().min(1)
+}).refine((val) => Boolean(val.email || val.identifier), {
+  message: 'Email or identifier is required'
+});
+
+export const updateUserRoleRequestSchema = z.object({
+  role: z.enum(['ADMIN', 'OPERATOR', 'USER'])
 });
 
 export const sendPrivyOtpRequestSchema = z.object({ email: z.string().email() });
@@ -132,3 +147,6 @@ export type PayBillRequest = z.infer<typeof payBillRequestSchema>;
 export type SetActivePaymentProviderRequest = z.infer<typeof setActivePaymentProviderRequestSchema>;
 export type MaintenanceConfig = z.infer<typeof maintenanceConfigSchema>;
 export type SetMaintenanceConfigRequest = z.infer<typeof setMaintenanceConfigRequestSchema>;
+export type LoginRequest = z.infer<typeof loginRequestSchema>;
+export type UpdateUserRoleRequest = z.infer<typeof updateUserRoleRequestSchema>;
+

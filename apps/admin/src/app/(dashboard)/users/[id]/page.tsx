@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { getUserDetail, AdminUser } from '@/lib/admin-data';
+import { getUserDetail, updateUserRole, AdminUser } from '@/lib/admin-data';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   ArrowLeft,
   ShieldCheck,
+  ShieldAlert,
   Wallet,
   Building2,
   Copy,
@@ -47,6 +48,16 @@ export default function UserDetailPage() {
     setTimeout(() => setActionNotice(null), 4000);
   };
 
+  const handleUpdateRole = async (newRole: string) => {
+    if (!user) return;
+    const ok = await updateUserRole(user.id, newRole);
+    if (ok) {
+      setUser({ ...user, role: newRole });
+      setActionNotice(`Updated ${user.fullName} role to ${newRole}`);
+      setTimeout(() => setActionNotice(null), 4000);
+    }
+  };
+
   if (loading || !user) {
     return <div className="p-8 text-center text-xs text-muted-foreground">Loading customer profile...</div>;
   }
@@ -78,6 +89,13 @@ export default function UserDetailPage() {
             <div>
               <div className="flex items-center gap-3">
                 <h2 className="font-display text-2xl font-bold text-foreground">{user.fullName}</h2>
+                <span className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-bold ${
+                  user.role === 'ADMIN'
+                    ? 'border border-amber-500/40 bg-amber-500/10 text-amber-400'
+                    : 'border border-border bg-muted text-muted-foreground'
+                }`}>
+                  {user.role || 'USER'}
+                </span>
                 <Badge variant={user.kycStatus === 'VERIFIED' ? 'success' : 'warning'}>
                   {user.kycStatus}
                 </Badge>
@@ -92,6 +110,24 @@ export default function UserDetailPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant={user.role === 'ADMIN' ? 'secondary' : 'outline'}
+              size="sm"
+              onClick={() => handleUpdateRole(user.role === 'ADMIN' ? 'USER' : 'ADMIN')}
+              className="text-xs font-semibold gap-1.5"
+            >
+              {user.role === 'ADMIN' ? (
+                <>
+                  <ShieldAlert className="h-4 w-4 text-amber-400" />
+                  <span>Demote to User</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="h-4 w-4 text-amber-400" />
+                  <span>Promote to Admin</span>
+                </>
+              )}
+            </Button>
             <Button
               variant="outline"
               size="sm"

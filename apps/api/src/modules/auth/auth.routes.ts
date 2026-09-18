@@ -7,6 +7,8 @@ export async function authRoutes(
   server: FastifyInstance,
   controller: AuthController
 ) {
+  server.post(apiRoutes.auth.login, controller.login);
+  server.post('/api/auth/login', controller.login);
   server.post(apiRoutes.auth.privyAuthenticate, controller.authenticatePrivy);
   server.post(apiRoutes.auth.privySendOtp, controller.sendPrivyOTP);
   server.post(apiRoutes.auth.privyVerifyOtp, controller.verifyPrivyOTP);
