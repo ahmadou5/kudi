@@ -29,6 +29,7 @@ export class SelfCustodyProvider implements CustodyProvider {
   private solanaRpcUrl: string;
   private solanaUsdcMintAddress: string;
   private solanaTreasuryAddress: string;
+  private solanaTreasuryWalletId: string;
   private solanaCaip2: string;
   private ausdTokenAddress: string;
   private monadChainId: number;
@@ -66,7 +67,8 @@ export class SelfCustodyProvider implements CustodyProvider {
     solanaTreasuryAddress = process.env.KUDI_TREASURY_SOLANA_ADDRESS || '',
     solanaCaip2 = process.env.SOLANA_CAIP2 || 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
     ausdTokenAddress = process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3',
-    monadChainId = Number(process.env.MONAD_CHAIN_ID || 10143)
+    monadChainId = Number(process.env.MONAD_CHAIN_ID || 10143),
+    solanaTreasuryWalletId = process.env.KUDI_SOLANA_TREASURY_WALLET_ID || ''
   ) {
     this.privyAppId = privyAppId;
     this.privyAppSecret = privyAppSecret;
@@ -77,6 +79,7 @@ export class SelfCustodyProvider implements CustodyProvider {
     this.solanaCaip2 = solanaCaip2;
     this.ausdTokenAddress = ausdTokenAddress;
     this.monadChainId = monadChainId;
+    this.solanaTreasuryWalletId = solanaTreasuryWalletId;
   }
 
   async generateWallet(userId: string, chain: string): Promise<DepositWallet> {
@@ -482,6 +485,17 @@ export class SelfCustodyProvider implements CustodyProvider {
         ]
       });
 
+      // Check if destination Associated Token Account already exists on-chain
+      let destAtaExists = false;
+      try {
+        const destAtaInfo = await rpc.getAccountInfo(destAta, { encoding: 'jsonParsed' }).send();
+        if (destAtaInfo.value !== null) {
+          destAtaExists = true;
+        }
+      } catch {
+        // Fall back to creating ATA if check fails
+      }
+
       // Create destination Associated Token Account if it does not exist yet (idempotent).
       // Discriminator [1] = CreateIdempotent per SPL ATA program instruction enum.
       // Account roles: 0=Readonly, 1=Writable, 2=ReadonlySigner, 3=WritableSigner
@@ -514,7 +528,7 @@ export class SelfCustodyProvider implements CustodyProvider {
         createTransactionMessage({ version: 0 as const }),
         (tx) => setTransactionMessageFeePayer(signerAddr, tx),
         (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-        (tx) => appendTransactionMessageInstruction(createDestAtaIx, tx),
+        (tx) => (!destAtaExists ? appendTransactionMessageInstruction(createDestAtaIx, tx) : tx),
         (tx) => appendTransactionMessageInstruction(transferIx, tx)
       );
 
@@ -564,7 +578,7 @@ export class SelfCustodyProvider implements CustodyProvider {
     }
 
     try {
-      const res = await fetch(`https://api.privy.io/v1/wallets/${treasuryWalletId}/rpc`, {
+      let res = await fetch(`https://api.privy.io/v1/wallets/${treasuryWalletId}/rpc`, {
         method: 'POST',
         headers: {
           'privy-app-id': this.appId,
@@ -576,7 +590,23 @@ export class SelfCustodyProvider implements CustodyProvider {
 
       if (!res.ok) {
         const errText = await res.text();
-        throw new Error(`Privy RPC error ${res.status}: ${errText}`);
+        if (sponsor && errText.includes('Gas sponsorship is not configured')) {
+          console.warn('[SelfCustody] ℹ️ Privy gas sponsorship not enabled in dashboard; retrying standard transfer...');
+          const { sponsor: _omitted, ...bodyWithoutSponsor } = requestBody;
+          res = await fetch(`https://api.privy.io/v1/wallets/${treasuryWalletId}/rpc`, {
+            method: 'POST',
+            headers: {
+              'privy-app-id': this.appId,
+              Authorization: authHeader,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(bodyWithoutSponsor)
+          });
+        }
+        if (!res.ok) {
+          const finalErrText = await res.text().catch(() => '');
+          throw new Error(`Privy RPC error ${res.status}: ${finalErrText || errText}`);
+        }
       }
 
       const data = await res.json() as any;

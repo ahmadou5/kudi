@@ -82,7 +82,9 @@ const workerEnvSchema = z.object({
   HOSTNAME: z.string().optional(),
   MONAD_RPC_URL: z.string().url().default('https://testnet-rpc.monad.xyz'),
   AUSD_TOKEN_ADDRESS: z.string().default('0x534b2f3A21130d7a60830c2Df862319e593943A3'),
-  MONAD_CHAIN_ID: z.coerce.number().int().positive().default(10143)
+  MONAD_CHAIN_ID: z.coerce.number().int().positive().default(10143),
+  SOLANA_RPC_URL: z.string().url().default('https://api.devnet.solana.com'),
+  USDC_MINT_ADDRESS: z.string().default('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU')
 });
 
 const adminEnvSchema = z.object({

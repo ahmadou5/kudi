@@ -73,12 +73,12 @@ export class GeneralizedEVMListener {
       const latestBlock = blockData.result ? parseInt(blockData.result, 16) : 0;
       if (!latestBlock || latestBlock <= 0) return events;
 
-      // Monad RPC limits eth_getLogs to max 100 blocks per request
+      // Monad RPC limits eth_getLogs to max 100 blocks per request and 25 requests/second
       const maxRange = 100;
       const lastScanned = this.lastScannedBlockMap.get(chainId);
 
-      // On first scan, lookback 5,000 blocks (~1.3 hrs on Monad); on subsequent polls, scan from lastScanned - 10
-      const defaultLookback = 5000;
+      // On first scan, lookback 500 blocks (~2 mins on Monad); on subsequent polls, scan from lastScanned - 10
+      const defaultLookback = 500;
       const fromBlock = lastScanned ? Math.max(0, lastScanned - 10) : Math.max(0, latestBlock - defaultLookback);
       const toBlock = latestBlock;
 
@@ -86,32 +86,57 @@ export class GeneralizedEVMListener {
       // Topic 2 can be a single topic or array of topics (OR filter)
       const topic2Param = paddedTopics.length === 1 ? paddedTopics[0] : paddedTopics;
 
-      // Query RPC in 100-block chunks
+      // Query RPC in 100-block chunks with rate-limiting delay and backoff
       for (let chunkStart = fromBlock; chunkStart <= toBlock; chunkStart += maxRange) {
         const chunkEnd = Math.min(chunkStart + maxRange - 1, toBlock);
         const fromHex = '0x' + chunkStart.toString(16);
         const toHex = '0x' + chunkEnd.toString(16);
 
-        const logsRes = await fetch(config.rpcUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: 'eth_getLogs',
-            params: [
-              {
-                address: tokenContract,
-                topics: [transferTopic, null, topic2Param],
-                fromBlock: fromHex,
-                toBlock: toHex
-              }
-            ],
-            id: 2
-          })
-        });
+        // Throttle chunk queries to stay safely under Monad's 25 req/sec ceiling (~12 req/sec)
+        await new Promise((resolve) => setTimeout(resolve, 80));
 
-        const logsData = await logsRes.json();
-        if (logsData.error) {
+        let logsData: any = null;
+        let attempts = 0;
+        const maxAttempts = 3;
+
+        while (attempts < maxAttempts) {
+          attempts++;
+          try {
+            const logsRes = await fetch(config.rpcUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                jsonrpc: '2.0',
+                method: 'eth_getLogs',
+                params: [
+                  {
+                    address: tokenContract,
+                    topics: [transferTopic, null, topic2Param],
+                    fromBlock: fromHex,
+                    toBlock: toHex
+                  }
+                ],
+                id: 2
+              })
+            });
+
+            logsData = await logsRes.json();
+
+            // Check if rate limited (-32011)
+            if (logsData?.error?.code === -32011 || logsData?.error?.message?.includes('requests limited')) {
+              const backoffMs = attempts * 750;
+              await new Promise((resolve) => setTimeout(resolve, backoffMs));
+              continue;
+            }
+
+            break;
+          } catch (fetchErr) {
+            if (attempts >= maxAttempts) throw fetchErr;
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
+        }
+
+        if (logsData?.error) {
           console.warn(`[EVMListener] eth_getLogs RPC error (${fromHex}..${toHex}):`, logsData.error);
           continue;
         }
