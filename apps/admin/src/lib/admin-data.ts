@@ -627,6 +627,67 @@ const fallbackSettings: AdminSettings = {
   ]
 };
 
+function asNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function asString(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.length > 0 ? value : fallback;
+}
+
+function normalizeDashboardSnapshot(snapshot: Partial<AdminDashboardSnapshot> | null | undefined, fallback: AdminDashboardSnapshot): AdminDashboardSnapshot {
+  const source = snapshot || {};
+  const fallbackRate = fallback.rateState;
+  const rateState = source.rateState || fallbackRate;
+
+  return {
+    kpis: Array.isArray(source.kpis) && source.kpis.length > 0 ? source.kpis : fallback.kpis,
+    volumeChart: Array.isArray(source.volumeChart) ? source.volumeChart.map((point, index) => ({
+      label: asString(point?.label, fallback.volumeChart[index]?.label || ''),
+      usdc: asNumber(point?.usdc, fallback.volumeChart[index]?.usdc || 0),
+      ngn: asNumber(point?.ngn, fallback.volumeChart[index]?.ngn || 0)
+    })) : fallback.volumeChart,
+    recentTransactions: Array.isArray(source.recentTransactions) ? source.recentTransactions.map((tx, index) => ({
+      ...(fallback.recentTransactions[index] || fallbackTransactions[0]),
+      ...tx,
+      amountUSDC: asNumber(tx?.amountUSDC, 0),
+      exchangeRateNGN: asNumber(tx?.exchangeRateNGN, fallbackRate.currentRateNGN),
+      amountNGN: asNumber(tx?.amountNGN, 0),
+      feeNGN: asNumber(tx?.feeNGN, 0)
+    })) : fallback.recentTransactions,
+    recentDeposits: Array.isArray(source.recentDeposits) ? source.recentDeposits.map((dep, index) => ({
+      ...(fallback.recentDeposits[index] || fallbackDeposits[0]),
+      ...dep,
+      amount: asNumber(dep?.amount, 0),
+      confirmations: asNumber(dep?.confirmations, 0)
+    })) : fallback.recentDeposits,
+    rateState: {
+      ...fallbackRate,
+      ...rateState,
+      currentRateNGN: asNumber(rateState.currentRateNGN, fallbackRate.currentRateNGN),
+      blendedMarketRate: asNumber(rateState.blendedMarketRate, fallbackRate.blendedMarketRate),
+      binanceP2PRate: asNumber(rateState.binanceP2PRate, fallbackRate.binanceP2PRate),
+      bybitP2PRate: asNumber(rateState.bybitP2PRate, fallbackRate.bybitP2PRate),
+      spreadMarginPct: asNumber(rateState.spreadMarginPct, fallbackRate.spreadMarginPct)
+    },
+    payoutRails: Array.isArray(source.payoutRails) ? source.payoutRails.map((rail, index) => ({
+      ...(fallback.payoutRails[index] || fallbackPayoutRails[0]),
+      ...rail,
+      balanceNGN: asNumber(rail?.balanceNGN, 0),
+      latencyMs: asNumber(rail?.latencyMs, 0),
+      successRate: asNumber(rail?.successRate, 0),
+      supportedRails: Array.isArray(rail?.supportedRails) ? rail.supportedRails : []
+    })) : fallback.payoutRails,
+    custodyTrack: asString(source.custodyTrack, fallback.custodyTrack),
+    usersSummary: {
+      total: asNumber(source.usersSummary?.total, fallback.usersSummary.total),
+      tier1: asNumber(source.usersSummary?.tier1, fallback.usersSummary.tier1),
+      tier2: asNumber(source.usersSummary?.tier2, fallback.usersSummary.tier2),
+      verifiedKycPct: asNumber(source.usersSummary?.verifiedKycPct, fallback.usersSummary.verifiedKycPct)
+    }
+  };
+}
+
 // ─── LOADER FUNCTIONS ──────────────────────────────────────────────────
 
 export async function loadDashboardSnapshot(): Promise<AdminDashboardSnapshot> {
@@ -648,10 +709,11 @@ export async function loadDashboardSnapshot(): Promise<AdminDashboardSnapshot> {
   };
 
   const res = await adminFetch<AdminDashboardSnapshot>('/dashboard', snapshotFallback);
+  const normalized = normalizeDashboardSnapshot(res, snapshotFallback);
   if (!res.payoutRails || res.payoutRails === fallbackPayoutRails) {
-    res.payoutRails = liveRails;
+    normalized.payoutRails = liveRails;
   }
-  return res;
+  return normalized;
 }
 
 export async function loadUsers(): Promise<AdminUser[]> {

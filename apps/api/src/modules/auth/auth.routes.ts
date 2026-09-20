@@ -25,6 +25,8 @@ export async function authRoutes(
   server.patch(apiRoutes.users.byId(), { preHandler: requireSelfParam('userId') }, controller.updateUserProfile);
   server.post(apiRoutes.users.profile(), { preHandler: requireSelfParam('userId') }, controller.updateUserProfile);
   server.patch('/api/users/:userId', { preHandler: requireSelfParam('userId') }, controller.updateUserProfile);
+  server.delete(apiRoutes.users.byId(), { preHandler: requireSelfParam('userId') }, controller.deleteAccount);
+  server.delete('/api/users/:userId', { preHandler: requireSelfParam('userId') }, controller.deleteAccount);
   server.post(apiRoutes.auth.pushToken, { preHandler: requireAuth }, controller.registerPushToken);
   server.post(apiRoutes.users.pushToken, { preHandler: requireAuth }, controller.registerPushToken);
   server.post(apiRoutes.auth.testNotification, { preHandler: requireAdmin }, controller.testPushNotification);

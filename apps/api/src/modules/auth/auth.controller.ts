@@ -260,6 +260,16 @@ export class AuthController {
     return successResponse({ user: updatedUser }, 'User profile updated successfully');
   };
 
+  public deleteAccount = async (request: FastifyRequest, reply: FastifyReply) => {
+    const { userId } = request.params as { userId: string };
+    if (!userId) {
+      return reply.status(400).send(errorResponse('INVALID_USER_ID', 'User ID is required'));
+    }
+
+    await this.ledgerService.deleteUser(userId);
+    return successResponse({ deletedUserId: userId }, 'Account deleted successfully');
+  };
+
   public registerPushToken = async (request: FastifyRequest, reply: FastifyReply) => {
     const authUser = getAuthenticatedUser(request);
     const { token } = (request.body || {}) as { token?: string };

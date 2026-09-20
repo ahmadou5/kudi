@@ -43,6 +43,7 @@ export interface AuthState {
   }) => Promise<{ success: boolean; error?: string }>;
   updateProfile: (data: { fullName?: string; username?: string; avatarUrl?: string }) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<{ success: boolean; error?: string }>;
   unlock: () => void;
   lock: () => void;
   verifyPin: (inputPin: string) => boolean;
@@ -239,6 +240,21 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       isUnlocked: false,
       isLoading: false
     });
+  },
+
+  deleteAccount: async () => {
+    const currentUser = get().user;
+    if (currentUser?.id) {
+      try {
+        await sdk.deleteAccount(currentUser.id);
+      } catch (err: any) {
+        console.warn('Backend deleteAccount request warning:', err?.message || err);
+      }
+    }
+    await get().logout();
+    await deleteSecureItem('kudi_user_pin');
+    set({ pin: '1234', hasPin: false });
+    return { success: true };
   },
 
   unlock: () => {

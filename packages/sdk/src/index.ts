@@ -120,6 +120,14 @@ export class KudiSDK {
     return this.parseJson(res);
   }
 
+  async deleteAccount(userId: string) {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.users.byId(userId)}`, {
+      method: 'DELETE',
+      headers: this.getHeaders()
+    });
+    return this.parseJson(res);
+  }
+
   async getBalance(userId: string) {
     const res = await fetch(`${this.baseUrl}${apiRoutes.users.balance(userId)}`, {
       headers: this.getHeaders()

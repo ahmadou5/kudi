@@ -53,8 +53,8 @@ export default function SetupAdminPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@kudi.app" required />
-          <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="New admin password" required minLength={6} />
-          <Input type="password" value={setupToken} onChange={(e) => setSetupToken(e.target.value)} placeholder="Setup token" required />
+          <Input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="New admin password" required minLength={6} />
+          <Input type="password" autoComplete="one-time-code" value={setupToken} onChange={(e) => setSetupToken(e.target.value)} placeholder="Setup token" required />
           {error ? <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{error}</div> : null}
           <Button type="submit" className="w-full gap-2" disabled={loading}>
             {loading ? 'Creating...' : 'Create admin'}

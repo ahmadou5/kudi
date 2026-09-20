@@ -468,6 +468,26 @@ export class LedgerService {
     return user;
   }
 
+  public async deleteUser(userId: string): Promise<boolean> {
+    this.users.delete(userId);
+    this.userWallets.delete(userId);
+    this.balances.delete(userId);
+
+    try {
+      // Clean up user from database
+      await prisma.user.delete({ where: { id: userId } });
+    } catch (err: any) {
+      console.warn(`[LedgerService] Database user deletion notice for ${userId}:`, err?.message || err);
+      try {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { status: 'DELETED', email: `deleted_${userId}@kudi.invalid`, phoneNumber: null }
+        });
+      } catch {}
+    }
+    return true;
+  }
+
   public registerAdminUser(userId: string, email: string, passwordHash?: string, fullName?: string): UserRecord {
     const cleanEmail = email.trim().toLowerCase();
     const existing = this.findUserByPrivyOrEmail(undefined, cleanEmail);

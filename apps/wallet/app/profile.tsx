@@ -9,7 +9,7 @@ import {
   Image
 } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Edit3, Check, ShieldCheck, Shield, ChevronRight, Copy, Gift, User, Lock, MessageSquare, Settings, LogOut } from 'lucide-react-native';
+import { ArrowLeft, Edit3, Check, ShieldCheck, Shield, ChevronRight, Copy, Gift, User, Lock, MessageSquare, Settings, LogOut, Trash2 } from 'lucide-react-native';
 import { useAppPalette, isLight } from '../src/lib/theme';
 import { useAuthStore, AuthState } from '../src/store/auth.store';
 import { Typography } from '../src/constants/typography';
@@ -26,6 +26,7 @@ export default function ProfileScreen() {
   const wallets = useAuthStore((s: AuthState) => s.wallets);
   const pin = useAuthStore((s: AuthState) => s.pin);
   const logout = useAuthStore((s: AuthState) => s.logout);
+  const deleteAccount = useAuthStore((s: AuthState) => s.deleteAccount);
   const isDark = palette.text === '#FFFFFF';
 
   const solanaAddress = wallets.find(w => w.chain === 'solana')?.address || 'Solana Address Loading...';
@@ -71,6 +72,22 @@ export default function ProfileScreen() {
       onPrimaryPress: () => {
         modal.hide();
         logout();
+        router.replace('/(auth)/welcome');
+      },
+      secondaryText: 'Cancel',
+      onSecondaryPress: modal.hide,
+    });
+  };
+
+  const handleDeleteAccount = () => {
+    modal.show({
+      title: 'Delete Account Permanently',
+      description: 'Are you sure you want to delete your Kudi account? All your profile data, local settings, and wallet keys will be permanently erased. This action CANNOT be undone.',
+      type: 'danger',
+      primaryText: 'Delete Account',
+      onPrimaryPress: async () => {
+        modal.hide();
+        await deleteAccount();
         router.replace('/(auth)/welcome');
       },
       secondaryText: 'Cancel',
@@ -332,6 +349,16 @@ export default function ProfileScreen() {
           <LogOut size={19} color="#EF4444" />
           <Text style={[Typography.bodyBold, { color: '#EF4444' }]}>Log Out</Text>
         </TouchableOpacity>
+
+        {/* Delete Account Button */}
+        <TouchableOpacity
+          onPress={handleDeleteAccount}
+          style={styles.deleteAccountBtn}
+          activeOpacity={0.8}
+        >
+          <Trash2 size={18} color="#F43F5E" />
+          <Text style={[Typography.bodyBold, { color: '#F43F5E' }]}>Delete Account</Text>
+        </TouchableOpacity>
         <AppModal config={modal.config} onClose={modal.hide} />
       </ScrollView>
     </SafeAreaView>
@@ -483,7 +510,19 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 14,
     borderRadius: 18,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
     marginTop: 8
+  },
+  deleteAccountBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.3)',
+    backgroundColor: 'rgba(244, 63, 94, 0.05)',
+    marginTop: 4
   }
 });

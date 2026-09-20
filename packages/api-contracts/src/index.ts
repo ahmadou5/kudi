@@ -25,6 +25,7 @@ export const apiRoutes = {
     notifications: (userId = ':userId') => `/api/v1/users/${userId}/notifications`,
     markNotificationsRead: (userId = ':userId') => `/api/v1/users/${userId}/notifications/read-all`,
     markNotificationRead: (userId = ':userId', notificationId = ':notificationId') => `/api/v1/users/${userId}/notifications/${notificationId}/read`,
+    deleteAccount: (userId = ':userId') => `/api/v1/users/${userId}`,
     pushToken: '/api/v1/users/push-token'
   },
   kyc: {
