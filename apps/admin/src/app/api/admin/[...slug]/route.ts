@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
+import { getApiBaseUrl, getApiReachabilityMessage } from '@/lib/server-api';
 
-const apiUrl = process.env.KUDI_API_URL ?? 'http://localhost:4000';
+const apiUrl = getApiBaseUrl();
 
 function getAdminKey(): string {
   return process.env.ADMIN_API_KEY || 'kudi_admin_secret_dev';
@@ -29,8 +30,8 @@ export async function GET(request: Request, { params }: { params: { slug: string
       cache: 'no-store',
     });
     return NextResponse.json(await parseJson(res), { status: res.status });
-  } catch {
-    return NextResponse.json({ success: false, message: 'Admin API is unreachable' }, { status: 502 });
+  } catch (error) {
+    return NextResponse.json({ success: false, message: getApiReachabilityMessage(error) }, { status: 502 });
   }
 }
 
@@ -55,7 +56,7 @@ export async function POST(request: Request, { params }: { params: { slug: strin
       body: JSON.stringify(body),
     });
     return NextResponse.json(await parseJson(res), { status: res.status });
-  } catch {
-    return NextResponse.json({ success: false, message: 'Admin API is unreachable' }, { status: 502 });
+  } catch (error) {
+    return NextResponse.json({ success: false, message: getApiReachabilityMessage(error) }, { status: 502 });
   }
 }

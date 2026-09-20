@@ -10,7 +10,7 @@
     "build": "pnpm --workspace-concurrency=1 --filter @kudi/web^... run build && pnpm run build:app",
     "start": "next start -p 3000",
     "lint": "tsc --noEmit",
-    "build:app": "next build"
+    "build:app": "NODE_ENV=production next build"
   },
   "dependencies": {
     "@kudi/sdk": "workspace:*",

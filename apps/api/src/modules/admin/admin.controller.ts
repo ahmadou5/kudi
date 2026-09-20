@@ -665,10 +665,21 @@ export class AdminController {
       console.warn('[AdminController] DB update user role warning:', err?.message || err);
     }
 
+    const safeUser = updated ? {
+      id: updated.id,
+      email: updated.email,
+      fullName: updated.fullName,
+      role: updated.role,
+      status: updated.status,
+      kycStatus: updated.kycStatus,
+      kycTier: updated.kycTier,
+      wallets: updated.wallets
+    } : null;
+
     return successResponse({
       userId,
       role: normalizedRole,
-      user: updated
+      user: safeUser
     }, `User role updated to ${normalizedRole}`);
   };
 

@@ -13,10 +13,16 @@ const redisPlugin: FastifyPluginAsync = async (fastify) => {
         url: redisUrl,
         closeClient: true,
         connectTimeout: 1500,
+        lazyConnect: true,
         maxRetriesPerRequest: 1
       });
-    } catch (err) {
-      fastify.log.warn('⚠️ Local Redis server unreachable. Fastify Redis plugin skipped (operating in mock/in-memory mode).');
+      if (fastify.redis) {
+        fastify.redis.on('error', (err: any) => {
+          fastify.log.warn(`⚠️ Redis client warning: ${err?.message}`);
+        });
+      }
+    } catch (err: any) {
+      fastify.log.warn(`⚠️ Local Redis server unreachable (${err?.message}). Fastify Redis plugin skipped (operating in mock/in-memory mode).`);
     }
   } else {
     fastify.log.warn('Redis plugin disabled/skipped. Operating in in-memory mode.');

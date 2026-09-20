@@ -1,6 +1,7 @@
 import dns from 'node:dns';
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE, SESSION_USER_COOKIE } from '@/lib/session';
+import { getApiBaseUrl } from '@/lib/server-api';
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -14,7 +15,8 @@ export async function POST(request: Request) {
   const cleanEmail = body.email.trim().toLowerCase();
   const password = body.password;
   const adminPassword = process.env.ADMIN_PASSWORD || process.env.ADMIN_API_KEY || 'admin123';
-  const apiUrl = process.env.KUDI_API_URL ?? 'http://localhost:4000';
+  const apiUrl = getApiBaseUrl();
+  console.log('[auth/login] Attempting backend login with apiUrl:', apiUrl);
 
   let token: string | null = null;
   let user: { id: string; email: string; name: string; role: string } | null = null;

@@ -53,7 +53,7 @@ dotenv.config();
 // Initialize Sentry error monitoring & performance profiling
 initSentry(apiConfig);
 
-const server = Fastify({ logger: true });
+const server = Fastify({ logger: true, pluginTimeout: 30000 });
 
 // Attach Socket.io server instance to Fastify's HTTP server
 const io = new SocketIOServer(server.server, {

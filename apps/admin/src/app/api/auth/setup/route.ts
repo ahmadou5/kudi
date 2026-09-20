@@ -1,6 +1,7 @@
 import dns from 'node:dns';
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE, SESSION_USER_COOKIE } from '@/lib/session';
+import { getApiBaseUrl, getApiReachabilityMessage } from '@/lib/server-api';
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -10,7 +11,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Email, password, and setup token are required' }, { status: 400 });
   }
 
-  const apiUrl = process.env.KUDI_API_URL ?? 'http://localhost:4000';
+  const apiUrl = getApiBaseUrl();
   try {
     const response = await fetch(apiUrl + '/api/v1/auth/setup-admin', {
       method: 'POST',
@@ -50,6 +51,6 @@ export async function POST(request: Request) {
     }
     return res;
   } catch (error) {
-    return NextResponse.json({ message: 'Admin API is unreachable. Check KUDI_API_URL on the admin app.' }, { status: 502 });
+    return NextResponse.json({ message: getApiReachabilityMessage(error) }, { status: 502 });
   }
 }
