@@ -4,7 +4,7 @@ import { pollRateEngine } from './processors/ratePollerProcessor';
 import { WebhookProcessor } from './processors/webhookProcessor';
 import { processCryptoWithdrawals, recoverStaleProcessingWithdrawals } from './processors/cryptoWithdrawalProcessor';
 import { recordReconciliationSnapshot } from './processors/reconciliationProcessor';
-import { EVMChainConfig, ChainType } from '@kudi/types';
+import { EVMChainConfig, ChainType, SolanaChainConfig } from '@kudi/types';
 import { prisma } from '@kudi/database';
 import { workerConfig } from '@kudi/config';
 
@@ -17,6 +17,16 @@ const monadTestnetConfig: EVMChainConfig = {
   tokenContractAddress: workerConfig.AUSD_TOKEN_ADDRESS,
   tokenSymbol: 'AUSD',
   tokenDecimals: 6,
+  confirmationThreshold: 1,
+  enabled: true
+};
+
+const solanaConfig: Partial<SolanaChainConfig> = {
+  id: 'solana-devnet',
+  name: 'Solana SPL-Token RPC',
+  type: ChainType.SOLANA,
+  rpcUrl: workerConfig.SOLANA_RPC_URL,
+  usdcMintAddress: workerConfig.USDC_MINT_ADDRESS,
   confirmationThreshold: 1,
   enabled: true
 };
@@ -43,7 +53,7 @@ async function recordWorkerHeartbeat(): Promise<void> {
   }
 }
 
-const depositProcessor = new ChainDepositProcessor(monadTestnetConfig);
+const depositProcessor = new ChainDepositProcessor(monadTestnetConfig, solanaConfig);
 const webhookProcessor = new WebhookProcessor();
 
 function runWorkerTask(name: string, task: () => Promise<unknown> | unknown): void {

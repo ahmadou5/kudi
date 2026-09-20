@@ -118,27 +118,40 @@ export class SolanaListener {
 
         console.log(`[SolanaListener] Scanning token account ${tokenAccountAddress.slice(0, 8)}... for wallet ${walletAddress.slice(0, 8)}...`);
 
-        // Step 2: Get recent transaction signatures for the TOKEN account (not wallet address)
-        const sigRes = await fetch(this.config.rpcUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: 'getSignaturesForAddress',
-            params: [tokenAccountAddress, { limit: 25 }],
-            id: 1
-          })
-        });
+        // Step 2: Get recent transaction signatures for both the TOKEN account and owner wallet.
+        // The token account is the normal path; the owner fallback catches first-time ATA creation flows.
+        const signatureMap = new Map<string, any>();
+        for (const addressToScan of [tokenAccountAddress, walletAddress]) {
+          const sigRes = await fetch(this.config.rpcUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              method: 'getSignaturesForAddress',
+              params: [addressToScan, { limit: 50 }],
+              id: 1
+            })
+          });
 
-        const sigData = await sigRes.json() as any;
-        const sigs: any[] = sigData.result || [];
+          const sigData = await sigRes.json() as any;
+          if (sigData.error) {
+            console.warn(`[SolanaListener] getSignaturesForAddress failed for ${addressToScan.slice(0, 8)}...:`, sigData.error);
+            continue;
+          }
+
+          for (const sigInfo of sigData.result || []) {
+            if (sigInfo?.signature) signatureMap.set(sigInfo.signature, sigInfo);
+          }
+        }
+
+        const sigs: any[] = Array.from(signatureMap.values());
 
         if (sigs.length === 0) {
-          console.log(`[SolanaListener] No transactions found for token account ${tokenAccountAddress.slice(0, 8)}...`);
+          console.log(`[SolanaListener] No transactions found for token account/wallet ${tokenAccountAddress.slice(0, 8)}...`);
           continue;
         }
 
-        console.log(`[SolanaListener] Found ${sigs.length} transactions on token account, checking for USDC deposits...`);
+        console.log(`[SolanaListener] Found ${sigs.length} unique transactions, checking for USDC deposits...`);
 
         // Step 3: Fetch and parse each transaction
         for (const sigInfo of sigs) {
@@ -157,6 +170,10 @@ export class SolanaListener {
           });
 
           const txData = await txRes.json() as any;
+          if (txData.error) {
+            console.warn(`[SolanaListener] getTransaction failed for ${sigInfo.signature.slice(0, 12)}...:`, txData.error);
+            continue;
+          }
           const tx = txData.result;
           if (!tx || !tx.meta) continue;
 

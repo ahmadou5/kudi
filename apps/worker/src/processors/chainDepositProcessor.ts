@@ -1,5 +1,5 @@
 import { GeneralizedEVMListener, SolanaListener, EVMDepositEvent, SolanaDepositEvent, SelfCustodyProvider } from '@kudi/chains';
-import { EVMChainConfig } from '@kudi/types';
+import { EVMChainConfig, SolanaChainConfig } from '@kudi/types';
 import { prisma } from '@kudi/database';
 
 interface DepositWalletRow {
@@ -18,9 +18,9 @@ export class ChainDepositProcessor {
   private watchedSolanaAddresses: string[] = [];
   private selfCustody: SelfCustodyProvider;
 
-  constructor(monadConfig: EVMChainConfig) {
+  constructor(monadConfig: EVMChainConfig, solanaConfig?: Partial<SolanaChainConfig>) {
     this.evmListener = new GeneralizedEVMListener([monadConfig]);
-    this.solanaListener = new SolanaListener();
+    this.solanaListener = new SolanaListener(solanaConfig);
     this.selfCustody = new SelfCustodyProvider();
   }
 
