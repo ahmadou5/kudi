@@ -71,6 +71,22 @@ export class ChainDepositProcessor {
     };
   }
 
+  private async getRecentProcessedSignatures(limit = 5000): Promise<Set<string>> {
+    try {
+      const rows: Array<{ signature: string }> = await prisma.$queryRaw`
+        SELECT signature
+        FROM "ProcessedSignature"
+        ORDER BY "createdAt" DESC
+        LIMIT ${limit}
+      `;
+      return new Set(rows.map((row) => row.signature));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[ChainDepositProcessor] Could not load processed signatures before Solana poll: ${msg}`);
+      return new Set();
+    }
+  }
+
   public async pollAllChains(): Promise<void> {
     const { evm: evmAddresses, solana: solanaAddresses } = await this.getActiveAddresses();
     const enabledEVMs = this.evmListener.getEnabledChains();
@@ -107,7 +123,8 @@ export class ChainDepositProcessor {
 
     console.log(`🔗 [Chain Processor] Polling Solana SPL-Token RPC (${this.solanaListener.getConfig().usdcMintAddress}) for ${solanaAddresses.length} wallet(s)...`);
     try {
-      const solEvents: SolanaDepositEvent[] = await this.solanaListener.pollSolanaForDeposits(solanaAddresses);
+      const processedSignatures = await this.getRecentProcessedSignatures();
+      const solEvents: SolanaDepositEvent[] = await this.solanaListener.pollSolanaForDeposits(solanaAddresses, processedSignatures);
       for (const ev of solEvents) {
         console.log(`✅ [Chain Processor] Confirmed Solana Deposit: ${ev.amountUSDC} USDC (Signature: ${ev.signature})`);
         await this.processDepositEvent({

@@ -1,5 +1,8 @@
 import { SolanaChainConfig, ChainType } from '@kudi/types';
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+
 export interface SolanaDepositEvent {
   signature: string;
   userWalletAddress: string;
@@ -91,6 +94,38 @@ export class SolanaListener {
     return null;
   }
 
+
+  private async getTransactionWithRetry(signature: string): Promise<any | null> {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const txRes = await fetch(this.config.rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'getTransaction',
+          params: [signature, { encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0 }],
+          id: 2
+        })
+      });
+
+      const txData = await txRes.json() as any;
+      if (!txData.error) {
+        await sleep(Number(process.env.SOLANA_TX_FETCH_DELAY_MS || 150));
+        return txData.result || null;
+      }
+
+      const isRateLimited = txData.error?.code === 429;
+      console.warn(
+        `[SolanaListener] getTransaction failed for ${signature.slice(0, 12)}...${isRateLimited ? ' (rate limited; retrying)' : ''}:`,
+        txData.error
+      );
+      if (!isRateLimited) return null;
+      await sleep(500 * (attempt + 1));
+    }
+
+    return null;
+  }
+
   /**
    * Polls Solana for incoming USDC deposits to the given wallet addresses.
    * 
@@ -100,7 +135,7 @@ export class SolanaListener {
    * 3. For each signature, fetch the full transaction and compute the token balance delta
    * 4. Return events where delta > 0 (incoming USDC)
    */
-  public async pollSolanaForDeposits(watchedAddresses: string[]): Promise<SolanaDepositEvent[]> {
+  public async pollSolanaForDeposits(watchedAddresses: string[], processedSignatures: Set<string> = new Set()): Promise<SolanaDepositEvent[]> {
     const events: SolanaDepositEvent[] = [];
 
     for (const walletAddress of watchedAddresses) {
@@ -128,7 +163,7 @@ export class SolanaListener {
             body: JSON.stringify({
               jsonrpc: '2.0',
               method: 'getSignaturesForAddress',
-              params: [addressToScan, { limit: 50 }],
+              params: [addressToScan, { limit: 25 }],
               id: 1
             })
           });
@@ -144,37 +179,23 @@ export class SolanaListener {
           }
         }
 
-        const sigs: any[] = Array.from(signatureMap.values());
+        const sigs: any[] = Array.from(signatureMap.values())
+          .filter((sigInfo) => sigInfo?.signature && !processedSignatures.has(sigInfo.signature))
+          .slice(0, Number(process.env.SOLANA_MAX_TX_FETCH_PER_WALLET || 8));
 
         if (sigs.length === 0) {
           console.log(`[SolanaListener] No transactions found for token account/wallet ${tokenAccountAddress.slice(0, 8)}...`);
           continue;
         }
 
-        console.log(`[SolanaListener] Found ${sigs.length} unique transactions, checking for USDC deposits...`);
+        console.log(`[SolanaListener] Found ${signatureMap.size} unique transactions (${sigs.length} unprocessed this poll), checking for USDC deposits...`);
 
         // Step 3: Fetch and parse each transaction
         for (const sigInfo of sigs) {
           // Skip failed transactions
           if (sigInfo.err) continue;
 
-          const txRes = await fetch(this.config.rpcUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              jsonrpc: '2.0',
-              method: 'getTransaction',
-              params: [sigInfo.signature, { encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0 }],
-              id: 2
-            })
-          });
-
-          const txData = await txRes.json() as any;
-          if (txData.error) {
-            console.warn(`[SolanaListener] getTransaction failed for ${sigInfo.signature.slice(0, 12)}...:`, txData.error);
-            continue;
-          }
-          const tx = txData.result;
+          const tx = await this.getTransactionWithRetry(sigInfo.signature);
           if (!tx || !tx.meta) continue;
 
           const preBalances: any[] = tx.meta.preTokenBalances || [];
