@@ -112,8 +112,8 @@ export default function TransactionDetailsScreen() {
     const isDeposit = params.isDeposit === 'true' || amount.startsWith('+');
     const chain = params.chain || '';
     const tokenSymbol = params.tokenSymbol || (amount.includes('AUSD') ? 'AUSD' : 'USDC');
-    const ref = params.ref || params.id || 'REF_UNKNOWN';
-    const txHash = params.txHash || (ref.startsWith('0x') || ref.length > 25 ? ref : '');
+    const txHash = params.txHash || (params.ref && (params.ref.startsWith('0x') || params.ref.length > 25) ? params.ref : '');
+    const ref = txHash || params.ref || params.id || 'REF_UNKNOWN';
 
     // Logos resolution
     // chain.toLowerCase() here (it wasn't lowercased before, unlike title/subtitle below —

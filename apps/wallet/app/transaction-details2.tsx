@@ -47,8 +47,9 @@ export default function TransactionDetailsScreen2() {
   const isDeposit = params.isDeposit === 'true' || amount.startsWith('+');
   const chain = (params.chain as string) || '';
   const tokenSymbol = (params.tokenSymbol as string) || (amount.includes('AUSD') ? 'AUSD' : 'USDC');
-  const ref = (params.ref as string) || (params.id as string) || 'REF_UNKNOWN';
-  const txHash = (params.txHash as string) || (ref.startsWith('0x') || ref.length > 25 ? ref : '');
+  const rawRef = (params.ref as string) || (params.id as string) || '';
+  const txHash = (params.txHash as string) || (rawRef.startsWith('0x') || rawRef.length > 25 ? rawRef : '');
+  const ref = txHash || rawRef || 'REF_UNKNOWN';
 
   // Logos resolution
   const isMonad = chain.includes('monad') || tokenSymbol === 'AUSD' || title.toLowerCase().includes('ausd');

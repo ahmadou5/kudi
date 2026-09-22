@@ -327,10 +327,9 @@ export class LedgerService {
       const isMockWallet =
         wallet.metadata?.mock === true ||
         wallet.metadata?.generatedBy === 'MOCK_PRIVY_SERVER_WALLET' ||
-        rawPrivyWalletId?.startsWith('mock_') ||
-        rawPrivyWalletId?.startsWith('privy_srv_wlet_');
+        rawPrivyWalletId?.startsWith('mock_');
       const privyWalletId = isMockWallet ? null : rawPrivyWalletId;
-      const custodyType = privyWalletId ? 'SERVER_CUSTODY' : 'UNKNOWN';
+      const custodyType = privyWalletId ? 'SERVER_CUSTODY' : (wallet.metadata?.mock ? 'MOCK_CUSTODY' : 'SERVER_CUSTODY');
       const metadata = wallet.metadata ? JSON.stringify(wallet.metadata) : null;
 
       await prisma.$executeRaw`
@@ -1100,6 +1099,25 @@ export class LedgerService {
       }
     }
 
+    // Pass 3: Enrich transactions with live Withdrawal status & txHash from DB
+    try {
+      const dbWithdrawals: any[] = await prisma.$queryRaw`
+        SELECT reference, status, "txHash"
+        FROM "Withdrawal"
+        WHERE "userId" = ${userId}
+      `;
+      for (const w of dbWithdrawals) {
+        const tx = mergedMap.get(w.reference);
+        if (tx) {
+          if (!tx.metadata) tx.metadata = {};
+          if (w.status) tx.metadata.status = w.status;
+          if (w.txHash) tx.metadata.txHash = w.txHash;
+        }
+      }
+    } catch {
+      // Ignore DB query error
+    }
+
     const result = Array.from(mergedMap.values());
     return result.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
   }
@@ -1416,24 +1434,22 @@ export class LedgerService {
   }
 
   public async getWithdrawalAsync(reference: string): Promise<CryptoWithdrawal | undefined> {
-    const cached = this.withdrawals.get(reference);
-    if (cached) return cached;
-
     try {
       const rows: any[] = await prisma.$queryRaw`
         SELECT id, reference, "userId", "amountUSDC", "toAddress", chain, status, "txHash", "blockNumber", "failureReason", "createdAt", "updatedAt"
         FROM "Withdrawal"
-        WHERE reference = ${reference}
+        WHERE reference = ${reference} OR "txHash" = ${reference}
         LIMIT 1
       `;
-      if (!rows.length) return undefined;
-      const withdrawal = this.rowToWithdrawal(rows[0]);
-      this.withdrawals.set(reference, withdrawal);
-      return withdrawal;
+      if (rows.length > 0) {
+        const withdrawal = this.rowToWithdrawal(rows[0]);
+        this.withdrawals.set(reference, withdrawal);
+        return withdrawal;
+      }
     } catch (err: any) {
       console.warn('[LedgerService] DB withdrawal lookup warning:', err?.message || err);
-      return undefined;
     }
+    return this.withdrawals.get(reference);
   }
 
   public rollbackWithdrawal(reference: string, userId: string, amountUSDC: number): void {

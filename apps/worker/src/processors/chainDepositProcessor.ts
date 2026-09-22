@@ -159,7 +159,7 @@ export class ChainDepositProcessor {
             ELSE "sweepAttemptCount"
           END,
           "nextSweepAttemptAt" = CASE
-            WHEN ${shouldRetry} THEN NOW() + (LEAST(GREATEST("sweepAttemptCount", 1), 3) * INTERVAL '5 minutes')
+            WHEN ${shouldRetry} THEN NOW() + (LEAST(GREATEST("sweepAttemptCount", 1), 3) * INTERVAL '10 seconds')
             WHEN ${status} = 'SWEPT' THEN "nextSweepAttemptAt"
             ELSE NOW()
           END,
@@ -180,12 +180,16 @@ export class ChainDepositProcessor {
     const targetTreasury = this.targetTreasuryFor(normalizedChain);
 
     if (!targetTreasury) {
-      await this.updateDepositSweep(params.signature, 'SWEEP_BLOCKED', undefined, `Missing treasury address for ${normalizedChain}`);
+      const errMsg = `Missing treasury address for ${normalizedChain}`;
+      console.error(`[Chain Processor] ❌ ${normalizedChain.toUpperCase()} sweep BLOCKED: ${errMsg}`);
+      await this.updateDepositSweep(params.signature, 'SWEEP_BLOCKED', undefined, errMsg);
       return;
     }
 
-    if (!params.wallet.privyWalletId || params.wallet.custodyType !== 'SERVER_CUSTODY') {
-      await this.updateDepositSweep(params.signature, 'FLOAT_EXPOSURE', undefined, 'Wallet is not server-custody sweepable');
+    if (!params.wallet.privyWalletId) {
+      const errMsg = `Wallet ${params.wallet.address} has no privyWalletId stored in DB`;
+      console.error(`[Chain Processor] ❌ ${normalizedChain.toUpperCase()} sweep SKIPPED: ${errMsg}`);
+      await this.updateDepositSweep(params.signature, 'FLOAT_EXPOSURE', undefined, errMsg);
       return;
     }
 
@@ -193,6 +197,7 @@ export class ChainDepositProcessor {
       if (!params.alreadyMarkedProcessing) {
         await this.updateDepositSweep(params.signature, 'SWEEP_PROCESSING');
       }
+      console.log(`[Chain Processor] 🔄 Sweeping ${params.amountUSDC} USDC from deposit ${params.wallet.address} → treasury (${targetTreasury})...`);
       const { txHash } = await this.selfCustody.sendCrypto({
         treasuryWalletId: params.wallet.privyWalletId,
         fromAddress: normalizedChain === 'solana' ? params.wallet.address : undefined,
@@ -205,11 +210,11 @@ export class ChainDepositProcessor {
         throw new Error(`Sweep transaction ${txHash} was not confirmed before timeout`);
       }
       await this.updateDepositSweep(params.signature, 'SWEPT', txHash);
-      console.log(`[Chain Processor] 🏦 ${normalizedChain.toUpperCase()} sweep confirmed for ${params.signature.slice(0, 12)}...: ${txHash}`);
+      console.log(`[Chain Processor] 🏦 ${normalizedChain.toUpperCase()} sweep CONFIRMED for ${params.signature.slice(0, 12)}... | TxHash: ${txHash}`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       await this.updateDepositSweep(params.signature, 'SWEEP_FAILED', undefined, message);
-      console.warn(`[Chain Processor] ⚠️ ${normalizedChain.toUpperCase()} sweep failed for ${params.signature.slice(0, 12)}...: ${message}`);
+      console.error(`[Chain Processor] ❌ ${normalizedChain.toUpperCase()} sweep FAILED for signature ${params.signature}: ${message}`, err);
     }
   }
 
