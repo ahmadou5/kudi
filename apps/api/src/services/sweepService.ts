@@ -95,7 +95,7 @@ export class SweepService {
     }
 
     try {
-      console.log(`[SweepService] 🔄 Initiating ${chain.toUpperCase()} sweep: ${amountUSDC} → ${targetTreasury.slice(0, 8)}...`);
+      console.log(`[SweepService] 🔄 Initiating ${chain.toUpperCase()} sweep: ${amountUSDC} USDC from ${walletAddress} → treasury (${targetTreasury})...`);
 
       const result = await this.selfCustodyProvider.sendCrypto({
         treasuryWalletId: privyWalletId,
@@ -105,9 +105,7 @@ export class SweepService {
         chain
       });
 
-      if (result.txHash) {
-        console.log(`[SweepService] ✅ ${chain.toUpperCase()} sweep executed on-chain: ${amountUSDC} → treasury | Tx: ${result.txHash.slice(0, 16)}...`);
-      }
+      console.log(`[SweepService] ✅ ${chain.toUpperCase()} sweep SUCCESSFUL: ${amountUSDC} USDC from ${walletAddress} → treasury (${targetTreasury}) | TxHash: ${result.txHash}`);
 
       return {
         success: true,
@@ -117,13 +115,14 @@ export class SweepService {
         toAddress: targetTreasury
       };
     } catch (err: any) {
-      console.warn(`[SweepService] ⚠️ Sweep skipped/error for ${walletAddress.slice(0, 8)}...:`, err?.message);
+      const errMsg = err?.message || String(err);
+      console.error(`[SweepService] ❌ ${chain.toUpperCase()} sweep FAILED for ${walletAddress} → treasury (${targetTreasury}): ${errMsg}`, err);
       return {
         success: false,
         amountUSDC,
         fromAddress: walletAddress,
         toAddress: targetTreasury,
-        error: err?.message
+        error: errMsg
       };
     }
   }

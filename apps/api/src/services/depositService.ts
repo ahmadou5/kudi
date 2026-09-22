@@ -126,15 +126,15 @@ export class DepositService {
 
             // Sweep deposited USDC from user's deposit address to Kudi treasury
             const privyWalletId = (solanaWallet as any).metadata?.privyWalletId as string | undefined;
-            this.sweepService.sweepToTreasury(solanaWallet.address, privyWalletId, amount)
+            this.sweepService.sweepToTreasury(solanaWallet.address, privyWalletId, amount, 'solana')
               .then(sweep => {
                 if (sweep.success) {
-                  console.log(`[DepositService] 🏦 Sweep successful: ${amount} USDC → treasury (${sweep.txHash?.slice(0, 12)}...)`);
+                  console.log(`[DepositService] 🏦 Solana Sweep SUCCESSFUL: ${amount} USDC → treasury (${sweep.toAddress}) | TxHash: ${sweep.txHash}`);
                 } else {
-                  console.warn(`[DepositService] ⚠️ Sweep skipped/failed: ${sweep.error} — float model applies`);
+                  console.error(`[DepositService] ❌ Solana Sweep FAILED/SKIPPED for ${solanaWallet.address}: ${sweep.error}`);
                 }
               })
-              .catch(err => console.warn('[DepositService] Sweep error:', err?.message));
+              .catch(err => console.error('[DepositService] ❌ Solana Sweep unexpected error:', err?.message || err));
 
             // Real-time notification via Socket.io
             if (this.io) {
@@ -198,12 +198,12 @@ export class DepositService {
             this.sweepService.sweepToTreasury(monadWallet.address, privyWalletId, amount, 'monad')
               .then(sweep => {
                 if (sweep.success) {
-                  console.log(`[DepositService] 🏦 Monad Sweep successful: ${amount} AUSD → treasury (${sweep.txHash?.slice(0, 12)}...)`);
+                  console.log(`[DepositService] 🏦 Monad Sweep SUCCESSFUL: ${amount} AUSD → treasury (${sweep.toAddress}) | TxHash: ${sweep.txHash}`);
                 } else {
-                  console.warn(`[DepositService] ℹ️ Monad Sweep status: ${sweep.error}`);
+                  console.error(`[DepositService] ❌ Monad Sweep FAILED/SKIPPED for ${monadWallet.address}: ${sweep.error}`);
                 }
               })
-              .catch(err => console.warn('[DepositService] Monad Sweep error:', err?.message));
+              .catch(err => console.error('[DepositService] ❌ Monad Sweep unexpected error:', err?.message || err));
 
             if (this.io) {
               this.io.to(user.id).emit('deposit:received', {
