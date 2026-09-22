@@ -20,6 +20,7 @@
  * and reconciles periodically).
  */
 
+import { SelfCustodyProvider } from '@kudi/chains';
 import { LedgerService } from './ledgerService';
 
 export interface SweepResult {
@@ -36,6 +37,7 @@ export class SweepService {
   private privyAppSecret: string;
   private solanaRpcUrl: string;
   private usdcMintAddress: string;
+  private selfCustodyProvider: SelfCustodyProvider;
 
   public readonly solanaTreasuryAddress: string;
   public readonly evmTreasuryAddress: string;
@@ -54,6 +56,7 @@ export class SweepService {
     this.evmTreasuryAddress = process.env.KUDI_TREASURY_EVM_ADDRESS || '0xKudiTreasuryMonadMetropolisTestnet000';
 
     this.treasuryAddress = this.solanaTreasuryAddress;
+    this.selfCustodyProvider = new SelfCustodyProvider();
     console.log(`[SweepService] 🏦 Solana Treasury: ${this.solanaTreasuryAddress} | EVM Treasury: ${this.evmTreasuryAddress}`);
   }
 
@@ -94,9 +97,13 @@ export class SweepService {
     try {
       console.log(`[SweepService] 🔄 Initiating ${chain.toUpperCase()} sweep: ${amountUSDC} → ${targetTreasury.slice(0, 8)}...`);
 
-      const result = chain === 'monad'
-        ? await this.callPrivyMonadTransfer(privyWalletId, targetTreasury, amountUSDC)
-        : await this.callPrivySolanaTransfer(privyWalletId, targetTreasury, amountUSDC);
+      const result = await this.selfCustodyProvider.sendCrypto({
+        treasuryWalletId: privyWalletId,
+        fromAddress: walletAddress,
+        toAddress: targetTreasury,
+        amountUSDC,
+        chain
+      });
 
       if (result.txHash) {
         console.log(`[SweepService] ✅ ${chain.toUpperCase()} sweep executed on-chain: ${amountUSDC} → treasury | Tx: ${result.txHash.slice(0, 16)}...`);
@@ -121,129 +128,6 @@ export class SweepService {
     }
   }
 
-  /**
-   * Call Privy's API to sign and submit an AUSD ERC-20 transfer on Monad EVM.
-   */
-  private async callPrivyMonadTransfer(
-    privyWalletId: string,
-    recipientAddress: string,
-    amountAUSD: number
-  ): Promise<{ txHash?: string }> {
-    if (!this.privyAppId || !this.privyAppSecret) {
-      throw new Error('Privy credentials not configured');
-    }
-
-    const authHeader = `Basic ${Buffer.from(`${this.privyAppId}:${this.privyAppSecret}`).toString('base64')}`;
-    const sponsor = this.shouldSponsorTransactions();
-    const tokenContract = process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3';
-    const amountWei = BigInt(Math.floor(amountAUSD * 1_000_000)).toString(16).padStart(64, '0');
-    const recipientPadded = recipientAddress.replace('0x', '').padStart(64, '0');
-    const dataHex = `0xa9059cbb${recipientPadded}${amountWei}`;
-
-    const res = await fetch(`https://api.privy.io/v1/wallets/${privyWalletId}/rpc`, {
-      method: 'POST',
-      headers: {
-        'privy-app-id': this.privyAppId,
-        Authorization: authHeader,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        method: 'eth_sendTransaction',
-        caip2: `eip155:${process.env.MONAD_CHAIN_ID || '10143'}`,
-        ...(sponsor ? { sponsor: true } : {}),
-        params: {
-          transaction: {
-            to: tokenContract,
-            data: dataHex,
-            value: '0x0'
-          }
-        }
-      })
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Privy EVM RPC failed (${res.status}): ${errText}`);
-    }
-
-    const data = await res.json() as any;
-    return { txHash: data.data?.hash || data.hash };
-  }
-
-  /**
-   * Call Privy's API to sign and submit a USDC SPL token transfer on Solana.
-   *
-   * Privy Server Wallet RPC Signing:
-   * POST https://api.privy.io/v1/wallets/:wallet_id/rpc
-   * body: { method: "signAndSendTransaction", params: { ... } }
-   *
-   * For Solana, the transaction must be a serialized transaction base64 string.
-   * Since building raw Solana transactions requires @solana/web3.js, we call
-   * Privy's HTTP endpoint which handles the signing.
-   */
-  private async callPrivySolanaTransfer(
-    privyWalletId: string,
-    recipientAddress: string,
-    amountUSDC: number
-  ): Promise<{ txHash?: string }> {
-    if (!this.privyAppId || !this.privyAppSecret) {
-      throw new Error('Privy credentials not configured');
-    }
-
-    const authHeader = `Basic ${Buffer.from(`${this.privyAppId}:${this.privyAppSecret}`).toString('base64')}`;
-    const sponsor = this.shouldSponsorTransactions();
-
-    // Build the USDC transfer instruction via Privy's Solana RPC
-    // Privy accepts a transaction object in their format
-    const res = await fetch(`https://api.privy.io/v1/wallets/${privyWalletId}/rpc`, {
-      method: 'POST',
-      headers: {
-        'privy-app-id': this.privyAppId,
-        Authorization: authHeader,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        method: 'signAndSendTransaction',
-        caip2: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1', // Solana devnet chain ID
-        ...(sponsor ? { sponsor: true } : {}),
-        params: {
-          transaction: await this.buildUSDCTransferTransaction(recipientAddress, amountUSDC)
-        }
-      })
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Privy RPC failed (${res.status}): ${errText}`);
-    }
-
-    const data = await res.json() as any;
-    return { txHash: data.data?.hash || data.hash };
-  }
-
-  /**
-   * Builds a base64-encoded Solana USDC SPL transfer transaction.
-   *
-   * NOTE: This requires @solana/web3.js to be installed. For now this
-   * is a placeholder that returns a structured instruction — the actual
-   * implementation should use @solana/web3.js Transaction + createTransferCheckedInstruction.
-   *
-   * In production, install: pnpm add @solana/web3.js @solana/spl-token
-   */
-  private async buildUSDCTransferTransaction(
-    recipientAddress: string,
-    amountUSDC: number
-  ): Promise<string> {
-    // Placeholder — returns instruction metadata
-    // Real implementation: build Solana Transaction with SPL token transfer instruction
-    // and serialize to base64
-    return JSON.stringify({
-      type: 'USDC_TRANSFER',
-      recipient: recipientAddress,
-      amountLamports: Math.floor(amountUSDC * 1_000_000), // USDC has 6 decimals
-      mint: this.usdcMintAddress
-    });
-  }
 
   /**
    * Get the current USDC balance in Kudi's treasury wallet.

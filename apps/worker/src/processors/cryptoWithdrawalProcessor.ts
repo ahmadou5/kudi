@@ -25,17 +25,21 @@ interface PendingWithdrawalRow {
 function treasuryWalletIdFor(chain: 'solana' | 'monad'): string {
   if (chain === 'monad') {
     return process.env.KUDI_EVM_TREASURY_WALLET_ID
+      || process.env.KUDI_TREASURY_EVM_WALLET_ID
       || process.env.PRIVY_EVM_TREASURY_WALLET_ID
       || process.env.EVM_TREASURY_WALLET_ID
       || process.env.MONAD_TREASURY_WALLET_ID
       || process.env.PRIVY_TREASURY_WALLET_ID
+      || process.env.KUDI_TREASURY_EVM_ADDRESS
       || '';
   }
 
   return process.env.KUDI_SOLANA_TREASURY_WALLET_ID
+    || process.env.KUDI_TREASURY_SOLANA_WALLET_ID
     || process.env.PRIVY_SOLANA_TREASURY_WALLET_ID
     || process.env.SOLANA_TREASURY_WALLET_ID
     || process.env.PRIVY_TREASURY_WALLET_ID
+    || process.env.KUDI_TREASURY_SOLANA_ADDRESS
     || '';
 }
 

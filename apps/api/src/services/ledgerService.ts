@@ -470,8 +470,6 @@ export class LedgerService {
 
   public async deleteUser(userId: string): Promise<boolean> {
     this.users.delete(userId);
-    this.userWallets.delete(userId);
-    this.balances.delete(userId);
 
     try {
       // Clean up user from database

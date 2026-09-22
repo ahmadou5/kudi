@@ -414,13 +414,7 @@ export class SelfCustodyProvider implements CustodyProvider {
         chain
       };
 
-      if (process.env.NODE_ENV === 'production' || process.env.ALLOW_MOCK_CHAIN_SENDS !== 'true') {
-        throw new Error(`[SelfCustody] Missing production chain-send credentials: ${JSON.stringify(missing)}`);
-      }
-
-      console.warn(`[SelfCustody] ⚠️ Explicit mock chain-send mode triggered — Missing credentials:`, missing);
-      const mockHash = `mock_${chain}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      return { txHash: mockHash };
+      throw new Error(`[SelfCustody] Missing chain-send credentials: ${JSON.stringify(missing)}`);
     }
 
     const authHeader = `Basic ${Buffer.from(`${this.appId}:${this.appSecret}`).toString('base64')}`;
