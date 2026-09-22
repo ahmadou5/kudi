@@ -38,7 +38,7 @@ export function useUserProfile() {
       if (!user?.id) throw new Error('User not logged in');
       const res = await sdk.getUserProfile(user.id);
       if (res && res.success && res.data) {
-        return res.data;
+        return res.data as UserProfileData;
       }
       return {
         user: {

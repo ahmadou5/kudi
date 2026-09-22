@@ -64,7 +64,10 @@ export const apiResponseSchema = z.object({
   error: z.unknown().optional()
 }).passthrough();
 
-export type ApiResponse<T = unknown> = Omit<z.infer<typeof apiResponseSchema>, 'data'> & { data?: T };
+export type ApiResponse<T = any> = Omit<z.infer<typeof apiResponseSchema>, 'data' | 'error'> & {
+  data?: T;
+  error?: any;
+};
 
 export const authenticatePrivyRequestSchema = z.object({
   privyToken: z.string().optional(),
@@ -150,4 +153,59 @@ export type MaintenanceConfig = z.infer<typeof maintenanceConfigSchema>;
 export type SetMaintenanceConfigRequest = z.infer<typeof setMaintenanceConfigRequestSchema>;
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
 export type UpdateUserRoleRequest = z.infer<typeof updateUserRoleRequestSchema>;
+
+export interface AuthResponseData {
+  user: {
+    id: string;
+    privyUserId?: string;
+    email?: string;
+    phoneNumber?: string;
+    fullName?: string;
+    username?: string;
+    avatarUrl?: string;
+    kycTier?: string;
+    kycStatus?: string;
+    hasPin?: boolean;
+    wallets?: Array<{ chain: string; address: string }>;
+  };
+  wallets?: Array<{ chain: string; address: string }>;
+  accessToken: string;
+  refreshToken?: string;
+}
+
+export interface BalanceResponseData {
+  balanceUSDC: string;
+  currentRateNGN: number;
+  wallets?: Array<{ chain: string; address: string }>;
+}
+
+export interface TransactionsResponseData {
+  transactions: any[];
+}
+
+export interface VirtualAccountsResponseData {
+  accounts: any[];
+}
+
+export interface ResolveAccountResponseData {
+  accountName: string;
+  accountNumber: string;
+  bankCode: string;
+}
+
+export interface SendCryptoResponseData {
+  reference: string;
+  status: string;
+  chain: string;
+  toAddress: string;
+  amountUSDC: number;
+  newBalanceUSDC: string;
+}
+
+export interface CryptoStatusResponseData {
+  reference: string;
+  status: string;
+  txHash?: string;
+}
+
 

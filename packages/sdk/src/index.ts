@@ -3,17 +3,24 @@ import {
   apiRoutes,
   type ApiResponse,
   type AuthenticatePrivyRequest,
+  type AuthResponseData,
+  type BalanceResponseData,
+  type CryptoStatusResponseData,
   type MaintenanceConfig,
   type OverrideRateRequest,
   type PayBillRequest,
   type ResolveAccountRequest,
+  type ResolveAccountResponseData,
+  type SendCryptoResponseData,
   type SetActivePaymentProviderRequest,
   type SetMaintenanceConfigRequest,
   type SpendOnChainRequest,
   type SpendToBankRequest,
   type SpendToUserRequest,
+  type TransactionsResponseData,
   type UpdateUserProfileRequest,
-  type VerifyKycIdRequest
+  type VerifyKycIdRequest,
+  type VirtualAccountsResponseData
 } from '@kudi/api-contracts';
 
 export interface KudiClientConfig {
@@ -47,7 +54,7 @@ export class KudiSDK {
     return headers;
   }
 
-  private async parseJson<T = unknown>(res: Response): Promise<ApiResponse<T>> {
+  private async parseJson<T = any>(res: Response): Promise<ApiResponse<T>> {
     const payload = await res.json();
     return apiResponseSchema.parse(payload) as ApiResponse<T>;
   }
@@ -57,7 +64,7 @@ export class KudiSDK {
     return this.parseJson(res);
   }
 
-  async authenticatePrivy(payload: AuthenticatePrivyRequest) {
+  async authenticatePrivy(payload: AuthenticatePrivyRequest): Promise<ApiResponse<AuthResponseData>> {
     const targetUrl = `${this.baseUrl}${apiRoutes.auth.privyAuthenticate}`;
     console.log('[Kudi SDK] Fetching Privy auth URL:', targetUrl);
     const res = await fetch(targetUrl, {
@@ -65,34 +72,34 @@ export class KudiSDK {
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
     });
-    return this.parseJson(res);
+    return this.parseJson<AuthResponseData>(res);
   }
 
-  async sendPrivyOTP(email: string) {
+  async sendPrivyOTP(email: string): Promise<ApiResponse<{ email: string; sent: boolean }>> {
     const res = await fetch(`${this.baseUrl}${apiRoutes.auth.privySendOtp}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ email })
     });
-    return this.parseJson(res);
+    return this.parseJson<{ email: string; sent: boolean }>(res);
   }
 
-  async verifyPrivyOTP(email: string, code: string) {
+  async verifyPrivyOTP(email: string, code: string): Promise<ApiResponse<AuthResponseData>> {
     const res = await fetch(`${this.baseUrl}${apiRoutes.auth.privyVerifyOtp}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ email, code })
     });
-    return this.parseJson(res);
+    return this.parseJson<AuthResponseData>(res);
   }
 
-  async refreshToken(refreshToken: string) {
+  async refreshToken(refreshToken: string): Promise<ApiResponse<{ accessToken: string }>> {
     const res = await fetch(`${this.baseUrl}${apiRoutes.auth.refresh}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ refreshToken })
     });
-    return this.parseJson(res);
+    return this.parseJson<{ accessToken: string }>(res);
   }
 
   async registerUser(phoneNumber: string, email: string) {
@@ -128,14 +135,14 @@ export class KudiSDK {
     return this.parseJson(res);
   }
 
-  async getBalance(userId: string) {
+  async getBalance(userId: string): Promise<ApiResponse<BalanceResponseData>> {
     const res = await fetch(`${this.baseUrl}${apiRoutes.users.balance(userId)}`, {
       headers: this.getHeaders()
     });
-    return this.parseJson(res);
+    return this.parseJson<BalanceResponseData>(res);
   }
 
-  async getTransactions(userId: string, options: { limit?: number; offset?: number; type?: string } = {}) {
+  async getTransactions(userId: string, options: { limit?: number; offset?: number; type?: string } = {}): Promise<ApiResponse<TransactionsResponseData>> {
     const params = new URLSearchParams();
     if (options.limit) params.append('limit', String(options.limit));
     if (options.offset) params.append('offset', String(options.offset));
@@ -145,14 +152,14 @@ export class KudiSDK {
     const res = await fetch(`${this.baseUrl}${apiRoutes.users.transactions(userId)}${queryString}`, {
       headers: this.getHeaders()
     });
-    return this.parseJson(res);
+    return this.parseJson<TransactionsResponseData>(res);
   }
 
-  async getVirtualAccounts(userId: string) {
+  async getVirtualAccounts(userId: string): Promise<ApiResponse<VirtualAccountsResponseData>> {
     const res = await fetch(`${this.baseUrl}${apiRoutes.users.virtualAccounts(userId)}`, {
       headers: this.getHeaders()
     });
-    return this.parseJson(res);
+    return this.parseJson<VirtualAccountsResponseData>(res);
   }
 
   async verifyKYCID(payload: VerifyKycIdRequest) {
@@ -194,22 +201,22 @@ export class KudiSDK {
     return this.parseJson(res);
   }
 
-  async resolveAccount(accountNumber: ResolveAccountRequest['accountNumber'], bankCode: ResolveAccountRequest['bankCode']) {
+  async resolveAccount(accountNumber: ResolveAccountRequest['accountNumber'], bankCode: ResolveAccountRequest['bankCode']): Promise<ApiResponse<ResolveAccountResponseData>> {
     const res = await fetch(`${this.baseUrl}${apiRoutes.payout.resolveAccount}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ accountNumber, bankCode })
     });
-    return this.parseJson(res);
+    return this.parseJson<ResolveAccountResponseData>(res);
   }
 
-  async spendToBank(payload: SpendToBankRequest) {
+  async spendToBank(payload: SpendToBankRequest): Promise<ApiResponse<{ reference?: string; status?: string; amountNGN?: number; message?: string }>> {
     const res = await fetch(`${this.baseUrl}${apiRoutes.payout.spend}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
     });
-    return this.parseJson(res);
+    return this.parseJson<{ reference?: string; status?: string; amountNGN?: number; message?: string }>(res);
   }
 
   async spendToUser(payload: SpendToUserRequest) {
@@ -221,13 +228,13 @@ export class KudiSDK {
     return this.parseJson(res);
   }
 
-  async spendOnChain(payload: SpendOnChainRequest) {
+  async spendOnChain(payload: SpendOnChainRequest): Promise<ApiResponse<SendCryptoResponseData>> {
     const res = await fetch(`${this.baseUrl}${apiRoutes.payout.spendOnChain}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
     });
-    return this.parseJson(res);
+    return this.parseJson<SendCryptoResponseData>(res);
   }
 
   /**
@@ -235,25 +242,26 @@ export class KudiSDK {
    * Returns a reference and PENDING status immediately.
    * Poll getCryptoWithdrawalStatus() to track PENDING → BROADCAST → CONFIRMED.
    */
-  async sendCrypto(payload: SpendOnChainRequest) {
+  async sendCrypto(payload: SpendOnChainRequest): Promise<ApiResponse<SendCryptoResponseData>> {
     const res = await fetch(`${this.baseUrl}${apiRoutes.payout.spendOnChain}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
     });
-    return this.parseJson(res);
+    return this.parseJson<SendCryptoResponseData>(res);
   }
 
   /**
    * Poll the status of a crypto withdrawal by reference.
    * Status lifecycle: PENDING → BROADCAST → CONFIRMED | FAILED
    */
-  async getCryptoWithdrawalStatus(reference: string) {
+  async getCryptoWithdrawalStatus(reference: string): Promise<ApiResponse<CryptoStatusResponseData>> {
     const res = await fetch(`${this.baseUrl}${apiRoutes.payout.cryptoStatus(reference)}`, {
       headers: this.getHeaders()
     });
-    return this.parseJson(res);
+    return this.parseJson<CryptoStatusResponseData>(res);
   }
+
 
 
   async overrideRate(newRateNGN: OverrideRateRequest['newRateNGN']) {
