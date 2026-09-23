@@ -78,8 +78,8 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
     rawTier === '2' || rawTier === 'TIER_2'
       ? 2
       : rawTier === '1' || rawTier === 'TIER_1' || user?.kycStatus === 'VERIFIED'
-      ? 1
-      : 0;
+        ? 1
+        : 0;
 
   // On-Chain balance calculations & deposit pulse animation
   const numericBalance = parseFloat(balanceUSDC) || 0;
@@ -155,13 +155,13 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
   const scrollToIndex = (index: number) => {
     setActiveIndex(index);
     scrollViewRef.current?.scrollTo({ x: index * (CARD_WIDTH + CARD_GAP), animated: true });
-    Haptics.selectionAsync().catch(() => {});
+    Haptics.selectionAsync().catch(() => { });
   };
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
       await Clipboard.setStringAsync(text);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => { });
       setCopiedField(label);
       setTimeout(() => setCopiedField(null), 2000);
     } catch {
@@ -170,12 +170,12 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
   };
 
   const openCryptoDepositSheet = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
     setActiveBottomSheet({ type: 'crypto', cryptoChain: selectedCryptoChain });
   };
 
   const openBankDepositSheet = (account: VirtualAccount, flag: string, transferType: string, extraDetails?: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
     setActiveBottomSheet({
       type: 'bank',
       bankData: {
@@ -244,7 +244,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
 
           <View style={styles.cardHeaderRow}>
             <View style={styles.badgeRow}>
-              <View style={[styles.liveDot, { backgroundColor: palette.success }]} />
+
               <Text style={[Typography.caption, { color: palette.textSecondary }]}>
                 Available On-Chain Balance
               </Text>
@@ -263,7 +263,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                 ]}
               >
                 <Text style={[Typography.caption, { color: palette.success, fontWeight: '700' }]}>
-                  +${depositDelta.toFixed(2)} USDC 💰
+                  +${depositDelta.toFixed(2)} USDC
                 </Text>
               </Animated.View>
             )}
@@ -684,7 +684,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                   <TouchableOpacity
                     onPress={() => {
                       setSelectedCryptoChain('solana');
-                      Haptics.selectionAsync().catch(() => {});
+                      Haptics.selectionAsync().catch(() => { });
                     }}
                     activeOpacity={0.8}
                     style={[
@@ -704,7 +704,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                   <TouchableOpacity
                     onPress={() => {
                       setSelectedCryptoChain('monad');
-                      Haptics.selectionAsync().catch(() => {});
+                      Haptics.selectionAsync().catch(() => { });
                     }}
                     activeOpacity={0.8}
                     style={[

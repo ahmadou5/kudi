@@ -1,6 +1,7 @@
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Modal } from 'react-native';
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop, BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { useAppPalette } from '../../lib/theme';
 
@@ -21,7 +22,7 @@ export const GorhomBottomSheet: React.FC<GorhomBottomSheetProps> = ({
   const isDark = palette.text === '#FFFFFF';
   const bottomSheetRef = useRef<BottomSheet>(null);
 
-  // Dynamic Snap points (e.g. 50% collapsed resting, 88% expanded)
+  // Dynamic Snap points (e.g. 52% collapsed resting, 88% expanded)
   const snapPoints = useMemo(() => customSnapPoints || ['52%', '88%'], [customSnapPoints]);
 
   useEffect(() => {
@@ -47,6 +48,7 @@ export const GorhomBottomSheet: React.FC<GorhomBottomSheetProps> = ({
         disappearsOnIndex={-1}
         appearsOnIndex={0}
         opacity={0.65}
+        pressBehavior="close"
       />
     ),
     []
@@ -55,33 +57,46 @@ export const GorhomBottomSheet: React.FC<GorhomBottomSheetProps> = ({
   if (!visible) return null;
 
   return (
-    <BottomSheet
-      ref={bottomSheetRef}
-      index={0}
-      snapPoints={snapPoints}
-      enablePanDownToClose={true}
-      onChange={handleSheetChanges}
-      backdropComponent={renderBackdrop}
-      backgroundStyle={[
-        styles.backgroundStyle,
-        {
-          backgroundColor: palette.card,
-          borderColor: palette.border
-        }
-      ]}
-      handleIndicatorStyle={[
-        styles.indicatorStyle,
-        { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(15, 23, 42, 0.25)' }
-      ]}
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+      statusBarTranslucent
     >
-      <BottomSheetView style={styles.contentContainer}>
-        {children}
-      </BottomSheetView>
-    </BottomSheet>
+      <GestureHandlerRootView style={styles.modalRoot}>
+        <BottomSheet
+          ref={bottomSheetRef}
+          index={0}
+          snapPoints={snapPoints}
+          enablePanDownToClose={true}
+          onChange={handleSheetChanges}
+          backdropComponent={renderBackdrop}
+          backgroundStyle={[
+            styles.backgroundStyle,
+            {
+              backgroundColor: palette.card,
+              borderColor: palette.border
+            }
+          ]}
+          handleIndicatorStyle={[
+            styles.indicatorStyle,
+            { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(15, 23, 42, 0.25)' }
+          ]}
+        >
+          <BottomSheetView style={styles.contentContainer}>
+            {children}
+          </BottomSheetView>
+        </BottomSheet>
+      </GestureHandlerRootView>
+    </Modal>
   );
 };
 
 const styles = StyleSheet.create({
+  modalRoot: {
+    flex: 1
+  },
   backgroundStyle: {
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
