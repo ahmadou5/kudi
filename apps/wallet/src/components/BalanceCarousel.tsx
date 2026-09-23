@@ -33,12 +33,14 @@ interface BalanceCarouselProps {
   balanceUSDC: string;
   rateNGN: number;
   depositNotification?: { amountUSDC: number; chain: string } | null;
+  isLoading?: boolean;
 }
 
 export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
   balanceUSDC,
   rateNGN,
-  depositNotification
+  depositNotification,
+  isLoading = false
 }) => {
   const palette = useAppPalette();
   const isDark = palette.text === '#FFFFFF';
