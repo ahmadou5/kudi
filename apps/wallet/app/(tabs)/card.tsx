@@ -33,14 +33,60 @@ export default function CardTab() {
   const [isFrozen, setIsFrozen] = useState<boolean>(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // Balance calculations
-  const balanceUSDC = balanceData?.balanceUSDC || 0;
-  const rateNGN = balanceData?.currentRateNGN || 1585.5;
-  const balanceNGN = balanceUSDC * rateNGN;
+  // Balance calculations (safely convert string/number from API)
+  const numericBalanceUSDC = typeof balanceData?.balanceUSDC === 'number'
+    ? balanceData.balanceUSDC
+    : parseFloat(String(balanceData?.balanceUSDC || '0')) || 0;
+  const rateNGN = typeof balanceData?.currentRateNGN === 'number'
+    ? balanceData.currentRateNGN
+    : parseFloat(String(balanceData?.currentRateNGN || '1585.5')) || 1585.5;
+  const balanceNGN = numericBalanceUSDC * rateNGN;
 
   // Virtual account lookups
-  const ngnAccount = virtualAccounts.find(a => a.currency === 'NGN');
-  const usdAccount = virtualAccounts.find(a => a.currency === 'USD');
+  const ngnAccount = (virtualAccounts || []).find(a => a.currency === 'NGN');
+  const usdAccount = (virtualAccounts || []).find(a => a.currency === 'USD');
+
+  const cards = [
+    {
+      id: 'usd',
+      name: 'Kudi USD Virtual Card',
+      brand: 'VISA',
+      currencySymbol: '$',
+      currencyCode: 'USD',
+      balanceDisplay: `$${numericBalanceUSDC.toFixed(2)} USD`,
+      subBalance: `~₦${balanceNGN.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN`,
+      maskedNumber: '•••• •••• •••• 5678',
+      fullNumber: '4111 2309 5678 9921',
+      cvv: '719',
+      expires: '08/28',
+      type: 'Visa International Debit',
+      bgDark: '#1E293B',
+      bgLight: '#F1F5F9',
+      accentColor: '#34D399',
+      linkedBank: usdAccount ? `${usdAccount.bankName} • Acc: ${usdAccount.accountNumber}` : 'Lead Bank • ACH Account: 9876543210'
+    },
+    {
+      id: 'ngn',
+      name: 'Kudi NGN Virtual Card',
+      brand: 'Mastercard',
+      currencySymbol: '₦',
+      currencyCode: 'NGN',
+      balanceDisplay: `₦${balanceNGN.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN`,
+      subBalance: `~$${numericBalanceUSDC.toFixed(2)} USDC equivalent`,
+      maskedNumber: '•••• •••• •••• 9012',
+      fullNumber: '5399 4812 9012 4410',
+      cvv: '482',
+      expires: '12/28',
+      type: 'Mastercard Domestic',
+      bgDark: '#0F172A',
+      bgLight: '#E2E8F0',
+      accentColor: '#60A5FA',
+      linkedBank: ngnAccount ? `${ngnAccount.bankName} • Acc: ${ngnAccount.accountNumber}` : 'GTBank • NUBAN: 0123456789'
+    }
+  ];
+
+  const currentCard = cards[selectedCard];
+  const isDark = palette.text === '#FFFFFF';
 
   // Standard React Native Animated values
   const floatY = useRef(new Animated.Value(0)).current;
@@ -121,52 +167,10 @@ export default function CardTab() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     modal.alert(
       'Card Top Up 💳',
-      `Your virtual card automatically draws balance from your Metropolis wallet (${currentCard.id === 'ngn' ? `₦${balanceNGN.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN` : `$${balanceUSDC.toFixed(2)} USD`}). Deposit USDC or NGN to instantly increase your card limit.`,
+      `Your virtual card automatically draws balance from your Metropolis wallet (${currentCard.id === 'ngn' ? `₦${balanceNGN.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN` : `$${numericBalanceUSDC.toFixed(2)} USD`}). Deposit USDC or NGN to instantly increase your card limit.`,
       'info'
     );
   };
-
-  const cards = [
-    {
-      id: 'usd',
-      name: 'Kudi USD Virtual Card',
-      brand: 'VISA',
-      currencySymbol: '$',
-      currencyCode: 'USD',
-      balanceDisplay: `$${balanceUSDC.toFixed(2)} USD`,
-      subBalance: `~₦${balanceNGN.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN`,
-      maskedNumber: '•••• •••• •••• 5678',
-      fullNumber: '4111 2309 5678 9921',
-      cvv: '719',
-      expires: '08/28',
-      type: 'Visa International Debit',
-      bgDark: '#1E293B',
-      bgLight: '#F1F5F9',
-      accentColor: '#34D399',
-      linkedBank: usdAccount ? `${usdAccount.bankName} • Acc: ${usdAccount.accountNumber}` : 'Lead Bank • ACH Account: 9876543210'
-    },
-    {
-      id: 'ngn',
-      name: 'Kudi NGN Virtual Card',
-      brand: 'Mastercard',
-      currencySymbol: '₦',
-      currencyCode: 'NGN',
-      balanceDisplay: `₦${balanceNGN.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN`,
-      subBalance: `~$${balanceUSDC.toFixed(2)} USDC equivalent`,
-      maskedNumber: '•••• •••• •••• 9012',
-      fullNumber: '5399 4812 9012 4410',
-      cvv: '482',
-      expires: '12/28',
-      type: 'Mastercard Domestic',
-      bgDark: '#0F172A',
-      bgLight: '#E2E8F0',
-      accentColor: '#60A5FA',
-      linkedBank: ngnAccount ? `${ngnAccount.bankName} • Acc: ${ngnAccount.accountNumber}` : 'GTBank • NUBAN: 0123456789'
-    }
-  ];
-
-  const currentCard = cards[selectedCard];
-  const isDark = palette.text === '#FFFFFF';
 
   return (
     <ScrollView
