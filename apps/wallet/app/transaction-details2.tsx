@@ -42,7 +42,7 @@ export default function TransactionDetailsScreen2() {
   const subtitle = (params.subtitle as string) || '';
   const amount = (params.amount as string) || '$0.00';
   const secondaryAmount = (params.secondaryAmount as string) || '';
-  const status = (params.status as string) || 'SUCCESS';
+  const rawStatus = (params.status as string) || 'CONFIRMED';
   const date = (params.date as string) || 'Recently';
   const isDeposit = params.isDeposit === 'true' || amount.startsWith('+');
   const chain = (params.chain as string) || '';
@@ -88,8 +88,9 @@ export default function TransactionDetailsScreen2() {
     }
   };
 
-  const isSuccess = ['SUCCESS', 'COMPLETED', 'CONFIRMED', 'DONE'].includes(status.toUpperCase());
-  const isPending = ['PENDING', 'PROCESSING', 'BROADCAST'].includes(status.toUpperCase());
+  const isSuccess = ['SUCCESS', 'COMPLETED', 'CONFIRMED', 'DONE'].includes(rawStatus.toUpperCase());
+  const isPending = ['PENDING', 'PROCESSING', 'BROADCAST'].includes(rawStatus.toUpperCase());
+  const status = isSuccess ? 'CONFIRMED' : rawStatus.toUpperCase();
 
   const statusBg = isSuccess
     ? 'rgba(52, 211, 153, 0.15)'

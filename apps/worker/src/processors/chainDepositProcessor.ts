@@ -380,7 +380,8 @@ export class ChainDepositProcessor {
               tokenSymbol: params.tokenSymbol,
               blockNumber: params.blockNumber,
               title: `${params.tokenSymbol} Deposit`,
-              subtitle: `${params.chain.toUpperCase()} Network`
+              subtitle: `${params.chain.toUpperCase()} Network`,
+              status: 'CONFIRMED'
             })},
             NOW()
           )

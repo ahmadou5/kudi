@@ -3,11 +3,12 @@ import { StyleSheet, Text, View, TouchableOpacity, ScrollView, RefreshControl, A
 import { router } from 'expo-router';
 import { Smartphone, Wifi, Zap, CreditCard, Receipt, LucideIcon } from 'lucide-react-native';
 import { useAppPalette } from '../../src/lib/theme';
-import { BalanceCard } from '../../src/components/BalanceCard';
+import { BalanceCarousel } from '../../src/components/BalanceCarousel';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
 import { Typography } from '../../src/constants/typography';
 import { Header } from '../../src/components/Header';
 import { TransactionCard, TransactionData } from '../../src/components/TransactionCard';
+import { formatIntelligentTimestamp } from '../../src/utils/timeUtils';
 
 function ActivitySkeleton({ palette }: { palette: any }) {
   return (
@@ -72,22 +73,18 @@ export default function HomeTab() {
     const amountNGN = amountNum * rateNGN;
     const amountStr = `${isDeposit ? '+' : '-'}$${amountNum.toFixed(2)} ${tokenSymbol}`;
 
-    let formattedDate = 'Recently';
-    if (tx.timestamp) {
-      const d = new Date(tx.timestamp);
-      formattedDate = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
+    const formattedDate = formatIntelligentTimestamp(tx.timestamp);
 
     return {
       id: tx.reference || String(idx),
       ref: tx.reference,
       txHash: tx.metadata?.txHash || tx.reference,
-      title: tx.metadata?.title || (isDeposit ? `${tokenSymbol} Deposit` : 'Bank Payout'),
+      title: isDeposit ? 'Deposit' : 'Spend',
       subtitle: tx.metadata?.subtitle || (isDeposit ? `${isMonad ? 'Monad Testnet' : 'Solana Network'}` : `${tx.currency || 'NGN'} Transfer`),
       date: formattedDate,
       amount: amountStr,
       secondaryAmount: `≈ ₦${amountNGN.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      status: tx.metadata?.status || 'SUCCESS',
+      status: (tx.metadata?.status && ['SUCCESS', 'COMPLETED'].includes(tx.metadata.status.toUpperCase())) ? 'CONFIRMED' : (tx.metadata?.status || 'CONFIRMED'),
       isDeposit,
       chain: chainName,
       tokenSymbol,
@@ -103,53 +100,11 @@ export default function HomeTab() {
 
   return (
     <View style={[styles.container, { backgroundColor: palette.bg }]}>
-      {/* Sticky Top Header */}
-      <Header onOpenScanner={() => router.push('/qr-scanner')} />
-
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 110, paddingHorizontal: 14, paddingTop: 12 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onRefresh}
-            tintColor={palette.text}
-            colors={['#3B82F6']}
-          />
-        }
-      >
-        {/* Live Balance Card Component */}
-        <BalanceCard balanceUSDC={balanceUSDC} rateNGN={rateNGN} depositNotification={depositNotification} />
-        {/* TO DO */}
-        {/* Quick Actions Grid 
-        <Text style={[Typography.title2, styles.sectionTitle, { color: palette.text }]}>
-          Quick Services
-        </Text>
-
-        <View style={styles.quickGrid}>
-          {quickActions.map((act) => {
-            const ActionIcon = act.Icon;
-            return (
-              <TouchableOpacity
-                key={act.label}
-                style={styles.quickItem}
-                onPress={() => router.push(act.route as any)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.quickCircle, { backgroundColor: palette.card, borderColor: palette.border }]}>
-                  <ActionIcon size={22} color={palette.text} />
-                </View>
-                <Text style={[Typography.subhead, { color: palette.textSecondary }]}>
-                  {act.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-*/}
-        {/* Recent Live Activity Feed */}
-        <View style={styles.activityHeaderRow}>
+      {/* Fixed Top Section: Header + Balance Carousel + Activity Header */}
+      <View style={styles.fixedHeaderSection}>
+        <Header onOpenScanner={() => router.push('/qr-scanner')} />
+        <BalanceCarousel balanceUSDC={balanceUSDC} rateNGN={rateNGN} depositNotification={depositNotification} />
+        <View style={[styles.activityHeaderRow, { paddingHorizontal: 14 }]}>
           <Text style={[Typography.title2, { color: palette.text }]}>
             Recent Activity
           </Text>
@@ -163,7 +118,22 @@ export default function HomeTab() {
             </Text>
           </TouchableOpacity>
         </View>
+      </View>
 
+      {/* Scrollable Transaction Cards List Only */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 110, paddingHorizontal: 14, paddingTop: 4 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={palette.text}
+            colors={['#3B82F6']}
+          />
+        }
+      >
         <View style={styles.activityList}>
           {isTransactionsLoading && formattedTransactions.length === 0 ? (
             <>
@@ -192,6 +162,14 @@ export default function HomeTab() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  fixedHeaderSection: {
+    zIndex: 10
+  },
+  balanceCardWrapper: {
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    paddingBottom: 4
+  },
   sectionTitle: { marginTop: 12, marginBottom: 12 },
   quickGrid: { flexDirection: 'row', justifyContent: 'space-around', marginVertical: 8 },
   quickItem: { alignItems: 'center', gap: 8 },
@@ -207,7 +185,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4
   },
-  activityHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 30, marginBottom: 12 },
+  activityHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, marginBottom: 12 },
   viewAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   activityList: { gap: 10 },
   emptyBox: {

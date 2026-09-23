@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
+    "@gorhom/bottom-sheet": "^5.0.0",
     "@kudi/sdk": "workspace:*",
     "@kudi/types": "workspace:*",
     "@privy-io/expo": "^0.72.0",

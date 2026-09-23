@@ -6,6 +6,7 @@ import { Typography } from '../../src/constants/typography';
 import { TransactionCard, TransactionData } from '../../src/components/TransactionCard';
 import { useTransactions } from '../../src/hooks/useTransactions';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
+import { formatIntelligentTimestamp } from '../../src/utils/timeUtils';
 
 function ActivitySkeleton({ palette }: { palette: any }) {
   return (
@@ -46,11 +47,7 @@ export default function HistoryTab() {
     const amountNum = parseFloat(rawAmount) || 0;
     const amountNGN = amountNum * rateNGN;
 
-    let formattedDate = 'Recently';
-    if (tx.timestamp) {
-      const d = new Date(tx.timestamp);
-      formattedDate = d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
+    const formattedDate = formatIntelligentTimestamp(tx.timestamp);
 
     return {
       id: tx.reference || `tx_${idx}`,
@@ -60,7 +57,7 @@ export default function HistoryTab() {
       subtitle: tx.metadata?.subtitle || (isDeposit ? `${isMonad ? 'Monad Testnet' : 'Solana Network'}` : `${tx.currency || 'NGN'} Transfer`),
       amount: `${isDeposit ? '+' : '-'}$${amountNum.toFixed(2)} ${tokenSymbol}`,
       secondaryAmount: `≈ ₦${amountNGN.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN`,
-      status: tx.metadata?.status || (isDeposit ? 'SUCCESS' : 'PENDING'),
+      status: (tx.metadata?.status && ['SUCCESS', 'COMPLETED'].includes(tx.metadata.status.toUpperCase())) ? 'CONFIRMED' : (tx.metadata?.status || (isDeposit ? 'CONFIRMED' : 'PENDING')),
       date: formattedDate,
       isDeposit,
       chain: chainName,

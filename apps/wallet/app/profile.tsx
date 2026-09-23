@@ -83,7 +83,7 @@ export default function ProfileScreen() {
     modal.show({
       title: 'Delete Account Permanently',
       description: 'Are you sure you want to delete your Kudi account? All your profile data, local settings, and wallet keys will be permanently erased. This action CANNOT be undone.',
-      type: 'danger',
+      type: 'error',
       primaryText: 'Delete Account',
       onPrimaryPress: async () => {
         modal.hide();

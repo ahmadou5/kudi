@@ -18,15 +18,15 @@ export function useBalance() {
 
   return useQuery<BalanceData>({
     queryKey: ['balance', user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<BalanceData> => {
       if (!user?.id) throw new Error('User not logged in');
       const res = await sdk.getBalance(user.id);
-      if (res && res.success && res.data) {
-        return res.data;
+      if (res && res.success && res.data && typeof res.data === 'object' && 'userId' in res.data) {
+        return res.data as unknown as BalanceData;
       }
-      // Fallback object structure if API returns simple number
-      const balanceUSDC = typeof res?.data === 'number' ? res.data : (res?.data?.balanceUSDC || 250.0);
-      const currentRateNGN = res?.data?.currentRateNGN || 1585.50;
+      // Fallback object structure if API returns simple number or basic data
+      const balanceUSDC: number = typeof res?.data === 'number' ? res.data : (Number((res?.data as any)?.balanceUSDC) || 250.0);
+      const currentRateNGN: number = Number((res?.data as any)?.currentRateNGN) || 1585.50;
       return {
         userId: user.id,
         balanceUSDC,
@@ -34,7 +34,7 @@ export function useBalance() {
         balanceNGN: balanceUSDC * currentRateNGN,
         kycTier: user.kycTier || 'UNVERIFIED',
         dailyLimitNGN: 500000,
-        wallets: res?.data?.wallets || []
+        wallets: (res?.data as any)?.wallets || []
       };
     },
     refetchInterval: 15_000,

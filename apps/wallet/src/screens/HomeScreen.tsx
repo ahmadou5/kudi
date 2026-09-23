@@ -44,7 +44,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, mode = 'dark
       title: 'MTN Airtime Top-Up',
       time: '10:32 AM',
       amount: '-₦5,000',
-      status: 'SUCCESS',
+      status: 'CONFIRMED',
       icon: Smartphone,
       iconBg: 'rgba(239, 68, 68, 0.1)',
       iconColor: '#EF4444'
@@ -53,7 +53,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, mode = 'dark
       title: 'Deposit Solana USDC',
       time: 'Today',
       amount: '+$100.00',
-      status: 'COMPLETED',
+      status: 'CONFIRMED',
       icon: ArrowDownCircle,
       iconBg: 'rgba(16, 185, 129, 0.1)',
       iconColor: '#10B981'
@@ -62,7 +62,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, mode = 'dark
       title: 'Electricity Payment',
       time: 'Yesterday',
       amount: '-₦12,500',
-      status: 'SUCCESS',
+      status: 'CONFIRMED',
       icon: Zap,
       iconBg: 'rgba(245, 158, 11, 0.1)',
       iconColor: '#F59E0B'

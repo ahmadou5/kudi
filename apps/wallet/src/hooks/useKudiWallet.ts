@@ -178,17 +178,17 @@ export function useKudiWallet() {
       chain: params.chain
     });
 
-    if (!res || !res.success) {
+    if (!res || !res.success || !res.data) {
       throw new Error(res?.error?.message || res?.message || 'Crypto send failed');
     }
 
     const result: CryptoSendResult = {
       reference: res.data.reference,
-      status: res.data.status,
+      status: (res.data.status as CryptoWithdrawalStatus) || 'PENDING',
       chain: res.data.chain,
       toAddress: res.data.toAddress,
-      amountUSDC: res.data.amountUSDC,
-      newBalanceUSDC: res.data.newBalanceUSDC
+      amountUSDC: String(res.data.amountUSDC),
+      newBalanceUSDC: String(res.data.newBalanceUSDC)
     };
 
     setCryptoSendResult(result);
@@ -205,7 +205,7 @@ export function useKudiWallet() {
         if (statusRes?.success && statusRes.data) {
           const updated: CryptoSendResult = {
             ...result,
-            status: statusRes.data.status,
+            status: (statusRes.data.status as CryptoWithdrawalStatus) || 'PENDING',
             txHash: statusRes.data.txHash
           };
           setCryptoSendResult(updated);

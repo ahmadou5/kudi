@@ -1,10 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Image, ImageSourcePropType } from 'react-native';
-import { Zap, ArrowDownCircle, ArrowUpCircle, ArrowDown, ArrowUp, Clock, LucideIcon, BadgeAlert, BadgeCheck, BadgeX } from 'lucide-react-native';
+import { Zap, ArrowDownCircle, ArrowUpCircle, ArrowDown, ArrowUp, Clock, LucideIcon, BadgeAlert, BadgeCheck, BadgeX, ExternalLink } from 'lucide-react-native';
 import { useAppPalette } from '../lib/theme';
 import { Typography } from '../constants/typography';
 import { ChainLogo } from './ui/ChainLogo';
-
 import { router } from 'expo-router';
 
 export type BrandProvider = 'usdc' | 'ausd' | 'solana' | 'monad' | 'mtn' | 'airtel' | 'glo' | '9mobile' | 'electricity' | 'gtbank' | 'zenith' | 'paystack' | 'monnify' | 'generic';
@@ -79,14 +78,15 @@ function detectChain(item: TransactionData): 'monad' | 'solana' | null {
 export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress, compact = false }) => {
   const palette = useAppPalette();
   const isDark = palette.text === '#FFFFFF';
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const isDeposit = item.isDeposit ?? item.amount.startsWith('+');
   const provider = detectProvider(item);
   const detectedChain = detectChain(item);
 
   // Status Badge Colors
-  const isSuccess = ['SUCCESS', 'COMPLETED', 'DONE'].includes(item.status.toUpperCase());
-  const isPending = ['PENDING', 'PROCESSING'].includes(item.status.toUpperCase());
+  const isSuccess = ['SUCCESS', 'COMPLETED', 'CONFIRMED', 'DONE'].includes(item.status.toUpperCase());
+  const isPending = ['PENDING', 'PROCESSING', 'BROADCAST'].includes(item.status.toUpperCase());
 
   const statusBg = isSuccess
     ? 'rgba(52, 211, 153, 0.15)'
@@ -100,7 +100,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
       ? '#FBBF24'
       : '#F43F5E';
 
-  const handleCardPress = () => {
+  const navigateToDetails = () => {
     if (onPress) {
       onPress();
     } else {
@@ -114,7 +114,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
           subtitle: item.subtitle,
           amount: item.amount,
           secondaryAmount: item.secondaryAmount,
-          status: item.status,
+          status: isSuccess ? 'CONFIRMED' : item.status,
           date: item.date,
           isDeposit: String(isDeposit),
           chain: item.chain || detectedChain || '',
@@ -122,6 +122,10 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
         }
       });
     }
+  };
+
+  const handleCardPress = () => {
+    navigateToDetails();
   };
 
   const renderBrandIcon = () => {
@@ -163,6 +167,124 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
     );
   };
 
+  if (compact) {
+    const amountOnly = item.amount.replace(/\s*(USDC|AUSD|NGN).*/gi, '').trim();
+
+    return (
+      <TouchableOpacity
+        onPress={() => setIsExpanded(!isExpanded)}
+        activeOpacity={0.75}
+        style={[
+          styles.card,
+          {
+            backgroundColor: palette.card,
+            borderColor: palette.border,
+            paddingVertical: 12,
+            paddingHorizontal: 16
+          }
+        ]}
+      >
+        <View style={styles.topRow}>
+          {/* Main Token Logo + Chain Logo Corner Badge Overlay */}
+          <View style={styles.leftGroup}>
+            <View style={styles.iconWrapper}>
+              {renderBrandIcon()}
+
+              {detectedChain ? (
+                <View style={[styles.chainBadgeOverlay, { borderColor: palette.card }]}>
+                  <ChainLogo chain={detectedChain} size={14} />
+                </View>
+              ) : (
+                <View style={[styles.directionOverlay, { backgroundColor: isDeposit ? '#10B981' : '#F43F5E', borderColor: palette.card }]}>
+                  {isDeposit ? (
+                    <ArrowDown size={9} color="#FFFFFF" />
+                  ) : (
+                    <ArrowUp size={9} color="#FFFFFF" />
+                  )}
+                </View>
+              )}
+            </View>
+
+            <View style={styles.titleStack}>
+              <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 14 }]} numberOfLines={1}>
+                {isDeposit ? 'Deposit' : 'Spend'}
+              </Text>
+              {!isExpanded && (
+                <Text
+                  style={[
+                    Typography.currencySub,
+                    {
+                      color: isDeposit ? palette.success : palette.text,
+                      fontSize: 14
+                    }
+                  ]}
+                  numberOfLines={1}
+                >
+                  {amountOnly}
+                </Text>
+              )}
+            </View>
+          </View>
+
+          {/* Right Group: Status Badge ONLY */}
+          <View style={styles.rightHeaderGroup}>
+            <View style={[styles.statusBadge, { backgroundColor: statusBg, borderColor: statusColor + '40' }]}>
+              <Text style={[Typography.footnote, { color: statusColor, fontSize: 11, fontWeight: '700' }]}>
+                {isSuccess ? 'CONFIRMED' : isPending ? 'PENDING' : item.status.toUpperCase()}
+              </Text>
+              {isPending && <BadgeAlert size={14} color={statusColor} />}
+              {isSuccess && <BadgeCheck size={14} color={statusColor} />}
+              {!isPending && !isSuccess && <BadgeX size={14} color={statusColor} />}
+            </View>
+          </View>
+        </View>
+
+        {/* Expanded Panel (Revealed on Tap) */}
+        {isExpanded && (
+          <View style={styles.expandedPanel}>
+            <View style={styles.expandedRow}>
+              <View style={styles.amountStack}>
+                <Text style={[Typography.currencySub, { color: isDeposit ? palette.success : palette.text, fontSize: 16 }]}>
+                  {item.amount}
+                </Text>
+                {!!item.secondaryAmount && (
+                  <Text style={[Typography.currencySub, { color: palette.textSecondary, fontSize: 12 }]}>
+                    {item.secondaryAmount.startsWith('Via') ? item.secondaryAmount : `Via ${item.secondaryAmount}`}
+                  </Text>
+                )}
+              </View>
+
+              <View style={styles.rightExpandedStack}>
+                {!!item.subtitle && (
+                  <Text style={[Typography.caption, { color: palette.textSecondary, fontSize: 11, fontWeight: '600' }]}>
+                    {item.subtitle}
+                  </Text>
+                )}
+                <View style={styles.dateGroup}>
+                  <Clock size={11} color={palette.textSecondary} />
+                  <Text style={[Typography.footnote, { color: palette.textSecondary, fontSize: 11 }]}>
+                    {item.date}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              onPress={navigateToDetails}
+              style={[styles.viewDetailsBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)', borderColor: palette.border }]}
+              activeOpacity={0.7}
+            >
+              <Text style={[Typography.caption, { color: palette.text, fontWeight: '700', fontSize: 12 }]}>
+                View Details
+              </Text>
+              <ExternalLink size={12} color={palette.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <TouchableOpacity
       onPress={handleCardPress}
@@ -172,7 +294,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
         {
           backgroundColor: palette.card,
           borderColor: palette.border,
-          paddingVertical: compact ? 12 : 16,
+          paddingVertical: 16,
           paddingHorizontal: 16
         }
       ]}
@@ -211,16 +333,19 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
         </View>
 
         {/* Right Status Badge */}
-        <View style={[styles.statusBadge]}>
-
-          {isPending && <BadgeAlert size={16} color={statusColor} />}
-          {isSuccess && <BadgeCheck size={16} color={statusColor} />}
-          {!isPending && !isSuccess && <BadgeX size={16} color={statusColor} />}
-
+        <View style={styles.rightHeaderGroup}>
+          <View style={[styles.statusBadge, { backgroundColor: statusBg, borderColor: statusColor + '40' }]}>
+            <Text style={[Typography.footnote, { color: statusColor, fontSize: 11, fontWeight: '700' }]}>
+              {isSuccess ? 'CONFIRMED' : isPending ? 'PENDING' : item.status.toUpperCase()}
+            </Text>
+            {isPending && <BadgeAlert size={14} color={statusColor} />}
+            {isSuccess && <BadgeCheck size={14} color={statusColor} />}
+            {!isPending && !isSuccess && <BadgeX size={14} color={statusColor} />}
+          </View>
         </View>
       </View>
 
-      {/* Amount & Date Bottom Row */}
+      {/* Amount & Date Bottom Row for History View */}
       <View style={styles.bottomRow}>
         <View style={styles.amountStack}>
           <Text
@@ -324,13 +449,26 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2
   },
+  rightHeaderGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
+  },
+  expandChevronCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 7,
-
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1
   },
   statusDot: {
     width: 5,
@@ -341,16 +479,56 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    paddingTop: 4,
+    paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(148, 163, 184, 0.15)'
   },
   amountStack: {
     gap: 2
   },
+  rightBottomGroup: {
+    alignItems: 'flex-end',
+    gap: 6
+  },
   dateGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4
+  },
+  detailsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1
+  },
+  expandedPanel: {
+    paddingTop: 10,
+    marginTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(148, 163, 184, 0.18)',
+    gap: 10
+  },
+  expandedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  rightExpandedStack: {
+    alignItems: 'flex-end',
+    gap: 4
+  },
+  viewDetailsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 2
   }
 });

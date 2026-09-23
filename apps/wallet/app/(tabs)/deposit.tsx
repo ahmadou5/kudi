@@ -123,28 +123,15 @@ export default function DepositTab() {
     chain === 'solana' ? solanaAddress : monadAddress;
 
   // ── Virtual accounts ──
-  const firstVA = apiVirtualAccounts?.[0] || null;
-  const virtualAccounts = [
-    {
-      id: 'ngn' as const,
-      bankName: firstVA?.bankName || 'Kudi MFB (Wema Bank)',
-      accountNumber: firstVA?.accountNumber || '9928104812',
-      accountName: firstVA?.accountName || 'Kudi Float',
-      currency: 'NGN',
-      type: 'Local Bank Transfer',
-      accentColor: '#34D399'
-    },
-    {
-      id: 'usd' as const,
-      bankName: 'Kudi Global Float (USD)',
-      accountNumber: 'US89 KUDI 0012 9481 02',
-      routingNumber: '121000358',
-      accountName: firstVA?.accountName || 'Kudi Float',
-      currency: 'USD',
-      type: 'ACH & Wire Transfer',
-      accentColor: '#60A5FA'
-    }
-  ];
+  const virtualAccounts = (apiVirtualAccounts || []).map((va: any, idx: number) => ({
+    id: va.id || String(idx),
+    bankName: va.bankName || 'Partner Bank',
+    accountNumber: va.accountNumber,
+    accountName: va.accountName || 'Verified Account',
+    currency: va.currency || 'NGN',
+    type: va.currency === 'USD' ? 'ACH & Wire Transfer' : va.currency === 'EUR' ? 'SEPA Instant Transfer' : 'Local Bank Transfer',
+    accentColor: va.currency === 'USD' ? '#60A5FA' : va.currency === 'EUR' ? '#818CF8' : '#34D399'
+  }));
 
   // ── Handlers ──
   const [isScanning, setIsScanning] = useState(false);

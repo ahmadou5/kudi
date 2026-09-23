@@ -378,43 +378,9 @@ export class LedgerService {
     };
     this.users.set(userId, user);
     this.ledger.set(userId, 0.0);
+    this.virtualAccounts.set(userId, []);
 
-    const seededVAs: VirtualAccountRecord[] = [
-      {
-        accountNumber: '9920148201',
-        accountName: `KUDI / ${cleanEmail ? cleanEmail.split('@')[0].toUpperCase() : 'USER'}`,
-        bankName: 'GTBank (Squad)',
-        bankCode: '058',
-        currency: 'NGN',
-        provider: 'SQUAD'
-      },
-      {
-        accountNumber: '7038192041',
-        accountName: `KUDI / ${cleanEmail ? cleanEmail.split('@')[0].toUpperCase() : 'USER'}`,
-        bankName: 'Moniepoint (Monnify)',
-        bankCode: '50515',
-        currency: 'NGN',
-        provider: 'MONNIFY'
-      }
-    ];
-
-    this.virtualAccounts.set(userId, seededVAs);
     void this.syncUserToDb(user);
-
-    // Seed virtual accounts into Neon DB
-    for (const va of seededVAs) {
-      prisma.virtualAccount.create({
-        data: {
-          userId,
-          accountNumber: va.accountNumber,
-          accountName: va.accountName,
-          bankName: va.bankName,
-          bankCode: va.bankCode,
-          currency: va.currency,
-          provider: va.provider
-        }
-      }).catch(err => console.warn('[LedgerService] Virtual account DB seed warning:', err?.message));
-    }
 
     return user;
   }
@@ -1072,7 +1038,7 @@ export class LedgerService {
             title,
             subtitle,
             type,
-            status: meta.status || (isCryptoSend ? WithdrawalStatus.PENDING : 'SUCCESS'),
+            status: (meta.status === 'SUCCESS' ? 'CONFIRMED' : meta.status) || (isCryptoSend ? WithdrawalStatus.PENDING : 'CONFIRMED'),
             ...meta
           }
         };
@@ -1123,16 +1089,7 @@ export class LedgerService {
   }
 
   public getUserVirtualAccounts(userId: string): VirtualAccountRecord[] {
-    return this.virtualAccounts.get(userId) || [
-      {
-        accountNumber: '9920148201',
-        accountName: 'KUDI / DEMO USER',
-        bankName: 'GTBank (Squad)',
-        bankCode: '058',
-        currency: 'NGN',
-        provider: 'SQUAD'
-      }
-    ];
+    return this.virtualAccounts.get(userId) || [];
   }
 
   public async addVirtualAccount(userId: string, va: VirtualAccountRecord): Promise<void> {

@@ -107,7 +107,11 @@ export default function TransactionDetailsScreen() {
     const subtitle = params.subtitle || '';
     const amount = params.amount || '$0.00';
     const secondaryAmount = params.secondaryAmount || '';
-    const status = params.status || 'SUCCESS';
+    const rawStatus = params.status || 'CONFIRMED';
+    const isSuccess = ['SUCCESS', 'COMPLETED', 'CONFIRMED', 'DONE'].includes(rawStatus.toUpperCase());
+    const isPending = ['PENDING', 'PROCESSING', 'BROADCAST'].includes(rawStatus.toUpperCase());
+    const status = isSuccess ? 'CONFIRMED' : rawStatus.toUpperCase();
+
     const date = params.date || 'Recently';
     const isDeposit = params.isDeposit === 'true' || amount.startsWith('+');
     const chain = params.chain || '';
@@ -116,8 +120,6 @@ export default function TransactionDetailsScreen() {
     const ref = txHash || params.ref || params.id || 'REF_UNKNOWN';
 
     // Logos resolution
-    // chain.toLowerCase() here (it wasn't lowercased before, unlike title/subtitle below —
-    // meant an exact-case "Monad"/"SOLANA" chain param would silently fail to match)
     const isMonad = chain.toLowerCase().includes('monad') || tokenSymbol === 'AUSD' || title.toLowerCase().includes('ausd');
     const isSolana = chain.toLowerCase().includes('solana') || tokenSymbol === 'USDC' || subtitle.toLowerCase().includes('solana');
 
@@ -154,9 +156,6 @@ export default function TransactionDetailsScreen() {
             Alert.alert('Unable to open link', 'Please check your connection and try again.');
         });
     };
-
-    const isSuccess = ['SUCCESS', 'COMPLETED', 'CONFIRMED', 'DONE'].includes(status.toUpperCase());
-    const isPending = ['PENDING', 'PROCESSING', 'BROADCAST'].includes(status.toUpperCase());
 
     const statusBg = isSuccess
         ? 'rgba(52, 211, 153, 0.15)'
