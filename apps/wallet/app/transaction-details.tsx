@@ -172,7 +172,7 @@ export default function TransactionDetailsScreen() {
     return (
         <View style={[styles.container, { backgroundColor: palette.bg, paddingTop: insets.top }]}>
             {/* Top Header Bar */}
-            <View style={[styles.header, { borderBottomColor: palette.border }]}>
+            <View style={[styles.header]}>
                 <TouchableOpacity
                     onPress={() => router.back()}
                     style={[styles.closeBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
@@ -225,7 +225,7 @@ export default function TransactionDetailsScreen() {
 
                     {/* Status Badge */}
                     <View style={[styles.statusBadge, { backgroundColor: statusBg, borderColor: statusColor + '40' }]}>
-                        <Text style={[Typography.footnote, { color: statusColor }]}>
+                        <Text style={[Typography.caption, { color: statusColor }]}>
                             {status}
                         </Text>
                         {isSuccess && (<BadgeCheck size={16} color={statusColor} />)}
@@ -437,7 +437,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        borderBottomWidth: 1
+        borderBottomWidth: 0
     },
     closeBtn: {
         width: 36,
@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
     },
     heroCard: {
         borderRadius: 24,
-        borderWidth: 1,
+
         padding: 24,
         alignItems: 'center',
         gap: 10
@@ -510,8 +510,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        paddingHorizontal: 7,
-        paddingVertical: 7,
+        paddingHorizontal: 2,
+        paddingVertical: 2,
         borderRadius: 20,
         borderWidth: 1,
         marginTop: 4

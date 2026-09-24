@@ -88,6 +88,7 @@ model Deposit {
   amountUSDC    Float
   signature     String   @unique
   blockNumber   Int?
+  privyWalletId String?  // Privy server wallet ID for signing sweeps (null = float/self-custody model)
   creditStatus  String   @default("CREDITED")
   sweepStatus   String   @default("SWEEP_PENDING")
   sweepTxHash        String?

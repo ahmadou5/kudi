@@ -23,6 +23,7 @@ import { useVirtualAccounts, VirtualAccount } from '../hooks/useVirtualAccounts'
 import { useAuthStore } from '../store/auth.store';
 import { ChainLogo } from './ui/ChainLogo';
 import { GorhomBottomSheet } from './ui/GorhomBottomSheet';
+import { BalanceCardSkeleton } from './ui/AnimatedSkeleton';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CONTAINER_PADDING = 14;
@@ -196,6 +197,14 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
   const currentCryptoAddress = selectedCryptoChain === 'solana' ? solanaAddress : monadAddress;
   const currentTokenSymbol = selectedCryptoChain === 'solana' ? 'USDC' : 'AUSD';
   const currentChainName = selectedCryptoChain === 'solana' ? 'Solana Devnet' : 'Monad Testnet';
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { paddingHorizontal: CONTAINER_PADDING }]}>
+        <BalanceCardSkeleton />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

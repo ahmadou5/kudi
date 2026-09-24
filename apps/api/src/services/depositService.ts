@@ -1,15 +1,14 @@
 import { SolanaListener, EVMListener } from '@kudi/chains';
 import { EVMChainConfig, ChainType } from '@kudi/types';
 import { LedgerService } from './ledgerService';
-import { SweepService } from './sweepService';
 import { sendPushNotification } from '../lib/notifications';
 import { Server as SocketIOServer } from 'socket.io';
+import { prisma } from '@kudi/database';
 
 export class DepositService {
   private solanaListener: SolanaListener;
   private evmListener: EVMListener;
   private ledgerService: LedgerService;
-  private sweepService: SweepService;
   private io?: SocketIOServer;
   private intervalId?: NodeJS.Timeout;
 
@@ -31,7 +30,6 @@ export class DepositService {
     this.evmListener = new EVMListener([monadConfig]);
 
     this.ledgerService = ledgerService;
-    this.sweepService = new SweepService(ledgerService);
     this.io = io;
   }
 
@@ -124,17 +122,30 @@ export class DepositService {
 
             console.log(`[DepositService] ✅ Balance updated for user ${user.id}: ${newBal.toFixed(6)} USDC`);
 
-            // Sweep deposited USDC from user's deposit address to Kudi treasury
+            // Write deposit record to DB with SWEEP_PENDING so the SweepWorkerService picks it up.
+            // This replaces the unreliable fire-and-forget sweep that was silently dropping failures.
             const privyWalletId = (solanaWallet as any).metadata?.privyWalletId as string | undefined;
-            this.sweepService.sweepToTreasury(solanaWallet.address, privyWalletId, amount, 'solana')
-              .then(sweep => {
-                if (sweep.success) {
-                  console.log(`[DepositService] 🏦 Solana Sweep SUCCESSFUL: ${amount} USDC → treasury (${sweep.toAddress}) | TxHash: ${sweep.txHash}`);
-                } else {
-                  console.error(`[DepositService] ❌ Solana Sweep FAILED/SKIPPED for ${solanaWallet.address}: ${sweep.error}`);
-                }
-              })
-              .catch(err => console.error('[DepositService] ❌ Solana Sweep unexpected error:', err?.message || err));
+            const isMockWallet = !!(solanaWallet as any).metadata?.mock;
+            prisma.deposit.create({
+              data: {
+                userId: user.id,
+                walletAddress: solanaWallet.address,
+                chain: 'solana',
+                tokenSymbol: 'USDC',
+                amountUSDC: amount,
+                signature: ev.signature,
+                blockNumber: ev.slot ?? null,
+                creditStatus: 'CREDITED',
+                // Float-model wallets (mock / user-held) don't need sweeping — mark SWEEP_UNSUPPORTED
+                sweepStatus: isMockWallet || !privyWalletId ? 'SWEEP_UNSUPPORTED' : 'SWEEP_PENDING',
+                privyWalletId: privyWalletId ?? null
+              }
+            }).catch((err: any) => {
+              // Non-fatal: duplicate signature will throw; that's fine (idempotency)
+              if (!err?.message?.includes('Unique constraint')) {
+                console.warn('[DepositService] DB deposit record write failed (non-fatal):', err?.message);
+              }
+            });
 
             // Real-time notification via Socket.io
             if (this.io) {
@@ -193,17 +204,27 @@ export class DepositService {
 
             console.log(`[DepositService] ✅ Monad Balance updated for user ${user.id}: ${newBal.toFixed(6)} AUSD/USDC`);
 
-            // Sweep deposited AUSD from user's deposit address to Kudi treasury
-            const privyWalletId = (monadWallet as any).metadata?.privyWalletId as string | undefined;
-            this.sweepService.sweepToTreasury(monadWallet.address, privyWalletId, amount, 'monad')
-              .then(sweep => {
-                if (sweep.success) {
-                  console.log(`[DepositService] 🏦 Monad Sweep SUCCESSFUL: ${amount} AUSD → treasury (${sweep.toAddress}) | TxHash: ${sweep.txHash}`);
-                } else {
-                  console.error(`[DepositService] ❌ Monad Sweep FAILED/SKIPPED for ${monadWallet.address}: ${sweep.error}`);
-                }
-              })
-              .catch(err => console.error('[DepositService] ❌ Monad Sweep unexpected error:', err?.message || err));
+            // Write deposit record to DB with SWEEP_PENDING for the SweepWorkerService to pick up.
+            const monadPrivyWalletId = (monadWallet as any).metadata?.privyWalletId as string | undefined;
+            const isMockMonadWallet = !!(monadWallet as any).metadata?.mock;
+            prisma.deposit.create({
+              data: {
+                userId: user.id,
+                walletAddress: monadWallet.address,
+                chain: 'monad',
+                tokenSymbol: 'AUSD',
+                amountUSDC: amount,
+                signature: ev.txHash,
+                blockNumber: ev.blockNumber ?? null,
+                creditStatus: 'CREDITED',
+                sweepStatus: isMockMonadWallet || !monadPrivyWalletId ? 'SWEEP_UNSUPPORTED' : 'SWEEP_PENDING',
+                privyWalletId: monadPrivyWalletId ?? null
+              }
+            }).catch((err: any) => {
+              if (!err?.message?.includes('Unique constraint')) {
+                console.warn('[DepositService] DB monad deposit record write failed (non-fatal):', err?.message);
+              }
+            });
 
             if (this.io) {
               this.io.to(user.id).emit('deposit:received', {

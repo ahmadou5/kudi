@@ -17,6 +17,7 @@ import { RateService } from './services/rateService';
 import { LedgerService } from './services/ledgerService';
 import { DepositService } from './services/depositService';
 import { SweepService } from './services/sweepService';
+import { SweepWorkerService } from './services/sweepWorkerService';
 import { MaintenanceService } from './services/maintenanceService';
 
 import { HealthController } from './modules/health/health.controller';
@@ -112,6 +113,7 @@ const rateService = new RateService();
 const ledgerService = new LedgerService();
 const depositService = new DepositService(ledgerService, io);
 const sweepService = new SweepService(ledgerService);
+const sweepWorker = new SweepWorkerService(ledgerService);
 const maintenanceService = new MaintenanceService(io);
 
 // Domain Controllers
@@ -208,6 +210,10 @@ async function main() {
   rateService.onRateUpdate((rateState) => {
     io.emit('rate:updated', rateState);
   });
+
+  // Start the persistent sweep retry worker.
+  // This polls the Deposit table every 30s and retries failed sweeps with exponential backoff.
+  sweepWorker.start();
 
   console.log(`🚀 Kudi API server running on http://localhost:${port}`);
 }
