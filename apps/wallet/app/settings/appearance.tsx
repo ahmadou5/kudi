@@ -4,7 +4,6 @@ import {
   Text,
   View,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView
 } from 'react-native';
 import { router } from 'expo-router';
@@ -12,7 +11,7 @@ import { ArrowLeft, Monitor, Sun, Moon, Check, LucideIcon } from 'lucide-react-n
 import { useAppPalette, isLight } from '../../src/lib/theme';
 import { usePreferencesStore, PreferencesState, ThemeMode } from '../../src/store/preferences.store';
 import { Typography } from '../../src/constants/typography';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AppearanceScreen() {
   const palette = useAppPalette();

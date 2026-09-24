@@ -4,11 +4,11 @@ import {
   Text,
   View,
   TouchableOpacity,
-  SafeAreaView,
   Animated,
   ActivityIndicator,
   Platform
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, CheckCircle2, ShieldCheck } from 'lucide-react-native';
 import { useAppPalette, isLight } from '../../src/lib/theme';

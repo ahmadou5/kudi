@@ -4,13 +4,13 @@ import {
   Text,
   View,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView,
   Switch,
   Linking,
   ActivityIndicator,
   Alert
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ArrowLeft, Bell, BellOff, Send, Info } from 'lucide-react-native';
 import * as Notifications from 'expo-notifications';

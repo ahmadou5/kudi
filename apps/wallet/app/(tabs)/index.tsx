@@ -17,9 +17,11 @@ import { Header } from '../../src/components/Header';
 import { TransactionCard, TransactionData } from '../../src/components/TransactionCard';
 import { formatIntelligentTimestamp } from '../../src/utils/timeUtils';
 import { ActivityRowSkeleton } from '../../src/components/ui/AnimatedSkeleton';
+import { useLoader } from '../../src/store/loader.store';
 
 export default function HomeTab() {
   const palette = useAppPalette();
+  const { showLoader, hideLoader } = useLoader();
   const {
     balanceUSDC,
     rateNGN,
@@ -75,9 +77,15 @@ export default function HomeTab() {
     };
   });
 
-  const onRefresh = () => {
-    refetchBalance();
-    refetchTransactions();
+  const onRefresh = async () => {
+    showLoader({ message: 'Refreshing wallet balances & activity...', title: 'KUDI' });
+    try {
+      await Promise.all([refetchBalance(), refetchTransactions()]);
+    } finally {
+      setTimeout(() => {
+        hideLoader();
+      }, 700);
+    }
   };
 
   return (
@@ -105,7 +113,7 @@ export default function HomeTab() {
       {/* Scrollable Transaction Cards List Only */}
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 110, paddingHorizontal: 14, paddingTop: 4 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 110, paddingHorizontal: 14, paddingTop: 4 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -116,7 +124,7 @@ export default function HomeTab() {
           />
         }
       >
-        <View style={styles.activityList}>
+        <View style={[styles.activityList, formattedTransactions.length === 0 && { flex: 1 }]}>
           {isTransactionsLoading && formattedTransactions.length === 0 ? (
             <>
               <ActivityRowSkeleton />
@@ -129,9 +137,9 @@ export default function HomeTab() {
             ))
           ) : (
             <View style={[styles.emptyBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              <Receipt size={28} color={palette.textSecondary} />
-              <Text style={[Typography.bodyBold, { color: palette.text }]}>No Activity Yet</Text>
-              <Text style={[Typography.caption, { color: palette.textSecondary, textAlign: 'center' }]}>
+              <Receipt size={32} color={palette.textSecondary} />
+              <Text style={[Typography.bodyBold, { color: palette.text, marginTop: 4 }]}>No Activity Yet</Text>
+              <Text style={[Typography.caption, { color: palette.textSecondary, textAlign: 'center', maxWidth: 240 }]}>
                 Your deposits and payouts will appear here in real-time.
               </Text>
             </View>
@@ -161,11 +169,14 @@ const styles = StyleSheet.create({
   },
   activityList: { gap: 10 },
   emptyBox: {
-    padding: 24,
-    borderRadius: 18,
+    flex: 1,
+    minHeight: 200,
+    padding: 32,
+    borderRadius: 20,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6
+    gap: 8,
+    marginBottom: 16
   }
 });

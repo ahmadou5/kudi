@@ -5,7 +5,6 @@ import {
   View,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   Image
 } from 'react-native';
 import { router } from 'expo-router';
@@ -13,7 +12,7 @@ import { ArrowLeft, Edit3, Check, ShieldCheck, Shield, ChevronRight, Copy, Gift,
 import { useAppPalette, isLight } from '../src/lib/theme';
 import { useAuthStore, AuthState } from '../src/store/auth.store';
 import { Typography } from '../src/constants/typography';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppModal, useAppModal } from '../src/components/ui/AppModal';
 import { ChainLogo } from '../src/components/ui/ChainLogo';
 import * as Clipboard from 'expo-clipboard';

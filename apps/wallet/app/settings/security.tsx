@@ -4,10 +4,10 @@ import {
   Text,
   View,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView,
   Switch
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ArrowLeft, KeyRound, ChevronRight, Key } from 'lucide-react-native';
 import { useAppPalette, isLight } from '../../src/lib/theme';

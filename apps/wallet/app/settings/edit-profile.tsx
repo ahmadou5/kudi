@@ -6,13 +6,13 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
-  SafeAreaView,
   Alert,
   Image,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ArrowLeft, Camera, User, AtSign, Mail, Lock, Phone } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';

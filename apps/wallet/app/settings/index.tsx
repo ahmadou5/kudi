@@ -5,13 +5,12 @@ import {
   View,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   Modal,
   Pressable
 } from 'react-native';
 import { router } from 'expo-router';
 import { Palette, Bell, User, ShieldCheck, Wallet, Receipt, Gauge, Lock, MessageSquare, ChevronRight, ArrowLeft, LogOut, LucideIcon } from 'lucide-react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import { useAppPalette, isLight } from '../../src/lib/theme';
 import { useAuthStore, AuthState } from '../../src/store/auth.store';

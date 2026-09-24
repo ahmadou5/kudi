@@ -4,12 +4,12 @@ import {
   Text,
   View,
   TouchableOpacity,
-  SafeAreaView,
   Animated,
   Easing,
   Dimensions,
   StatusBar
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ArrowLeft, Camera, Zap, ZapOff, Image as ImageIcon, Clipboard as ClipboardIcon } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';

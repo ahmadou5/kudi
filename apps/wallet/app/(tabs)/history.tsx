@@ -69,7 +69,7 @@ export default function HistoryTab() {
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: palette.bg }]}
-      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 110 }}
+      contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 110 }}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
@@ -82,7 +82,7 @@ export default function HistoryTab() {
     >
       <Text style={[Typography.title1, { color: palette.text }]}>Activities</Text>
 
-      <View style={{ gap: 12, marginTop: 16 }}>
+      <View style={[{ gap: 12, marginTop: 16 }, historyItems.length === 0 && { flex: 1 }]}>
         {isLoading && historyItems.length === 0 ? (
           <>
             <ActivitySkeleton palette={palette} />
@@ -95,9 +95,9 @@ export default function HistoryTab() {
           ))
         ) : (
           <View style={[styles.emptyBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <Receipt size={32} color={palette.textSecondary} />
+            <Receipt size={36} color={palette.textSecondary} />
             <Text style={[Typography.bodyBold, { color: palette.text, marginTop: 6 }]}>No Activities Yet</Text>
-            <Text style={[Typography.caption, { color: palette.textSecondary, textAlign: 'center' }]}>
+            <Text style={[Typography.caption, { color: palette.textSecondary, textAlign: 'center', maxWidth: 260 }]}>
               All your deposits, transfers, and payouts will appear here in real-time.
             </Text>
           </View>
@@ -110,13 +110,16 @@ export default function HistoryTab() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   emptyBox: {
+    flex: 1,
+    minHeight: 240,
     padding: 32,
     borderRadius: 20,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    marginTop: 20
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 16
   },
   skeletonCard: {
     padding: 16,

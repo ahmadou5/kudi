@@ -4,7 +4,6 @@ import {
   Text,
   View,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView
 } from 'react-native';
 import { router } from 'expo-router';
@@ -12,7 +11,7 @@ import { ArrowLeft, ShieldCheck, ArrowUpCircle, Info } from 'lucide-react-native
 import { useAppPalette, isLight } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
 import { useAuthStore } from '../../src/store/auth.store';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SpendingLimitsScreen() {
   const palette = useAppPalette();

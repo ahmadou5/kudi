@@ -4,7 +4,6 @@ import {
   Text,
   View,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView,
   Linking
 } from 'react-native';
@@ -12,7 +11,7 @@ import { router } from 'expo-router';
 import { ArrowLeft, MessageCircle, Mail, ExternalLink, ChevronUp, ChevronDown, Heart } from 'lucide-react-native';
 import { useAppPalette, isLight } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function HelpSupportScreen() {
   const palette = useAppPalette();

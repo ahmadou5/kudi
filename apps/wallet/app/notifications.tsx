@@ -4,13 +4,13 @@ import {
   Text,
   View,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
   Modal,
   Pressable,
   RefreshControl
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ArrowLeft, CheckCheck, BellOff, X, ArrowDownCircle, ArrowUpCircle, ShieldCheck, Bell, Clock, LucideIcon } from 'lucide-react-native';
 import { useAppPalette, isLight } from '../src/lib/theme';
