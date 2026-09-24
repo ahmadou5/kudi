@@ -1,29 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, Easing } from 'react-native';
-import { Wifi, Clock } from 'lucide-react-native';
+import { Wifi, Clock, Sparkles, ShieldCheck, Zap } from 'lucide-react-native';
 import { useAppPalette } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
 
-export default function CardTab() {
-  const palette = useAppPalette();
-  const [selectedCard, setSelectedCard] = useState<0 | 1>(0);
+function AnimatedStackedCards({ activeTab }: { activeTab: 0 | 1 }) {
+  const floatY1 = useRef(new Animated.Value(0)).current;
+  const floatY2 = useRef(new Animated.Value(0)).current;
+  const swapAnim = useRef(new Animated.Value(0)).current;
 
-  // Standard React Native Animated values
-  const floatY = useRef(new Animated.Value(0)).current;
-  const cardScale = useRef(new Animated.Value(1)).current;
-  const cardOpacity = useRef(new Animated.Value(1)).current;
-
-  // Continuous floating animation
   useEffect(() => {
-    const floatAnim = Animated.loop(
+    const anim1 = Animated.loop(
       Animated.sequence([
-        Animated.timing(floatY, {
+        Animated.timing(floatY1, {
           toValue: -8,
           duration: 2500,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true
         }),
-        Animated.timing(floatY, {
+        Animated.timing(floatY1, {
           toValue: 0,
           duration: 2500,
           easing: Easing.inOut(Easing.ease),
@@ -31,63 +26,156 @@ export default function CardTab() {
         })
       ])
     );
-    floatAnim.start();
-    return () => floatAnim.stop();
-  }, [floatY]);
 
-  // Handle card switch animation trigger
-  const handleSelectCard = (idx: 0 | 1) => {
-    if (selectedCard === idx) return;
+    const anim2 = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatY2, {
+          toValue: 5,
+          duration: 2900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true
+        }),
+        Animated.timing(floatY2, {
+          toValue: -3,
+          duration: 2900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true
+        })
+      ])
+    );
 
-    cardScale.setValue(0.9);
-    cardOpacity.setValue(0.6);
+    anim1.start();
+    anim2.start();
 
-    Animated.parallel([
-      Animated.spring(cardScale, {
-        toValue: 1,
-        friction: 5,
-        tension: 100,
-        useNativeDriver: true
-      }),
-      Animated.timing(cardOpacity, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true
-      })
-    ]).start();
+    return () => {
+      anim1.stop();
+      anim2.stop();
+    };
+  }, [floatY1, floatY2]);
 
-    setSelectedCard(idx);
-  };
+  useEffect(() => {
+    Animated.spring(swapAnim, {
+      toValue: activeTab,
+      friction: 6,
+      tension: 90,
+      useNativeDriver: true
+    }).start();
+  }, [activeTab, swapAnim]);
+
+  // Interpolations for smooth card swap
+  const topCardTranslateX = swapAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 16]
+  });
+  const topCardTranslateY = swapAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 18]
+  });
+  const topCardRotate = swapAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['-1.5deg', '-7deg']
+  });
+  const topCardZIndex = activeTab === 0 ? 2 : 1;
+
+  const bottomCardTranslateX = swapAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [14, 0]
+  });
+  const bottomCardTranslateY = swapAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [16, 0]
+  });
+  const bottomCardRotate = swapAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['-7deg', '-1.5deg']
+  });
+  const bottomCardZIndex = activeTab === 1 ? 2 : 1;
+
+  return (
+    <View style={styles.stackedCardsContainer}>
+      {/* Black / NGN Card */}
+      <Animated.View
+        style={[
+          styles.cardBase,
+          styles.blackCard,
+          {
+            zIndex: bottomCardZIndex,
+            transform: [
+              { translateY: floatY2 },
+              { translateX: bottomCardTranslateX },
+              { translateY: bottomCardTranslateY },
+              { rotate: bottomCardRotate }
+            ]
+          }
+        ]}
+      >
+        <View style={styles.cardPatternCircle} />
+        <View style={styles.cardPatternCircle2} />
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderLeft}>
+            <Text style={[Typography.bodyBold, { color: '#FFFFFF', fontWeight: '800' }]}>Kudi</Text>
+            <View style={[styles.emvChip, styles.goldChip, { marginLeft: 10 }]} />
+          </View>
+          <Wifi size={18} color="#64748B" style={{ transform: [{ rotate: '90deg' }] }} />
+        </View>
+
+        <View style={styles.cardFooter}>
+          <View>
+            <Text style={styles.blackCardNumber}>•••• •••• •••• 9012</Text>
+            <Text style={[Typography.caption, { color: '#64748B', marginTop: 2 }]}>NGN FLOAT</Text>
+          </View>
+          <Text style={styles.visaTextDark}>Mastercard</Text>
+        </View>
+      </Animated.View>
+
+      {/* Silver / USD Card */}
+      <Animated.View
+        style={[
+          styles.cardBase,
+          styles.silverCard,
+          {
+            zIndex: topCardZIndex,
+            transform: [
+              { translateY: floatY1 },
+              { translateX: topCardTranslateX },
+              { translateY: topCardTranslateY },
+              { rotate: topCardRotate }
+            ]
+          }
+        ]}
+      >
+        <View style={styles.silverShineOverlay} />
+        <View style={styles.silverPatternCircle} />
+        <View style={styles.silverPatternCircle2} />
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderLeft}>
+            <Text style={[Typography.bodyBold, { color: '#0F172A', fontWeight: '800' }]}>Kudi</Text>
+            <View style={[styles.emvChip, styles.silverChip, { marginLeft: 10 }]} />
+          </View>
+          <Wifi size={18} color="#475569" style={{ transform: [{ rotate: '90deg' }] }} />
+        </View>
+
+        <View style={styles.cardFooter}>
+          <View>
+            <Text style={styles.silverCardNumber}>•••• •••• •••• 5678</Text>
+            <Text style={[Typography.caption, { color: '#475569', marginTop: 2 }]}>USD (USDC)</Text>
+          </View>
+          <Text style={styles.visaTextLight}>VISA</Text>
+        </View>
+      </Animated.View>
+    </View>
+  );
+}
+
+export default function CardTab() {
+  const palette = useAppPalette();
+  const [selectedCard, setSelectedCard] = useState<0 | 1>(0);
+  const isDark = palette.text === '#FFFFFF';
 
   const cards = [
-    {
-      id: 'usd',
-      name: 'Kudi USD Virtual Card',
-      brand: 'VISA',
-      currency: 'USD (USDC)',
-      number: '•••• •••• •••• 5678',
-      expires: '08/28',
-      type: 'Visa Debit',
-      bgDark: '#1E293B',
-      bgLight: '#F1F5F9',
-      accentColor: '#34D399'
-    },
-    {
-      id: 'ngn',
-      name: 'Kudi NGN Virtual Card',
-      brand: 'Mastercard',
-      currency: 'NGN Float',
-      number: '•••• •••• •••• 9012',
-      expires: '12/28',
-      type: 'Mastercard',
-      bgDark: '#0F172A',
-      bgLight: '#E2E8F0',
-      accentColor: '#60A5FA'
-    }
+    { id: 'usd', label: 'USD CARD' },
+    { id: 'ngn', label: 'NGN CARD' }
   ];
-
-  const currentCard = cards[selectedCard];
-  const isDark = palette.text === '#FFFFFF';
 
   return (
     <ScrollView
@@ -95,9 +183,14 @@ export default function CardTab() {
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
-      {/* Header Title & Coming Soon Pill */}
+      {/* Header Title */}
       <View style={styles.headerRow}>
-        <Text style={[Typography.title1, { color: palette.text }]}>Cards</Text>
+        <View>
+          <Text style={[Typography.title1, { color: palette.text }]}>Virtual Cards</Text>
+          <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
+            Instant global USD & local NGN payment cards
+          </Text>
+        </View>
       </View>
 
       {/* Card Selector Tabs */}
@@ -105,7 +198,7 @@ export default function CardTab() {
         {cards.map((card, idx) => (
           <TouchableOpacity
             key={card.id}
-            onPress={() => handleSelectCard(idx as 0 | 1)}
+            onPress={() => setSelectedCard(idx as 0 | 1)}
             activeOpacity={0.8}
             style={[
               styles.cardSelectTab,
@@ -126,103 +219,54 @@ export default function CardTab() {
                 }
               ]}
             >
-              {card.id.toUpperCase()}
+              {card.label}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Animated Floating Virtual Card Graphic */}
+      {/* Onboarding-Style Animated Stacked Cards Visual */}
       <View style={styles.cardsWrapper}>
-        <Animated.View
-          style={[
-            styles.metallicCard,
-            {
-              transform: [
-                { translateY: floatY },
-                { scale: cardScale }
-              ],
-              opacity: cardOpacity,
-              backgroundColor: isDark ? currentCard.bgDark : currentCard.bgLight,
-              borderColor: currentCard.accentColor,
-              borderWidth: 1.5
-            }
-          ]}
-        >
-          {/* Subtle Background Pattern Layer */}
-          <View style={styles.patternContainer} pointerEvents="none">
-            <View
-              style={[
-                styles.patternRingOuter,
-                { borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.06)' }
-              ]}
-            />
-            <View
-              style={[
-                styles.patternRingInner,
-                { borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(15, 23, 42, 0.05)' }
-              ]}
-            />
-            <View
-              style={[
-                styles.patternGlow,
-                { backgroundColor: currentCard.accentColor, opacity: 0.1 }
-              ]}
-            />
-            <View style={styles.dotGrid}>
-              {[...Array(6)].map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.patternDot,
-                    { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(15, 23, 42, 0.15)' }
-                  ]}
-                />
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.cardTopRow}>
-            <View style={styles.brandGroup}>
-              <Text style={[Typography.title2, { color: palette.text, fontWeight: '800' }]}>Kudi</Text>
-            </View>
-            <Text style={[Typography.title2, { color: palette.text, fontStyle: 'italic', fontWeight: '900' }]}>
-              {currentCard.brand}
-            </Text>
-          </View>
-
-          <View style={styles.cardChipRow}>
-            <View style={[styles.cardChip, { backgroundColor: isDark ? '#475569' : '#CBD5E1' }]}>
-              <View style={[styles.chipLine, { backgroundColor: isDark ? '#334155' : '#94A3B8' }]} />
-            </View>
-            <Wifi size={24} color={palette.textSecondary} style={{ transform: [{ rotate: '90deg' }] }} />
-          </View>
-
-          <View style={styles.cardBottomRow}>
-            <Text style={[Typography.currencyDisplay, { color: palette.text, fontSize: 20, letterSpacing: 2 }]}>
-              {currentCard.number}
-            </Text>
-
-            <View style={styles.cardMetaRow}>
-              <View>
-                <Text style={[Typography.caption, { color: palette.textSecondary }]}>EXPIRES</Text>
-                <Text style={[Typography.bodyBold, { color: palette.text }]}>{currentCard.expires}</Text>
-              </View>
-              <View>
-                <Text style={[Typography.caption, { color: palette.textSecondary }]}>CURRENCY</Text>
-                <Text style={[Typography.bodyBold, { color: palette.text }]}>{currentCard.id.toUpperCase()}</Text>
-              </View>
-            </View>
-          </View>
-        </Animated.View>
+        <AnimatedStackedCards activeTab={selectedCard} />
       </View>
 
-      {/* Minimal Coming Soon Center Text */}
-      <View style={styles.comingSoonCenter}>
-        <Clock size={22} color={palette.textSecondary} />
-        <Text style={[Typography.bodyBold, { color: palette.textSecondary, marginTop: 6 }]}>
+      {/* Coming Soon Center Banner */}
+      <View style={[styles.comingSoonBanner, { backgroundColor: palette.card, borderColor: palette.border }]}>
+        <Clock size={24} color={palette.textSecondary} />
+        <Text style={[Typography.bodyBold, { color: palette.text, marginTop: 8 }]}>
           Virtual Cards Coming Soon
         </Text>
+        <Text style={[Typography.footnote, { color: palette.textSecondary, textAlign: 'center', marginTop: 4 }]}>
+          Instant virtual dollar & naira debit cards for online payments worldwide are undergoing final security audits.
+        </Text>
+      </View>
+
+      {/* Features Preview */}
+      <View style={[styles.featuresCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+        <Text style={[Typography.bodyBold, { color: palette.text, marginBottom: 12 }]}>
+          Upcoming Features
+        </Text>
+
+        <View style={styles.featureItem}>
+          <Zap size={16} color={palette.success} />
+          <Text style={[Typography.footnote, { color: palette.textSecondary, flex: 1 }]}>
+            Automated instant top-ups from your USDC and NGN wallet balance
+          </Text>
+        </View>
+
+        <View style={styles.featureItem}>
+          <ShieldCheck size={16} color="#60A5FA" />
+          <Text style={[Typography.footnote, { color: palette.textSecondary, flex: 1 }]}>
+            1-Tap freeze & unfreeze security controls
+          </Text>
+        </View>
+
+        <View style={styles.featureItem}>
+          <Sparkles size={16} color="#8B5CF6" />
+          <Text style={[Typography.footnote, { color: palette.textSecondary, flex: 1 }]}>
+            Zero FX markup on global international subscriptions (Apple, Netflix, Amazon)
+          </Text>
+        </View>
       </View>
     </ScrollView>
   );
@@ -242,14 +286,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 20
   },
-  comingSoonBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1
-  },
   cardSelectorRow: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -257,105 +293,175 @@ const styles = StyleSheet.create({
     marginBottom: 24
   },
   cardSelectTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 39,
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 14,
     borderWidth: 1
   },
   cardsWrapper: {
     alignItems: 'center',
+    justifyContent: 'center',
+    height: 220,
     marginVertical: 10
   },
-  metallicCard: {
-    width: '100%',
-    borderRadius: 22,
-    padding: 22,
-    height: 205,
-    justifyContent: 'space-between',
-    position: 'relative',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 8
+  stackedCardsContainer: {
+    width: 290,
+    height: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative'
   },
-  patternContainer: { ...(StyleSheet.absoluteFill as any) },
-  patternRingOuter: {
-    position: 'absolute',
-    top: -60,
-    right: -50,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
+  cardBase: {
+    width: 280,
+    height: 168,
+    borderRadius: 20,
+    padding: 18,
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 8,
+    overflow: 'hidden',
+    position: 'absolute'
+  },
+  silverCard: {
+    backgroundColor: '#E2E8F0',
+    borderColor: '#FFFFFF',
     borderWidth: 1.5
   },
-  patternRingInner: {
+  blackCard: {
+    backgroundColor: '#0F172A',
+    borderColor: '#334155',
+    borderWidth: 1.5
+  },
+  silverShineOverlay: {
     position: 'absolute',
-    top: -20,
-    right: -10,
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '55%',
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    transform: [{ skewY: '-8deg' }],
+    marginTop: -15
+  },
+  silverPatternCircle: {
+    position: 'absolute',
+    right: -40,
+    bottom: -40,
     width: 140,
     height: 140,
     borderRadius: 70,
-    borderWidth: 1
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.25)'
   },
-  patternGlow: {
+  silverPatternCircle2: {
     position: 'absolute',
-    top: -30,
-    right: 10,
-    width: 150,
-    height: 150,
-    borderRadius: 75
+    right: -20,
+    bottom: -20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.35)'
   },
-  dotGrid: {
+  cardPatternCircle: {
     position: 'absolute',
-    top: 18,
-    right: 20,
-    flexDirection: 'row',
-    gap: 6
+    right: -40,
+    bottom: -40,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)'
   },
-  patternDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5
+  cardPatternCircle2: {
+    position: 'absolute',
+    right: -20,
+    bottom: -20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)'
   },
-  cardTopRow: {
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center'
   },
-  brandGroup: {
+  cardHeaderLeft: {
     flexDirection: 'row',
-    alignItems: 'baseline'
+    alignItems: 'center'
   },
-  cardChipRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginVertical: 12
-  },
-  cardChip: {
-    width: 38,
-    height: 28,
+  emvChip: {
+    width: 36,
+    height: 24,
     borderRadius: 6,
-    justifyContent: 'center',
-    paddingHorizontal: 4
+    borderWidth: 1
   },
-  chipLine: {
-    height: 1,
-    width: '100%'
+  silverChip: {
+    backgroundColor: '#CBD5E1',
+    borderColor: '#94A3B8'
   },
-  cardBottomRow: {
-    marginTop: 'auto'
+  goldChip: {
+    backgroundColor: '#D97706',
+    borderColor: '#F59E0B'
   },
-  cardMetaRow: {
+  cardFooter: {
     flexDirection: 'row',
-    gap: 24,
-    marginTop: 10
+    justifyContent: 'space-between',
+    alignItems: 'flex-end'
   },
-  comingSoonCenter: {
-    marginTop: 176,
+  silverCardNumber: {
+    fontFamily: Typography.family.mono,
+    fontSize: 14,
+    color: '#1E293B',
+    fontWeight: '600',
+    letterSpacing: 1
+  },
+  blackCardNumber: {
+    fontFamily: Typography.family.mono,
+    fontSize: 14,
+    color: '#94A3B8',
+    fontWeight: '600',
+    letterSpacing: 1
+  },
+  visaTextLight: {
+    fontFamily: Typography.family.sans,
+    fontSize: 20,
+    fontWeight: '900',
+    fontStyle: 'italic',
+    color: '#0F172A',
+    letterSpacing: 1
+  },
+  visaTextDark: {
+    fontFamily: Typography.family.sans,
+    fontSize: 16,
+    fontWeight: '900',
+    fontStyle: 'italic',
+    color: '#FFFFFF',
+    letterSpacing: 1
+  },
+  comingSoonBanner: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 20,
     alignItems: 'center',
-    justifyContent: 'center'
+    marginVertical: 16
+  },
+  featuresCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 20
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10
   }
 });
