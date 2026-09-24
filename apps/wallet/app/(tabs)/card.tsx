@@ -1,92 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, Easing } from 'react-native';
-import {
-  Wifi,
-  Copy,
-  Check,
-  Eye,
-  EyeOff,
-  Lock,
-  Unlock,
-  Plus,
-  ShieldCheck,
-  Building2,
-  Sparkles,
-  Zap
-} from 'lucide-react-native';
-import * as Clipboard from 'expo-clipboard';
-import * as Haptics from 'expo-haptics';
+import { Wifi, Clock } from 'lucide-react-native';
 import { useAppPalette } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
-import { useBalance } from '../../src/hooks/useBalance';
-import { useVirtualAccounts } from '../../src/hooks/useVirtualAccounts';
-import { AppModal, useAppModal } from '../../src/components/ui/AppModal';
 
 export default function CardTab() {
   const palette = useAppPalette();
-  const modal = useAppModal();
-  const { data: balanceData } = useBalance();
-  const { data: virtualAccounts = [] } = useVirtualAccounts();
-
   const [selectedCard, setSelectedCard] = useState<0 | 1>(0);
-  const [showDetails, setShowDetails] = useState<boolean>(false);
-  const [isFrozen, setIsFrozen] = useState<boolean>(false);
-  const [copiedField, setCopiedField] = useState<string | null>(null);
-
-  // Balance calculations (safely convert string/number from API)
-  const numericBalanceUSDC = typeof balanceData?.balanceUSDC === 'number'
-    ? balanceData.balanceUSDC
-    : parseFloat(String(balanceData?.balanceUSDC || '0')) || 0;
-  const rateNGN = typeof balanceData?.currentRateNGN === 'number'
-    ? balanceData.currentRateNGN
-    : parseFloat(String(balanceData?.currentRateNGN || '1585.5')) || 1585.5;
-  const balanceNGN = numericBalanceUSDC * rateNGN;
-
-  // Virtual account lookups
-  const ngnAccount = (virtualAccounts || []).find(a => a.currency === 'NGN');
-  const usdAccount = (virtualAccounts || []).find(a => a.currency === 'USD');
-
-  const cards = [
-    {
-      id: 'usd',
-      name: 'Kudi USD Virtual Card',
-      brand: 'VISA',
-      currencySymbol: '$',
-      currencyCode: 'USD',
-      balanceDisplay: `$${numericBalanceUSDC.toFixed(2)} USD`,
-      subBalance: `~₦${balanceNGN.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN`,
-      maskedNumber: '•••• •••• •••• 5678',
-      fullNumber: '4111 2309 5678 9921',
-      cvv: '719',
-      expires: '08/28',
-      type: 'Visa International Debit',
-      bgDark: '#1E293B',
-      bgLight: '#F1F5F9',
-      accentColor: '#34D399',
-      linkedBank: usdAccount ? `${usdAccount.bankName} • Acc: ${usdAccount.accountNumber}` : 'Lead Bank • ACH Account: 9876543210'
-    },
-    {
-      id: 'ngn',
-      name: 'Kudi NGN Virtual Card',
-      brand: 'Mastercard',
-      currencySymbol: '₦',
-      currencyCode: 'NGN',
-      balanceDisplay: `₦${balanceNGN.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN`,
-      subBalance: `~$${numericBalanceUSDC.toFixed(2)} USDC equivalent`,
-      maskedNumber: '•••• •••• •••• 9012',
-      fullNumber: '5399 4812 9012 4410',
-      cvv: '482',
-      expires: '12/28',
-      type: 'Mastercard Domestic',
-      bgDark: '#0F172A',
-      bgLight: '#E2E8F0',
-      accentColor: '#60A5FA',
-      linkedBank: ngnAccount ? `${ngnAccount.bankName} • Acc: ${ngnAccount.accountNumber}` : 'GTBank • NUBAN: 0123456789'
-    }
-  ];
-
-  const currentCard = cards[selectedCard];
-  const isDark = palette.text === '#FFFFFF';
 
   // Standard React Native Animated values
   const floatY = useRef(new Animated.Value(0)).current;
@@ -98,7 +18,7 @@ export default function CardTab() {
     const floatAnim = Animated.loop(
       Animated.sequence([
         Animated.timing(floatY, {
-          toValue: -6,
+          toValue: -8,
           duration: 2500,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true
@@ -119,8 +39,7 @@ export default function CardTab() {
   const handleSelectCard = (idx: 0 | 1) => {
     if (selectedCard === idx) return;
 
-    Haptics.selectionAsync().catch(() => {});
-    cardScale.setValue(0.92);
+    cardScale.setValue(0.9);
     cardOpacity.setValue(0.6);
 
     Animated.parallel([
@@ -132,45 +51,43 @@ export default function CardTab() {
       }),
       Animated.timing(cardOpacity, {
         toValue: 1,
-        duration: 250,
+        duration: 300,
         useNativeDriver: true
       })
     ]).start();
 
     setSelectedCard(idx);
-    setShowDetails(false);
   };
 
-  const copyToClipboard = async (text: string, label: string) => {
-    try {
-      await Clipboard.setStringAsync(text);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      setCopiedField(label);
-      setTimeout(() => setCopiedField(null), 2000);
-    } catch {
-      // Ignore transient clipboard errors
+  const cards = [
+    {
+      id: 'usd',
+      name: 'Kudi USD Virtual Card',
+      brand: 'VISA',
+      currency: 'USD (USDC)',
+      number: '•••• •••• •••• 5678',
+      expires: '08/28',
+      type: 'Visa Debit',
+      bgDark: '#1E293B',
+      bgLight: '#F1F5F9',
+      accentColor: '#34D399'
+    },
+    {
+      id: 'ngn',
+      name: 'Kudi NGN Virtual Card',
+      brand: 'Mastercard',
+      currency: 'NGN Float',
+      number: '•••• •••• •••• 9012',
+      expires: '12/28',
+      type: 'Mastercard',
+      bgDark: '#0F172A',
+      bgLight: '#E2E8F0',
+      accentColor: '#60A5FA'
     }
-  };
+  ];
 
-  const toggleFreeze = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    const nextState = !isFrozen;
-    setIsFrozen(nextState);
-    if (nextState) {
-      modal.alert('Card Frozen ❄️', 'Your card has been temporaily frozen. All new transactions will be declined until unfrozen.', 'info');
-    } else {
-      modal.alert('Card Active ⚡', 'Your card is active and ready for online payments.', 'success');
-    }
-  };
-
-  const handleTopUp = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    modal.alert(
-      'Card Top Up 💳',
-      `Your virtual card automatically draws balance from your Metropolis wallet (${currentCard.id === 'ngn' ? `₦${balanceNGN.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN` : `$${numericBalanceUSDC.toFixed(2)} USD`}). Deposit USDC or NGN to instantly increase your card limit.`,
-      'info'
-    );
-  };
+  const currentCard = cards[selectedCard];
+  const isDark = palette.text === '#FFFFFF';
 
   return (
     <ScrollView
@@ -178,21 +95,9 @@ export default function CardTab() {
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
-      {/* Header Title */}
+      {/* Header Title & Coming Soon Pill */}
       <View style={styles.headerRow}>
-        <View>
-          <Text style={[Typography.title1, { color: palette.text }]}>Virtual Cards</Text>
-          <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
-            Instant global USD & local NGN payment cards
-          </Text>
-        </View>
-
-        <View style={[styles.statusBadge, { backgroundColor: isFrozen ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)', borderColor: isFrozen ? '#EF4444' : palette.success }]}>
-          <View style={[styles.statusDot, { backgroundColor: isFrozen ? '#EF4444' : palette.success }]} />
-          <Text style={[Typography.caption, { color: isFrozen ? '#EF4444' : palette.success, fontWeight: '700' }]}>
-            {isFrozen ? 'FROZEN' : 'ACTIVE'}
-          </Text>
-        </View>
+        <Text style={[Typography.title1, { color: palette.text }]}>Cards</Text>
       </View>
 
       {/* Card Selector Tabs */}
@@ -221,25 +126,10 @@ export default function CardTab() {
                 }
               ]}
             >
-              {card.id.toUpperCase()} CARD
+              {card.id.toUpperCase()}
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
-
-      {/* PROMINENT LIVE VIRTUAL CARD BALANCE SECTION */}
-      <View style={[styles.balanceSection, { backgroundColor: palette.card, borderColor: palette.border }]}>
-        <Text style={[Typography.caption, { color: palette.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 }]}>
-          {currentCard.name} Available Balance
-        </Text>
-
-        <Text style={[Typography.currencyDisplay, styles.mainBalanceText, { color: palette.text }]}>
-          {currentCard.balanceDisplay}
-        </Text>
-
-        <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
-          {currentCard.subBalance}
-        </Text>
       </View>
 
       {/* Animated Floating Virtual Card Graphic */}
@@ -252,9 +142,9 @@ export default function CardTab() {
                 { translateY: floatY },
                 { scale: cardScale }
               ],
-              opacity: isFrozen ? 0.65 : cardOpacity,
+              opacity: cardOpacity,
               backgroundColor: isDark ? currentCard.bgDark : currentCard.bgLight,
-              borderColor: isFrozen ? '#EF4444' : currentCard.accentColor,
+              borderColor: currentCard.accentColor,
               borderWidth: 1.5
             }
           ]}
@@ -279,45 +169,38 @@ export default function CardTab() {
                 { backgroundColor: currentCard.accentColor, opacity: 0.1 }
               ]}
             />
+            <View style={styles.dotGrid}>
+              {[...Array(6)].map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.patternDot,
+                    { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(15, 23, 42, 0.15)' }
+                  ]}
+                />
+              ))}
+            </View>
           </View>
 
-          {/* Card Top Row: Brand & Balance Badge */}
           <View style={styles.cardTopRow}>
             <View style={styles.brandGroup}>
               <Text style={[Typography.title2, { color: palette.text, fontWeight: '800' }]}>Kudi</Text>
-              <Text style={[Typography.footnote, { color: palette.textSecondary, marginLeft: 6 }]}>
-                {currentCard.id.toUpperCase()}
-              </Text>
             </View>
-
-            <View style={styles.cardHeaderRight}>
-              <Text style={[Typography.bodyBold, { color: currentCard.accentColor }]}>
-                {currentCard.balanceDisplay}
-              </Text>
-            </View>
+            <Text style={[Typography.title2, { color: palette.text, fontStyle: 'italic', fontWeight: '900' }]}>
+              {currentCard.brand}
+            </Text>
           </View>
 
-          {/* Card Chip & Wireless Row */}
           <View style={styles.cardChipRow}>
             <View style={[styles.cardChip, { backgroundColor: isDark ? '#475569' : '#CBD5E1' }]}>
               <View style={[styles.chipLine, { backgroundColor: isDark ? '#334155' : '#94A3B8' }]} />
             </View>
-
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              {isFrozen && (
-                <View style={[styles.frozenPill, { backgroundColor: 'rgba(239, 68, 68, 0.2)' }]}>
-                  <Lock size={12} color="#EF4444" />
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#EF4444' }}>FROZEN</Text>
-                </View>
-              )}
-              <Wifi size={24} color={palette.textSecondary} style={{ transform: [{ rotate: '90deg' }] }} />
-            </View>
+            <Wifi size={24} color={palette.textSecondary} style={{ transform: [{ rotate: '90deg' }] }} />
           </View>
 
-          {/* Card Bottom Row: Number, Expiry, Brand */}
           <View style={styles.cardBottomRow}>
-            <Text style={[Typography.currencyDisplay, { color: palette.text, fontSize: 18, letterSpacing: 2 }]}>
-              {showDetails ? currentCard.fullNumber : currentCard.maskedNumber}
+            <Text style={[Typography.currencyDisplay, { color: palette.text, fontSize: 20, letterSpacing: 2 }]}>
+              {currentCard.number}
             </Text>
 
             <View style={styles.cardMetaRow}>
@@ -325,130 +208,22 @@ export default function CardTab() {
                 <Text style={[Typography.caption, { color: palette.textSecondary }]}>EXPIRES</Text>
                 <Text style={[Typography.bodyBold, { color: palette.text }]}>{currentCard.expires}</Text>
               </View>
-
               <View>
-                <Text style={[Typography.caption, { color: palette.textSecondary }]}>CVV</Text>
-                <Text style={[Typography.bodyBold, { color: palette.text }]}>{showDetails ? currentCard.cvv : '•••'}</Text>
-              </View>
-
-              <View style={{ marginLeft: 'auto' }}>
-                <Text style={[Typography.title2, { color: palette.text, fontStyle: 'italic', fontWeight: '900' }]}>
-                  {currentCard.brand}
-                </Text>
+                <Text style={[Typography.caption, { color: palette.textSecondary }]}>CURRENCY</Text>
+                <Text style={[Typography.bodyBold, { color: palette.text }]}>{currentCard.id.toUpperCase()}</Text>
               </View>
             </View>
           </View>
         </Animated.View>
       </View>
 
-      {/* Card Quick Actions */}
-      <View style={styles.quickActionsRow}>
-        <TouchableOpacity
-          onPress={() => setShowDetails(!showDetails)}
-          style={[styles.actionIconButton, { backgroundColor: palette.card, borderColor: palette.border }]}
-          activeOpacity={0.8}
-        >
-          {showDetails ? <EyeOff size={18} color={palette.text} /> : <Eye size={18} color={palette.text} />}
-          <Text style={[Typography.caption, { color: palette.text, fontWeight: '600', marginTop: 4 }]}>
-            {showDetails ? 'Hide' : 'Details'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => copyToClipboard(showDetails ? currentCard.fullNumber : currentCard.maskedNumber, 'cardNum')}
-          style={[styles.actionIconButton, { backgroundColor: palette.card, borderColor: palette.border }]}
-          activeOpacity={0.8}
-        >
-          {copiedField === 'cardNum' ? <Check size={18} color={palette.success} /> : <Copy size={18} color={palette.text} />}
-          <Text style={[Typography.caption, { color: copiedField === 'cardNum' ? palette.success : palette.text, fontWeight: '600', marginTop: 4 }]}>
-            {copiedField === 'cardNum' ? 'Copied' : 'Copy Num'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={handleTopUp}
-          style={[styles.actionIconButton, { backgroundColor: palette.card, borderColor: palette.border }]}
-          activeOpacity={0.8}
-        >
-          <Plus size={18} color={palette.text} />
-          <Text style={[Typography.caption, { color: palette.text, fontWeight: '600', marginTop: 4 }]}>
-            Top Up
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={toggleFreeze}
-          style={[styles.actionIconButton, { backgroundColor: palette.card, borderColor: isFrozen ? '#EF4444' : palette.border }]}
-          activeOpacity={0.8}
-        >
-          {isFrozen ? <Unlock size={18} color="#EF4444" /> : <Lock size={18} color={palette.text} />}
-          <Text style={[Typography.caption, { color: isFrozen ? '#EF4444' : palette.text, fontWeight: '600', marginTop: 4 }]}>
-            {isFrozen ? 'Unfreeze' : 'Freeze'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Linked Bank Account Details Box */}
-      <View style={[styles.detailsCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-        <View style={styles.detailsHeader}>
-          <Building2 size={20} color={palette.text} />
-          <Text style={[Typography.bodyBold, { color: palette.text, flex: 1 }]}>
-            Linked Bank Account Details
-          </Text>
-        </View>
-
-        <View style={styles.detailsContentRow}>
-          <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
-            {currentCard.linkedBank}
-          </Text>
-
-          <TouchableOpacity
-            onPress={() => copyToClipboard(currentCard.linkedBank, 'linkedBank')}
-            style={[styles.smallCopyBtn, { backgroundColor: palette.bg, borderColor: palette.border }]}
-            activeOpacity={0.7}
-          >
-            {copiedField === 'linkedBank' ? (
-              <Check size={14} color={palette.success} />
-            ) : (
-              <Copy size={14} color={palette.textSecondary} />
-            )}
-            <Text style={[Typography.caption, { color: copiedField === 'linkedBank' ? palette.success : palette.textSecondary, fontSize: 11, fontWeight: '600' }]}>
-              {copiedField === 'linkedBank' ? 'Copied' : 'Copy'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Card Features Showcase */}
-      <View style={[styles.featuresCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-        <Text style={[Typography.bodyBold, { color: palette.text, marginBottom: 12 }]}>
-          Card Benefits & Security
+      {/* Minimal Coming Soon Center Text */}
+      <View style={styles.comingSoonCenter}>
+        <Clock size={22} color={palette.textSecondary} />
+        <Text style={[Typography.bodyBold, { color: palette.textSecondary, marginTop: 6 }]}>
+          Virtual Cards Coming Soon
         </Text>
-
-        <View style={styles.featureItem}>
-          <Zap size={16} color={palette.success} />
-          <Text style={[Typography.footnote, { color: palette.textSecondary, flex: 1 }]}>
-            Zero-fee automated top-ups directly from your wallet balance
-          </Text>
-        </View>
-
-        <View style={styles.featureItem}>
-          <ShieldCheck size={16} color="#60A5FA" />
-          <Text style={[Typography.footnote, { color: palette.textSecondary, flex: 1 }]}>
-            Instant freeze & unfreeze security controls with 1-tap protection
-          </Text>
-        </View>
-
-        <View style={styles.featureItem}>
-          <Sparkles size={16} color="#8B5CF6" />
-          <Text style={[Typography.footnote, { color: palette.textSecondary, flex: 1 }]}>
-            Accepted at millions of online merchants globally with no FX markups
-          </Text>
-        </View>
       </View>
-
-      {/* Modal */}
-      <AppModal config={modal.config} onClose={modal.hide} />
     </ScrollView>
   );
 }
@@ -465,55 +240,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16
+    marginBottom: 20
   },
-  statusBadge: {
+  comingSoonBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 20,
-    borderWidth: 1,
-    gap: 6
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3
+    borderWidth: 1
   },
   cardSelectorRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 10,
-    marginBottom: 16
+    marginBottom: 24
   },
   cardSelectTab: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 39,
     borderWidth: 1
-  },
-  balanceSection: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 16
-  },
-  mainBalanceText: {
-    fontSize: 26,
-    marginVertical: 4
   },
   cardsWrapper: {
     alignItems: 'center',
-    marginBottom: 16
+    marginVertical: 10
   },
   metallicCard: {
     width: '100%',
     borderRadius: 22,
-    padding: 20,
-    height: 215,
+    padding: 22,
+    height: 205,
     justifyContent: 'space-between',
     position: 'relative',
     overflow: 'hidden',
@@ -550,6 +307,18 @@ const styles = StyleSheet.create({
     height: 150,
     borderRadius: 75
   },
+  dotGrid: {
+    position: 'absolute',
+    top: 18,
+    right: 20,
+    flexDirection: 'row',
+    gap: 6
+  },
+  patternDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5
+  },
   cardTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -559,17 +328,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline'
   },
-  cardHeaderRight: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)'
-  },
   cardChipRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginVertical: 8
+    marginVertical: 12
   },
   cardChip: {
     width: 38,
@@ -582,72 +345,17 @@ const styles = StyleSheet.create({
     height: 1,
     width: '100%'
   },
-  frozenPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12
-  },
   cardBottomRow: {
     marginTop: 'auto'
   },
   cardMetaRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 20,
+    gap: 24,
     marginTop: 10
   },
-  quickActionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 16
-  },
-  actionIconButton: {
-    flex: 1,
+  comingSoonCenter: {
+    marginTop: 176,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 1
-  },
-  detailsCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 16
-  },
-  detailsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8
-  },
-  detailsContentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between'
-  },
-  smallCopyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1
-  },
-  featuresCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 10
+    justifyContent: 'center'
   }
 });
