@@ -120,6 +120,7 @@ export type AdminChainItem = {
   enabled: boolean;
   rpcUrl: string;
   contractAddress: string;
+  treasuryAddress?: string;
   confirmationThreshold: number;
 };
 
@@ -545,6 +546,7 @@ const fallbackChains: AdminChainItem[] = [
     enabled: true,
     rpcUrl: 'https://testnet-rpc.monad.xyz',
     contractAddress: '0x000000000000000000000000000000000000AUSD',
+    treasuryAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
     confirmationThreshold: 12
   },
   {
@@ -555,6 +557,7 @@ const fallbackChains: AdminChainItem[] = [
     enabled: true,
     rpcUrl: 'https://api.mainnet-beta.solana.com',
     contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    treasuryAddress: 'KudiTreasurySolanaDevnet11111111111111111111',
     confirmationThreshold: 32
   },
   {
@@ -565,6 +568,7 @@ const fallbackChains: AdminChainItem[] = [
     enabled: false,
     rpcUrl: 'https://polygon-rpc.com',
     contractAddress: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
+    treasuryAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
     confirmationThreshold: 64
   }
 ];

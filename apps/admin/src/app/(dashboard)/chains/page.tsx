@@ -6,13 +6,22 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Sliders, CheckCircle2, Shield, AlertTriangle, Layers } from 'lucide-react';
+import { Sliders, CheckCircle2, Shield, AlertTriangle, Layers, Copy, Check } from 'lucide-react';
 
 export default function ChainsConfigPage() {
   const [chains, setChains] = useState<AdminChainItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
   const [track, setTrack] = useState<'TRACK_A' | 'TRACK_B'>('TRACK_A');
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+
+  const handleCopy = (address: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(address);
+      setCopiedAddress(address);
+      setTimeout(() => setCopiedAddress(null), 2000);
+    }
+  };
 
   useEffect(() => {
     loadChainConfigs().then((data) => {
@@ -105,6 +114,25 @@ export default function ChainsConfigPage() {
                 <p className="font-mono text-[11px] text-muted-foreground/80 truncate">
                   Contract: {chain.contractAddress} · Block Threshold: {chain.confirmationThreshold} confirmations
                 </p>
+                {chain.treasuryAddress && (
+                  <div className="flex items-center gap-2 text-xs font-mono pt-1 text-muted-foreground">
+                    <span className="text-muted-foreground/90 font-medium">Treasury Fee-Payer:</span>
+                    <span className="bg-background/80 px-2 py-0.5 rounded border border-border/80 text-emerald-400 font-bold text-[11px] select-all">
+                      {chain.treasuryAddress}
+                    </span>
+                    <button
+                      onClick={() => handleCopy(chain.treasuryAddress!)}
+                      className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
+                      title="Copy Treasury Address"
+                    >
+                      {copiedAddress === chain.treasuryAddress ? (
+                        <Check className="h-3.5 w-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-3 shrink-0">

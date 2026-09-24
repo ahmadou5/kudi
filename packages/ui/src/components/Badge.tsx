@@ -2,7 +2,7 @@ import * as React from 'react';
 import { ThemeMode, lightTheme, darkTheme, typography } from '../theme';
 
 export interface BadgeProps {
-  variant?: 'default' | 'success' | 'warning' | 'error' | 'silver' | 'mono';
+  variant?: 'default' | 'success' | 'warning' | 'error' | 'destructive' | 'secondary' | 'outline' | 'silver' | 'mono';
   mode?: ThemeMode;
   children: React.ReactNode;
   style?: React.CSSProperties;
@@ -31,10 +31,23 @@ export const Badge: React.FC<BadgeProps> = ({
           border: '1px solid rgba(245, 158, 11, 0.3)'
         };
       case 'error':
+      case 'destructive':
         return {
           background: 'rgba(239, 68, 68, 0.15)',
           color: colors.error,
           border: '1px solid rgba(239, 68, 68, 0.3)'
+        };
+      case 'secondary':
+        return {
+          background: 'rgba(148, 163, 184, 0.15)',
+          color: '#94A3B8',
+          border: '1px solid rgba(148, 163, 184, 0.3)'
+        };
+      case 'outline':
+        return {
+          background: 'transparent',
+          color: colors.textPrimary,
+          border: `1px solid ${colors.borderCard}`
         };
       case 'silver':
         return {

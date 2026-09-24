@@ -14,8 +14,8 @@ export function useAdminDashboard() {
   const [activeProvider, setActiveProvider] = useState<PaymentProviderId>(PaymentProviderId.PAYSTACK);
   const [rateOverride, setRateOverride] = useState<string>('1585.50');
   const [evmChains, setEvmChains] = useState<ChainConfigItem[]>([
-    { id: 'monad-testnet', name: 'Monad Metropolis Testnet', token: 'AUSD', enabled: true, rpcUrl: 'https://testnet-rpc.monad.xyz' },
-    { id: 'polygon-mainnet', name: 'Polygon PoS', token: 'USDC', enabled: false, rpcUrl: 'https://polygon-rpc.com' }
+    { id: 'monad-testnet', name: 'Monad Metropolis Testnet', token: 'AUSD', enabled: true, rpcUrl: 'https://testnet-rpc.monad.xyz', treasuryAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F' },
+    { id: 'polygon-mainnet', name: 'Polygon PoS', token: 'USDC', enabled: false, rpcUrl: 'https://polygon-rpc.com', treasuryAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F' }
   ]);
 
   useEffect(() => {
