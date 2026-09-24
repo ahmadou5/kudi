@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { loadSystemSettings, loadMaintenanceConfig, updateMaintenanceConfig, AdminSettings } from '@/lib/admin-data';
+import { loadSystemSettings, loadMaintenanceConfig, updateMaintenanceConfig, loadSweepConfig, updateSweepConfig, AdminSettings, AdminSweepConfig } from '@/lib/admin-data';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,10 @@ import {
   Power,
   PowerOff,
   Clock,
-  MessageSquare
+  MessageSquare,
+  Zap,
+  Coins,
+  ShieldCheck
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -36,8 +39,12 @@ export default function SettingsPage() {
   const [dailyLimit, setDailyLimit] = useState('10000000');
   const [notice, setNotice] = useState<string | null>(null);
 
+  const [sweepMode, setSweepMode] = useState<'AUTO' | 'SPONSORED' | 'TREASURY_FEE_PAYER'>('AUTO');
+  const [sweepSaving, setSweepSaving] = useState(false);
+  const [sweepUpdatedAt, setSweepUpdatedAt] = useState<string | null>(null);
+
   useEffect(() => {
-    Promise.all([loadSystemSettings(), loadMaintenanceConfig()]).then(([systemData, maintData]) => {
+    Promise.all([loadSystemSettings(), loadMaintenanceConfig(), loadSweepConfig()]).then(([systemData, maintData, sweepData]) => {
       setSettings(systemData);
       setAutoFailover(systemData.autoFailoverEnabled);
       setDailyLimit(systemData.maxDailySpendLimitNGN.toString());
@@ -50,9 +57,32 @@ export default function SettingsPage() {
         }
         if (maintData.updatedAt) setMaintenanceUpdatedAt(maintData.updatedAt);
       }
+
+      if (sweepData?.mode) {
+        setSweepMode(sweepData.mode);
+        if (sweepData.updatedAt) setSweepUpdatedAt(sweepData.updatedAt);
+      }
+
       setLoading(false);
     });
   }, []);
+
+  const handleSaveSweepConfig = async () => {
+    setSweepSaving(true);
+    try {
+      const res = await updateSweepConfig(sweepMode);
+      if (res) {
+        setSweepMode(res.mode);
+        setSweepUpdatedAt(new Date().toISOString());
+        setNotice(`Sweep fee mode updated to ${res.mode}.`);
+        setTimeout(() => setNotice(null), 4000);
+      }
+    } catch (err: any) {
+      alert('Failed to update sweep mode: ' + (err?.message || err));
+    } finally {
+      setSweepSaving(false);
+    }
+  };
 
   const confirmToggleMaintenance = async () => {
     const nextState = !maintenanceEnabled;
@@ -308,6 +338,90 @@ export default function SettingsPage() {
           </Card>
         </div>
       </div>
+
+      {/* Crypto Sweep & Gas Fee Management Card */}
+      <Card
+        title="Crypto Sweep & Gas Fee Management"
+        subtitle="Configure network fee payers and gas sponsorship for Solana & EVM deposit sweeps"
+      >
+        <div className="space-y-4 pt-2">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {/* Option 1: AUTO */}
+            <div
+              onClick={() => setSweepMode('AUTO')}
+              className={`cursor-pointer rounded-xl border p-4 transition-all ${
+                sweepMode === 'AUTO'
+                  ? 'border-emerald-500/80 bg-emerald-500/10 text-foreground ring-1 ring-emerald-500/40'
+                  : 'border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/40'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-bold text-xs flex items-center gap-1.5 text-foreground">
+                  <Zap className="h-4 w-4 text-emerald-400" /> Auto Fallback (Recommended)
+                </span>
+                {sweepMode === 'AUTO' && <Badge variant="success">Active</Badge>}
+              </div>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Tries Privy Gas Sponsorship first. Automatically falls back to Treasury Fee-Payer & Drip if sponsorship is disabled on Devnet/Testnet.
+              </p>
+            </div>
+
+            {/* Option 2: SPONSORED */}
+            <div
+              onClick={() => setSweepMode('SPONSORED')}
+              className={`cursor-pointer rounded-xl border p-4 transition-all ${
+                sweepMode === 'SPONSORED'
+                  ? 'border-blue-500/80 bg-blue-500/10 text-foreground ring-1 ring-blue-500/40'
+                  : 'border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/40'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-bold text-xs flex items-center gap-1.5 text-foreground">
+                  <ShieldCheck className="h-4 w-4 text-blue-400" /> Privy Gas Relayer
+                </span>
+                {sweepMode === 'SPONSORED' && <Badge variant="default">Active</Badge>}
+              </div>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Requires Privy Gas Sponsorship policies enabled in Privy Dashboard. Deposit wallets never pay native gas fees.
+              </p>
+            </div>
+
+            {/* Option 3: TREASURY_FEE_PAYER */}
+            <div
+              onClick={() => setSweepMode('TREASURY_FEE_PAYER')}
+              className={`cursor-pointer rounded-xl border p-4 transition-all ${
+                sweepMode === 'TREASURY_FEE_PAYER'
+                  ? 'border-amber-500/80 bg-amber-500/10 text-foreground ring-1 ring-amber-500/40'
+                  : 'border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/40'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-bold text-xs flex items-center gap-1.5 text-foreground">
+                  <Coins className="h-4 w-4 text-amber-400" /> Treasury Fee-Payer & Drip
+                </span>
+                {sweepMode === 'TREASURY_FEE_PAYER' && <Badge variant="warning">Active</Badge>}
+              </div>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Treasury Wallet pays transaction fees on Solana and drips native gas on Monad EVM. Works seamlessly on Devnet / Testnet.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-border/40">
+            <span className="text-[11px] text-muted-foreground">
+              {sweepUpdatedAt ? `Last modified: ${new Date(sweepUpdatedAt).toLocaleString()}` : 'Default mode active'}
+            </span>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={handleSaveSweepConfig}
+              disabled={sweepSaving}
+            >
+              {sweepSaving ? 'Saving...' : 'Save Sweep Mode'}
+            </Button>
+          </div>
+        </div>
+      </Card>
 
       {/* Admin Audit Trail */}
       <Card title="Administrative Action Audit Log" subtitle="Cryptographically logged audit history for regulatory SEC & CBN reporting">

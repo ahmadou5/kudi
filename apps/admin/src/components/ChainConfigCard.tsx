@@ -48,7 +48,7 @@ export const ChainConfigCard: React.FC<ChainConfigCardProps> = ({ chains, onTogg
                 cursor: 'pointer'
               }}
             >
-              <Badge variant={chain.enabled ? 'success' : 'error'}>
+              <Badge variant={chain.enabled ? 'success' : 'destructive'}>
                 {chain.enabled ? 'ENABLED' : 'DISABLED'}
               </Badge>
             </button>

@@ -22,6 +22,8 @@ export async function adminRoutes(server: FastifyInstance, controller: AdminCont
   server.get('/api/admin/config/maintenance', { preHandler: requireAdmin }, controller.getMaintenanceConfig);
   server.post(apiRoutes.admin.maintenance, { preHandler: requireAdmin }, controller.setMaintenanceConfig);
   server.post('/api/admin/config/maintenance', { preHandler: requireAdmin }, controller.setMaintenanceConfig);
+  server.get('/api/admin/config/sweep', { preHandler: requireAdmin }, controller.getSweepConfig);
+  server.post('/api/admin/config/sweep', { preHandler: requireAdmin }, controller.setSweepConfig);
   server.get('/api/v1/admin/deposits', { preHandler: requireAdmin }, controller.getDeposits);
   server.get('/api/admin/deposits', { preHandler: requireAdmin }, controller.getDeposits);
   server.get('/api/v1/admin/sweeps/health', { preHandler: requireAdmin }, controller.getSweepHealth);

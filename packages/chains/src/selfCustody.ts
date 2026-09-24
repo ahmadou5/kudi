@@ -402,8 +402,9 @@ export class SelfCustodyProvider implements CustodyProvider {
     usdcMintAddress?: string;
     usdcContractAddress?: string;
     fromAddress?: string;
+    feePayerAddress?: string;
   }): Promise<{ txHash: string }> {
-    const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress, fromAddress } = params;
+    const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress, fromAddress, feePayerAddress } = params;
 
     if (!this.appId || !this.appSecret || !treasuryWalletId) {
       const missing = {
@@ -492,13 +493,16 @@ export class SelfCustodyProvider implements CustodyProvider {
         // Fall back to creating ATA if check fails
       }
 
+      const feePayerAddrStr = feePayerAddress || (sponsor ? signerAddrStr : (this.solanaTreasuryAddress || signerAddrStr));
+      const feePayerAddr = solanaAddress(feePayerAddrStr as Address);
+
       // Create destination Associated Token Account if it does not exist yet (idempotent).
       // Discriminator [1] = CreateIdempotent per SPL ATA program instruction enum.
       // Account roles: 0=Readonly, 1=Writable, 2=ReadonlySigner, 3=WritableSigner
       const createDestAtaIx = {
         programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
         accounts: [
-          { address: signerAddr, role: 3 as const },            // Writable Signer (Payer)
+          { address: feePayerAddr, role: 3 as const },            // Writable Signer (Payer)
           { address: destAta,      role: 1 as const },            // Writable (ATA to create)
           { address: recipientAddr, role: 0 as const },           // Readonly (Owner)
           { address: mintPubkey,   role: 0 as const },            // Readonly (Mint)
@@ -522,7 +526,7 @@ export class SelfCustodyProvider implements CustodyProvider {
       // Compose transaction message (functional pipe style — v2 API)
       const txMessage = pipe(
         createTransactionMessage({ version: 0 as const }),
-        (tx) => setTransactionMessageFeePayer(signerAddr, tx),
+        (tx) => setTransactionMessageFeePayer(feePayerAddr, tx),
         (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
         (tx) => (!destAtaExists ? appendTransactionMessageInstruction(createDestAtaIx, tx) : tx),
         (tx) => appendTransactionMessageInstruction(transferIx, tx)

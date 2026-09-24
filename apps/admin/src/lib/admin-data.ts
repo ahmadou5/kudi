@@ -853,3 +853,31 @@ export async function updateMaintenanceConfig(config: {
   }
 }
 
+export type AdminSweepConfig = {
+  mode: 'AUTO' | 'SPONSORED' | 'TREASURY_FEE_PAYER';
+  updatedAt?: string | null;
+};
+
+export async function loadSweepConfig(): Promise<AdminSweepConfig> {
+  const fallback: AdminSweepConfig = {
+    mode: 'AUTO',
+    updatedAt: null
+  };
+  return adminFetch<AdminSweepConfig>('/config/sweep', fallback);
+}
+
+export async function updateSweepConfig(mode: 'AUTO' | 'SPONSORED' | 'TREASURY_FEE_PAYER'): Promise<AdminSweepConfig | null> {
+  try {
+    const res = await fetch('/api/admin/config/sweep', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode })
+    });
+    const json = await res.json();
+    return json?.data ?? json;
+  } catch (err) {
+    console.error('Failed to update sweep config', err);
+    return null;
+  }
+}
+

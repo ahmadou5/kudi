@@ -201,6 +201,7 @@ export class ChainDepositProcessor {
       const { txHash } = await this.selfCustody.sendCrypto({
         treasuryWalletId: params.wallet.privyWalletId,
         fromAddress: normalizedChain === 'solana' ? params.wallet.address : undefined,
+        feePayerAddress: normalizedChain === 'solana' ? targetTreasury : undefined,
         toAddress: targetTreasury,
         amountUSDC: params.amountUSDC,
         chain: normalizedChain
