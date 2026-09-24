@@ -32,7 +32,7 @@ export async function sendOTPEmail({ toEmail, otpCode }: SendOTPEmailParams): Pr
   if (resendApiKey && resendApiKey.startsWith('re_')) {
     try {
       const resend = new Resend(resendApiKey);
-      const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+      const fromEmail = process.env.RESEND_FROM || process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 
       const data = await resend.emails.send({
         from: fromEmail,

@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, Easing 
 import { Wifi, Clock, Sparkles, ShieldCheck, Zap } from 'lucide-react-native';
 import { useAppPalette } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function AnimatedStackedCards({ activeTab }: { activeTab: 0 | 1 }) {
   const floatY1 = useRef(new Animated.Value(0)).current;
@@ -113,8 +114,8 @@ function AnimatedStackedCards({ activeTab }: { activeTab: 0 | 1 }) {
         <View style={styles.cardPatternCircle2} />
         <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
-            <Text style={[Typography.bodyBold, { color: '#FFFFFF', fontWeight: '800' }]}>Kudi</Text>
-            <View style={[styles.emvChip, styles.goldChip, { marginLeft: 10 }]} />
+            <Text style={[Typography.bodyBold, { color: '#FFFFFF', fontWeight: '800' }]}>KUDI</Text>
+            <View style={[styles.emvChip, styles.silverChip, { marginLeft: 10 }]} />
           </View>
           <Wifi size={18} color="#64748B" style={{ transform: [{ rotate: '90deg' }] }} />
         </View>
@@ -122,9 +123,9 @@ function AnimatedStackedCards({ activeTab }: { activeTab: 0 | 1 }) {
         <View style={styles.cardFooter}>
           <View>
             <Text style={styles.blackCardNumber}>•••• •••• •••• 9012</Text>
-            <Text style={[Typography.caption, { color: '#64748B', marginTop: 2 }]}>NGN FLOAT</Text>
+            <Text style={[Typography.caption, { color: '#64748B', marginTop: 2 }]}>NGN</Text>
           </View>
-          <Text style={styles.visaTextDark}>Mastercard</Text>
+          <Text style={styles.visaTextDark}>VISA</Text>
         </View>
       </Animated.View>
 
@@ -149,7 +150,7 @@ function AnimatedStackedCards({ activeTab }: { activeTab: 0 | 1 }) {
         <View style={styles.silverPatternCircle2} />
         <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
-            <Text style={[Typography.bodyBold, { color: '#0F172A', fontWeight: '800' }]}>Kudi</Text>
+            <Text style={[Typography.bodyBold, { color: '#0F172A', fontWeight: '800' }]}>KUDI</Text>
             <View style={[styles.emvChip, styles.silverChip, { marginLeft: 10 }]} />
           </View>
           <Wifi size={18} color="#475569" style={{ transform: [{ rotate: '90deg' }] }} />
@@ -158,7 +159,7 @@ function AnimatedStackedCards({ activeTab }: { activeTab: 0 | 1 }) {
         <View style={styles.cardFooter}>
           <View>
             <Text style={styles.silverCardNumber}>•••• •••• •••• 5678</Text>
-            <Text style={[Typography.caption, { color: '#475569', marginTop: 2 }]}>USD (USDC)</Text>
+            <Text style={[Typography.caption, { color: '#475569', marginTop: 2 }]}>USD</Text>
           </View>
           <Text style={styles.visaTextLight}>VISA</Text>
         </View>
@@ -169,6 +170,7 @@ function AnimatedStackedCards({ activeTab }: { activeTab: 0 | 1 }) {
 
 export default function CardTab() {
   const palette = useAppPalette();
+  const insets = useSafeAreaInsets();
   const [selectedCard, setSelectedCard] = useState<0 | 1>(0);
   const isDark = palette.text === '#FFFFFF';
 
@@ -186,10 +188,8 @@ export default function CardTab() {
       {/* Header Title */}
       <View style={styles.headerRow}>
         <View>
-          <Text style={[Typography.title1, { color: palette.text }]}>Virtual Cards</Text>
-          <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
-            Instant global USD & local NGN payment cards
-          </Text>
+          <Text style={[Typography.title1, { color: palette.text }]}>Cards</Text>
+
         </View>
       </View>
 
@@ -226,48 +226,20 @@ export default function CardTab() {
       </View>
 
       {/* Onboarding-Style Animated Stacked Cards Visual */}
-      <View style={styles.cardsWrapper}>
+      <View style={[styles.cardsWrapper, { marginTop: insets.top }]}>
         <AnimatedStackedCards activeTab={selectedCard} />
       </View>
 
       {/* Coming Soon Center Banner */}
-      <View style={[styles.comingSoonBanner, { backgroundColor: palette.card, borderColor: palette.border }]}>
-        <Clock size={24} color={palette.textSecondary} />
-        <Text style={[Typography.bodyBold, { color: palette.text, marginTop: 8 }]}>
-          Virtual Cards Coming Soon
+      <View style={[styles.comingSoonBanner, { marginTop: insets.top }]}>
+        <Clock size={20} color={palette.textSecondary} />
+        <Text style={[Typography.currencyDisplay, { color: palette.text, marginTop: 8, textAlign: 'center' }]}>
+          Cards are Coming Soon!
         </Text>
-        <Text style={[Typography.footnote, { color: palette.textSecondary, textAlign: 'center', marginTop: 4 }]}>
-          Instant virtual dollar & naira debit cards for online payments worldwide are undergoing final security audits.
-        </Text>
+
       </View>
 
-      {/* Features Preview */}
-      <View style={[styles.featuresCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-        <Text style={[Typography.bodyBold, { color: palette.text, marginBottom: 12 }]}>
-          Upcoming Features
-        </Text>
 
-        <View style={styles.featureItem}>
-          <Zap size={16} color={palette.success} />
-          <Text style={[Typography.footnote, { color: palette.textSecondary, flex: 1 }]}>
-            Automated instant top-ups from your USDC and NGN wallet balance
-          </Text>
-        </View>
-
-        <View style={styles.featureItem}>
-          <ShieldCheck size={16} color="#60A5FA" />
-          <Text style={[Typography.footnote, { color: palette.textSecondary, flex: 1 }]}>
-            1-Tap freeze & unfreeze security controls
-          </Text>
-        </View>
-
-        <View style={styles.featureItem}>
-          <Sparkles size={16} color="#8B5CF6" />
-          <Text style={[Typography.footnote, { color: palette.textSecondary, flex: 1 }]}>
-            Zero FX markup on global international subscriptions (Apple, Netflix, Amazon)
-          </Text>
-        </View>
-      </View>
     </ScrollView>
   );
 }
@@ -302,8 +274,9 @@ const styles = StyleSheet.create({
   cardsWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: 220,
-    marginVertical: 10
+    height: 260,
+    marginVertical: 10,
+    marginBottom: 30
   },
   stackedCardsContainer: {
     width: 290,
@@ -448,7 +421,7 @@ const styles = StyleSheet.create({
   },
   comingSoonBanner: {
     borderRadius: 20,
-    borderWidth: 1,
+
     padding: 20,
     alignItems: 'center',
     marginVertical: 16

@@ -109,7 +109,8 @@ This document lists all environment variables required or supported across the M
 | `CLOUDINARY_API_KEY` | Cloudinary API Key | `api_key` |
 | `CLOUDINARY_API_SECRET` | Cloudinary API Secret | `api_secret` |
 | `RESEND_API_KEY` | Resend API Key for transactional emails | `re_123...` |
-| `RESEND_FROM_EMAIL` | Sender email address for Resend | `onboarding@resend.dev` |
+| `RESEND_FROM` | Custom sender address or domain for Resend emails | `Kudi <auth@ahmad.usekudi.fun>` |
+| `RESEND_FROM_EMAIL` | Sender email address fallback for Resend | `onboarding@resend.dev` |
 
 ---
 
