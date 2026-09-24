@@ -7,7 +7,18 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Search, Layers, ExternalLink, CheckCircle2, AlertTriangle, Clock3, RotateCcw, RefreshCw } from 'lucide-react';
+import { DepositDetailModal } from '@/components/DepositDetailModal';
+import {
+  Search,
+  Layers,
+  ExternalLink,
+  CheckCircle2,
+  AlertTriangle,
+  Clock3,
+  RotateCcw,
+  RefreshCw,
+  Info
+} from 'lucide-react';
 
 export default function DepositsPage() {
   const [deposits, setDeposits] = useState<AdminDeposit[]>([]);
@@ -17,6 +28,7 @@ export default function DepositsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [requeueing, setRequeueing] = useState<string | null>(null);
   const [rechecking, setRechecking] = useState<string | null>(null);
+  const [selectedDeposit, setSelectedDeposit] = useState<AdminDeposit | null>(null);
 
   async function refreshDeposits() {
     const [data, alertData] = await Promise.all([loadDeposits(), loadOperatorAlerts()]);
@@ -48,7 +60,10 @@ export default function DepositsPage() {
     acc[status] = (acc[status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
-  const exhausted = deposits.filter((dep) => ['SWEEP_FAILED', 'SWEEP_BLOCKED'].includes(dep.sweepStatus || '') && (dep.sweepAttemptCount || 0) >= 4);
+
+  const exhausted = deposits.filter(
+    (dep) => ['SWEEP_FAILED', 'SWEEP_BLOCKED'].includes(dep.sweepStatus || '') && (dep.sweepAttemptCount || 0) >= 4
+  );
 
   const filtered = deposits.filter((dep) => {
     if (chainFilter !== 'ALL' && !dep.chain.includes(chainFilter)) return false;
@@ -94,7 +109,6 @@ export default function DepositsPage() {
         </div>
       </div>
 
-
       {alerts.length > 0 ? (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
           <div className="flex items-start gap-3">
@@ -106,7 +120,10 @@ export default function DepositsPage() {
                   <div key={alert.id} className="rounded-lg border border-border/60 bg-card/70 p-3">
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate text-xs font-semibold text-foreground">{alert.title}</span>
-                      <Badge variant={alert.severity === 'HIGH' || alert.severity === 'CRITICAL' ? 'warning' : 'silver'} className="text-[10px]">
+                      <Badge
+                        variant={alert.severity === 'HIGH' || alert.severity === 'CRITICAL' ? 'warning' : 'silver'}
+                        className="text-[10px]"
+                      >
                         {alert.severity}
                       </Badge>
                     </div>
@@ -179,11 +196,29 @@ export default function DepositsPage() {
               </thead>
               <tbody className="divide-y divide-border/30">
                 {filtered.map((dep) => (
-                  <tr key={dep.id} className="hover:bg-muted/40 transition-colors">
+                  <tr
+                    key={dep.id}
+                    className="hover:bg-muted/40 transition-colors cursor-pointer"
+                    onClick={() => setSelectedDeposit(dep)}
+                  >
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2 font-mono text-[11px] font-semibold text-foreground">
-                        <span>{dep.txHash.length > 24 ? `${dep.txHash.slice(0, 16)}...${dep.txHash.slice(-8)}` : dep.txHash}</span>
-                        <ExternalLink className="h-3 w-3 text-muted-foreground opacity-60 hover:opacity-100 cursor-pointer" />
+                        <span>
+                          {dep.txHash.length > 24
+                            ? `${dep.txHash.slice(0, 16)}...${dep.txHash.slice(-8)}`
+                            : dep.txHash}
+                        </span>
+                        <ExternalLink
+                          className="h-3 w-3 text-muted-foreground opacity-60 hover:opacity-100 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const isSolana = dep.chain.toLowerCase().includes('solana');
+                            const url = isSolana
+                              ? `https://explorer.solana.com/tx/${dep.txHash}?cluster=devnet`
+                              : `https://testnet.monadexplorer.com/tx/${dep.txHash}`;
+                            window.open(url, '_blank');
+                          }}
+                        />
                       </div>
                     </td>
                     <td className="px-4 py-3.5">
@@ -194,9 +229,7 @@ export default function DepositsPage() {
                         </Badge>
                       </div>
                     </td>
-                    <td className="px-4 py-3.5 font-medium text-foreground">
-                      {dep.userName}
-                    </td>
+                    <td className="px-4 py-3.5 font-medium text-foreground">{dep.userName}</td>
                     <td className="px-4 py-3.5 text-right font-mono font-bold text-emerald-400 text-sm">
                       +{dep.amount.toFixed(2)} {dep.token}
                     </td>
@@ -211,16 +244,23 @@ export default function DepositsPage() {
                         CREDITED
                       </Badge>
                     </td>
-                    <td className="px-4 py-3.5 text-center">
+                    <td className="px-4 py-3.5 text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="flex flex-col items-center gap-1">
                         <Badge
-                          variant={dep.sweepStatus === 'SWEPT' ? 'success' : dep.sweepStatus === 'SWEEP_PROCESSING' ? 'silver' : 'warning'}
+                          variant={
+                            dep.sweepStatus === 'SWEPT'
+                              ? 'success'
+                              : dep.sweepStatus === 'SWEEP_PROCESSING'
+                              ? 'silver'
+                              : 'warning'
+                          }
                           className="text-[10px]"
                         >
                           {dep.sweepStatus || 'UNKNOWN'}
                         </Badge>
-                        {['SWEEP_FAILED', 'SWEEP_BLOCKED'].includes(dep.sweepStatus || '') && (dep.sweepAttemptCount || 0) >= 4 ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-amber-300">
+                        {['SWEEP_FAILED', 'SWEEP_BLOCKED'].includes(dep.sweepStatus || '') &&
+                        (dep.sweepAttemptCount || 0) >= 4 ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-amber-300 font-medium">
                             <AlertTriangle className="h-3 w-3" /> action
                           </span>
                         ) : dep.nextSweepAttemptAt && dep.sweepStatus !== 'SWEPT' ? (
@@ -234,12 +274,25 @@ export default function DepositsPage() {
                           </span>
                         ) : null}
                         {dep.sweepError ? (
-                          <span className="max-w-[180px] truncate text-[10px] text-muted-foreground" title={dep.sweepError}>
-                            {dep.sweepError}
-                          </span>
+                          <div className="relative group max-w-[190px]">
+                            <button
+                              onClick={() => setSelectedDeposit(dep)}
+                              className="flex items-center gap-1 text-[10px] text-amber-300/90 hover:text-amber-200 bg-amber-500/10 border border-amber-500/20 rounded px-1.5 py-0.5 max-w-[190px] truncate transition-colors cursor-pointer"
+                            >
+                              <Info className="h-3 w-3 shrink-0 text-amber-400" />
+                              <span className="truncate">{dep.sweepError}</span>
+                            </button>
+                            {/* Hover Tooltip Box */}
+                            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 hidden group-hover:block z-40 w-72 p-2.5 rounded-lg border border-amber-500/30 bg-black/95 text-amber-200 font-mono text-[10px] shadow-xl whitespace-pre-wrap break-all pointer-events-none">
+                              <span className="font-bold block text-amber-300 text-[11px] mb-1">
+                                Complete Sweep Error Trace (Click to open modal):
+                              </span>
+                              {dep.sweepError}
+                            </div>
+                          </div>
                         ) : null}
                         {dep.sweepStatus !== 'SWEPT' ? (
-                          <div className="flex flex-wrap items-center justify-center gap-1">
+                          <div className="flex flex-wrap items-center justify-center gap-1 mt-0.5">
                             {['SWEEP_FAILED', 'SWEEP_BLOCKED'].includes(dep.sweepStatus || '') ? (
                               <Button
                                 variant="ghost"
@@ -276,6 +329,16 @@ export default function DepositsPage() {
           </div>
         )}
       </Card>
+
+      {/* Transaction & Sweep Details Modal */}
+      <DepositDetailModal
+        deposit={selectedDeposit}
+        onClose={() => setSelectedDeposit(null)}
+        onRequeue={handleRequeue}
+        onRecheck={handleRecheck}
+        isRequeueing={Boolean(selectedDeposit && requeueing === selectedDeposit.txHash)}
+        isRechecking={Boolean(selectedDeposit && rechecking === selectedDeposit.txHash)}
+      />
     </div>
   );
 }

@@ -1,14 +1,20 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { loadSystemSettings, loadMaintenanceConfig, updateMaintenanceConfig, loadSweepConfig, updateSweepConfig, AdminSettings, AdminSweepConfig } from '@/lib/admin-data';
+import {
+  loadSystemSettings,
+  loadMaintenanceConfig,
+  updateMaintenanceConfig,
+  loadSweepConfig,
+  updateSweepConfig,
+  AdminSettings
+} from '@/lib/admin-data';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ConfirmActionModal } from '@/components/ui/ConfirmActionModal';
 import {
-  Settings,
-  Shield,
   Server,
   Database,
   Activity,
@@ -20,12 +26,20 @@ import {
   MessageSquare,
   Zap,
   Coins,
-  ShieldCheck
+  ShieldCheck,
+  Building2,
+  Copy,
+  Check,
+  ExternalLink,
+  Lock
 } from 'lucide-react';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Maintenance state
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState(
     "We're currently upgrading Metropolis to bring you improved performance and security. Services will resume shortly."
@@ -35,53 +49,86 @@ export default function SettingsPage() {
   const [maintenanceConfirmModal, setMaintenanceConfirmModal] = useState(false);
   const [maintenanceSaving, setMaintenanceSaving] = useState(false);
 
+  // Operational states
   const [autoFailover, setAutoFailover] = useState(true);
   const [dailyLimit, setDailyLimit] = useState('10000000');
   const [notice, setNotice] = useState<string | null>(null);
 
+  // Sweep state
   const [sweepMode, setSweepMode] = useState<'AUTO' | 'SPONSORED' | 'TREASURY_FEE_PAYER'>('AUTO');
   const [sweepSaving, setSweepSaving] = useState(false);
   const [sweepUpdatedAt, setSweepUpdatedAt] = useState<string | null>(null);
 
+  // Confirmation Modals State
+  const [confirmModalConfig, setConfirmModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    variant?: 'primary' | 'destructive' | 'warning';
+    onConfirm: () => void | Promise<void>;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onConfirm: () => {}
+  });
+
+  function copyToClipboard(text: string, label: string) {
+    void navigator.clipboard.writeText(text);
+    setCopiedField(label);
+    setTimeout(() => setCopiedField(null), 2000);
+  }
+
   useEffect(() => {
-    Promise.all([loadSystemSettings(), loadMaintenanceConfig(), loadSweepConfig()]).then(([systemData, maintData, sweepData]) => {
-      setSettings(systemData);
-      setAutoFailover(systemData.autoFailoverEnabled);
-      setDailyLimit(systemData.maxDailySpendLimitNGN.toString());
+    Promise.all([loadSystemSettings(), loadMaintenanceConfig(), loadSweepConfig()]).then(
+      ([systemData, maintData, sweepData]) => {
+        setSettings(systemData);
+        setAutoFailover(systemData.autoFailoverEnabled);
+        setDailyLimit(systemData.maxDailySpendLimitNGN.toString());
 
-      if (maintData) {
-        setMaintenanceEnabled(Boolean(maintData.enabled));
-        if (maintData.message) setMaintenanceMessage(maintData.message);
-        if (typeof maintData.estimatedMinutes === 'number') {
-          setMaintenanceDuration(maintData.estimatedMinutes);
+        if (maintData) {
+          setMaintenanceEnabled(Boolean(maintData.enabled));
+          if (maintData.message) setMaintenanceMessage(maintData.message);
+          if (typeof maintData.estimatedMinutes === 'number') {
+            setMaintenanceDuration(maintData.estimatedMinutes);
+          }
+          if (maintData.updatedAt) setMaintenanceUpdatedAt(maintData.updatedAt);
         }
-        if (maintData.updatedAt) setMaintenanceUpdatedAt(maintData.updatedAt);
-      }
 
-      if (sweepData?.mode) {
-        setSweepMode(sweepData.mode);
-        if (sweepData.updatedAt) setSweepUpdatedAt(sweepData.updatedAt);
-      }
+        if (sweepData?.mode) {
+          setSweepMode(sweepData.mode);
+          if (sweepData.updatedAt) setSweepUpdatedAt(sweepData.updatedAt);
+        }
 
-      setLoading(false);
-    });
+        setLoading(false);
+      }
+    );
   }, []);
 
-  const handleSaveSweepConfig = async () => {
-    setSweepSaving(true);
-    try {
-      const res = await updateSweepConfig(sweepMode);
-      if (res) {
-        setSweepMode(res.mode);
-        setSweepUpdatedAt(new Date().toISOString());
-        setNotice(`Sweep fee mode updated to ${res.mode}.`);
-        setTimeout(() => setNotice(null), 4000);
+  const requestSweepConfigSave = () => {
+    setConfirmModalConfig({
+      isOpen: true,
+      title: `Update Sweep Fee Mode to ${sweepMode}`,
+      description: `Are you sure you want to switch the network sweep fee policy to ${sweepMode}? This will affect how gas sponsorship and fee payers handle on-chain sweeps for Solana and EVM deposit wallets.`,
+      variant: 'warning',
+      onConfirm: async () => {
+        setSweepSaving(true);
+        try {
+          const res = await updateSweepConfig(sweepMode);
+          if (res) {
+            setSweepMode(res.mode);
+            setSweepUpdatedAt(new Date().toISOString());
+            setNotice(`Sweep fee mode updated to ${res.mode}.`);
+            setTimeout(() => setNotice(null), 4000);
+          }
+        } catch (err: any) {
+          alert('Failed to update sweep mode: ' + (err?.message || err));
+        } finally {
+          setSweepSaving(false);
+          setConfirmModalConfig((prev) => ({ ...prev, isOpen: false }));
+        }
       }
-    } catch (err: any) {
-      alert('Failed to update sweep mode: ' + (err?.message || err));
-    } finally {
-      setSweepSaving(false);
-    }
+    });
   };
 
   const confirmToggleMaintenance = async () => {
@@ -91,7 +138,7 @@ export default function SettingsPage() {
       const res = await updateMaintenanceConfig({
         enabled: nextState,
         message: maintenanceMessage,
-        estimatedMinutes: maintenanceDuration === '' ? null : Number(maintenanceDuration),
+        estimatedMinutes: maintenanceDuration === '' ? null : Number(maintenanceDuration)
       });
 
       if (res) {
@@ -112,31 +159,53 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSaveMaintenanceConfig = async () => {
-    setMaintenanceSaving(true);
-    try {
-      await updateMaintenanceConfig({
-        enabled: maintenanceEnabled,
-        message: maintenanceMessage,
-        estimatedMinutes: maintenanceDuration === '' ? null : Number(maintenanceDuration),
-      });
-      setNotice('Maintenance parameters updated and broadcast to mobile nodes.');
-      setTimeout(() => setNotice(null), 4000);
-    } catch (err: any) {
-      alert('Failed to save parameters: ' + (err?.message || err));
-    } finally {
-      setMaintenanceSaving(false);
-    }
+  const requestSaveCompliance = () => {
+    setConfirmModalConfig({
+      isOpen: true,
+      title: 'Update CBN Tier 2 Compliance Limits',
+      description: `Are you sure you want to set the Tier 2 Max Daily Spend Limit to ₦${parseInt(dailyLimit || '0', 10).toLocaleString('en-NG')}?`,
+      variant: 'primary',
+      onConfirm: () => {
+        setNotice('Compliance parameters applied and logged to regulatory SEC/CBN trail.');
+        setTimeout(() => setNotice(null), 4000);
+        setConfirmModalConfig((prev) => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
-  const handleSaveComplianceConfig = () => {
-    setNotice('Compliance parameters applied and logged to regulatory SEC/CBN trail.');
-    setTimeout(() => setNotice(null), 4000);
+  const requestToggleFailover = () => {
+    const nextState = !autoFailover;
+    setConfirmModalConfig({
+      isOpen: true,
+      title: `${nextState ? 'Enable' : 'Disable'} Automatic Provider Failover`,
+      description: `Are you sure you want to ${nextState ? 'enable' : 'disable'} automatic provider failover? ${
+        nextState
+          ? 'Payouts will automatically fail over to fallback rails (Monnify/Squad) if Paystack latency degrades.'
+          : 'Failover is disabled; failed transactions will require manual operator action.'
+      }`,
+      variant: nextState ? 'primary' : 'warning',
+      onConfirm: () => {
+        setAutoFailover(nextState);
+        setNotice(`Automatic failover has been ${nextState ? 'ENABLED' : 'DISABLED'}.`);
+        setTimeout(() => setNotice(null), 4000);
+        setConfirmModalConfig((prev) => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   if (loading || !settings) {
     return <div className="p-8 text-center text-xs text-muted-foreground">Loading system telemetry...</div>;
   }
+
+  const solanaTreasury =
+    settings.treasuryAddresses?.solana ||
+    process.env.NEXT_PUBLIC_KUDI_TREASURY_SOLANA_ADDRESS ||
+    'KudiTreasurySolanaDevnet11111111111111111111';
+
+  const monadTreasury =
+    settings.treasuryAddresses?.monad ||
+    process.env.NEXT_PUBLIC_KUDI_TREASURY_EVM_ADDRESS ||
+    '0xKudiTreasuryMonadMetropolisTestnet000';
 
   return (
     <div className="space-y-6 pb-12">
@@ -158,6 +227,94 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+
+      {/* Central Treasury Vault Addresses */}
+      <Card
+        title="Central Treasury Vault Addresses"
+        subtitle="On-chain destinations for customer deposit sweeps and liquidity backing"
+      >
+        <div className="grid gap-4 md:grid-cols-2 pt-2">
+          {/* Solana Treasury */}
+          <div className="rounded-xl border border-border/70 bg-muted/30 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-emerald-400" />
+                <span className="font-bold text-xs text-foreground">Solana Central Treasury</span>
+              </div>
+              <Badge variant="silver" className="text-[10px] font-mono">
+                Solana Devnet / Mainnet
+              </Badge>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-black/60 p-3 flex items-center justify-between gap-2">
+              <span className="font-mono text-xs text-emerald-300 truncate select-all">{solanaTreasury}</span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={() => copyToClipboard(solanaTreasury, 'solanaTreasury')}
+                  className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  title="Copy Solana Treasury Address"
+                >
+                  {copiedField === 'solanaTreasury' ? (
+                    <Check className="h-4 w-4 text-emerald-400" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </button>
+                <a
+                  href={`https://explorer.solana.com/address/${solanaTreasury}?cluster=devnet`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              All user SPL USDC deposits are swept directly to this Treasury account to back off-ramp liquidity.
+            </p>
+          </div>
+
+          {/* Monad EVM Treasury */}
+          <div className="rounded-xl border border-border/70 bg-muted/30 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-purple-400" />
+                <span className="font-bold text-xs text-foreground">Monad EVM Central Treasury</span>
+              </div>
+              <Badge variant="silver" className="text-[10px] font-mono">
+                Monad Metropolis Testnet
+              </Badge>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-black/60 p-3 flex items-center justify-between gap-2">
+              <span className="font-mono text-xs text-purple-300 truncate select-all">{monadTreasury}</span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={() => copyToClipboard(monadTreasury, 'monadTreasury')}
+                  className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  title="Copy Monad Treasury Address"
+                >
+                  {copiedField === 'monadTreasury' ? (
+                    <Check className="h-4 w-4 text-emerald-400" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </button>
+                <a
+                  href={`https://testnet.monadexplorer.com/address/${monadTreasury}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              All Monad Testnet AUSD/USDC deposits are swept directly to this EVM Treasury address.
+            </p>
+          </div>
+        </div>
+      </Card>
 
       {/* Infrastructure Telemetry Grid */}
       <Card title="Infrastructure Health & Node Telemetry" subtitle="Live health probes for APIs, databases, message queues and RPCs">
@@ -213,7 +370,7 @@ export default function SettingsPage() {
 
       {/* Operational & Maintenance Controls */}
       <div className="grid gap-6 md:grid-cols-2">
-        {/* PLATFORM MAINTENANCE MODE (Percel Pattern) */}
+        {/* PLATFORM MAINTENANCE MODE */}
         <Card
           title="Platform Maintenance Mode"
           subtitle="Safeguard operations during system upgrades and contract deployments"
@@ -277,15 +434,24 @@ export default function SettingsPage() {
                   }
                   placeholder="e.g. 45"
                 />
-                <p className="text-[11px] text-muted-foreground">
-                  Shown as a countdown hint on user mobile screens. Leave empty if duration is uncertain.
-                </p>
               </div>
 
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleSaveMaintenanceConfig}
+                onClick={() => {
+                  setConfirmModalConfig({
+                    isOpen: true,
+                    title: 'Update Maintenance Parameters',
+                    description: 'Are you sure you want to update the maintenance status message and estimated duration displayed on user mobile screens?',
+                    variant: 'primary',
+                    onConfirm: () => {
+                      setNotice('Maintenance parameters updated and broadcast to mobile nodes.');
+                      setTimeout(() => setNotice(null), 4000);
+                      setConfirmModalConfig((prev) => ({ ...prev, isOpen: false }));
+                    }
+                  });
+                }}
                 disabled={maintenanceSaving}
                 className="text-xs font-semibold"
               >
@@ -307,7 +473,7 @@ export default function SettingsPage() {
                 <Button
                   size="sm"
                   variant={autoFailover ? 'primary' : 'outline'}
-                  onClick={() => setAutoFailover(!autoFailover)}
+                  onClick={requestToggleFailover}
                   className="text-xs h-8"
                 >
                   {autoFailover ? 'ENABLED' : 'DISABLED'}
@@ -331,7 +497,7 @@ export default function SettingsPage() {
                 </p>
               </div>
 
-              <Button variant="primary" onClick={handleSaveComplianceConfig} className="text-xs font-semibold">
+              <Button variant="primary" onClick={requestSaveCompliance} className="text-xs font-semibold">
                 Save Compliance Parameters
               </Button>
             </div>
@@ -414,7 +580,7 @@ export default function SettingsPage() {
             <Button
               size="sm"
               variant="primary"
-              onClick={handleSaveSweepConfig}
+              onClick={requestSweepConfigSave}
               disabled={sweepSaving}
             >
               {sweepSaving ? 'Saving...' : 'Save Sweep Mode'}
@@ -453,83 +619,31 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      {/* MAINTENANCE MODE CONFIRMATION MODAL (Percel High-Safety Protocol) */}
-      {maintenanceConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3">
-              <div
-                className={`p-2.5 rounded-xl ${
-                  maintenanceEnabled ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
-                }`}
-              >
-                <AlertTriangle className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-foreground">
-                  Confirm {maintenanceEnabled ? 'Disabling' : 'Enabling'} Maintenance Mode?
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  High-privilege platform operation safeguard
-                </p>
-              </div>
-            </div>
+      {/* Confirmation Modal for Maintenance Mode Toggle */}
+      <ConfirmActionModal
+        isOpen={maintenanceConfirmModal}
+        title={`${maintenanceEnabled ? 'Disable' : 'Enable'} Platform Maintenance Mode`}
+        description={
+          maintenanceEnabled
+            ? 'Are you sure you want to disable maintenance mode? This will restore user access across all mobile wallet applications.'
+            : 'Are you sure you want to enable maintenance mode? This will display the System Upgrade screen on all mobile user applications, blocking deposits, off-ramping, and bill payments.'
+        }
+        variant={maintenanceEnabled ? 'primary' : 'destructive'}
+        confirmText={maintenanceEnabled ? 'Restore Live Services' : 'Activate Maintenance Mode'}
+        isLoading={maintenanceSaving}
+        onConfirm={confirmToggleMaintenance}
+        onCancel={() => setMaintenanceConfirmModal(false)}
+      />
 
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {maintenanceEnabled
-                ? 'Disabling maintenance mode will immediately restore normal access to deposits, off-ramp spends, and wallet functions across all user mobile apps.'
-                : 'Enabling maintenance mode will block all new customer spend orders, crypto deposits, and bill payments platform-wide. All active mobile wallet sessions will display the System Upgrade overlay.'}
-            </p>
-
-            <div className="rounded-xl border border-border/60 bg-muted/40 p-3 text-[11px] space-y-1.5">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Target Status:</span>
-                <span className="font-bold text-foreground">
-                  {maintenanceEnabled ? 'DISABLED (LIVE SERVICES)' : 'ACTIVE (BLOCKING ACCESS)'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Estimated Duration:</span>
-                <span className="font-mono font-semibold text-foreground">
-                  {maintenanceDuration ? `~${maintenanceDuration} mins` : 'Indefinite'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Message Preview:</span>
-                <span className="font-medium text-foreground truncate max-w-[210px]" title={maintenanceMessage}>
-                  {maintenanceMessage}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2.5 pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setMaintenanceConfirmModal(false)}
-                disabled={maintenanceSaving}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant={maintenanceEnabled ? 'primary' : 'destructive'}
-                size="sm"
-                onClick={confirmToggleMaintenance}
-                disabled={maintenanceSaving}
-                className="gap-1.5"
-              >
-                {maintenanceSaving ? (
-                  'Updating...'
-                ) : maintenanceEnabled ? (
-                  'Restore Normal Services'
-                ) : (
-                  'Activate Maintenance Mode'
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* General Confirmation Modal for Other Settings Actions */}
+      <ConfirmActionModal
+        isOpen={confirmModalConfig.isOpen}
+        title={confirmModalConfig.title}
+        description={confirmModalConfig.description}
+        variant={confirmModalConfig.variant}
+        onConfirm={confirmModalConfig.onConfirm}
+        onCancel={() => setConfirmModalConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

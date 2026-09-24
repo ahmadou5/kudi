@@ -125,7 +125,11 @@ export class AdminController {
       activePaymentProvider: this.paymentRegistry.getActiveProviderId(),
       custodyTrack: this.custodyManager.getActiveTrack(),
       failoverOrder: this.paymentRegistry.getFailoverOrder(),
-      rateState: this.rateService.getRateState()
+      rateState: this.rateService.getRateState(),
+      treasuryAddresses: {
+        solana: process.env.KUDI_TREASURY_SOLANA_ADDRESS || 'KudiTreasurySolanaDevnet11111111111111111111',
+        monad: process.env.KUDI_TREASURY_EVM_ADDRESS || '0xKudiTreasuryMonadMetropolisTestnet000'
+      }
     });
   };
 
@@ -330,7 +334,7 @@ export class AdminController {
         d.id, d."userId", COALESCE(u."fullName", u.email, u."phoneNumber", d."userId") AS "userName",
         d.chain, d."tokenSymbol", d."amountUSDC", d.signature, d."blockNumber", d."creditStatus",
         d."sweepStatus", d."sweepTxHash", d."sweepError", d."sweepAttemptCount", d."nextSweepAttemptAt",
-        d."creditedAt", d."sweptAt", d."createdAt"
+        d."creditedAt", d."sweptAt", d."walletAddress", d."privyWalletId", d."createdAt"
       FROM "Deposit" d
       LEFT JOIN "User" u ON u.id = d."userId"
       ORDER BY d."createdAt" DESC
@@ -353,6 +357,8 @@ export class AdminController {
       sweepAttemptCount: Number(row.sweepAttemptCount || 0),
       nextSweepAttemptAt: row.nextSweepAttemptAt?.toISOString?.() || row.nextSweepAttemptAt,
       sweptAt: row.sweptAt?.toISOString?.() || row.sweptAt,
+      walletAddress: row.walletAddress,
+      privyWalletId: row.privyWalletId,
       createdAt: row.createdAt?.toISOString?.() || row.createdAt
     })));
   };

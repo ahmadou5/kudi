@@ -74,6 +74,8 @@ export type AdminDeposit = {
   sweepAttemptCount?: number;
   nextSweepAttemptAt?: string | null;
   sweptAt?: string | null;
+  walletAddress?: string | null;
+  privyWalletId?: string | null;
   createdAt: string;
 };
 
@@ -152,6 +154,10 @@ export type AdminSettings = {
   autoFailoverEnabled: boolean;
   maxDailySpendLimitNGN: number;
   rateSpreadToleranceBps: number;
+  treasuryAddresses?: {
+    solana: string;
+    monad: string;
+  };
   health: {
     fastifyApi: 'HEALTHY' | 'DEGRADED' | 'DOWN';
     postgresPrisma: 'HEALTHY' | 'DEGRADED' | 'DOWN';
@@ -599,6 +605,10 @@ const fallbackSettings: AdminSettings = {
   autoFailoverEnabled: true,
   maxDailySpendLimitNGN: 10000000,
   rateSpreadToleranceBps: 150,
+  treasuryAddresses: {
+    solana: 'KudiTreasurySolanaDevnet11111111111111111111',
+    monad: '0xKudiTreasuryMonadMetropolisTestnet000'
+  },
   health: {
     fastifyApi: 'HEALTHY',
     postgresPrisma: 'HEALTHY',
