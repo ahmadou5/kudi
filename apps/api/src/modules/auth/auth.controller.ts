@@ -65,7 +65,10 @@ export class AuthController {
 
     const privyUserId = `privy_usr_email_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
-    let user = this.ledgerService.findUserByPrivyOrEmail(privyUserId, cleanEmail);
+    // Use async DB-backed lookup to prevent duplicate accounts.
+    // If the server just restarted, syncFromDatabase may not have finished yet and
+    // the in-memory map is empty. Without this, a login would create a new account.
+    let user = await this.ledgerService.findOrFetchUserByIdentifier(privyUserId, cleanEmail);
     let userId = user ? user.id : `usr_${Date.now()}`;
 
     if (!user) {
@@ -106,8 +109,8 @@ export class AuthController {
       return reply.status(400).send(errorResponse('INVALID_AUTH_PAYLOAD', 'Privy user ID, email, or phone number required'));
     }
 
-    // Lookup user or register new user
-    let user = this.ledgerService.findUserByPrivyOrEmail(privyUserId, email, phoneNumber);
+    // Use async DB-backed lookup to prevent duplicate accounts on server restart
+    let user = await this.ledgerService.findOrFetchUserByIdentifier(privyUserId, email, phoneNumber);
     let userId = user ? user.id : `usr_${Date.now()}`;
 
     if (!user) {

@@ -192,7 +192,16 @@ export class LedgerService {
           expoPushToken: u.expoPushToken || undefined,
           kycStatus: u.kycStatus as KYCStatus,
           kycTier: u.kycTier as KYCTier,
-          wallets: u.wallets.map(w => ({ chain: w.chain, address: w.address }))
+          wallets: u.wallets.map(w => ({
+            chain: w.chain,
+            address: w.address,
+            metadata: {
+              // Restore Privy wallet ID so sweep worker can sign from this wallet after restart
+              ...(w.privyWalletId ? { privyWalletId: w.privyWalletId } : {}),
+              // Restore any extra metadata (mock flag, etc.)
+              ...(w.metadata ? (() => { try { return JSON.parse(w.metadata!); } catch { return {}; } })() : {})
+            }
+          }))
         };
         this.users.set(u.id, userRec);
 
@@ -406,6 +415,113 @@ export class LedgerService {
       }
     }
     return undefined;
+  }
+
+  /**
+   * Async variant of findUserByPrivyOrEmail with a DB fallback.
+   *
+   * Root cause of the duplicate-account bug:
+   *   syncFromDatabase() is async — if a login request arrives before it finishes
+   *   (e.g. server just restarted), the in-memory map is empty → user not found
+   *   → new usr_${Date.now()} created → duplicate account with new wallets.
+   *
+   * This method solves it by querying the DB directly when the in-memory map misses.
+   * It also re-hydrates the in-memory cache so subsequent calls are fast.
+   */
+  public async findOrFetchUserByIdentifier(
+    privyUserId?: string,
+    email?: string,
+    phoneNumber?: string
+  ): Promise<UserRecord | undefined> {
+    // Fast path: check in-memory cache first
+    const inMemory = this.findUserByPrivyOrEmail(privyUserId, email, phoneNumber);
+    if (inMemory) return inMemory;
+
+    // DB fallback — handles race condition where syncFromDatabase hasn't completed yet
+    try {
+      const cleanEmail = email?.trim().toLowerCase();
+      const cleanPrivy = privyUserId?.trim();
+      const cleanPhone = phoneNumber?.trim();
+
+      const orFilters: any[] = [];
+      if (cleanPrivy) orFilters.push({ privyUserId: cleanPrivy });
+      if (cleanEmail) orFilters.push({ email: cleanEmail });
+      if (cleanPhone) orFilters.push({ phoneNumber: cleanPhone });
+
+      if (orFilters.length === 0) return undefined;
+
+      const dbUser = await prisma.user.findFirst({
+        where: { OR: orFilters },
+        include: { wallets: true, virtualAccounts: true }
+      });
+
+      if (!dbUser) return undefined;
+
+      console.log(`[LedgerService] 🔁 DB fallback hit for ${cleanEmail || cleanPrivy || cleanPhone} — re-hydrating in-memory cache.`);
+
+      // Hydrate in-memory cache from DB record so subsequent requests are fast
+      const userRec: UserRecord = {
+        id: dbUser.id,
+        privyUserId: dbUser.privyUserId || undefined,
+        phoneNumber: dbUser.phoneNumber || undefined,
+        email: dbUser.email || undefined,
+        fullName: dbUser.fullName || undefined,
+        username: dbUser.username || undefined,
+        avatarUrl: dbUser.avatarUrl || undefined,
+        role: dbUser.role || 'USER',
+        passwordHash: dbUser.passwordHash || undefined,
+        status: dbUser.status || 'ACTIVE',
+        pinHash: dbUser.pinHash || undefined,
+        expoPushToken: dbUser.expoPushToken || undefined,
+        kycStatus: dbUser.kycStatus as KYCStatus,
+        kycTier: dbUser.kycTier as KYCTier,
+        wallets: (dbUser.wallets || []).map((w: any) => ({
+          chain: w.chain,
+          address: w.address,
+          metadata: {
+            ...(w.privyWalletId ? { privyWalletId: w.privyWalletId } : {}),
+            ...(w.metadata ? (() => { try { return JSON.parse(w.metadata); } catch { return {}; } })() : {})
+          }
+        }))
+      };
+
+      this.users.set(dbUser.id, userRec);
+
+      // Also restore virtual accounts
+      if (dbUser.virtualAccounts && dbUser.virtualAccounts.length > 0) {
+        this.virtualAccounts.set(
+          dbUser.id,
+          dbUser.virtualAccounts.map((va: any) => ({
+            accountNumber: va.accountNumber,
+            accountName: va.accountName,
+            bankName: va.bankName,
+            bankCode: va.bankCode,
+            currency: va.currency,
+            provider: va.provider
+          }))
+        );
+      }
+
+      // Restore balance from DB
+      try {
+        const rawEntries: any[] = await prisma.$queryRaw`
+          SELECT "resultingBalanceUSDC" FROM "LedgerEntry"
+          WHERE "userId" = ${dbUser.id}
+          ORDER BY "createdAt" DESC
+          LIMIT 1
+        `;
+        if (rawEntries.length > 0) {
+          this.ledger.set(dbUser.id, Number(rawEntries[0].resultingBalanceUSDC));
+        }
+      } catch {
+        // Non-fatal: balance will be 0 until syncFromDatabase completes
+      }
+
+      return userRec;
+    } catch (err: any) {
+      console.warn('[LedgerService] DB fallback lookup error:', err?.message || err);
+      return undefined;
+    }
   }
 
   public updateUserKYC(userId: string, status: KYCStatus, tier: KYCTier): void {
