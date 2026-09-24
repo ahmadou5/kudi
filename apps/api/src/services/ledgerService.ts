@@ -550,21 +550,45 @@ export class LedgerService {
   }
 
   public async deleteUser(userId: string): Promise<boolean> {
+    // 1. Purge from in-memory users map
     this.users.delete(userId);
 
+    // 2. Cascade delete all child database records in an atomic Prisma transaction
     try {
-      // Clean up user from database
-      await prisma.user.delete({ where: { id: userId } });
+      await prisma.$transaction([
+        prisma.balanceAccount.deleteMany({ where: { userId } }),
+        prisma.ledgerEntry.deleteMany({ where: { userId } }),
+        prisma.wallet.deleteMany({ where: { userId } }),
+        prisma.deposit.deleteMany({ where: { userId } }),
+        prisma.withdrawal.deleteMany({ where: { userId } }),
+        prisma.spendTransaction.deleteMany({ where: { userId } }),
+        prisma.notification.deleteMany({ where: { userId } }),
+        prisma.virtualAccount.deleteMany({ where: { userId } }),
+        prisma.spendLimitEntry.deleteMany({ where: { userId } }),
+        prisma.user.delete({ where: { id: userId } })
+      ]);
+      console.log(`[LedgerService] 🗑️ User ${userId} and all related records completely purged.`);
+      return true;
     } catch (err: any) {
-      console.warn(`[LedgerService] Database user deletion notice for ${userId}:`, err?.message || err);
+      console.error(`[LedgerService] Transaction delete failed for ${userId}, trying fallback:`, err?.message || err);
       try {
-        await prisma.user.update({
-          where: { id: userId },
-          data: { status: 'DELETED', email: `deleted_${userId}@kudi.invalid`, phoneNumber: null }
-        });
-      } catch {}
+        await prisma.$executeRaw`DELETE FROM "BalanceAccount" WHERE "userId" = ${userId}`;
+        await prisma.$executeRaw`DELETE FROM "LedgerEntry" WHERE "userId" = ${userId}`;
+        await prisma.$executeRaw`DELETE FROM "Wallet" WHERE "userId" = ${userId}`;
+        await prisma.$executeRaw`DELETE FROM "Deposit" WHERE "userId" = ${userId}`;
+        await prisma.$executeRaw`DELETE FROM "Withdrawal" WHERE "userId" = ${userId}`;
+        await prisma.$executeRaw`DELETE FROM "SpendTransaction" WHERE "userId" = ${userId}`;
+        await prisma.$executeRaw`DELETE FROM "Notification" WHERE "userId" = ${userId}`;
+        await prisma.$executeRaw`DELETE FROM "VirtualAccount" WHERE "userId" = ${userId}`;
+        await prisma.$executeRaw`DELETE FROM "SpendLimitEntry" WHERE "userId" = ${userId}`;
+        await prisma.$executeRaw`DELETE FROM "User" WHERE id = ${userId}`;
+        console.log(`[LedgerService] 🗑️ User ${userId} completely purged via raw SQL.`);
+        return true;
+      } catch (rawErr: any) {
+        console.error(`[LedgerService] Raw SQL delete failed for ${userId}:`, rawErr?.message || rawErr);
+        throw rawErr;
+      }
     }
-    return true;
   }
 
   public registerAdminUser(userId: string, email: string, passwordHash?: string, fullName?: string): UserRecord {
