@@ -201,7 +201,8 @@ export class ChainDepositProcessor {
       const { txHash } = await this.selfCustody.sendCrypto({
         treasuryWalletId: params.wallet.privyWalletId,
         fromAddress: normalizedChain === 'solana' ? params.wallet.address : undefined,
-        feePayerAddress: normalizedChain === 'solana' ? targetTreasury : undefined,
+        // feePayerAddress intentionally omitted: user wallet (signerAddr) always pays its own fees.
+        // Setting treasury as fee payer would require 2 signers — Privy only signs with 1 wallet.
         toAddress: targetTreasury,
         amountUSDC: params.amountUSDC,
         chain: normalizedChain

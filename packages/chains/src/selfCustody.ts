@@ -404,7 +404,7 @@ export class SelfCustodyProvider implements CustodyProvider {
     fromAddress?: string;
     feePayerAddress?: string;
   }): Promise<{ txHash: string }> {
-    const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress, fromAddress, feePayerAddress } = params;
+    const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress, fromAddress } = params;
 
     if (!this.appId || !this.appSecret || !treasuryWalletId) {
       const missing = {
@@ -493,24 +493,12 @@ export class SelfCustodyProvider implements CustodyProvider {
         // Fall back to creating ATA if check fails
       }
 
-      const feePayerAddrStr = feePayerAddress || (sponsor ? signerAddrStr : (this.solanaTreasuryAddress || signerAddrStr));
-      const feePayerAddr = solanaAddress(feePayerAddrStr as Address);
-
-      // Create destination Associated Token Account if it does not exist yet (idempotent).
-      // Discriminator [1] = CreateIdempotent per SPL ATA program instruction enum.
-      // Account roles: 0=Readonly, 1=Writable, 2=ReadonlySigner, 3=WritableSigner
-      const createDestAtaIx = {
-        programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
-        accounts: [
-          { address: feePayerAddr, role: 3 as const },            // Writable Signer (Payer)
-          { address: destAta,      role: 1 as const },            // Writable (ATA to create)
-          { address: recipientAddr, role: 0 as const },           // Readonly (Owner)
-          { address: mintPubkey,   role: 0 as const },            // Readonly (Mint)
-          { address: SYSTEM_PROGRAM_ADDRESS, role: 0 as const },  // Readonly (System Program)
-          { address: TOKEN_PROGRAM_ADDRESS,  role: 0 as const }   // Readonly (SPL Token Program)
-        ],
-        data: new Uint8Array([1]) // 1 = CreateIdempotent
-      };
+      // IMPORTANT: Fee payer MUST be the same wallet as the signer (signerAddr / user wallet).
+      // Using a different address (e.g. treasury) as fee payer would create a 2-signer transaction
+      // (user authority + treasury fee payer), but Privy only signs with the single wallet passed
+      // as treasuryWalletId → the treasury signature slot is empty → signature verification fails.
+      // Solution: user wallet always pays its own fees (Solana fees are ~0.000005 SOL / ~$0.001).
+      const feePayerAddr = signerAddr; // always single-signer: user wallet pays fees
 
       // SPL Token transferChecked instruction
       const amountRaw = BigInt(Math.floor(amountUSDC * Math.pow(10, USDC_DECIMALS)));
@@ -523,39 +511,80 @@ export class SelfCustodyProvider implements CustodyProvider {
         decimals: USDC_DECIMALS
       });
 
-      // Compose transaction message (functional pipe style — v2 API)
-      const txMessage = pipe(
-        createTransactionMessage({ version: 0 as const }),
-        (tx) => setTransactionMessageFeePayer(feePayerAddr, tx),
-        (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-        (tx) => (!destAtaExists ? appendTransactionMessageInstruction(createDestAtaIx, tx) : tx),
-        (tx) => appendTransactionMessageInstruction(transferIx, tx)
-      );
+      // Compose transaction message (functional pipe style — v2 API).
+      // NOTE: We do NOT include a createDestAta instruction here even if destAtaExists=false.
+      // Reason: createDestAta requires the fee payer to be a WritableSigner. If fee payer ≠ user
+      // wallet it would add a second required signer. Instead we rely on Privy gas sponsorship
+      // (sponsor:true) to handle ATA creation, or the treasury ATA is pre-created.
+      // In practice the treasury ATA always exists once the treasury has received any USDC before.
+      if (!destAtaExists) {
+        // Create destination ATA instruction — fee payer is signerAddr (single signer)
+        const createDestAtaIx = {
+          programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+          accounts: [
+            { address: feePayerAddr, role: 3 as const },           // Writable Signer (Payer = user)
+            { address: destAta,      role: 1 as const },           // Writable (ATA to create)
+            { address: recipientAddr, role: 0 as const },          // Readonly (Owner = treasury)
+            { address: mintPubkey,   role: 0 as const },           // Readonly (Mint)
+            { address: SYSTEM_PROGRAM_ADDRESS, role: 0 as const }, // Readonly (System Program)
+            { address: TOKEN_PROGRAM_ADDRESS,  role: 0 as const }  // Readonly (SPL Token Program)
+          ],
+          data: new Uint8Array([1]) // 1 = CreateIdempotent
+        };
+        console.log(`[SelfCustody] ℹ️ Destination ATA for treasury does not exist yet — including CreateIdempotent ATA instruction (user wallet pays).`);
 
-      // Compile to wire format. v2 compileTransaction returns { messageBytes, signatures }.
-      // Privy needs an unsigned wire-format transaction:
-      //   [compact-u16 numSigs] [numSigs * 64 zero bytes for empty signature slots] [message bytes]
-      // IMPORTANT: Do NOT read msgBytes[0] as numSigs — for versioned (v0) transactions the
-      // first byte of messageBytes is the version prefix 0x80, not the signer count.
-      // The signer count comes from compiled.signatures.size.
-      const compiled = compileTransaction(txMessage);
-      const msgBytes = compiled.messageBytes as unknown as Uint8Array;
-      const numSigs = Object.keys(compiled.signatures).length || 1; // Number of required signers from compiled tx
-      const wireBytes = new Uint8Array(1 + (numSigs * 64) + msgBytes.length);
-      wireBytes[0] = numSigs; // compact-u16 for required signature count
-      // bytes 1 to (1 + numSigs * 64): zero bytes (unsigned signature slots — Privy signs these)
-      wireBytes.set(msgBytes, 1 + (numSigs * 64));
-      const serializedTx = Buffer.from(wireBytes).toString('base64');
+        const txMessage = pipe(
+          createTransactionMessage({ version: 0 as const }),
+          (tx) => setTransactionMessageFeePayer(feePayerAddr, tx),
+          (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+          (tx) => appendTransactionMessageInstruction(createDestAtaIx, tx),
+          (tx) => appendTransactionMessageInstruction(transferIx, tx)
+        );
 
-      requestBody = {
-        method: 'signAndSendTransaction',
-        caip2: this.solanaCaip2,
-        ...(sponsor ? { sponsor: true } : {}),
-        params: {
-          transaction: serializedTx,
-          encoding: 'base64'
-        }
-      };
+        const compiled = compileTransaction(txMessage);
+        const msgBytes = compiled.messageBytes as unknown as Uint8Array;
+        const numSigs = Object.keys(compiled.signatures).length || 1;
+        const wireBytes = new Uint8Array(1 + (numSigs * 64) + msgBytes.length);
+        wireBytes[0] = numSigs;
+        wireBytes.set(msgBytes, 1 + (numSigs * 64));
+        const serializedTx = Buffer.from(wireBytes).toString('base64');
+
+        requestBody = {
+          method: 'signAndSendTransaction',
+          caip2: this.solanaCaip2,
+          ...(sponsor ? { sponsor: true } : {}),
+          params: { transaction: serializedTx, encoding: 'base64' }
+        };
+      } else {
+        // Treasury ATA already exists — simple single-instruction transfer (fastest path)
+        const txMessage = pipe(
+          createTransactionMessage({ version: 0 as const }),
+          (tx) => setTransactionMessageFeePayer(feePayerAddr, tx),
+          (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+          (tx) => appendTransactionMessageInstruction(transferIx, tx)
+        );
+
+        // Compile to wire format. v2 compileTransaction returns { messageBytes, signatures }.
+        // Privy needs an unsigned wire-format transaction:
+        //   [compact-u16 numSigs] [numSigs * 64 zero bytes for empty signature slots] [message bytes]
+        // IMPORTANT: Do NOT read msgBytes[0] as numSigs — for versioned (v0) transactions the
+        // first byte of messageBytes is the version prefix 0x80, not the signer count.
+        // The signer count comes from compiled.signatures.size.
+        const compiled = compileTransaction(txMessage);
+        const msgBytes = compiled.messageBytes as unknown as Uint8Array;
+        const numSigs = Object.keys(compiled.signatures).length || 1;
+        const wireBytes = new Uint8Array(1 + (numSigs * 64) + msgBytes.length);
+        wireBytes[0] = numSigs;
+        wireBytes.set(msgBytes, 1 + (numSigs * 64));
+        const serializedTx = Buffer.from(wireBytes).toString('base64');
+
+        requestBody = {
+          method: 'signAndSendTransaction',
+          caip2: this.solanaCaip2,
+          ...(sponsor ? { sponsor: true } : {}),
+          params: { transaction: serializedTx, encoding: 'base64' }
+        };
+      }
     } else {
       // Monad EVM: ERC-20 transfer(address,uint256) via eth_sendTransaction
       const contract = usdcContractAddress || this.ausdTokenAddress;
