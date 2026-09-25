@@ -442,12 +442,23 @@ export class SelfCustodyProvider implements CustodyProvider {
       const recipientAddr = solanaAddress(toAddress as Address);
 
       // Create Solana JSON-RPC client (no WebSocket — HTTP only for blockhash fetch)
+      // Create Solana JSON-RPC client (no WebSocket — HTTP only for blockhash fetch)
       const rpc = createSolanaRpc(this.rpcUrlSolana);
 
-      // Fetch recent blockhash with confirmed commitment for a fresh hash that is less likely to
-      // expire before Privy's RPC node processes the transaction.
-      // (finalized = ~32 slots old / ~20s; confirmed = ~1-2 slots old / ~1s — safer window)
-      const { value: latestBlockhash } = await rpc.getLatestBlockhash({ commitment: 'confirmed' }).send();
+      // Fetch recent blockhash using finalized commitment first (guarantees Privy's RPC node recognizes it across the network).
+      // If finalized fetch fails on test RPCs, gracefully fall back to confirmed commitment.
+      const fetchSolanaBlockhash = async () => {
+        try {
+          const res = await rpc.getLatestBlockhash({ commitment: 'finalized' }).send();
+          return res.value;
+        } catch (bhErr) {
+          console.warn('[SelfCustody] Finalized blockhash fetch failed, falling back to confirmed commitment:', bhErr);
+          const res = await rpc.getLatestBlockhash({ commitment: 'confirmed' }).send();
+          return res.value;
+        }
+      };
+
+      let latestBlockhash = await fetchSolanaBlockhash();
 
       // Derive source and destination Associated Token Accounts (ATAs)
       // ATA = PDA([owner, TOKEN_PROGRAM, mint], ATA_PROGRAM)
@@ -556,6 +567,82 @@ export class SelfCustodyProvider implements CustodyProvider {
           encoding: 'base64'
         }
       };
+
+      const sendWithRetry = async (isRetry = false): Promise<{ txHash: string }> => {
+        let res = await fetch(`https://api.privy.io/v1/wallets/${treasuryWalletId}/rpc`, {
+          method: 'POST',
+          headers: {
+            'privy-app-id': this.appId,
+            Authorization: authHeader,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          if (!isRetry && (errText.toLowerCase().includes('blockhash') || errText.toLowerCase().includes('simulation failed'))) {
+            console.warn('[SelfCustody] ⚠️ Privy RPC returned blockhash error. Re-fetching fresh finalized blockhash and retrying...');
+            latestBlockhash = await fetchSolanaBlockhash();
+            const refreshedTxMessage = pipe(
+              createTransactionMessage({ version: 0 as const }),
+              (tx) => setTransactionMessageFeePayer(feePayerAddr, tx),
+              (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+              (tx) => (!destAtaExists ? appendTransactionMessageInstruction(createDestAtaIx, tx) : tx),
+              (tx) => appendTransactionMessageInstruction(transferIx, tx)
+            );
+            const refCompiled = compileTransaction(refreshedTxMessage);
+            const refMsgBytes = refCompiled.messageBytes as unknown as Uint8Array;
+            const refNumSigs = Object.keys(refCompiled.signatures).length || 1;
+            const refWireBytes = new Uint8Array(1 + (refNumSigs * 64) + refMsgBytes.length);
+            refWireBytes[0] = refNumSigs;
+            refWireBytes.set(refMsgBytes, 1 + (refNumSigs * 64));
+            const refSerializedTx = Buffer.from(refWireBytes).toString('base64');
+            requestBody = {
+              method: 'signAndSendTransaction',
+              caip2: this.solanaCaip2,
+              ...(sponsor ? { sponsor: true } : {}),
+              params: { transaction: refSerializedTx, encoding: 'base64' }
+            };
+            return sendWithRetry(true);
+          }
+
+          if (sponsor && errText.includes('Gas sponsorship is not configured')) {
+            console.warn('[SelfCustody] ℹ️ Privy gas sponsorship not enabled in dashboard; retrying standard transfer...');
+            const { sponsor: _omitted, ...bodyWithoutSponsor } = requestBody;
+            res = await fetch(`https://api.privy.io/v1/wallets/${treasuryWalletId}/rpc`, {
+              method: 'POST',
+              headers: {
+                'privy-app-id': this.appId,
+                Authorization: authHeader,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(bodyWithoutSponsor)
+            });
+          }
+          if (!res.ok) {
+            const finalErrText = await res.text().catch(() => '');
+            throw new Error(`Privy RPC error ${res.status}: ${finalErrText || errText}`);
+          }
+        }
+
+        const data = await res.json() as any;
+        const txHash = data.data?.hash || data.hash || data.data?.signature || data.signature || data.result;
+
+        if (!txHash) {
+          throw new Error(`Privy RPC returned success but no transaction hash/signature was found in response: ${JSON.stringify(data)}`);
+        }
+
+        console.log(`[SelfCustody] ✅ Broadcast ${amountUSDC} USDC on ${chain}${sponsor ? ' (gas sponsored)' : ''}: ${txHash.slice(0, 20)}...`);
+        return { txHash };
+      };
+
+      try {
+        return await sendWithRetry();
+      } catch (err: any) {
+        console.error(`[SelfCustody] ❌ Privy broadcast failed: ${err?.message || err}`);
+        throw err;
+      }
     } else {
       // Monad EVM: ERC-20 transfer(address,uint256) via eth_sendTransaction
       const contract = usdcContractAddress || this.ausdTokenAddress;
@@ -575,52 +662,52 @@ export class SelfCustodyProvider implements CustodyProvider {
           }
         }
       };
-    }
 
-    try {
-      let res = await fetch(`https://api.privy.io/v1/wallets/${treasuryWalletId}/rpc`, {
-        method: 'POST',
-        headers: {
-          'privy-app-id': this.appId,
-          Authorization: authHeader,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
-      });
+      try {
+        let res = await fetch(`https://api.privy.io/v1/wallets/${treasuryWalletId}/rpc`, {
+          method: 'POST',
+          headers: {
+            'privy-app-id': this.appId,
+            Authorization: authHeader,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        });
 
-      if (!res.ok) {
-        const errText = await res.text();
-        if (sponsor && errText.includes('Gas sponsorship is not configured')) {
-          console.warn('[SelfCustody] ℹ️ Privy gas sponsorship not enabled in dashboard; retrying standard transfer...');
-          const { sponsor: _omitted, ...bodyWithoutSponsor } = requestBody;
-          res = await fetch(`https://api.privy.io/v1/wallets/${treasuryWalletId}/rpc`, {
-            method: 'POST',
-            headers: {
-              'privy-app-id': this.appId,
-              Authorization: authHeader,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(bodyWithoutSponsor)
-          });
-        }
         if (!res.ok) {
-          const finalErrText = await res.text().catch(() => '');
-          throw new Error(`Privy RPC error ${res.status}: ${finalErrText || errText}`);
+          const errText = await res.text();
+          if (sponsor && errText.includes('Gas sponsorship is not configured')) {
+            console.warn('[SelfCustody] ℹ️ Privy gas sponsorship not enabled in dashboard; retrying standard transfer...');
+            const { sponsor: _omitted, ...bodyWithoutSponsor } = requestBody;
+            res = await fetch(`https://api.privy.io/v1/wallets/${treasuryWalletId}/rpc`, {
+              method: 'POST',
+              headers: {
+                'privy-app-id': this.appId,
+                Authorization: authHeader,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(bodyWithoutSponsor)
+            });
+          }
+          if (!res.ok) {
+            const finalErrText = await res.text().catch(() => '');
+            throw new Error(`Privy RPC error ${res.status}: ${finalErrText || errText}`);
+          }
         }
+
+        const data = await res.json() as any;
+        const txHash = data.data?.hash || data.hash || data.data?.signature || data.signature || data.result;
+
+        if (!txHash) {
+          throw new Error(`Privy RPC returned success but no transaction hash/signature was found in response: ${JSON.stringify(data)}`);
+        }
+
+        console.log(`[SelfCustody] ✅ Broadcast ${amountUSDC} USDC on ${chain}${sponsor ? ' (gas sponsored)' : ''}: ${txHash.slice(0, 20)}...`);
+        return { txHash };
+      } catch (err: any) {
+        console.error(`[SelfCustody] ❌ Privy broadcast failed: ${err?.message || err}`);
+        throw err;
       }
-
-      const data = await res.json() as any;
-      const txHash = data.data?.hash || data.hash || data.data?.signature || data.signature || data.result;
-
-      if (!txHash) {
-        throw new Error(`Privy RPC returned success but no transaction hash/signature was found in response: ${JSON.stringify(data)}`);
-      }
-
-      console.log(`[SelfCustody] ✅ Broadcast ${amountUSDC} USDC on ${chain}${sponsor ? ' (gas sponsored)' : ''}: ${txHash.slice(0, 20)}...`);
-      return { txHash };
-    } catch (err: any) {
-      console.error(`[SelfCustody] ❌ Privy broadcast failed: ${err?.message || err}`);
-      throw err;
     }
   }
 
