@@ -3,19 +3,6 @@ import { prisma } from '@kudi/database';
 export async function fetchLiveExchangeRate(): Promise<{ rawRate: number; source: string }> {
   const providers = [
     {
-      name: 'CoinGecko (USDT/USDC)',
-      fetch: async () => {
-        const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether,usd-coin&vs_currencies=ngn', {
-          headers: { 'User-Agent': 'KudiRateEngine/1.0' }
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = (await res.json()) as any;
-        const rate = data?.tether?.ngn || data?.['usd-coin']?.ngn;
-        if (rate && !isNaN(rate) && rate > 500) return Number(rate);
-        throw new Error('Invalid rate payload from CoinGecko');
-      }
-    },
-    {
       name: 'OpenER-API (USD/NGN)',
       fetch: async () => {
         const res = await fetch('https://open.er-api.com/v6/latest/USD', {
@@ -26,6 +13,19 @@ export async function fetchLiveExchangeRate(): Promise<{ rawRate: number; source
         const rate = data?.rates?.NGN;
         if (rate && !isNaN(rate) && rate > 500) return Number(rate);
         throw new Error('Invalid rate payload from OpenER-API');
+      }
+    },
+    {
+      name: 'CoinGecko (USDT/USDC)',
+      fetch: async () => {
+        const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether,usd-coin&vs_currencies=ngn', {
+          headers: { 'User-Agent': 'KudiRateEngine/1.0' }
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as any;
+        const rate = data?.tether?.ngn || data?.['usd-coin']?.ngn;
+        if (rate && !isNaN(rate) && rate > 500) return Number(rate);
+        throw new Error('Invalid rate payload from CoinGecko');
       }
     },
     {

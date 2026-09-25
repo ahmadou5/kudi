@@ -73,7 +73,7 @@ console.log('📤 Crypto Withdrawal Processor active (polling every 5s)');
 console.log('🧾 Reconciliation snapshots active (every 5m)');
 console.log('🏦 Deposit sweep retry processor active (every 60s)');
 
-setInterval(() => runWorkerTask('rate poller', pollRateEngine), 10000);
+setInterval(() => runWorkerTask('rate poller', pollRateEngine), 30000);
 setInterval(() => runWorkerTask('chain deposit poller', () => depositProcessor.pollAllChains()), 15000);
 setInterval(() => runWorkerTask('crypto withdrawal processor', processCryptoWithdrawals), 5000);
 setInterval(() => runWorkerTask('stale withdrawal recovery', recoverStaleProcessingWithdrawals), 60000);
