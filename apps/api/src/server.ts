@@ -227,9 +227,27 @@ async function main() {
     io.emit('rate:updated', rateState);
   });
 
-  // Start the persistent sweep retry worker.
-  // This polls the Deposit table every 30s and retries failed sweeps with exponential backoff.
-  sweepWorker.start();
+  // Single sweep ownership (ADR-0001): the dedicated worker process
+  // (apps/worker ChainDepositProcessor.processSweepRetries) is the sole
+  // recurring sweep claimer. The in-API SweepWorkerService loop is a legacy
+  // second engine and stays OFF unless explicitly opted in via
+  // API_SWEEP_WORKER_ENABLED=true (never enable alongside the worker —
+  // both engines claim the same Deposit rows → double-sweeps).
+  // The instance above is still constructed so read-only helpers
+  // (e.g. getQueueHealth) remain available without running the claim loop.
+  const apiSweepWorkerEnabled = process.env.API_SWEEP_WORKER_ENABLED === 'true';
+  if (apiSweepWorkerEnabled) {
+    server.log.warn(
+      '[Startup] API_SWEEP_WORKER_ENABLED=true — starting LEGACY in-API sweep claim loop. ' +
+      'Ensure apps/worker sweep claiming is DISABLED, or both engines will double-claim Deposit rows.'
+    );
+    sweepWorker.start();
+  } else {
+    server.log.info(
+      '[Startup] In-API sweep loop FENCED per ADR-0001 (API_SWEEP_WORKER_ENABLED != "true"). ' +
+      'Sole sweep owner: apps/worker ChainDepositProcessor.processSweepRetries.'
+    );
+  }
 
   console.log(`🚀 Kudi API server running on http://localhost:${port}`);
 }

@@ -1,5 +1,5 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { CustodyManager } from '@kudi/chains';
+import { CustodyManager, SelfCustodyProvider, getDripTuning, resolveGasPaymentMode } from '@kudi/chains';
 import { PaymentProviderRegistry } from '@kudi/payment-providers';
 import { PaymentProviderId } from '@kudi/types';
 import { RateService } from '../../services/rateService';
@@ -18,21 +18,28 @@ export class AdminController {
     private ledgerService?: LedgerService
   ) {}
 
-  private async recordAdminAudit(request: FastifyRequest, params: { action: string; targetType: string; targetId: string; details?: Record<string, unknown> }): Promise<void> {
+  private async recordAdminAudit(request: FastifyRequest, params: { action: string; targetType: string; targetId: string; details?: Record<string, unknown> }): Promise<string | null> {
     const actor = getAuthenticatedUser(request);
-    await prisma.$executeRaw`
-      INSERT INTO "AdminAuditLog" (id, "actorId", "actorEmail", action, "targetType", "targetId", details, "createdAt")
-      VALUES (
-        gen_random_uuid(),
-        ${actor?.userId ?? null},
-        ${actor?.email ?? (request.headers['x-admin-key'] ? 'admin-key' : null)},
-        ${params.action},
-        ${params.targetType},
-        ${params.targetId},
-        ${params.details ? JSON.stringify(params.details) : null},
-        NOW()
-      )
-    `;
+    try {
+      const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+        INSERT INTO "AdminAuditLog" (id, "actorId", "actorEmail", action, "targetType", "targetId", details, "createdAt")
+        VALUES (
+          gen_random_uuid(),
+          ${actor?.userId ?? null},
+          ${actor?.email ?? (request.headers['x-admin-key'] ? 'admin-key' : null)},
+          ${params.action},
+          ${params.targetType},
+          ${params.targetId},
+          ${params.details ? JSON.stringify(params.details) : null},
+          NOW()
+        )
+        RETURNING id
+      `;
+      return rows?.[0]?.id ?? null;
+    } catch {
+      // Table may not exist in lean dev DBs — audit is best-effort here.
+      return null;
+    }
   }
 
   private async upsertOperatorAlert(params: { type: string; severity: string; title: string; body: string; reference?: string; metadata?: Record<string, unknown> }): Promise<void> {
@@ -204,7 +211,7 @@ export class AdminController {
   };
 
   public getSweepConfig = async (_request: FastifyRequest, _reply: FastifyReply) => {
-    let sweepConfig = { mode: 'AUTO', gasPaymentMode: 'PRIVY_SPONSOR', updatedAt: null as string | null };
+    let sweepConfig = { mode: 'AUTO', gasPaymentMode: 'PRIVY_SPONSOR', effectiveMode: 'PRIVY_SPONSOR', updatedAt: null as string | null };
     try {
       const config = await prisma.appConfig.findUnique({
         where: { key: 'sweep_config' }
@@ -218,6 +225,7 @@ export class AdminController {
           sweepConfig = {
             mode: parsed.mode || 'AUTO',
             gasPaymentMode: storedGasMode,
+            effectiveMode: resolveGasPaymentMode(parsed.gasPaymentMode),
             updatedAt: parsed.updatedAt || config.updatedAt?.toISOString?.() || null
           };
         } catch {}
@@ -230,34 +238,45 @@ export class AdminController {
 
   public setSweepConfig = async (request: FastifyRequest, reply: FastifyReply) => {
     const body = request.body as { mode?: string; gasPaymentMode?: string };
-    const validModes = ['AUTO', 'SPONSORED', 'TREASURY_FEE_PAYER'];
+    // NOTE: TREASURY_FEE_PAYER is deliberately NOT admin-selectable as a sweep
+    // `mode`: backend `sendCrypto` throws loudly in that mode (Privy
+    // single-wallet signing cannot produce the 2nd treasury signature), so
+    // offering it would let an admin DoS all sweeps with one click. The
+    // `gasPaymentMode` union member of the same name is a separate stored knob
+    // and keeps its strict validation below.
+    const validModes = ['AUTO', 'SPONSORED'];
     const validGasPaymentModes = ['PRIVY_SPONSOR', 'TREASURY_FEE_PAYER'];
     if (!body?.mode || !validModes.includes(body.mode)) {
       return reply.status(400).send(errorResponse('INVALID_BODY', `Field "mode" must be one of: ${validModes.join(', ')}`, 400));
     }
 
+    // Read the previous config first so the response can carry a
+    // previous → new confirmation receipt.
+    let previous = { mode: 'AUTO', gasPaymentMode: 'PRIVY_SPONSOR', updatedAt: null as string | null };
+    try {
+      const stored = await prisma.appConfig.findUnique({ where: { key: 'sweep_config' } });
+      if (stored?.value) {
+        try {
+          const parsed = JSON.parse(stored.value);
+          previous = {
+            mode: parsed.mode || 'AUTO',
+            gasPaymentMode: validGasPaymentModes.includes(parsed.gasPaymentMode) ? parsed.gasPaymentMode : 'PRIVY_SPONSOR',
+            updatedAt: parsed.updatedAt || stored.updatedAt?.toISOString?.() || null
+          };
+        } catch {}
+      }
+    } catch {}
+
     // gasPaymentMode is required-or-preserved: when present it must be a valid
     // union member (400 otherwise); when omitted the stored value is kept so we
     // never persist `gasPaymentMode: undefined` (JSON.stringify would drop the
     // key and the next read would silently fall back to a default).
-    let gasPaymentMode: string;
-    if (body.gasPaymentMode === undefined) {
-      gasPaymentMode = 'PRIVY_SPONSOR';
-      try {
-        const stored = await prisma.appConfig.findUnique({ where: { key: 'sweep_config' } });
-        if (stored?.value) {
-          const parsed = JSON.parse(stored.value);
-          if (parsed.gasPaymentMode && validGasPaymentModes.includes(parsed.gasPaymentMode)) {
-            gasPaymentMode = parsed.gasPaymentMode;
-          }
-        }
-      } catch {
-        // fall back to default on read/parse failure
+    let gasPaymentMode: string = previous.gasPaymentMode;
+    if (body.gasPaymentMode !== undefined) {
+      if (!validGasPaymentModes.includes(body.gasPaymentMode)) {
+        return reply.status(400).send(errorResponse('INVALID_BODY', `Field "gasPaymentMode" must be one of: ${validGasPaymentModes.join(', ')}`, 400));
       }
-    } else if (validGasPaymentModes.includes(body.gasPaymentMode)) {
       gasPaymentMode = body.gasPaymentMode;
-    } else {
-      return reply.status(400).send(errorResponse('INVALID_BODY', `Field "gasPaymentMode" must be one of: ${validGasPaymentModes.join(', ')}`, 400));
     }
 
     const payload = {
@@ -273,21 +292,53 @@ export class AdminController {
       create: { key: 'sweep_config', value: configValue }
     });
 
-    await this.recordAdminAudit(request, {
+    const effectiveMode = resolveGasPaymentMode(gasPaymentMode);
+    const actor = getAuthenticatedUser(request);
+    const changedBy = actor?.email ?? (request.headers['x-admin-key'] ? 'admin-key' : 'unknown');
+    const auditId = await this.recordAdminAudit(request, {
       action: 'SWEEP_CONFIG_UPDATE',
       targetType: 'SYSTEM_CONFIG',
       targetId: 'sweep_config',
-      details: { ...payload }
+      details: { ...payload, effectiveMode, previous, changedBy }
     });
 
-    return successResponse(payload, 'Sweep configuration updated successfully');
+    return successResponse({
+      ...payload,
+      effectiveMode,
+      auditId,
+      receipt: {
+        changedBy,
+        changedAt: payload.updatedAt,
+        previous: { ...previous, effectiveMode: resolveGasPaymentMode(previous.gasPaymentMode) },
+        new: { mode: payload.mode, gasPaymentMode: payload.gasPaymentMode, effectiveMode }
+      }
+    }, 'Sweep configuration updated successfully');
   };
 
   /**
    * GET /api/admin/settings — Returns system-wide settings including
-   * real treasury addresses sourced from environment variables.
+   * real treasury addresses sourced from environment variables and the
+   * latest AdminAuditLog rows (newest first, max 50).
    */
   public getSystemSettings = async (_request: FastifyRequest, _reply: FastifyReply) => {
+    let auditLogs: Array<{ id: string; adminEmail: string; action: string; details: string; timestamp: string }> = [];
+    try {
+      const rows: any[] = await prisma.$queryRaw`
+        SELECT id, "actorEmail", action, details, "createdAt"
+        FROM "AdminAuditLog"
+        ORDER BY "createdAt" DESC
+        LIMIT 50
+      `;
+      auditLogs = rows.map((row) => ({
+        id: String(row.id),
+        adminEmail: row.actorEmail || 'unknown',
+        action: String(row.action || ''),
+        details: typeof row.details === 'string' ? row.details : JSON.stringify(row.details ?? ''),
+        timestamp: row.createdAt?.toISOString?.() || String(row.createdAt)
+      }));
+    } catch (err: any) {
+      console.warn('[AdminController] Failed to fetch admin audit logs:', err?.message || err);
+    }
     return successResponse({
       maintenanceMode: false,
       autoFailoverEnabled: true,
@@ -304,8 +355,186 @@ export class AdminController {
         monadMetropolisRpc: 'HEALTHY',
         solanaRpc: 'HEALTHY'
       },
-      auditLogs: []
+      auditLogs
     }, 'System settings retrieved');
+  };
+
+  /**
+   * Drip failure causes surfaced as UI chips. GasDrip rows carry no error
+   * column — classification matches on the stored trigger/status text where
+   * available and falls back to the broadcast status:
+   * - TIMEOUT (broadcast but unconfirmed before timeout) → RPC_TIMEOUT
+   * - BROADCAST with no cause keywords → UNKNOWN
+   */
+  private classifyDripFailure(row: { trigger?: unknown; status?: unknown }): string | null {
+    const status = String(row.status || '').toUpperCase();
+    if (status === 'CONFIRMED') return null;
+    const text = `${String(row.trigger || '')} ${String(row.status || '')}`.toLowerCase();
+    if (/treasury|floor|empty|balance.*unknown|refus/.test(text)) return 'TREASURY_EMPTY';
+    if (/privy/.test(text)) return 'PRIVY_DOWN';
+    if (/sponsor/.test(text)) return 'SPONSORSHIP_OFF';
+    if (/timeout|rpc|blockhash|confirm|broadcast|expired/.test(text)) return 'RPC_TIMEOUT';
+    if (status === 'TIMEOUT') return 'RPC_TIMEOUT';
+    return 'UNKNOWN';
+  }
+
+  /**
+   * GET /api/admin/drips?chain=solana|monad&limit=50
+   * Treasury native-gas drip ledger (GasDrip rows, newest first) plus 24h
+   * header totals: count / confirmed / failed / pending and native spent
+   * per chain. `limit` defaults to 50, capped at 200.
+   */
+  public getDrips = async (request: FastifyRequest, reply: FastifyReply) => {
+    const query = (request.query || {}) as { chain?: string; limit?: string };
+    let limit = parseInt(Array.isArray(query.limit) ? query.limit[0] : query.limit || '50', 10);
+    if (!Number.isFinite(limit)) limit = 50;
+    limit = Math.min(Math.max(limit, 1), 200);
+
+    const chainParam = String(Array.isArray(query.chain) ? query.chain[0] : query.chain || '').toLowerCase();
+    let chain: string | null = null;
+    if (chainParam) {
+      if (chainParam !== 'solana' && chainParam !== 'monad') {
+        return reply.status(400).send(errorResponse('INVALID_CHAIN', 'Query "chain" must be one of: solana, monad', 400));
+      }
+      chain = chainParam;
+    }
+
+    const rows: any[] = chain
+      ? await prisma.$queryRaw`
+          SELECT id, "walletAddress", chain, "amountNative", "txHash", trigger, status, "createdAt"
+          FROM "GasDrip"
+          WHERE chain = ${chain}
+          ORDER BY "createdAt" DESC
+          LIMIT ${limit}
+        `
+      : await prisma.$queryRaw`
+          SELECT id, "walletAddress", chain, "amountNative", "txHash", trigger, status, "createdAt"
+          FROM "GasDrip"
+          ORDER BY "createdAt" DESC
+          LIMIT ${limit}
+        `;
+
+    const totals: any[] = await prisma.$queryRaw`
+      SELECT
+        COUNT(*)::int AS count,
+        COALESCE(SUM(CASE WHEN status = 'CONFIRMED' THEN 1 ELSE 0 END), 0)::int AS confirmed,
+        COALESCE(SUM(CASE WHEN status = 'TIMEOUT' THEN 1 ELSE 0 END), 0)::int AS failed,
+        COALESCE(SUM(CASE WHEN status = 'BROADCAST' THEN 1 ELSE 0 END), 0)::int AS pending,
+        COALESCE(SUM(CASE WHEN chain = 'solana' THEN "amountNative" ELSE 0 END), 0)::float AS "solanaSpent",
+        COALESCE(SUM(CASE WHEN chain = 'monad' THEN "amountNative" ELSE 0 END), 0)::float AS "monadSpent"
+      FROM "GasDrip"
+      WHERE "createdAt" >= NOW() - INTERVAL '24 hours'
+    `;
+    const t = totals[0] || {};
+
+    return successResponse({
+      drips: rows.map((row) => ({
+        id: String(row.id),
+        time: row.createdAt?.toISOString?.() || String(row.createdAt),
+        chain: String(row.chain),
+        walletAddress: String(row.walletAddress),
+        amountNative: Number(row.amountNative || 0),
+        txHash: String(row.txHash),
+        trigger: String(row.trigger || ''),
+        status: String(row.status || ''),
+        cause: this.classifyDripFailure(row)
+      })),
+      totals: {
+        last24h: {
+          count: Number(t.count || 0),
+          confirmed: Number(t.confirmed || 0),
+          failed: Number(t.failed || 0),
+          pending: Number(t.pending || 0)
+        },
+        spentNativePerChain24h: {
+          solana: Number(t.solanaSpent || 0),
+          monad: Number(t.monadSpent || 0)
+        }
+      }
+    }, 'Drip ledger retrieved');
+  };
+
+  /**
+   * GET /api/admin/treasury
+   * Per-chain treasury runway: native balance (SOL/MON) + stablecoin float
+   * (USDC/AUSD) read through the same SelfCustodyProvider.getWalletBalance
+   * code path sweeps use, plus the configured drip amount/threshold (same
+   * env + defaults as the backend drip tuning), computed dripsRemaining and
+   * a low-runway flag (native < 2× drip amount). RPC failures degrade to
+   * null balances with an error string — never secrets, never thrown.
+   */
+  public getTreasury = async (_request: FastifyRequest, _reply: FastifyReply) => {
+    let tuning: { solDripAmount: number; solMinBalance: number; monDripAmount: number; monMinBalance: number };
+    try {
+      tuning = getDripTuning();
+    } catch (err: any) {
+      return successResponse({
+        chains: [],
+        error: `Invalid drip tuning env: ${err?.message || err}`
+      }, 'Treasury snapshot retrieved with errors');
+    }
+
+    const provider = new SelfCustodyProvider();
+    const specs = [
+      {
+        chain: 'solana',
+        nativeSymbol: 'SOL',
+        treasuryAddress: process.env.KUDI_TREASURY_SOLANA_ADDRESS || '',
+        floatToken: 'USDC',
+        floatTokenAddress: process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+        dripAmount: tuning.solDripAmount,
+        dripThreshold: tuning.solMinBalance
+      },
+      {
+        chain: 'monad',
+        nativeSymbol: 'MON',
+        treasuryAddress: process.env.KUDI_TREASURY_EVM_ADDRESS || process.env.KUDI_MONAD_TREASURY_ADDRESS || '',
+        floatToken: 'AUSD',
+        floatTokenAddress: process.env.AUSD_TOKEN_ADDRESS || '',
+        dripAmount: tuning.monDripAmount,
+        dripThreshold: tuning.monMinBalance
+      }
+    ];
+
+    const chains = await Promise.all(specs.map(async (spec) => {
+      let nativeBalance: number | null = null;
+      let nativeError: string | null = null;
+      let floatBalance: number | null = null;
+      let floatError: string | null = null;
+      if (!spec.treasuryAddress) {
+        nativeError = 'Treasury address not configured';
+        floatError = 'Treasury address not configured';
+      } else {
+        try {
+          nativeBalance = Number(await provider.getWalletBalance(spec.treasuryAddress, spec.chain));
+          if (!Number.isFinite(nativeBalance)) nativeBalance = null;
+        } catch (err: any) {
+          nativeError = (err?.message || String(err)).slice(0, 300);
+        }
+        if (!spec.floatTokenAddress) {
+          floatError = 'Float token address not configured';
+        } else {
+          try {
+            // Both swept stablecoins are 6-decimal (USDC SPL, AUSD ERC-20).
+            floatBalance = Number(await provider.getWalletBalance(spec.treasuryAddress, spec.chain, spec.floatTokenAddress, 6));
+            if (!Number.isFinite(floatBalance)) floatBalance = null;
+          } catch (err: any) {
+            floatError = (err?.message || String(err)).slice(0, 300);
+          }
+        }
+      }
+      const dripsRemaining =
+        nativeBalance !== null && Number.isFinite(spec.dripAmount) && spec.dripAmount > 0
+          ? Math.max(0, Math.floor(nativeBalance / spec.dripAmount))
+          : null;
+      const lowRunway =
+        nativeBalance !== null && Number.isFinite(spec.dripAmount) && spec.dripAmount > 0
+          ? nativeBalance < 2 * spec.dripAmount
+          : false;
+      return { ...spec, nativeBalance, nativeError, floatBalance, floatError, dripsRemaining, lowRunway };
+    }));
+
+    return successResponse({ chains }, 'Treasury snapshot retrieved');
   };
 
   public getPayoutRails = async (_request: FastifyRequest, _reply: FastifyReply) => {
@@ -389,9 +618,11 @@ export class AdminController {
         d.id, d."userId", COALESCE(u."fullName", u.email, u."phoneNumber", d."userId") AS "userName",
         d.chain, d."tokenSymbol", d."amountUSDC", d.signature, d."blockNumber", d."creditStatus",
         d."sweepStatus", d."sweepTxHash", d."sweepError", d."sweepAttemptCount", d."nextSweepAttemptAt",
-        d."creditedAt", d."sweptAt", d."walletAddress", d."privyWalletId", d."createdAt"
+        d."creditedAt", d."sweptAt", d."walletAddress", d."privyWalletId", d."createdAt",
+        w."privyWalletId" AS "walletPrivyWalletId", w."custodyType" AS "walletCustodyType"
       FROM "Deposit" d
       LEFT JOIN "User" u ON u.id = d."userId"
+      LEFT JOIN "Wallet" w ON w.address = d."walletAddress"
       ORDER BY d."createdAt" DESC
       LIMIT 100
     `;
@@ -414,6 +645,11 @@ export class AdminController {
       sweptAt: row.sweptAt?.toISOString?.() || row.sweptAt,
       walletAddress: row.walletAddress,
       privyWalletId: row.privyWalletId,
+      // Genuine server-key presence across BOTH the Deposit row and the
+      // joined Wallet row. Float Model is active ONLY when neither carries a
+      // privyWalletId — a missing key on one side alone is not proof.
+      walletCustody: (row.privyWalletId || row.walletPrivyWalletId) ? 'SERVER_CUSTODY' : 'NO_SERVER_KEY',
+      walletCustodyType: row.walletCustodyType || null,
       createdAt: row.createdAt?.toISOString?.() || row.createdAt
     })));
   };

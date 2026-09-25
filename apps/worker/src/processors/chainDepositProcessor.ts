@@ -6,7 +6,7 @@ import {
   resolveSweepAmount
 } from '@kudi/chains';
 import { EVMChainConfig, SolanaChainConfig } from '@kudi/types';
-import { prisma } from '@kudi/database';
+import { prisma, checkDripEligibility, recordDrip } from '@kudi/database';
 import { REDACTED, redactAddress, redactRpcUrl } from '@kudi/config';
 
 // Retry schedule is owned by SWEEP_RETRY_POLICY (single shared definition in
@@ -279,9 +279,14 @@ export class ChainDepositProcessor {
       }
 
       console.log(`[Chain Processor] 🔄 Sweeping ${sweepAmount} USDC from deposit ${params.wallet.address} → treasury (${targetTreasury})...`);
-      // Gas-retry wrapper: drips native gas from treasury on signer-insufficient
-      // errors (deposit wallets start with 0 SOL/MON), retries stale blockhash.
-      const { txHash } = await this.selfCustody.sendCryptoWithGasRetry({
+      // Gas-retry wrapper, drip-guarded: on classifier-GAS failures only, the
+      // hooks enforce eligibility BEFORE any drip (per-wallet 24h limit,
+      // global daily cap, treasury floor, dust floor — ineligible throws
+      // DripBlocked loudly with no drip) and persist the drip AFTER
+      // (CONFIRMED only after waitForConfirmation, else TIMEOUT). TOKEN/OTHER
+      // failures and stale blockhashes never drip. Retry policy above is
+      // untouched — this only adds the drip gate + receipt.
+      const { txHash, drip } = await this.selfCustody.sendCryptoWithGasRetry({
         treasuryWalletId: params.wallet.privyWalletId,
         fromAddress: normalizedChain === 'solana' ? params.wallet.address : undefined,
         // feePayerAddress intentionally omitted: user wallet (signerAddr) always pays its own fees
@@ -291,7 +296,14 @@ export class ChainDepositProcessor {
         amountUSDC: sweepAmount,
         chain: normalizedChain,
         gasPaymentMode
-      }, params.wallet.address);
+      }, params.wallet.address, {
+        depositAmountUSDC: parsedAmount,
+        checkDripEligibility: (ctx) => checkDripEligibility(prisma, ctx),
+        recordDrip: (rec) => recordDrip(prisma, rec)
+      });
+      if (drip) {
+        console.log(`[Chain Processor] 💧 Drip persisted path: ${drip.amountNative} native on ${drip.chain} → ${redactAddress(drip.toAddress)} (tx ${drip.txHash.slice(0, 20)}...)`);
+      }
       const confirmed = await this.selfCustody.waitForConfirmation(txHash, normalizedChain);
       if (!confirmed) {
         throw new Error(`Sweep transaction ${txHash} was not confirmed before timeout`);

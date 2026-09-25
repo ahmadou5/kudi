@@ -346,3 +346,17 @@ model AppConfig {
   updatedAt DateTime @updatedAt
 }
 
+model GasDrip {
+  id            String   @id @default(uuid())
+  walletAddress String
+  chain         String
+  amountNative  Float
+  txHash        String   @unique
+  trigger       String
+  status        String   @default("BROADCAST")
+  createdAt     DateTime @default(now())
+
+  @@index([walletAddress, createdAt])
+  @@index([chain, createdAt])
+}
+

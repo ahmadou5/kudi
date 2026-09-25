@@ -15,7 +15,8 @@ import {
   compileTransaction,
   getProgramDerivedAddress,
   getAddressEncoder,
-  type Address
+  type Address,
+  type Blockhash
 } from '@solana/kit';
 import { getTransferCheckedInstruction, TOKEN_PROGRAM_ADDRESS, ASSOCIATED_TOKEN_PROGRAM_ADDRESS } from '@solana-program/token';
 
@@ -153,6 +154,195 @@ export function resolveSweepAmount(params: {
   const spendable = Math.max(0, params.availableUSDC - reserve);
   const sweepAmount = Math.min(params.detectedUSDC, spendable);
   return { sweepAmount, shortfallUSDC: Math.max(0, params.detectedUSDC - sweepAmount) };
+}
+
+/**
+ * Structured sweep-failure classifier (drip hardening / farming defense).
+ *
+ * The treasury native-gas drip exists for ONE reason: deposit wallets start
+ * with zero native balance, so a sweep can fail purely because the signer
+ * cannot pay fees. Dripping on any other failure — especially token
+ * shortfalls — lets anyone mint dust deposits and harvest treasury native on
+ * every retry, so the classifier is deliberately narrow:
+ *
+ * - GAS: native fee-payment shortfall only (lamports, fee payer, rent, Privy
+ *   "Signer had insufficient balance", EVM gas phrasing). ONLY this class may
+ *   trigger a treasury drip.
+ * - TOKEN: token-side shortfall/config (mint, ATA, token balance/amount,
+ *   USDC/AUSD phrasing). NEVER drips — throws immediately.
+ * - BLOCKHASH: stale blockhash. Retried once WITHOUT dripping.
+ * - OTHER: everything else, including ambiguous "insufficient funds" with no
+ *   native qualifier, and ExceededMaxRepresentationSize (explicitly excluded
+ *   from GAS — it is a transaction-size error, not a fee shortfall). Never
+ *   drips — throws immediately.
+ *
+ * Tie-break direction is fail-safe: a message matching both TOKEN-strong and
+ * GAS-strong phrases classifies as TOKEN (no drip beats a wasted/minted drip).
+ */
+export type SweepFailureClass = 'GAS' | 'TOKEN' | 'BLOCKHASH' | 'OTHER';
+
+/** Token-side phrases: strong enough to VETO a drip on their own. */
+const TOKEN_STRONG_PATTERNS: readonly string[] = [
+  'insufficient token',
+  'insufficient usdc',
+  'insufficient ausd',
+  'not enough usdc',
+  'not enough ausd',
+  'not enough token',
+  'token balance',
+  'token amount',
+  'tokenamount',
+  'token account',
+  'tokenaccount',
+  'associated token',
+  'associatedtoken',
+  'invalid mint',
+  'unknown mint',
+  'no mint',
+  'transferchecked',
+  'transfer checked',
+  'spl token',
+  'spl-token',
+  'token program',
+  'tokenkeg'
+];
+
+/** Native fee-payment phrases: the ONLY signals that may trigger a drip. */
+const GAS_STRONG_PATTERNS: readonly string[] = [
+  'lamport',
+  'fee payer',
+  'feepayer',
+  'rent',
+  'signer had insufficient balance',
+  'insufficient funds for fee',
+  'insufficient balance for fee',
+  'insufficient funds to cover',
+  'insufficient balance to cover',
+  'insufficient sol',
+  'insufficient mon',
+  'insufficient native',
+  'not enough sol',
+  'not enough mon',
+  'not enough native',
+  'native balance',
+  'insufficient gas',
+  'not enough gas',
+  'for gas',
+  'out of gas',
+  'intrinsic gas',
+  'underpriced',
+  'attempt to debit an account but found no record'
+];
+
+export function classifySweepFailure(msg: unknown): SweepFailureClass {
+  const raw = typeof msg === 'string' ? msg : msg instanceof Error ? msg.message : String(msg ?? '');
+  // Normalize separators so 'fee-payer'/'fee_payer' match 'fee payer', etc.
+  const lower = raw.toLowerCase().replace(/[-_]+/g, ' ');
+
+  // Transaction-size error, never a fee shortfall — excluded from GAS.
+  if (lower.includes('exceededmaxrepresentationsize')) return 'OTHER';
+
+  if (
+    lower.includes('blockhash') &&
+    (lower.includes('not found') || lower.includes('notfound') || lower.includes('expired') || lower.includes('stale'))
+  ) {
+    return 'BLOCKHASH';
+  }
+
+  // Fail-safe order: TOKEN veto is checked before GAS so an ambiguous message
+  // mentioning both sides never mints a drip.
+  for (const p of TOKEN_STRONG_PATTERNS) {
+    if (lower.includes(p)) return 'TOKEN';
+  }
+  if (/\bata\b/.test(lower) || lower.includes('mint')) return 'TOKEN';
+
+  for (const p of GAS_STRONG_PATTERNS) {
+    if (lower.includes(p)) return 'GAS';
+  }
+
+  return 'OTHER';
+}
+
+/**
+ * Native gas drip receipt: who got how much native on which chain, and in
+ * which transaction. Returned by dripNativeGas/sendCryptoWithGasRetry so
+ * sweep engines can persist the drip (farming-defense ledger) without
+ * restructuring their retry logic.
+ */
+export interface GasDripReceipt {
+  txHash: string;
+  amountNative: number;
+  chain: 'solana' | 'monad';
+  toAddress: string;
+}
+
+/** Validated drip tuning (env-tunable, parse-time validated — see below). */
+export interface DripTuning {
+  solMinBalance: number;
+  solDripAmount: number;
+  monMinBalance: number;
+  monDripAmount: number;
+}
+
+/**
+ * Parse a non-negative finite env float. Throws a clear error on garbage
+ * (NaN/Infinity/negative/non-numeric) INSTEAD of feeding it into BigInt
+ * conversions downstream, where it would surface as an obscure crash.
+ */
+function parseDripEnvFloat(name: string, raw: string | undefined, def: number): number {
+  if (raw === undefined || raw === '') return def;
+  const v = Number(raw);
+  if (!Number.isFinite(v)) {
+    throw new Error(`[SelfCustody] Invalid ${name}=${JSON.stringify(raw)}: must be a finite number (default ${def}). Refusing to drip on garbage env.`);
+  }
+  if (v < 0) {
+    throw new Error(`[SelfCustody] Invalid ${name}=${v}: must be non-negative (default ${def}). Refusing to drip on garbage env.`);
+  }
+  return v;
+}
+
+/**
+ * Validated drip tuning. Env knobs (all optional, defaults shown):
+ * - SWEEP_SOL_MIN_BALANCE (default 0.002): skip drip when the Solana wallet
+ *   already holds at least this much SOL.
+ * - SWEEP_SOL_DRIP_AMOUNT (default 0.005): SOL sent per drip.
+ * - SWEEP_MON_MIN_BALANCE (default 0.001): skip drip when the Monad wallet
+ *   already holds at least this much MON.
+ * - SWEEP_MON_DRIP_AMOUNT (default 0.005): MON sent per drip.
+ */
+export function getDripTuning(): DripTuning {
+  return {
+    solMinBalance: parseDripEnvFloat('SWEEP_SOL_MIN_BALANCE', process.env.SWEEP_SOL_MIN_BALANCE, 0.002),
+    solDripAmount: parseDripEnvFloat('SWEEP_SOL_DRIP_AMOUNT', process.env.SWEEP_SOL_DRIP_AMOUNT, 0.005),
+    monMinBalance: parseDripEnvFloat('SWEEP_MON_MIN_BALANCE', process.env.SWEEP_MON_MIN_BALANCE, 0.001),
+    monDripAmount: parseDripEnvFloat('SWEEP_MON_DRIP_AMOUNT', process.env.SWEEP_MON_DRIP_AMOUNT, 0.005)
+  };
+}
+
+/**
+ * Optional drip-guard hooks for sendCryptoWithGasRetry. The chains package
+ * has no DB dependency by design, so sweep engines (which own the DB) inject
+ * eligibility + persistence here. When hooks are absent (e.g. non-sweep
+ * callers), classification/drip behavior is unchanged but nothing is
+ * persisted. `depositAmountUSDC` feeds the dust floor inside the eligibility
+ * check; `trigger` defaults to 'SWEEP_RETRY' at the persistence layer.
+ */
+export interface DripHooks {
+  depositAmountUSDC?: number;
+  checkDripEligibility?: (ctx: {
+    walletAddress: string;
+    chain: 'solana' | 'monad';
+    depositAmountUSDC?: number;
+    dripAmountNative?: number;
+  }) => Promise<{ eligible: boolean; reason?: string }>;
+  recordDrip?: (rec: {
+    walletAddress: string;
+    chain: 'solana' | 'monad';
+    amountNative: number;
+    txHash: string;
+    trigger: string;
+    status: string;
+  }) => Promise<void>;
 }
 
 /** Commitment at which Solana deposits are eligible for ledger credit. */
@@ -635,6 +825,11 @@ export class SelfCustodyProvider implements CustodyProvider {
     // disabled we retry once unsponsored below (signer pays ~$0.001 on Solana).
     const sponsorFlag = true;
 
+    // Hoisted helpers — only populated by the Solana branch, but referenced by the
+    // outer blockhash-retry handler so they must live at the sendCrypto scope level.
+    let fetchFreshBlockhash: (() => Promise<{ blockhash: Blockhash; lastValidBlockHeight: bigint }>) | null = null;
+    let buildSerializedTx: ((blockhash: { blockhash: Blockhash; lastValidBlockHeight: bigint }) => string) | null = null;
+
     if (isSolana) {
       // Solana: Build a real SPL USDC transfer via @solana/kit (v2 — no rpc-websockets dep)
       // Uses functional transaction message API, then passes unsigned wire-format tx to Privy.
@@ -651,13 +846,12 @@ export class SelfCustodyProvider implements CustodyProvider {
       const signerAddr = solanaAddress(signerAddrStr as Address);
       const recipientAddr = solanaAddress(toAddress as Address);
 
-      // Create Solana JSON-RPC client (no WebSocket — HTTP only for blockhash fetch)
-      const rpc = createSolanaRpc(this.rpcUrlSolana);
+      // Blockhash is fetched AFTER all slow RPC lookups (ATA derivation, account checks)
+      // so it is as fresh as possible when Privy receives and simulates the transaction.
+      // We will fetch it below, right before building the transaction message.
 
-      // Fetch recent blockhash with confirmed commitment for a fresh hash that is less likely to
-      // expire before Privy's RPC node processes the transaction.
-      // (finalized = ~32 slots old / ~20s; confirmed = ~1-2 slots old / ~1s — safer window)
-      const { value: latestBlockhash } = await rpc.getLatestBlockhash({ commitment: 'confirmed' }).send();
+      // Create Solana JSON-RPC client (HTTP only — no WebSocket needed)
+      const rpc = createSolanaRpc(this.rpcUrlSolana);
 
       // Derive source and destination Associated Token Accounts (ATAs)
       // ATA = PDA([owner, TOKEN_PROGRAM, mint], ATA_PROGRAM)
@@ -721,80 +915,71 @@ export class SelfCustodyProvider implements CustodyProvider {
         decimals: USDC_DECIMALS
       });
 
-      // Compose transaction message (functional pipe style — v2 API).
-      // NOTE: We do NOT include a createDestAta instruction here even if destAtaExists=false.
-      // Reason: createDestAta requires the fee payer to be a WritableSigner. If fee payer ≠ user
-      // wallet it would add a second required signer. Instead we rely on Privy gas sponsorship
-      // (sponsor:true) to handle ATA creation, or the treasury ATA is pre-created.
-      // In practice the treasury ATA always exists once the treasury has received any USDC before.
+      // ─── Fetch blockhash as LATE as possible (after all slow RPC lookups) ─────────────
+      // Using 'processed' commitment returns the very latest slot seen by this node,
+      // minimising the gap between our fetch and Privy's simulation clock.
+      // Solana blockhashes are valid for ~150 blocks (~60-90 s) so 'processed' still
+      // gives plenty of runway while being the freshest option available.
+      fetchFreshBlockhash = async () => {
+        const { value } = await rpc.getLatestBlockhash({ commitment: 'processed' }).send();
+        return value;
+      };
+      const latestBlockhash = await fetchFreshBlockhash();
+      // ─────────────────────────────────────────────────────────────────────────────────
+
+      /**
+       * Build the unsigned wire-format transaction bytes for Privy.
+       * Extracted as a helper so we can rebuild with a fresh blockhash on retry.
+       */
+      buildSerializedTx = (blockhash: { blockhash: Blockhash; lastValidBlockHeight: bigint }): string => {
+        let txMessage;
+        if (!destAtaExists) {
+          const createDestAtaIx = {
+            programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+            accounts: [
+              { address: feePayerAddr, role: 3 as const },           // Writable Signer (Payer = user)
+              { address: destAta,      role: 1 as const },           // Writable (ATA to create)
+              { address: recipientAddr, role: 0 as const },          // Readonly (Owner = treasury)
+              { address: mintPubkey,   role: 0 as const },           // Readonly (Mint)
+              { address: SYSTEM_PROGRAM_ADDRESS, role: 0 as const }, // Readonly (System Program)
+              { address: TOKEN_PROGRAM_ADDRESS,  role: 0 as const }  // Readonly (SPL Token Program)
+            ],
+            data: new Uint8Array([1]) // 1 = CreateIdempotent
+          };
+          txMessage = pipe(
+            createTransactionMessage({ version: 0 as const }),
+            (tx) => setTransactionMessageFeePayer(feePayerAddr, tx),
+            (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
+            (tx) => appendTransactionMessageInstruction(createDestAtaIx, tx),
+            (tx) => appendTransactionMessageInstruction(transferIx, tx)
+          );
+        } else {
+          txMessage = pipe(
+            createTransactionMessage({ version: 0 as const }),
+            (tx) => setTransactionMessageFeePayer(feePayerAddr, tx),
+            (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
+            (tx) => appendTransactionMessageInstruction(transferIx, tx)
+          );
+        }
+        const compiled = compileTransaction(txMessage);
+        const msgBytes = compiled.messageBytes as unknown as Uint8Array;
+        const numSigs = Object.keys(compiled.signatures).length || 1;
+        const wireBytes = new Uint8Array(1 + (numSigs * 64) + msgBytes.length);
+        wireBytes[0] = numSigs;
+        wireBytes.set(msgBytes, 1 + (numSigs * 64));
+        return Buffer.from(wireBytes).toString('base64');
+      };
+
       if (!destAtaExists) {
-        // Create destination ATA instruction — fee payer is signerAddr (single signer)
-        const createDestAtaIx = {
-          programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
-          accounts: [
-            { address: feePayerAddr, role: 3 as const },           // Writable Signer (Payer = user)
-            { address: destAta,      role: 1 as const },           // Writable (ATA to create)
-            { address: recipientAddr, role: 0 as const },          // Readonly (Owner = treasury)
-            { address: mintPubkey,   role: 0 as const },           // Readonly (Mint)
-            { address: SYSTEM_PROGRAM_ADDRESS, role: 0 as const }, // Readonly (System Program)
-            { address: TOKEN_PROGRAM_ADDRESS,  role: 0 as const }  // Readonly (SPL Token Program)
-          ],
-          data: new Uint8Array([1]) // 1 = CreateIdempotent
-        };
         console.log(`[SelfCustody] ℹ️ Destination ATA for treasury does not exist yet — including CreateIdempotent ATA instruction (user wallet pays).`);
-
-        const txMessage = pipe(
-          createTransactionMessage({ version: 0 as const }),
-          (tx) => setTransactionMessageFeePayer(feePayerAddr, tx),
-          (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-          (tx) => appendTransactionMessageInstruction(createDestAtaIx, tx),
-          (tx) => appendTransactionMessageInstruction(transferIx, tx)
-        );
-
-        const compiled = compileTransaction(txMessage);
-        const msgBytes = compiled.messageBytes as unknown as Uint8Array;
-        const numSigs = Object.keys(compiled.signatures).length || 1;
-        const wireBytes = new Uint8Array(1 + (numSigs * 64) + msgBytes.length);
-        wireBytes[0] = numSigs;
-        wireBytes.set(msgBytes, 1 + (numSigs * 64));
-        const serializedTx = Buffer.from(wireBytes).toString('base64');
-
-        requestBody = {
-          method: 'signAndSendTransaction',
-          caip2: this.solanaCaip2,
-          ...(sponsorFlag ? { sponsor: true } : {}),
-          params: { transaction: serializedTx, encoding: 'base64' }
-        };
-      } else {
-        // Treasury ATA already exists — simple single-instruction transfer (fastest path)
-        const txMessage = pipe(
-          createTransactionMessage({ version: 0 as const }),
-          (tx) => setTransactionMessageFeePayer(feePayerAddr, tx),
-          (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-          (tx) => appendTransactionMessageInstruction(transferIx, tx)
-        );
-
-        // Compile to wire format. v2 compileTransaction returns { messageBytes, signatures }.
-        // Privy needs an unsigned wire-format transaction:
-        //   [compact-u16 numSigs] [numSigs * 64 zero bytes for empty signature slots] [message bytes]
-        // IMPORTANT: Do NOT read msgBytes[0] as numSigs — for versioned (v0) transactions the
-        // first byte of messageBytes is the version prefix 0x80, not the signer count.
-        // The signer count comes from compiled.signatures.size.
-        const compiled = compileTransaction(txMessage);
-        const msgBytes = compiled.messageBytes as unknown as Uint8Array;
-        const numSigs = Object.keys(compiled.signatures).length || 1;
-        const wireBytes = new Uint8Array(1 + (numSigs * 64) + msgBytes.length);
-        wireBytes[0] = numSigs;
-        wireBytes.set(msgBytes, 1 + (numSigs * 64));
-        const serializedTx = Buffer.from(wireBytes).toString('base64');
-
-        requestBody = {
-          method: 'signAndSendTransaction',
-          caip2: this.solanaCaip2,
-          ...(sponsorFlag ? { sponsor: true } : {}),
-          params: { transaction: serializedTx, encoding: 'base64' }
-        };
       }
+
+      requestBody = {
+        method: 'signAndSendTransaction',
+        caip2: this.solanaCaip2,
+        ...(sponsorFlag ? { sponsor: true } : {}),
+        params: { transaction: buildSerializedTx(latestBlockhash), encoding: 'base64' }
+      };
     } else {
       // Monad EVM: ERC-20 transfer(address,uint256) via eth_sendTransaction
       const contract = usdcContractAddress || this.ausdTokenAddress;
@@ -816,7 +1001,8 @@ export class SelfCustodyProvider implements CustodyProvider {
       };
     }
 
-    try {
+    // Helper to send requestBody to Privy and handle gas-sponsorship fallback
+    const sendToPrivy = async (body: Record<string, unknown>): Promise<Response> => {
       let res = await fetch(`https://api.privy.io/v1/wallets/${treasuryWalletId}/rpc`, {
         method: 'POST',
         headers: {
@@ -824,14 +1010,15 @@ export class SelfCustodyProvider implements CustodyProvider {
           Authorization: authHeader,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(body)
       });
 
       if (!res.ok) {
         const errText = await res.text();
+        // Retry without sponsor flag if Privy dashboard has gas sponsorship disabled
         if (sponsorFlag && errText.includes('Gas sponsorship is not configured')) {
-          console.warn('[SelfCustody] ℹ️ Privy gas sponsorship not enabled in dashboard; retrying standard transfer...');
-          const { sponsor: _omitted, ...bodyWithoutSponsor } = requestBody;
+          console.warn('[SelfCustody] ℹ️ Privy gas sponsorship not enabled in dashboard; retrying without sponsor flag...');
+          const { sponsor: _omitted, ...bodyWithoutSponsor } = body;
           res = await fetch(`https://api.privy.io/v1/wallets/${treasuryWalletId}/rpc`, {
             method: 'POST',
             headers: {
@@ -845,6 +1032,42 @@ export class SelfCustodyProvider implements CustodyProvider {
         if (!res.ok) {
           const finalErrText = await res.text().catch(() => '');
           throw new Error(`Privy RPC error ${res.status}: ${finalErrText || errText}`);
+        }
+      }
+      return res;
+    };
+
+    try {
+      let res: Response;
+
+      try {
+        res = await sendToPrivy(requestBody);
+      } catch (firstErr: any) {
+        // ── Blockhash not found: automatic single retry with fresh blockhash ────────────
+        // Privy's RPC node may lag behind ours by a slot or two, causing it to reject the
+        // blockhash we embedded. We fetch a brand-new 'processed' blockhash and rebuild the
+        // serialized transaction, then retry once. This is always safe — the tx hasn't been
+        // signed or broadcast yet, so there is no double-spend risk.
+        const isBlockhashError =
+          firstErr?.message?.includes('Blockhash not found') ||
+          firstErr?.message?.includes('blockhash not found') ||
+          firstErr?.message?.includes('BlockhashNotFound') ||
+          firstErr?.message?.includes('block hash not found');
+
+        if (isSolana && isBlockhashError && fetchFreshBlockhash && buildSerializedTx) {
+          console.warn('[SelfCustody] ⚠️ Privy blockhash rejected — fetching fresh blockhash and rebuilding tx (1 retry)...');
+          try {
+            const freshHash = await fetchFreshBlockhash();
+            const freshTx = buildSerializedTx(freshHash);
+            const retryBody = { ...requestBody, params: { transaction: freshTx, encoding: 'base64' } };
+            res = await sendToPrivy(retryBody);
+            console.log('[SelfCustody] ✅ Blockhash retry succeeded with fresh hash.');
+          } catch (retryErr: any) {
+            console.error('[SelfCustody] ❌ Blockhash retry also failed:', retryErr?.message);
+            throw retryErr;
+          }
+        } else {
+          throw firstErr;
         }
       }
 
@@ -918,19 +1141,30 @@ export class SelfCustodyProvider implements CustodyProvider {
    * Treasury gas drip: fund a deposit wallet's NATIVE balance from treasury so
    * it can pay its own transaction fees. The treasury signs its OWN transfer
    * (single signer — no 2-signer problem). Skips when the wallet already holds
-   * at least the minimum. Amounts/thresholds are env-tunable:
-   * SWEEP_SOL_MIN_BALANCE / SWEEP_SOL_DRIP_AMOUNT (SOL),
-   * SWEEP_MON_MIN_BALANCE / SWEEP_MON_DRIP_AMOUNT (MON).
+   * at least the minimum. Amounts/thresholds are env-tunable and validated at
+   * parse time (see getDripTuning — garbage env throws a clear error instead
+   * of feeding NaN into BigInt).
+   *
+   * Returns the drip receipt (amountNative/chain/toAddress) alongside the
+   * broadcast hash so sweep engines can persist it. `confirmed` reports the
+   * waitForConfirmation outcome — broadcast failures still throw, but a
+   * confirmation TIMEOUT is returned (not thrown) so the caller can persist a
+   * TIMEOUT drip record instead of losing it inside an exception.
    */
-  async dripNativeGas(params: { toAddress: string; chain: 'solana' | 'monad' }): Promise<{ dripped: boolean; txHash?: string }> {
+  async dripNativeGas(params: { toAddress: string; chain: 'solana' | 'monad' }): Promise<{
+    dripped: boolean;
+    txHash?: string;
+    amountNative?: number;
+    chain?: 'solana' | 'monad';
+    toAddress?: string;
+    drip?: GasDripReceipt;
+    confirmed?: boolean;
+  }> {
     const { toAddress, chain } = params;
     const isSolana = chain === 'solana';
-    const minBalance = Number(isSolana
-      ? (process.env.SWEEP_SOL_MIN_BALANCE || 0.002)
-      : (process.env.SWEEP_MON_MIN_BALANCE || 0.001));
-    const dripAmount = Number(isSolana
-      ? (process.env.SWEEP_SOL_DRIP_AMOUNT || 0.005)
-      : (process.env.SWEEP_MON_DRIP_AMOUNT || 0.005));
+    const tuning = getDripTuning();
+    const minBalance = isSolana ? tuning.solMinBalance : tuning.monMinBalance;
+    const dripAmount = isSolana ? tuning.solDripAmount : tuning.monDripAmount;
 
     const current = Number(await this.getWalletBalance(toAddress, chain));
     if (Number.isFinite(current) && current >= minBalance) {
@@ -977,10 +1211,12 @@ export class SelfCustodyProvider implements CustodyProvider {
       const txHash = data2.data?.signature || data2.signature || data2.data?.hash || data2.hash || data2.result;
       if (!txHash) throw new Error('[SelfCustody] Treasury SOL drip returned no signature.');
       console.log(`[SelfCustody] 💧 Dripped ${dripAmount} SOL treasury → deposit wallet for gas: ${String(txHash).slice(0, 20)}...`);
-      if (!(await this.waitForConfirmation(txHash, 'solana'))) {
-        throw new Error(`Treasury SOL drip ${txHash} was not confirmed before timeout`);
+      const confirmed = await this.waitForConfirmation(txHash, 'solana');
+      if (!confirmed) {
+        console.warn(`[SelfCustody] ⏰ Treasury SOL drip ${String(txHash).slice(0, 20)}... broadcast but NOT confirmed before timeout (persist as TIMEOUT).`);
       }
-      return { dripped: true, txHash };
+      const drip: GasDripReceipt = { txHash, amountNative: dripAmount, chain, toAddress };
+      return { dripped: true, txHash, amountNative: dripAmount, chain, toAddress, drip, confirmed };
     }
 
     // Monad/EVM native transfer: treasury signs its own tx (treasury pays itself).
@@ -998,41 +1234,92 @@ export class SelfCustodyProvider implements CustodyProvider {
     const txHash = data3.data?.hash || data3.hash || data3.result;
     if (!txHash) throw new Error('[SelfCustody] Treasury MON drip returned no hash.');
     console.log(`[SelfCustody] 💧 Dripped ${dripAmount} MON treasury → deposit wallet for gas: ${String(txHash).slice(0, 20)}...`);
-    if (!(await this.waitForConfirmation(txHash, 'monad'))) {
-      throw new Error(`Treasury MON drip ${txHash} was not confirmed before timeout`);
+    const confirmed = await this.waitForConfirmation(txHash, 'monad');
+    if (!confirmed) {
+      console.warn(`[SelfCustody] ⏰ Treasury MON drip ${String(txHash).slice(0, 20)}... broadcast but NOT confirmed before timeout (persist as TIMEOUT).`);
     }
-    return { dripped: true, txHash };
+    const drip: GasDripReceipt = { txHash, amountNative: dripAmount, chain, toAddress };
+    return { dripped: true, txHash, amountNative: dripAmount, chain, toAddress, drip, confirmed };
   }
 
   /**
-   * Sweep send with one automatic recovery retry: on signer-insufficient-balance
-   * it drips native gas from treasury first, then retries; on stale-blockhash
-   * simulation failure it retries once (fresh blockhash per sendCrypto call).
-   * Anything else throws immediately.
+   * Sweep send with one automatic recovery retry, gated by the structured
+   * failure classifier (farming defense):
+   * - GAS (native fee shortfall ONLY): drip-guard hooks run first (eligibility
+   *   BEFORE dripping — ineligible throws DripBlocked loudly with no drip),
+   *   then drip + persist (CONFIRMED only after waitForConfirmation, else
+   *   TIMEOUT), then retry once.
+   * - BLOCKHASH: retry once WITHOUT dripping.
+   * - TOKEN/OTHER: throw immediately — never drip on token shortfall or
+   *   ambiguous errors.
    */
   async sendCryptoWithGasRetry(
     params: Parameters<SelfCustodyProvider['sendCrypto']>[0],
-    signerAddress: string
-  ): Promise<{ txHash: string }> {
+    signerAddress: string,
+    dripHooks?: DripHooks
+  ): Promise<{ txHash: string; drip?: GasDripReceipt }> {
     try {
       return await this.sendCrypto(params);
     } catch (err: any) {
-      const msg = (err?.message || String(err)).toLowerCase();
-      const needsGas = msg.includes('insufficient') && (msg.includes('balance') || msg.includes('funds'));
-      const staleBlockhash = msg.includes('blockhash not found');
-      if (!needsGas && !staleBlockhash) throw err;
-      if (needsGas) {
-        if (!signerAddress) throw err;
-        console.log(`[SelfCustody] ⛽ Signer lacks gas, dripping from treasury then retrying (${params.chain})...`);
-        try {
-          await this.dripNativeGas({ toAddress: signerAddress, chain: params.chain });
-        } catch (dripErr: any) {
-          throw new Error(`${err?.message || err} [gas drip also failed: ${dripErr?.message || dripErr}]`);
-        }
-      } else {
-        console.log(`[SelfCustody] 🔄 Stale blockhash, retrying broadcast once (${params.chain})...`);
+      const originalMsg = err?.message || String(err);
+      const failureClass = classifySweepFailure(originalMsg);
+      if (failureClass === 'BLOCKHASH') {
+        console.log(`[SelfCustody] 🔄 Stale blockhash (${failureClass}), retrying broadcast once WITHOUT drip (${params.chain})...`);
+        return await this.sendCrypto(params);
       }
-      return await this.sendCrypto(params);
+      if (failureClass !== 'GAS') {
+        // TOKEN/OTHER: dripping cannot help (token shortfall, config error,
+        // ambiguous failure) — and dripping on it would be farmable. Loud.
+        console.error(`[SelfCustody] 🛑 Sweep failure classified as ${failureClass} — NOT dripping, throwing immediately.`);
+        throw err;
+      }
+      if (!signerAddress) throw err;
+      console.log(`[SelfCustody] ⛽ Signer lacks gas (classified GAS), dripping from treasury then retrying (${params.chain})...`);
+      // Drip-guard: eligibility BEFORE any drip. Ineligible → fail loudly with
+      // a greppable DripBlocked reason and NO drip broadcast.
+      if (dripHooks?.checkDripEligibility) {
+        let decision: { eligible: boolean; reason?: string };
+        try {
+          const tuning = getDripTuning();
+          decision = await dripHooks.checkDripEligibility({
+            walletAddress: signerAddress,
+            chain: params.chain,
+            depositAmountUSDC: dripHooks.depositAmountUSDC,
+            dripAmountNative: params.chain === 'solana' ? tuning.solDripAmount : tuning.monDripAmount
+          });
+        } catch (guardErr: any) {
+          throw new Error(`DripBlocked:ELIGIBILITY_CHECK_FAILED: ${guardErr?.message || guardErr} [sweep error: ${originalMsg}]`);
+        }
+        if (!decision.eligible) {
+          throw new Error(`DripBlocked:${decision.reason || 'INELIGIBLE'}: treasury drip refused for ${signerAddress} on ${params.chain} [sweep error: ${originalMsg}]`);
+        }
+      }
+      let dripResult: Awaited<ReturnType<SelfCustodyProvider['dripNativeGas']>>;
+      try {
+        dripResult = await this.dripNativeGas({ toAddress: signerAddress, chain: params.chain });
+      } catch (dripErr: any) {
+        throw new Error(`${originalMsg} [gas drip also failed: ${dripErr?.message || dripErr}]`);
+      }
+      const dripReceipt = dripResult.drip;
+      if (dripReceipt && dripHooks?.recordDrip) {
+        try {
+          await dripHooks.recordDrip({
+            walletAddress: signerAddress,
+            chain: params.chain,
+            amountNative: dripReceipt.amountNative,
+            txHash: dripReceipt.txHash,
+            trigger: 'SWEEP_RETRY',
+            status: dripResult.confirmed ? 'CONFIRMED' : 'TIMEOUT'
+          });
+        } catch (recordErr: any) {
+          // Loud but non-fatal: the money movement (sweep retry) matters more
+          // than the bookkeeping row. A DB outage here is observable via logs;
+          // caps resume enforcing once the DB is back.
+          console.error(`[SelfCustody] ⚠️ Drip broadcast succeeded but recordDrip failed (caps may under-count until DB recovers): ${recordErr?.message || recordErr}`);
+        }
+      }
+      const retryRes = await this.sendCrypto(params);
+      return { txHash: retryRes.txHash, drip: dripReceipt };
     }
   }
 

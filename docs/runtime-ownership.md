@@ -17,6 +17,12 @@ When adding a new scheduled job, queue consumer, polling loop, or retry processo
 - Rate polling: `apps/worker/src/index.ts`
 - Chain deposit polling: `apps/worker/src/index.ts`
 - Crypto withdrawal processing: `apps/worker/src/index.ts`
+- Sweep retry claiming: `apps/worker` (`ChainDepositProcessor.processSweepRetries`) is the SOLE owner.
+  The legacy in-API `SweepWorkerService` claim loop is fenced per ADR-0001:
+  `apps/api/src/server.ts` starts it only when `API_SWEEP_WORKER_ENABLED=true`
+  (default OFF — never enable alongside the worker; both claim the same
+  `Deposit` rows). The class remains instantiable for read-only
+  `getQueueHealth` only.
 
 ## Liveness
 

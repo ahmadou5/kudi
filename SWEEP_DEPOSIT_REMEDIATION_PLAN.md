@@ -44,7 +44,10 @@ Source audit: `SWEEP_DEPOSIT_SECURITY_AUDIT.md`. Owner split across two parallel
 - [x] Logs/notifications redact `privyWalletId`, secrets, push tokens. Follow-up (not done): mask `privyWalletId` in `AdminController.getDeposits` → admin UI for non-need-to-know roles.
 - Accept: boot with unset treasury env fails fast with a clear error; `rg -ni "kuditreasury|0x\.\.\.AUSD" packages/chains/src` shows no active fallback.
 
-## Execution
-1. `chain-security` agent: R1, R3, R4, R5-code. `platform-hardening` agent: R2, R6. Disjoint file scopes (see agent prompts); no commits.
-2. Integrator (main): resolve overlaps, run `pnpm run typecheck`, tick boxes above only on green + acceptance checks.
-3. User actions: secret rotation (R2), treasury funding/monitoring decision for treasury-pays (R3), BigInt migration scheduling (R5).
+## Execution (completed 2026-09-25 — nothing committed, redeploy required)
+1. `chain-security` + `platform-hardening` agents: done. Follow-up multi-agent pass: drip hardening (Agent A), single sweep owner (Agent B), treasury admin surface (Agent C) — all done, all lints green (17/17 packages).
+2. Drip farming defenses shipped: `GasDrip` ledger table (schema + runtime-sync + Neon table created), `checkDripEligibility` (dust floor 1.0 USDC → 1 drip/wallet/day → 0.5/day global cap → live treasury floor 0.5) + `recordDrip`, structured `classifySweepFailure` (GAS drips, TOKEN/BLOCKHASH/OTHER never drip; Privy "Signer had insufficient balance" verified GAS), validated env tuning. API sweep now broadcasts clamped `sweepAmount` (was detected amount — confirmed bug, fixed).
+3. Single owner: `API_SWEEP_WORKER_ENABLED` default FALSE — worker `ChainDepositProcessor` is sole claimer; `SweepWorkerService` kept for reads only.
+4. Admin surface: `GET /api/admin/drips` (parsed cause chips + 24h totals), `GET /api/admin/treasury` (per-chain native + float + drips-remaining + low-runway flag), real audit rows in settings, `TREASURY_FEE_PAYER` rejected from admin modes, effective-mode receipt on save, Treasury & runway strip + drip ledger table + server health panel + fixed float-model banners (keyed wallets never show float copy), admin proxy now forwards query strings.
+5. User actions still open: secret rotation (R2), BigInt migration + persisted scan cursors (R5), Privy dashboard sponsorship check (the EVM 03:27 failure class), hard un-swept spend cap (R4 alert-level only).
+6. REDEPLOY Railway (api + worker + admin) — production still runs pre-fix builds; none of this takes effect until then. Post-deploy canary: watch for `💧 Dripped` lines and the 8 requeued sweeps settling.

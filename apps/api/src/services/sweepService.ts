@@ -22,7 +22,7 @@
 
 import { SelfCustodyProvider, resolveGasPaymentMode, resolveSweepAmount, type GasPaymentMode } from '@kudi/chains';
 import { LedgerService } from './ledgerService';
-import { prisma } from '@kudi/database';
+import { prisma, checkDripEligibility, recordDrip } from '@kudi/database';
 import { fetchJsonWithRpcFallback, redactAddress } from '@kudi/config';
 
 export interface SweepResult {
@@ -155,16 +155,29 @@ export class SweepService {
         );
       }
 
-      // Gas-retry wrapper: drips native gas from treasury on signer-insufficient
-      // errors (deposit wallets start with 0 SOL/MON), retries stale blockhash.
+      // Gas-retry wrapper: on classifier-GAS failures only, the drip-guard
+      // hooks enforce eligibility BEFORE any drip (per-wallet 24h limit,
+      // global daily cap, treasury floor, dust floor — ineligible throws
+      // DripBlocked loudly with no drip) and persist the drip AFTER
+      // (CONFIRMED only after waitForConfirmation, else TIMEOUT). TOKEN/OTHER
+      // failures and stale blockhashes never drip (throw / retry-once).
+      // NOTE: broadcasts sweepAmount (the clamped on-chain figure), never the
+      // detected amount — partial balances must not attempt oversized moves.
       const result = await this.selfCustodyProvider.sendCryptoWithGasRetry({
         treasuryWalletId: privyWalletId,
         fromAddress: walletAddress,
         toAddress: targetTreasury,
-        amountUSDC,
+        amountUSDC: sweepAmount,
         chain,
         gasPaymentMode
-      }, walletAddress);
+      }, walletAddress, {
+        depositAmountUSDC: amountUSDC,
+        checkDripEligibility: (ctx) => checkDripEligibility(prisma, ctx),
+        recordDrip: (rec) => recordDrip(prisma, rec)
+      });
+      if (result.drip) {
+        console.log(`[SweepService] 💧 Drip persisted path: ${result.drip.amountNative} native on ${result.drip.chain} → ${redactAddress(result.drip.toAddress)} (tx ${result.drip.txHash.slice(0, 20)}...)`);
+      }
 
       console.log(`[SweepService] ✅ ${chain.toUpperCase()} sweep SUCCESSFUL: ${sweepAmount} USDC from ${redactAddress(walletAddress)} → treasury (${redactAddress(targetTreasury)}) | TxHash: ${result.txHash}`);
 

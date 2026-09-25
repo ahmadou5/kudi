@@ -1,4 +1,19 @@
 /**
+ * ⚠️ DEPRECATED / FENCED — LEGACY SECOND SWEEP ENGINE (ADR-0001) ⚠️
+ *
+ * Single sweep ownership: `apps/worker` ChainDepositProcessor.processSweepRetries
+ * is the SOLE recurring sweep claimer. This class is a legacy duplicate engine
+ * that claims the SAME Deposit rows — running both causes double-sweeps.
+ *
+ * - `server.ts` gates `start()` behind `API_SWEEP_WORKER_ENABLED=true`
+ *   (default OFF). Do NOT enable it while the worker claimer is running.
+ * - The class stays instantiable ONLY for read-only helpers
+ *   (`getQueueHealth`) — no callers of the claim loop may be added.
+ * - Do NOT re-enable without FIRST removing the worker claimer AND adding a
+ *   double-claim integration test proving exactly one engine claims each row.
+ *
+ * ---
+ *
  * SweepWorkerService — Persistent DB-Driven Sweep Retry Engine
  *
  * The original DepositService fired sweeps as fire-and-forget promises.
@@ -36,8 +51,8 @@ import {
 
 const POLL_INTERVAL_MS = 30_000;       // Check DB every 30 seconds
 // Retry schedule is owned by SWEEP_RETRY_POLICY (single shared definition in
-// @kudi/chains). This engine is the designated sweep owner; the worker
-// ChainDepositProcessor reuses the same constants.
+// @kudi/chains). NOTE (ADR-0001): this engine is FENCED — the worker
+// ChainDepositProcessor is the designated sweep owner and reuses the same constants.
 const MAX_ATTEMPTS = SWEEP_RETRY_POLICY.MAX_ATTEMPTS;
 const CONCURRENCY = 3;                 // Max sweeps to process simultaneously
 

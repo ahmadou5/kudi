@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { loadDeposits, loadOperatorAlerts, requeueSweep, recheckSweep, AdminDeposit, OperatorAlert } from '@/lib/admin-data';
+import { loadDeposits, loadOperatorAlerts, loadSweepHealth, requeueSweep, recheckSweep, AdminDeposit, OperatorAlert, SweepHealth } from '@/lib/admin-data';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ import {
 export default function DepositsPage() {
   const [deposits, setDeposits] = useState<AdminDeposit[]>([]);
   const [alerts, setAlerts] = useState<OperatorAlert[]>([]);
+  const [sweepHealth, setSweepHealth] = useState<SweepHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [chainFilter, setChainFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -31,9 +32,10 @@ export default function DepositsPage() {
   const [selectedDeposit, setSelectedDeposit] = useState<AdminDeposit | null>(null);
 
   async function refreshDeposits() {
-    const [data, alertData] = await Promise.all([loadDeposits(), loadOperatorAlerts()]);
+    const [data, alertData, healthData] = await Promise.all([loadDeposits(), loadOperatorAlerts(), loadSweepHealth()]);
     setDeposits(data);
     setAlerts(alertData);
+    setSweepHealth(healthData);
     setLoading(false);
   }
 
@@ -99,15 +101,65 @@ export default function DepositsPage() {
           <div className="flex items-center gap-3 shrink-0">
             <div className="rounded-xl border border-border/60 bg-card p-3 text-right">
               <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Swept</span>
-              <span className="font-mono text-base font-bold text-emerald-400">{sweepSummary.SWEPT || 0}</span>
+              <span className="font-mono text-base font-bold text-emerald-400">
+                {sweepHealth ? `$${sweepHealth.summary.sweptUSDC.toFixed(0)}` : (sweepSummary.SWEPT || 0)}
+              </span>
             </div>
             <div className="rounded-xl border border-border/60 bg-card p-3 text-right">
               <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Needs Action</span>
-              <span className="font-mono text-base font-bold text-amber-300">{exhausted.length}</span>
+              <span className="font-mono text-base font-bold text-amber-300">
+                {sweepHealth ? sweepHealth.summary.exhaustedCount : exhausted.length}
+              </span>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Server-computed sweep health — augments (not replaces) the client-side
+          derivation above; the client-side counts keep working if the endpoint fails. */}
+      {sweepHealth ? (
+        <div className="rounded-xl border border-border/60 bg-card/70 p-4">
+          <div className="flex items-start gap-3">
+            <Info className="mt-0.5 h-4 w-4 text-sky-300" />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold text-foreground">Sweep Health (server)</div>
+              <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                <Badge variant="silver" className="font-mono">
+                  pending ${sweepHealth.summary.pendingUSDC.toFixed(2)}
+                </Badge>
+                <Badge variant="silver" className="font-mono">
+                  processing ${sweepHealth.summary.processingUSDC.toFixed(2)}
+                </Badge>
+                <Badge variant="warning" className="font-mono">
+                  failed ${sweepHealth.summary.failedUSDC.toFixed(2)} · blocked ${sweepHealth.summary.blockedUSDC.toFixed(2)}
+                </Badge>
+                <Badge variant="outline" className="font-mono">
+                  float exposure ${sweepHealth.summary.floatExposureUSDC.toFixed(2)}
+                </Badge>
+                {sweepHealth.staleProcessing.length > 0 && (
+                  <Badge variant="warning" className="font-mono">
+                    {sweepHealth.staleProcessing.length} stale processing (&gt;10 min)
+                  </Badge>
+                )}
+                {sweepHealth.summary.exhaustedCount > 0 && (
+                  <Badge variant="warning" className="font-mono">
+                    {sweepHealth.summary.exhaustedCount} exhausted
+                  </Badge>
+                )}
+              </div>
+              {sweepHealth.accessibility.filter((a) => a.accessMode !== 'SERVER_CUSTODY').length > 0 && (
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Non-server-custody exposure:{' '}
+                  {sweepHealth.accessibility
+                    .filter((a) => a.accessMode !== 'SERVER_CUSTODY')
+                    .map((a) => `${a.accessMode} ${a.count}× $${a.amountUSDC.toFixed(2)} (${a.chain}/${a.sweepStatus})`)
+                    .join(' · ')}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {alerts.length > 0 ? (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">

@@ -21,8 +21,12 @@ export async function GET(request: Request, { params }: { params: { slug: string
     return NextResponse.json({ success: false, message: 'ADMIN_API_KEY is not configured on the admin app' }, { status: 503 });
   }
 
+  // Forward query strings (filters like ?chain=&limit=) — previously dropped,
+  // which silently broke filtered admin reads such as the drip ledger.
+  const query = new URL(request.url).search || '';
+
   try {
-    const res = await fetch(apiUrl + '/api/v1/admin/' + path, {
+    const res = await fetch(apiUrl + '/api/v1/admin/' + path + query, {
       headers: {
         'Content-Type': 'application/json',
         ...(authHeader ? { Authorization: authHeader } : {}),

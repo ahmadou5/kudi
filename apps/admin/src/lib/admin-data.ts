@@ -76,6 +76,9 @@ export type AdminDeposit = {
   sweptAt?: string | null;
   walletAddress?: string | null;
   privyWalletId?: string | null;
+  /** Server-key presence across BOTH the Deposit row and the joined Wallet row. */
+  walletCustody?: 'SERVER_CUSTODY' | 'NO_SERVER_KEY' | string;
+  walletCustodyType?: string | null;
   createdAt: string;
 };
 
@@ -869,28 +872,187 @@ export async function updateMaintenanceConfig(config: {
 
 export type AdminSweepConfig = {
   mode: 'AUTO' | 'SPONSORED' | 'TREASURY_FEE_PAYER';
+  gasPaymentMode?: 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER' | string;
+  /** Backend-resolved effective gas mode (DB value wins, validated union). */
+  effectiveMode?: 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER' | string;
+  auditId?: string | null;
+  receipt?: {
+    changedBy: string;
+    changedAt: string;
+    previous: { mode: string; gasPaymentMode: string; effectiveMode: string; updatedAt?: string | null };
+    new: { mode: string; gasPaymentMode: string; effectiveMode: string };
+  } | null;
   updatedAt?: string | null;
+};
+
+export type DripFailureCause =
+  | 'TREASURY_EMPTY'
+  | 'PRIVY_DOWN'
+  | 'SPONSORSHIP_OFF'
+  | 'RPC_TIMEOUT'
+  | 'UNKNOWN';
+
+export type AdminDrip = {
+  id: string;
+  time: string;
+  chain: string;
+  walletAddress: string;
+  amountNative: number;
+  txHash: string;
+  trigger: string;
+  status: string;
+  cause: DripFailureCause | null;
+};
+
+export type DripLedger = {
+  drips: AdminDrip[];
+  totals: {
+    last24h: { count: number; confirmed: number; failed: number; pending: number };
+    spentNativePerChain24h: { solana: number; monad: number };
+  };
+};
+
+export type TreasuryChainSnapshot = {
+  chain: string;
+  nativeSymbol: string;
+  treasuryAddress: string;
+  nativeBalance: number | null;
+  nativeError: string | null;
+  floatToken: string;
+  floatTokenAddress: string;
+  floatBalance: number | null;
+  floatError: string | null;
+  dripAmount: number;
+  dripThreshold: number;
+  dripsRemaining: number | null;
+  lowRunway: boolean;
+};
+
+export type TreasurySnapshot = {
+  chains: TreasuryChainSnapshot[];
+  error?: string;
+};
+
+export type SweepHealth = {
+  summary: {
+    pendingUSDC: number;
+    processingUSDC: number;
+    sweptUSDC: number;
+    failedUSDC: number;
+    blockedUSDC: number;
+    floatExposureUSDC: number;
+    unsupportedUSDC: number;
+    totalDeposits: number;
+    exhaustedCount: number;
+  };
+  accessibility: Array<{
+    sweepStatus: string;
+    chain: string;
+    accessMode: string;
+    count: number;
+    amountUSDC: number;
+  }>;
+  staleProcessing: Array<{
+    id: string;
+    userId: string;
+    chain: string;
+    tokenSymbol: string;
+    amountUSDC: number;
+    signature: string;
+    sweepAttemptCount: number;
+    updatedAt: string;
+    createdAt: string;
+  }>;
+  exhausted: Array<{
+    id: string;
+    userId: string;
+    chain: string;
+    tokenSymbol: string;
+    amountUSDC: number;
+    signature: string;
+    sweepStatus: string;
+    sweepError: string | null;
+    sweepAttemptCount: number;
+    nextSweepAttemptAt: string | null;
+    createdAt: string;
+  }>;
 };
 
 export async function loadSweepConfig(): Promise<AdminSweepConfig> {
   const fallback: AdminSweepConfig = {
     mode: 'AUTO',
+    gasPaymentMode: 'PRIVY_SPONSOR',
+    effectiveMode: 'PRIVY_SPONSOR',
     updatedAt: null
   };
   return adminFetch<AdminSweepConfig>('/config/sweep', fallback);
 }
 
-export async function updateSweepConfig(mode: 'AUTO' | 'SPONSORED' | 'TREASURY_FEE_PAYER'): Promise<AdminSweepConfig | null> {
+export async function updateSweepConfig(
+  mode: 'AUTO' | 'SPONSORED',
+  gasPaymentMode?: 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER'
+): Promise<AdminSweepConfig | null> {
   try {
+    const token = getAuthToken();
     const res = await fetch('/api/admin/config/sweep', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode })
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify(gasPaymentMode ? { mode, gasPaymentMode } : { mode })
     });
     const json = await res.json();
+    if (!res.ok) throw new Error(json?.message || `Sweep config update failed (${res.status})`);
     return json?.data ?? json;
   } catch (err) {
     console.error('Failed to update sweep config', err);
+    throw err;
+  }
+}
+
+const emptyDripLedger: DripLedger = {
+  drips: [],
+  totals: {
+    last24h: { count: 0, confirmed: 0, failed: 0, pending: 0 },
+    spentNativePerChain24h: { solana: 0, monad: 0 }
+  }
+};
+
+export async function loadDrips(chain?: 'solana' | 'monad', limit = 200): Promise<DripLedger> {
+  const params = new URLSearchParams();
+  params.set('limit', String(Math.min(Math.max(limit, 1), 200)));
+  if (chain) params.set('chain', chain);
+  const ledger = await adminFetch<DripLedger>('/drips?' + params.toString(), emptyDripLedger);
+  // Client-side backstop: the admin proxy forwards the path but not the query
+  // string, so when served through it the server returns the unfiltered
+  // default page — filter/slice locally so the UI is correct either way.
+  const drips = Array.isArray(ledger?.drips) ? ledger.drips : [];
+  const filtered = (chain ? drips.filter((d) => d.chain === chain) : drips).slice(0, limit);
+  return { drips: filtered, totals: ledger?.totals || emptyDripLedger.totals };
+}
+
+export async function loadTreasury(): Promise<TreasurySnapshot> {
+  return adminFetch<TreasurySnapshot>('/treasury', { chains: [] });
+}
+
+export async function loadSweepHealth(): Promise<SweepHealth | null> {
+  try {
+    const token = getAuthToken();
+    const response = await fetch('/api/admin/sweeps/health', {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      cache: 'no-store'
+    });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    if (payload?.data) return payload.data as SweepHealth;
+    if (payload && !payload.success) return null;
+    return payload as SweepHealth;
+  } catch (error) {
+    console.warn('[AdminData] Live sweep health fetch failed:', error instanceof Error ? error.message : error);
     return null;
   }
 }

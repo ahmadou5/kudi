@@ -34,6 +34,8 @@ const resolvedUrl = getDatabaseUrl();
 
 export * from '@prisma/client';
 
+export * from './drips';
+
 export const prisma = new PrismaClient(
   resolvedUrl ? { datasources: { db: { url: resolvedUrl } } } : undefined
 );

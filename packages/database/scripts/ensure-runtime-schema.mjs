@@ -200,7 +200,19 @@ const statements = [
     value TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`
+  )`,
+  `CREATE TABLE IF NOT EXISTS "GasDrip" (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    "walletAddress" TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    "amountNative" DOUBLE PRECISION NOT NULL,
+    "txHash" TEXT NOT NULL UNIQUE,
+    trigger TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'BROADCAST',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE INDEX IF NOT EXISTS "GasDrip_walletAddress_createdAt_idx" ON "GasDrip" ("walletAddress", "createdAt")`,
+  `CREATE INDEX IF NOT EXISTS "GasDrip_chain_createdAt_idx" ON "GasDrip" (chain, "createdAt")`
 ];
 
 try {
