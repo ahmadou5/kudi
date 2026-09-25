@@ -8,6 +8,7 @@ Source audit: `SWEEP_DEPOSIT_SECURITY_AUDIT.md`. Owner split across two parallel
 - [x] EVM deposits credit only when `confirmations >= threshold`; unconfirmed logs are skipped/logged, never credited.
 - [x] Both credit paths (`DepositService`, `ChainDepositProcessor.processDepositEvent`) gate on the above.
 - Accept: `rg -n "confirmed: true" packages/chains/src` shows zero in verification paths; threshold constants defined once per chain. ✅ verified 2026-09-25 (also fixed `partnerCustody.ts` fallback at integration).
+- [x] Post-deploy fix 2026-09-25: chain agent accidentally deleted `"method": "getTransaction"` (left only the comment) → every Solana tx fetch sent a method-less request → RPC 501 → listener heard NOTHING since deploy (2 real +10 USDC deposits missed, proven on-chain). Restored; verified end-to-end (both missed deposits detected, finalized). Also: batched `getSignatureStatuses` (1 call/wallet/poll + retries, was per-signature with no retry — fail-closed into deafness under 429s) and fixed the misleading "No transactions found" log (now distinguishes all-processed vs RPC-partially-failed).
 
 ## R2 — Secrets & admin auth [agent: platform-hardening] ✅ CODE DONE / USER ACTION PENDING
 - [x] `.env*` gitignored; no secret values in tracked files/docs.

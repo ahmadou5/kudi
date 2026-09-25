@@ -108,6 +108,7 @@ export class SolanaListener {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jsonrpc: '2.0',
+          method: 'getTransaction',
           // finalized: only credit-grade transactions are returned for deposits
           params: [signature, { encoding: 'jsonParsed', commitment: 'finalized', maxSupportedTransactionVersion: 0 }],
           id: 2
@@ -133,30 +134,57 @@ export class SolanaListener {
   }
 
   /**
-   * Reads the live confirmation status for a signature.
-   * Returns 'finalized' only when the network reports finalized; any RPC
-   * failure or unknown status returns null (fail closed — not credited).
+   * Reads live confirmation statuses in ONE batched RPC call (up to 256
+   * signatures) with retry/backoff. Returns a map signature → status string.
+   * Unknown/failed entries resolve to null (fail closed — not credited), but a
+   * total RPC failure after retries returns null for the whole batch so the
+   * caller can distinguish "unknown" from "checked and unfinalized".
+   *
+   * Why batched: per-signature status calls multiply RPC pressure (poll ×
+   * wallets × signatures) and public endpoints 429, which fail-closed into
+   * "listener hears nothing". One call per wallet per poll stays far under limits.
    */
-  private async getConfirmationStatus(signature: string): Promise<string | null> {
-    try {
-      const res = await fetch(this.config.rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'getSignatureStatuses',
-          params: [[signature], { searchTransactionHistory: true }],
-          id: 3
-        })
-      });
-      const data = await res.json() as any;
-      const status = data.result?.value?.[0];
-      if (status?.err) return null;
-      return typeof status?.confirmationStatus === 'string' ? status.confirmationStatus : null;
-    } catch (err) {
-      console.warn(`[SolanaListener] getSignatureStatuses failed for ${signature.slice(0, 12)}...:`, err);
-      return null;
+  private async getConfirmationStatuses(signatures: string[]): Promise<Map<string, string | null> | null> {
+    const out = new Map<string, string | null>();
+    if (signatures.length === 0) return out;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const res = await fetch(this.config.rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'getSignatureStatuses',
+            params: [signatures, { searchTransactionHistory: true }],
+            id: 3
+          })
+        });
+        const data = await res.json() as any;
+        if (data.error) {
+          const code = data.error?.code;
+          console.warn(`[SolanaListener] getSignatureStatuses RPC error (attempt ${attempt + 1}/3):`, data.error);
+          if (code === 429) {
+            await sleep(750 * (attempt + 1));
+            continue;
+          }
+          return null;
+        }
+        const values: any[] = data.result?.value || [];
+        values.forEach((status, i) => {
+          if (!status || status.err) {
+            out.set(signatures[i], null);
+          } else {
+            out.set(signatures[i], typeof status.confirmationStatus === 'string' ? status.confirmationStatus : null);
+          }
+        });
+        return out;
+      } catch (err) {
+        console.warn(`[SolanaListener] getSignatureStatuses fetch failed (attempt ${attempt + 1}/3):`, err instanceof Error ? err.message : err);
+        await sleep(500 * (attempt + 1));
+      }
     }
+    console.warn(`[SolanaListener] getSignatureStatuses exhausted retries for ${signatures.length} signature(s) — treating as unknown.`);
+    return null;
   }
 
   /**
@@ -189,26 +217,33 @@ export class SolanaListener {
         // Step 2: Get recent transaction signatures for both the TOKEN account and owner wallet.
         // The token account is the normal path; the owner fallback catches first-time ATA creation flows.
         const signatureMap = new Map<string, any>();
+        let fetchFailed = false;
         for (const addressToScan of [tokenAccountAddress, walletAddress]) {
-          const sigRes = await fetch(this.config.rpcUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              jsonrpc: '2.0',
-              method: 'getSignaturesForAddress',
-              params: [addressToScan, { limit: 25, commitment: 'finalized' }],
-              id: 1
-            })
-          });
+          try {
+            const sigRes = await fetch(this.config.rpcUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                jsonrpc: '2.0',
+                method: 'getSignaturesForAddress',
+                params: [addressToScan, { limit: 25, commitment: 'finalized' }],
+                id: 1
+              })
+            });
 
-          const sigData = await sigRes.json() as any;
-          if (sigData.error) {
-            console.warn(`[SolanaListener] getSignaturesForAddress failed for ${addressToScan.slice(0, 8)}...:`, sigData.error);
-            continue;
-          }
+            const sigData = await sigRes.json() as any;
+            if (sigData.error) {
+              fetchFailed = true;
+              console.warn(`[SolanaListener] getSignaturesForAddress failed for ${addressToScan.slice(0, 8)}...:`, sigData.error);
+              continue;
+            }
 
-          for (const sigInfo of sigData.result || []) {
-            if (sigInfo?.signature) signatureMap.set(sigInfo.signature, sigInfo);
+            for (const sigInfo of sigData.result || []) {
+              if (sigInfo?.signature) signatureMap.set(sigInfo.signature, sigInfo);
+            }
+          } catch (err) {
+            fetchFailed = true;
+            console.warn(`[SolanaListener] getSignaturesForAddress fetch failed for ${addressToScan.slice(0, 8)}...:`, err instanceof Error ? err.message : err);
           }
         }
 
@@ -217,13 +252,18 @@ export class SolanaListener {
           .slice(0, Number(process.env.SOLANA_MAX_TX_FETCH_PER_WALLET || 8));
 
         if (sigs.length === 0) {
-          console.log(`[SolanaListener] No transactions found for token account/wallet ${tokenAccountAddress.slice(0, 8)}...`);
+          console.log(
+            `[SolanaListener] No unprocessed transactions for wallet ${walletAddress.slice(0, 8)}... ` +
+            `(${signatureMap.size} seen${fetchFailed ? ', RPC fetch PARTIALLY FAILED — may have missed new deposits, will retry' : ', all already processed'})`
+          );
           continue;
         }
 
         console.log(`[SolanaListener] Found ${signatureMap.size} unique transactions (${sigs.length} unprocessed this poll), checking for USDC deposits...`);
 
-        // Step 3: Fetch and parse each transaction
+        // Step 3: Fetch and parse each transaction, collecting incoming
+        // candidates first so Step 4 can status-check them in ONE batched call.
+        const candidates: Array<{ sigInfo: any; diff: number }> = [];
         for (const sigInfo of sigs) {
           // Skip failed transactions
           if (sigInfo.err) continue;
@@ -267,14 +307,22 @@ export class SolanaListener {
           const diff = postAmount - preAmount;
 
           if (diff > 0) {
-            // Credit-grade check: only finalized transactions may be credited.
-            // getTransaction above already used finalized commitment; confirm via
-            // live signature status and fail closed (skip) when not finalized.
-            const confirmationStatus = await this.getConfirmationStatus(sigInfo.signature);
-            const confirmed = confirmationStatus === 'finalized';
-            if (!confirmed) {
+            candidates.push({ sigInfo, diff });
+          } else if (diff < 0) {
+            console.log(`[SolanaListener] ↩️ Outgoing transfer detected (${diff} USDC), skipping.`);
+          }
+        }
+
+        // Step 4: Credit-grade check in one batched call — only finalized
+        // transactions may be credited. Unknown status (RPC failure after
+        // retries) fails closed per candidate but stays unprocessed for retry.
+        if (candidates.length > 0) {
+          const statuses = await this.getConfirmationStatuses(candidates.map((c) => c.sigInfo.signature));
+          for (const { sigInfo, diff } of candidates) {
+            const confirmationStatus = statuses?.get(sigInfo.signature) ?? null;
+            if (confirmationStatus !== 'finalized') {
               console.log(
-                `[SolanaListener] ⏳ Deposit ${sigInfo.signature.slice(0, 12)}... not yet finalized ` +
+                `[SolanaListener] ⏳ Deposit ${sigInfo.signature.slice(0, 12)}... not finalized ` +
                 `(status: ${confirmationStatus ?? 'unknown'}) — skipping until finalized.`
               );
               continue;
@@ -284,12 +332,10 @@ export class SolanaListener {
               signature: sigInfo.signature,
               userWalletAddress: walletAddress,
               amountUSDC: diff.toFixed(6),
-              slot: sigInfo.slot ?? tx.slot ?? 0,
-              confirmed,
+              slot: sigInfo.slot ?? 0,
+              confirmed: true,
               confirmationStatus
             });
-          } else if (diff < 0) {
-            console.log(`[SolanaListener] ↩️ Outgoing transfer detected (${diff} USDC), skipping.`);
           }
         }
       } catch (err) {
