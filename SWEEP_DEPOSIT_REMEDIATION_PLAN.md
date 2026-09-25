@@ -32,6 +32,7 @@ Source audit: `SWEEP_DEPOSIT_SECURITY_AUDIT.md`. Owner split across two parallel
 - [x] API credit path is one DB transaction (credit + `Deposit` insert + `ProcessedSignature` insert in one prisma transaction; remove fire-and-forget `.catch` swallow; in-memory sets are cache-only).
 - [x] Amount parsing centralized and validated (reject NaN/negative/dust-inconsistent); Phase A keeps `Float` columns. Full BigInt minor-unit migration is a separate follow-up (needs migration + backfill — not in this pass).
 - [x] Single sweep owner documented; worker retry policy unified (one status set, one cap, one backoff); orphan deposits (missing wallet row) go to dead-letter, never stuck silent.
+- [x] Post-deploy fix 2026-09-25: worker `processSweepRetries` failed every cycle with `FOR UPDATE cannot be applied to the nullable side of an outer join` (LEFT JOIN + FOR UPDATE). Reworked to select-then-claim via `UPDATE ... WHERE status IN (...) RETURNING` — atomic, no join locking. All other FOR UPDATE sites audited (single-table, safe).
 - [ ] Scanner cursor persistence per chain/wallet with full pagination — NOT DONE (needs restructuring; current in-memory cursors + narrow Solana window remain the residual risk).
 - Accept: restart mid-poll causes no double credit and no missed deposit in a bursty-wallet test; retry policy constants defined once.
 

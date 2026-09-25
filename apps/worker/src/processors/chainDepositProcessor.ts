@@ -322,6 +322,10 @@ export class ChainDepositProcessor {
       // LEFT JOIN: deposits whose wallet row is missing must surface here so
       // they can be dead-lettered below — an inner JOIN would strand them
       // silently with no status change, no alert, and no retry.
+      // NOTE: no FOR UPDATE here — Postgres forbids locking the nullable side
+      // of an outer join. The atomic claim happens in the UPDATE below, which
+      // only touches "Deposit" rows still in a retryable status and RETURNs
+      // the signatures it actually claimed (losers are dropped).
       const due: any[] = await tx.$queryRaw`
         SELECT
           d.signature, d.chain, d."amountUSDC", d."walletAddress", d."userId",
@@ -333,21 +337,23 @@ export class ChainDepositProcessor {
           AND d."sweepAttemptCount" < ${SWEEP_MAX_ATTEMPTS}
         ORDER BY d."nextSweepAttemptAt" ASC, d."createdAt" ASC
         LIMIT 10
-        FOR UPDATE SKIP LOCKED
       `;
 
       if (due.length === 0) return due;
 
       const signatures = due.map((row) => row.signature);
-      await tx.$executeRaw`
+      const claimed: Array<{ signature: string }> = await tx.$queryRaw`
         UPDATE "Deposit"
         SET "sweepStatus" = 'SWEEP_PROCESSING',
             "sweepAttemptCount" = "sweepAttemptCount" + 1,
             "updatedAt" = NOW()
         WHERE signature = ANY(${signatures})
+          AND "sweepStatus" IN ('SWEEP_PENDING', 'SWEEP_FAILED', 'SWEEP_BLOCKED')
+        RETURNING signature
       `;
 
-      return due;
+      const claimedSet = new Set(claimed.map((row) => row.signature));
+      return due.filter((row) => claimedSet.has(row.signature));
     });
 
     if (rows.length > 0) {
