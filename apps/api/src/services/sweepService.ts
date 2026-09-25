@@ -100,7 +100,6 @@ export class SweepService {
       const result = await this.selfCustodyProvider.sendCrypto({
         treasuryWalletId: privyWalletId,
         fromAddress: walletAddress,
-        feePayerAddress: targetTreasury,
         toAddress: targetTreasury,
         amountUSDC,
         chain

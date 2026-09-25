@@ -504,7 +504,8 @@ export class SelfCustodyProvider implements CustodyProvider {
         // Fall back to creating ATA if check fails
       }
 
-      const feePayerAddrStr = feePayerAddress || (sponsor ? signerAddrStr : (this.solanaTreasuryAddress || signerAddrStr));
+      // Fee payer must be signerAddrStr so the compiled tx requires exactly 1 signature matching Privy's signing key.
+      const feePayerAddrStr = signerAddrStr;
       const feePayerAddr = solanaAddress(feePayerAddrStr as Address);
 
       // Create destination Associated Token Account if it does not exist yet (idempotent).
