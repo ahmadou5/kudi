@@ -47,31 +47,63 @@ export class RateService {
   public async fetchLiveRate(): Promise<number> {
     if (this.state.isManualOverride) return this.state.currentRateNGN;
 
-    try {
-      // Bybit P2P rate query endpoint (USDC/USDT to NGN)
-      const res = await fetch('https://api.bybit.com/v5/market/tickers?category=spot&symbol=USDTNGN', {
-        headers: { 'Accept': 'application/json' }
-      });
-      const data = await res.json() as any;
-      if (data && data.result && data.result.list && data.result.list[0]) {
-        const lastPrice = parseFloat(data.result.list[0].lastPrice);
-        if (lastPrice && !isNaN(lastPrice)) {
-          this.state.rawP2PRateNGN = lastPrice;
-          this.state.currentRateNGN = Math.round(lastPrice * (1 - this.state.spreadPercentage / 100) * 100) / 100;
-          this.state.lastUpdated = new Date().toISOString();
-          this.state.isStale = false;
-          this.notifyListeners();
-          return this.state.currentRateNGN;
+    const providers = [
+      {
+        name: 'CoinGecko',
+        fetch: async () => {
+          const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether,usd-coin&vs_currencies=ngn', {
+            headers: { 'User-Agent': 'KudiRateEngine/1.0' }
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = (await res.json()) as any;
+          const rate = data?.tether?.ngn || data?.['usd-coin']?.ngn;
+          if (rate && !isNaN(rate) && rate > 500) return Number(rate);
+          throw new Error('Invalid rate payload from CoinGecko');
+        }
+      },
+      {
+        name: 'OpenER-API',
+        fetch: async () => {
+          const res = await fetch('https://open.er-api.com/v6/latest/USD', {
+            headers: { 'User-Agent': 'KudiRateEngine/1.0' }
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = (await res.json()) as any;
+          const rate = data?.rates?.NGN;
+          if (rate && !isNaN(rate) && rate > 500) return Number(rate);
+          throw new Error('Invalid rate payload from OpenER-API');
+        }
+      },
+      {
+        name: 'ExchangeRate-API',
+        fetch: async () => {
+          const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD', {
+            headers: { 'User-Agent': 'KudiRateEngine/1.0' }
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = (await res.json()) as any;
+          const rate = data?.rates?.NGN;
+          if (rate && !isNaN(rate) && rate > 500) return Number(rate);
+          throw new Error('Invalid rate payload from ExchangeRate-API');
         }
       }
-    } catch (err) {
-      // Fallback: slight random micro-fluctuation in dev mode to simulate live ticker
-      const fluctuation = (Math.random() - 0.5) * 2;
-      const base = 1585.50;
-      this.state.currentRateNGN = Math.round((base + fluctuation) * 100) / 100;
-      this.state.lastUpdated = new Date().toISOString();
-      this.notifyListeners();
+    ];
+
+    for (const provider of providers) {
+      try {
+        const rawPrice = await provider.fetch();
+        this.state.rawP2PRateNGN = rawPrice;
+        this.state.currentRateNGN = Math.round(rawPrice * (1 - this.state.spreadPercentage / 100) * 100) / 100;
+        this.state.lastUpdated = new Date().toISOString();
+        this.state.isStale = false;
+        this.notifyListeners();
+        return this.state.currentRateNGN;
+      } catch (err) {
+        // Try next provider
+      }
     }
+
+    this.state.isStale = true;
     return this.state.currentRateNGN;
   }
 
