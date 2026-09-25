@@ -54,6 +54,18 @@ export class SelfCustodyProvider implements CustodyProvider {
     return process.env.PRIVY_SPONSOR_TRANSACTIONS === 'true' || process.env.PRIVY_SPONSOR_SWEEPS === 'true';
   }
 
+  private getGasPaymentMode(): 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER' {
+    // Check explicit env override first
+    const explicitMode = process.env.GAS_PAYMENT_MODE as 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER' | undefined;
+    if (explicitMode) return explicitMode;
+
+    // Fall back to sweep config env vars
+    const sponsorTrans = process.env.PRIVY_SPONSOR_TRANSACTIONS === 'true';
+    const sponsorSweeps = process.env.PRIVY_SPONSOR_SWEEPS === 'true';
+    if (sponsorTrans || sponsorSweeps) return 'PRIVY_SPONSOR';
+    return 'TREASURY_FEE_PAYER';
+  }
+
   private allowsMockWalletFallback(): boolean {
     return process.env.NODE_ENV !== 'production' || process.env.ALLOW_MOCK_PRIVY_WALLETS === 'true';
   }
@@ -403,6 +415,7 @@ export class SelfCustodyProvider implements CustodyProvider {
     usdcContractAddress?: string;
     fromAddress?: string;
     feePayerAddress?: string;
+    gasPaymentMode?: 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER';
   }): Promise<{ txHash: string }> {
     const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress, fromAddress } = params;
 
@@ -420,10 +433,20 @@ export class SelfCustodyProvider implements CustodyProvider {
 
     const authHeader = `Basic ${Buffer.from(`${this.appId}:${this.appSecret}`).toString('base64')}`;
     const isSolana = chain === 'solana';
-    const sponsor = this.shouldSponsorTransactions();
 
-    // Build chain-specific transaction payload
     let requestBody: Record<string, unknown>;
+
+    // Determine gas payment mode: use passed parameter if provided, otherwise check config/env
+    const gasPaymentMode = params.gasPaymentMode || this.getGasPaymentMode();
+
+    // Set sponsor flag based on mode
+    let sponsorFlag = false;
+    if (gasPaymentMode === 'PRIVY_SPONSOR') {
+      sponsorFlag = true;
+    } else {
+      // TREASURY_FEE_PAYER: do not use sponsor, treasury wallet will pay fees
+      sponsorFlag = false;
+    }
 
     if (isSolana) {
       // Solana: Build a real SPL USDC transfer via @solana/kit (v2 — no rpc-websockets dep)
@@ -552,7 +575,7 @@ export class SelfCustodyProvider implements CustodyProvider {
         requestBody = {
           method: 'signAndSendTransaction',
           caip2: this.solanaCaip2,
-          ...(sponsor ? { sponsor: true } : {}),
+          ...(sponsorFlag ? { sponsor: true } : {}),
           params: { transaction: serializedTx, encoding: 'base64' }
         };
       } else {
@@ -581,7 +604,7 @@ export class SelfCustodyProvider implements CustodyProvider {
         requestBody = {
           method: 'signAndSendTransaction',
           caip2: this.solanaCaip2,
-          ...(sponsor ? { sponsor: true } : {}),
+          ...(sponsorFlag ? { sponsor: true } : {}),
           params: { transaction: serializedTx, encoding: 'base64' }
         };
       }
@@ -595,7 +618,7 @@ export class SelfCustodyProvider implements CustodyProvider {
       requestBody = {
         method: 'eth_sendTransaction',
         caip2: `eip155:${this.monadChainId}`,
-        ...(sponsor ? { sponsor: true } : {}),
+        ...(sponsorFlag ? { sponsor: true } : {}),
         params: {
           transaction: {
             to: contract,
@@ -619,7 +642,7 @@ export class SelfCustodyProvider implements CustodyProvider {
 
       if (!res.ok) {
         const errText = await res.text();
-        if (sponsor && errText.includes('Gas sponsorship is not configured')) {
+        if (sponsorFlag && errText.includes('Gas sponsorship is not configured')) {
           console.warn('[SelfCustody] ℹ️ Privy gas sponsorship not enabled in dashboard; retrying standard transfer...');
           const { sponsor: _omitted, ...bodyWithoutSponsor } = requestBody;
           res = await fetch(`https://api.privy.io/v1/wallets/${treasuryWalletId}/rpc`, {
@@ -645,7 +668,7 @@ export class SelfCustodyProvider implements CustodyProvider {
         throw new Error(`Privy RPC returned success but no transaction hash/signature was found in response: ${JSON.stringify(data)}`);
       }
 
-      console.log(`[SelfCustody] ✅ Broadcast ${amountUSDC} USDC on ${chain}${sponsor ? ' (gas sponsored)' : ''}: ${txHash.slice(0, 20)}...`);
+      console.log(`[SelfCustody] ✅ Broadcast ${amountUSDC} USDC on ${chain}${sponsorFlag ? ' (gas sponsored)' : ''}: ${txHash.slice(0, 20)}...`);
       return { txHash };
     } catch (err: any) {
       console.error(`[SelfCustody] ❌ Privy broadcast failed: ${err?.message || err}`);

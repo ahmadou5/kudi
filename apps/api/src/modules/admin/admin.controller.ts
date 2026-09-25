@@ -204,7 +204,7 @@ export class AdminController {
   };
 
   public getSweepConfig = async (_request: FastifyRequest, _reply: FastifyReply) => {
-    let sweepConfig = { mode: 'AUTO', updatedAt: null as string | null };
+    let sweepConfig = { mode: 'AUTO', gasPaymentMode: 'PRIVY_SPONSOR', updatedAt: null as string | null };
     try {
       const config = await prisma.appConfig.findUnique({
         where: { key: 'sweep_config' }
@@ -214,6 +214,7 @@ export class AdminController {
           const parsed = JSON.parse(config.value);
           sweepConfig = {
             mode: parsed.mode || 'AUTO',
+            gasPaymentMode: parsed.gasPaymentMode || 'PRIVY_SPONSOR',
             updatedAt: parsed.updatedAt || config.updatedAt?.toISOString?.() || null
           };
         } catch {}
@@ -225,15 +226,20 @@ export class AdminController {
   };
 
   public setSweepConfig = async (request: FastifyRequest, reply: FastifyReply) => {
-    const body = request.body as { mode?: string };
+    const body = request.body as { mode?: string; gasPaymentMode?: string };
     const validModes = ['AUTO', 'SPONSORED', 'TREASURY_FEE_PAYER'];
+    const validGasPaymentModes = ['PRIVY_SPONSOR', 'TREASURY_FEE_PAYER'];
     if (!body?.mode || !validModes.includes(body.mode)) {
       return reply.status(400).send(errorResponse('INVALID_BODY', `Field "mode" must be one of: ${validModes.join(', ')}`, 400));
     }
 
+    const gasPaymentMode = body.gasPaymentMode && validGasPaymentModes.includes(body.gasPaymentMode)
+      ? body.gasPaymentMode
+      : undefined;
+
     const payload = {
       mode: body.mode,
-      updatedAt: new Date().toISOString()
+      gasPaymentMode
     };
     const configValue = JSON.stringify(payload);
 

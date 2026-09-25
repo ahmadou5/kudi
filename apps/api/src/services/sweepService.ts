@@ -22,6 +22,7 @@
 
 import { SelfCustodyProvider } from '@kudi/chains';
 import { LedgerService } from './ledgerService';
+import { prisma } from '@kudi/database';
 
 export interface SweepResult {
   success: boolean;
@@ -38,10 +39,30 @@ export class SweepService {
   private solanaRpcUrl: string;
   private usdcMintAddress: string;
   private selfCustodyProvider: SelfCustodyProvider;
+  private gasPaymentMode: 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER' = 'PRIVY_SPONSOR';
 
   public readonly solanaTreasuryAddress: string;
   public readonly evmTreasuryAddress: string;
   public readonly treasuryAddress: string;
+
+  private async getGasPaymentMode(): Promise<'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER'> {
+    try {
+      const config = await prisma.appConfig.findUnique({
+        where: { key: 'sweep_config' }
+      });
+      if (config?.value) {
+        try {
+          const parsed = JSON.parse(config.value);
+          return parsed.gasPaymentMode || 'PRIVY_SPONSOR';
+        } catch {
+          // ignore parse error, fall back to default
+        }
+      }
+    } catch (err: any) {
+      console.warn('[SweepService] Failed to fetch sweep config for gas payment mode:', err?.message || err);
+    }
+    return 'PRIVY_SPONSOR';
+  }
 
   private shouldSponsorTransactions(): boolean {
     return process.env.PRIVY_SPONSOR_TRANSACTIONS === 'true' || process.env.PRIVY_SPONSOR_SWEEPS === 'true';
@@ -97,12 +118,15 @@ export class SweepService {
     try {
       console.log(`[SweepService] 🔄 Initiating ${chain.toUpperCase()} sweep: ${amountUSDC} USDC from ${walletAddress} → treasury (${targetTreasury})...`);
 
+      const gasPaymentMode = await this.getGasPaymentMode();
+
       const result = await this.selfCustodyProvider.sendCrypto({
         treasuryWalletId: privyWalletId,
         fromAddress: walletAddress,
         toAddress: targetTreasury,
         amountUSDC,
-        chain
+        chain,
+        gasPaymentMode
       });
 
       console.log(`[SweepService] ✅ ${chain.toUpperCase()} sweep SUCCESSFUL: ${amountUSDC} USDC from ${walletAddress} → treasury (${targetTreasury}) | TxHash: ${result.txHash}`);
