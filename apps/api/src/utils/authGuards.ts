@@ -57,12 +57,15 @@ export async function requireAdmin(request: FastifyRequest, reply: FastifyReply)
   const adminKey = request.headers['x-admin-key'];
   const configuredKey = apiConfig.ADMIN_API_KEY;
 
+  // Real admin auth is required in ALL environments. There is no dev-key
+  // bypass: fund-operation endpoints (deposits rescan/balance/treasury, sweep
+  // config, sweep requeue/recheck) must never be reachable without credentials.
+  //
+  // Local-dev story (explicit, not silent): either
+  //   1. set ADMIN_API_KEY in your local .env (see .env.example) and send it
+  //      as the `x-admin-key` header, or
+  //   2. sign in as a user whose JWT carries role ADMIN.
   if (configuredKey && typeof adminKey === 'string' && adminKey === configuredKey) {
-    return;
-  }
-
-  // In development mode without strict ADMIN_API_KEY, allow admin access
-  if (process.env.NODE_ENV !== 'production' && (!configuredKey || adminKey === 'kudi_admin_secret_dev')) {
     return;
   }
 

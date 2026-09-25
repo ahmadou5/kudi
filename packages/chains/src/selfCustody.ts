@@ -19,6 +19,145 @@ import {
 } from '@solana/kit';
 import { getTransferCheckedInstruction, TOKEN_PROGRAM_ADDRESS, ASSOCIATED_TOKEN_PROGRAM_ADDRESS } from '@solana-program/token';
 
+/**
+ * Shared sweep/deposit security policy.
+ *
+ * Single home for gas-mode resolution, amount validation, and sweep retry
+ * constants so the API sweep engine, the worker sweep engine, and the
+ * withdrawal path all apply identical rules. Kept in this module (rather than
+ * a new file) so it is exported through the existing `export *` barrel with
+ * no new build wiring.
+ */
+export type GasPaymentMode = 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER';
+
+export const GAS_PAYMENT_MODES: readonly GasPaymentMode[] = ['PRIVY_SPONSOR', 'TREASURY_FEE_PAYER'];
+
+export function isGasPaymentMode(value: unknown): value is GasPaymentMode {
+  return value === 'PRIVY_SPONSOR' || value === 'TREASURY_FEE_PAYER';
+}
+
+/**
+ * Resolve the effective gas payment mode.
+ *
+ * Precedence: stored DB `sweep_config` value wins; env (`GAS_PAYMENT_MODE` /
+ * legacy `PRIVY_SPONSOR_*` flags) is fallback only. Always returns a validated
+ * union member — never `undefined`, never an unknown string.
+ *
+ * Callers that have DB access must read `sweep_config` themselves and pass the
+ * stored value in (this module has no DB dependency by design).
+ */
+export function resolveGasPaymentMode(stored?: unknown): GasPaymentMode {
+  if (isGasPaymentMode(stored)) return stored;
+
+  const explicitEnv = process.env.GAS_PAYMENT_MODE;
+  if (isGasPaymentMode(explicitEnv)) return explicitEnv;
+
+  // Legacy boolean flags only ever select sponsorship; they can never select
+  // treasury-pays (which now fails loudly unless genuinely honored).
+  if (process.env.PRIVY_SPONSOR_TRANSACTIONS === 'true' || process.env.PRIVY_SPONSOR_SWEEPS === 'true') {
+    return 'PRIVY_SPONSOR';
+  }
+
+  // Safe default: attempt Privy sponsorship, signer pays when unavailable.
+  // (Previously defaulted to TREASURY_FEE_PAYER, which was never genuinely
+  // honored on Solana — see sendCrypto — so defaulting to it risked loud
+  // failures on every sweep.)
+  return 'PRIVY_SPONSOR';
+}
+
+/** Upper bound for a single credited deposit (Float columns kept; rejects absurd values). */
+export const MAX_DEPOSIT_USDC = 10_000_000;
+
+/**
+ * Centralized deposit amount parsing/validation.
+ * Returns the finite positive amount, or `null` when the value must be rejected
+ * (NaN, non-finite, <= 0, or absurdly large). Used at every credit boundary.
+ */
+export function parseDepositAmount(raw: unknown): number | null {
+  const amount = typeof raw === 'string' || typeof raw === 'number' ? Number(raw) : NaN;
+  if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_DEPOSIT_USDC) return null;
+  return amount;
+}
+
+/**
+ * Single sweep retry policy shared by the API SweepWorkerService and the
+ * worker ChainDepositProcessor engines.
+ *
+ * Single-owner note: the API `SweepWorkerService` is the designated sweep
+ * owner (DB-claimed queue with exponential backoff). The worker
+ * `ChainDepositProcessor.processSweepRetries` is a legacy second engine kept
+ * for coverage; it MUST reuse these constants so deposits converge on one
+ * status set, one attempt cap, and one backoff schedule instead of flapping
+ * between divergent policies.
+ */
+export const SWEEP_RETRY_POLICY = {
+  MAX_ATTEMPTS: 5,
+  BASE_BACKOFF_MIN: 1,
+  MAX_BACKOFF_MIN: 64
+} as const;
+
+/** Next retry time under the shared exponential-backoff schedule (capped). */
+export function computeSweepRetryDelay(attemptCount: number): Date {
+  const delayMin = Math.min(
+    SWEEP_RETRY_POLICY.BASE_BACKOFF_MIN * Math.pow(2, Math.max(1, attemptCount) - 1),
+    SWEEP_RETRY_POLICY.MAX_BACKOFF_MIN
+  );
+  return new Date(Date.now() + delayMin * 60_000);
+}
+
+/** Deposit sweep statuses that represent credited-but-unbacked liability. */
+export const UNBACKED_SWEEP_STATUSES: readonly string[] = [
+  'SWEEP_PENDING',
+  'SWEEP_PROCESSING',
+  'SWEEP_FAILED',
+  'SWEEP_BLOCKED'
+];
+
+/**
+ * Pure helper computing total un-swept (unbacked) exposure from Deposit rows.
+ * Consumed by reconciliation alerting (e.g. SweepWorkerService.getQueueHealth)
+ * without restructuring the reconciliation pipeline.
+ */
+export function computeUnbackedExposure(
+  deposits: Array<{ sweepStatus?: string | null; amountUSDC?: number | string | null }>
+): { totalUSDC: number; byStatus: Record<string, number> } {
+  const byStatus: Record<string, number> = {};
+  let totalUSDC = 0;
+  for (const d of deposits) {
+    const status = d.sweepStatus ?? 'UNKNOWN';
+    const amount = Number(d.amountUSDC ?? 0);
+    if (!UNBACKED_SWEEP_STATUSES.includes(status)) continue;
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    byStatus[status] = (byStatus[status] ?? 0) + amount;
+    totalUSDC += amount;
+  }
+  return { totalUSDC, byStatus };
+}
+
+/** Reserve held back from each sweep for rent/dust/rounding (per chain, USDC). */
+export const SWEEP_RESERVE_USDC: Record<'solana' | 'monad', number> = {
+  solana: 0.01,
+  monad: 0.01
+};
+
+/**
+ * Clamp a sweep to on-chain reality: sweep min(detected, available - reserve).
+ * Returns the amount safe to broadcast plus any shortfall vs detected.
+ */
+export function resolveSweepAmount(params: {
+  detectedUSDC: number;
+  availableUSDC: number;
+  chain: 'solana' | 'monad';
+}): { sweepAmount: number; shortfallUSDC: number } {
+  const reserve = SWEEP_RESERVE_USDC[params.chain] ?? 0;
+  const spendable = Math.max(0, params.availableUSDC - reserve);
+  const sweepAmount = Math.min(params.detectedUSDC, spendable);
+  return { sweepAmount, shortfallUSDC: Math.max(0, params.detectedUSDC - sweepAmount) };
+}
+
+/** Commitment at which Solana deposits are eligible for ledger credit. */
+export const SOLANA_CREDIT_COMMITMENT = 'finalized' as const;
+
 export class SelfCustodyProvider implements CustodyProvider {
   public readonly track = CustodyTrack.TRACK_A_SELF_CUSTODY;
   public readonly name = 'Privy / KMS Self Custody (Track A)';
@@ -55,15 +194,10 @@ export class SelfCustodyProvider implements CustodyProvider {
   }
 
   private getGasPaymentMode(): 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER' {
-    // Check explicit env override first
-    const explicitMode = process.env.GAS_PAYMENT_MODE as 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER' | undefined;
-    if (explicitMode) return explicitMode;
-
-    // Fall back to sweep config env vars
-    const sponsorTrans = process.env.PRIVY_SPONSOR_TRANSACTIONS === 'true';
-    const sponsorSweeps = process.env.PRIVY_SPONSOR_SWEEPS === 'true';
-    if (sponsorTrans || sponsorSweeps) return 'PRIVY_SPONSOR';
-    return 'TREASURY_FEE_PAYER';
+    // Env-only fallback (this module has no DB access). Callers with DB access
+    // must pass the stored sweep_config value through resolveGasPaymentMode()
+    // so the DB value wins; this is only the env/default leg.
+    return resolveGasPaymentMode(undefined);
   }
 
   private allowsMockWalletFallback(): boolean {
@@ -323,14 +457,15 @@ export class SelfCustodyProvider implements CustodyProvider {
             };
           }
 
-          // Native EVM transfer value
+          // Native EVM transfer value (never synthesized — report what is on-chain,
+          // even if zero; credit paths validate positivity separately)
           const rawValue = BigInt(tx.value || '0x0');
           const nativeAmount = (Number(rawValue) / 1e18).toFixed(4);
 
           return {
             confirmed,
-            amount: nativeAmount !== '0.0000' ? nativeAmount : '100.00',
-            sender: receipt.from || tx.from || '0xSender',
+            amount: nativeAmount,
+            sender: receipt.from || tx.from || '',
             tokenAddress: receipt.to || tx.to || 'native',
             blockNumber
           };
@@ -347,7 +482,7 @@ export class SelfCustodyProvider implements CustodyProvider {
           body: JSON.stringify({
             jsonrpc: '2.0',
             method: 'getTransaction',
-            params: [txHash, { encoding: 'jsonParsed', commitment: 'confirmed' }],
+            params: [txHash, { encoding: 'jsonParsed', commitment: 'finalized' }],
             id: 1
           })
         });
@@ -361,8 +496,8 @@ export class SelfCustodyProvider implements CustodyProvider {
           const keys = tx.transaction?.message?.accountKeys || [];
           const sender = keys[0]?.pubkey || keys[0] || 'SolanaSender';
 
-          // Extract token balance difference if present
-          let parsedAmount = '100.00';
+          // Extract token balance difference if present (default zero — never synthesize)
+          let parsedAmount = '0.00';
           if (meta?.preTokenBalances?.length && meta?.postTokenBalances?.length) {
             const pre = meta.preTokenBalances[0]?.uiTokenAmount?.uiAmount || 0;
             const post = meta.postTokenBalances[0]?.uiTokenAmount?.uiAmount || 0;
@@ -383,13 +518,17 @@ export class SelfCustodyProvider implements CustodyProvider {
       }
     }
 
-    // Structured fallback for sandbox / mock test environments
+    // Fail closed on any RPC/parse failure: confirmed:false with a zero amount.
+    // This function must NEVER synthesize a confirmed deposit — no credit path
+    // may trust a fallback value, and RPC outages must not become spendable
+    // ledger balance. Callers gate credit on `confirmed === true`.
+    console.warn(`[SelfCustody] ⚠️ Could not verify transaction ${txHash.slice(0, 20)}... on ${chain} — returning unconfirmed (fail closed).`);
     return {
-      confirmed: true,
-      amount: '100.00',
-      sender: isEvm ? '0xMockSender' : 'SolanaMockSender',
-      tokenAddress: isEvm ? '0xMockToken' : '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
-      blockNumber: 123456
+      confirmed: false,
+      amount: '0.00',
+      sender: '',
+      tokenAddress: isEvm ? '' : '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+      blockNumber: undefined
     };
   }
 
@@ -436,17 +575,29 @@ export class SelfCustodyProvider implements CustodyProvider {
 
     let requestBody: Record<string, unknown>;
 
-    // Determine gas payment mode: use passed parameter if provided, otherwise check config/env
-    const gasPaymentMode = params.gasPaymentMode || this.getGasPaymentMode();
+    // Determine gas payment mode: explicit param wins (already DB-resolved by
+    // callers via resolveGasPaymentMode), otherwise env/default fallback.
+    // Invalid values never pass through — resolveGasPaymentMode validates.
+    const gasPaymentMode = resolveGasPaymentMode(params.gasPaymentMode);
 
-    // Set sponsor flag based on mode
-    let sponsorFlag = false;
-    if (gasPaymentMode === 'PRIVY_SPONSOR') {
-      sponsorFlag = true;
-    } else {
-      // TREASURY_FEE_PAYER: do not use sponsor, treasury wallet will pay fees
-      sponsorFlag = false;
+    // TREASURY_FEE_PAYER decision (documented, do not silently downgrade):
+    // Genuine treasury-pays would require the treasury wallet to sign as fee
+    // payer alongside the user authority (2-signer transaction), but Privy only
+    // ever signs with the single wallet passed as treasuryWalletId, so the
+    // second signature slot would stay empty and verification would fail.
+    // Implementing it for real needs the treasury as the signing wallet plus a
+    // funded + monitored treasury balance — until then, selecting this mode
+    // fails loudly instead of silently behaving as user-pays.
+    if (gasPaymentMode === 'TREASURY_FEE_PAYER') {
+      throw new Error(
+        `[SelfCustody] TREASURY_FEE_PAYER is not implemented for ${chain}: treasury-as-fee-payer needs a second signer Privy cannot provide. ` +
+        `Select PRIVY_SPONSOR (or fund the signing wallet) instead. No silent fallback to user-pays.`
+      );
     }
+
+    // PRIVY_SPONSOR: request Privy gas sponsorship; if the dashboard has it
+    // disabled we retry once unsponsored below (signer pays ~$0.001 on Solana).
+    const sponsorFlag = true;
 
     if (isSolana) {
       // Solana: Build a real SPL USDC transfer via @solana/kit (v2 — no rpc-websockets dep)

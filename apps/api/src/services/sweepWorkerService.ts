@@ -27,11 +27,18 @@
 import { prisma } from '@kudi/database';
 import { SweepService } from './sweepService';
 import { LedgerService } from './ledgerService';
+import {
+  SWEEP_RETRY_POLICY,
+  UNBACKED_SWEEP_STATUSES,
+  computeSweepRetryDelay,
+  computeUnbackedExposure
+} from '@kudi/chains';
 
 const POLL_INTERVAL_MS = 30_000;       // Check DB every 30 seconds
-const MAX_ATTEMPTS = 5;                // Mark SWEEP_BLOCKED after this many failures
-const BASE_BACKOFF_MIN = 1;            // Minimum backoff in minutes
-const MAX_BACKOFF_MIN = 64;            // Maximum backoff cap in minutes
+// Retry schedule is owned by SWEEP_RETRY_POLICY (single shared definition in
+// @kudi/chains). This engine is the designated sweep owner; the worker
+// ChainDepositProcessor reuses the same constants.
+const MAX_ATTEMPTS = SWEEP_RETRY_POLICY.MAX_ATTEMPTS;
 const CONCURRENCY = 3;                 // Max sweeps to process simultaneously
 
 /** Classifies a Privy/RPC error as transient (retry) or permanent (block) */
@@ -52,10 +59,9 @@ function classifyError(errMsg: string): 'TRANSIENT' | 'PERMANENT' {
   return 'TRANSIENT';
 }
 
-/** Compute next retry time using exponential backoff (capped) */
+/** Compute next retry time using the shared exponential backoff (capped) */
 function computeNextRetryAt(attemptCount: number): Date {
-  const delayMin = Math.min(BASE_BACKOFF_MIN * Math.pow(2, attemptCount - 1), MAX_BACKOFF_MIN);
-  return new Date(Date.now() + delayMin * 60_000);
+  return computeSweepRetryDelay(attemptCount);
 }
 
 export class SweepWorkerService {
@@ -190,10 +196,15 @@ export class SweepWorkerService {
       );
 
       if (result.success) {
+        // Record the ACTUAL swept amount (partial sweeps settle on-chain reality).
+        // No migration exists for a dedicated sweptAmount column, so amountUSDC
+        // is corrected to the actual on success when they differ.
+        const actualSwept = result.actualSweptUSDC ?? Number(deposit.amountUSDC);
         await prisma.$executeRaw`
           UPDATE "Deposit"
           SET "sweepStatus" = 'SWEPT',
               "sweepTxHash" = ${result.txHash ?? null},
+              "amountUSDC" = ${actualSwept},
               "sweepAttemptCount" = ${newAttemptCount},
               "sweepError" = NULL,
               "sweptAt" = NOW(),
@@ -274,7 +285,8 @@ export class SweepWorkerService {
 
   /**
    * Returns a snapshot of the current sweep queue health.
-   * Used for admin monitoring.
+   * Used for admin monitoring. Includes the un-swept (unbacked) exposure so
+   * existing reconciliation alerts can consume it directly.
    */
   public async getQueueHealth(): Promise<{
     pending: number;
@@ -282,6 +294,8 @@ export class SweepWorkerService {
     blocked: number;
     swept: number;
     processing: number;
+    unbackedExposureUSDC: number;
+    unbackedByStatus: Record<string, number>;
   }> {
     const rows: Array<{ sweepStatus: string; count: string }> = await prisma.$queryRaw`
       SELECT "sweepStatus", COUNT(*)::int AS count
@@ -294,12 +308,21 @@ export class SweepWorkerService {
       counts[r.sweepStatus] = Number(r.count);
     }
 
+    const exposureRows: Array<{ sweepStatus: string; amountUSDC: number }> = await prisma.$queryRaw`
+      SELECT "sweepStatus", "amountUSDC"
+      FROM "Deposit"
+      WHERE "sweepStatus" = ANY(${UNBACKED_SWEEP_STATUSES})
+    `;
+    const { totalUSDC, byStatus } = computeUnbackedExposure(exposureRows);
+
     return {
       pending: counts['SWEEP_PENDING'] ?? 0,
       failed: counts['SWEEP_FAILED'] ?? 0,
       blocked: counts['SWEEP_BLOCKED'] ?? 0,
       swept: counts['SWEPT'] ?? 0,
       processing: counts['SWEEP_PROCESSING'] ?? 0,
+      unbackedExposureUSDC: totalUSDC,
+      unbackedByStatus: byStatus
     };
   }
 }

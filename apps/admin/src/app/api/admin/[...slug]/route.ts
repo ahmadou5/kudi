@@ -4,7 +4,8 @@ import { getApiBaseUrl, getApiReachabilityMessage } from '@/lib/server-api';
 const apiUrl = getApiBaseUrl();
 
 function getAdminKey(): string {
-  return process.env.ADMIN_API_KEY || 'kudi_admin_secret_dev';
+  // Fail closed: no dev-key fallback. Callers already return 503 when empty.
+  return process.env.ADMIN_API_KEY || '';
 }
 
 async function parseJson(res: Response) {

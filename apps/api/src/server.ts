@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import dotenv from 'dotenv';
 import { CustodyManager } from '@kudi/chains';
 import { PaymentProviderRegistry } from '@kudi/payment-providers';
-import { apiConfig } from '@kudi/config';
+import { apiConfig, validateChainRuntimeConfig } from '@kudi/config';
 import corsPlugin from './plugins/cors';
 import helmetPlugin from './plugins/helmet';
 import compressPlugin from './plugins/compress';
@@ -128,6 +128,22 @@ const webhooksController = new WebhooksController(ledgerService, rateService);
 const depositsController = new DepositsController(depositService, sweepService);
 
 async function main() {
+  // R6: fail closed on missing/invalid chain config before anything else boots.
+  validateChainRuntimeConfig(
+    {
+      nodeEnv: apiConfig.NODE_ENV,
+      solanaTreasuryAddress: apiConfig.KUDI_TREASURY_SOLANA_ADDRESS,
+      evmTreasuryAddress: apiConfig.KUDI_TREASURY_EVM_ADDRESS,
+      usdcMintAddress: apiConfig.USDC_MINT_ADDRESS,
+      ausdTokenAddress: apiConfig.AUSD_TOKEN_ADDRESS,
+      monadChainId: apiConfig.MONAD_CHAIN_ID,
+      solanaCaip2: apiConfig.SOLANA_CAIP2,
+      privyAppId: apiConfig.PRIVY_APP_ID,
+      privyAppSecret: apiConfig.PRIVY_APP_SECRET
+    },
+    'api'
+  );
+
   // Register Infrastructure Plugins
   await server.register(corsPlugin);
   await server.register(helmetPlugin);

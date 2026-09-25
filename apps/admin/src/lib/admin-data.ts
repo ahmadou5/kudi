@@ -606,8 +606,8 @@ const fallbackSettings: AdminSettings = {
   maxDailySpendLimitNGN: 10000000,
   rateSpreadToleranceBps: 150,
   treasuryAddresses: {
-    solana: 'KudiTreasurySolanaDevnet11111111111111111111',
-    monad: '0xKudiTreasuryMonadMetropolisTestnet000'
+    solana: '',
+    monad: ''
   },
   health: {
     fastifyApi: 'HEALTHY',

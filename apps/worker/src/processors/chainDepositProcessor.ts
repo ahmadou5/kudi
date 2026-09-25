@@ -1,6 +1,19 @@
 import { GeneralizedEVMListener, SolanaListener, EVMDepositEvent, SolanaDepositEvent, SelfCustodyProvider } from '@kudi/chains';
+import {
+  SWEEP_RETRY_POLICY,
+  parseDepositAmount,
+  resolveGasPaymentMode,
+  resolveSweepAmount
+} from '@kudi/chains';
 import { EVMChainConfig, SolanaChainConfig } from '@kudi/types';
 import { prisma } from '@kudi/database';
+import { REDACTED, redactAddress, redactRpcUrl } from '@kudi/config';
+
+// Retry schedule is owned by SWEEP_RETRY_POLICY (single shared definition in
+// @kudi/chains; API SweepWorkerService is the designated sweep owner). This
+// processor reuses the same cap/backoff so the two engines converge instead
+// of flapping between divergent policies.
+const SWEEP_MAX_ATTEMPTS = SWEEP_RETRY_POLICY.MAX_ATTEMPTS;
 
 interface DepositWalletRow {
   id: string;
@@ -26,6 +39,23 @@ export class ChainDepositProcessor {
 
   public getSolanaConfig() {
     return this.solanaListener.getConfig();
+  }
+
+  /**
+   * Resolve the effective gas payment mode: DB sweep_config wins, env only as
+   * fallback, always a validated union member (never undefined).
+   */
+  private async getStoredGasPaymentMode() {
+    try {
+      const config = await prisma.appConfig.findUnique({ where: { key: 'sweep_config' } });
+      if (config?.value) {
+        return resolveGasPaymentMode(JSON.parse(config.value).gasPaymentMode);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[ChainDepositProcessor] Could not read sweep_config, using env/default gas mode: ${msg}`);
+    }
+    return resolveGasPaymentMode(undefined);
   }
 
   public registerWatchAddress(address: string) {
@@ -96,18 +126,24 @@ export class ChainDepositProcessor {
         console.log(`🔗 [Chain Processor] No EVM user deposit addresses registered in DB.`);
         continue;
       }
-      console.log(`🔗 [Chain Processor] Polling EVM RPC (${chain.name} - ${chain.rpcUrl}) for ${evmAddresses.length} wallet(s)...`);
+      console.log(`🔗 [Chain Processor] Polling EVM RPC (${chain.name} - ${redactRpcUrl(chain.rpcUrl)}) for ${evmAddresses.length} wallet(s)...`);
       try {
         const events: EVMDepositEvent[] = await this.evmListener.pollChainForDeposits(chain.id, evmAddresses);
         for (const ev of events) {
-          console.log(`✅ [Chain Processor] Confirmed EVM Deposit: ${ev.amountToken} ${chain.tokenSymbol} on ${chain.name} (Tx: ${ev.txHash})`);
+          // Confirmation gate: unconfirmed logs are skipped/logged, never credited.
+          if (!ev.confirmed) {
+            console.log(`⏳ [Chain Processor] Skipping unconfirmed EVM deposit ${ev.txHash.slice(0, 12)}... (block ${ev.blockNumber})`);
+            continue;
+          }
+            console.log(`✅ [Chain Processor] Confirmed EVM Deposit: ${ev.amountToken} ${chain.tokenSymbol} on ${chain.name} (Tx: ${ev.txHash.slice(0, 12)}...)`);
           await this.processDepositEvent({
             address: ev.userWalletAddress,
             amountUSDC: Number(ev.amountToken),
             signature: ev.txHash,
             chain: chain.id,
             tokenSymbol: chain.tokenSymbol,
-            blockNumber: ev.blockNumber
+            blockNumber: ev.blockNumber,
+            confirmed: ev.confirmed
           });
         }
       } catch (err: unknown) {
@@ -126,13 +162,20 @@ export class ChainDepositProcessor {
       const processedSignatures = await this.getRecentProcessedSignatures();
       const solEvents: SolanaDepositEvent[] = await this.solanaListener.pollSolanaForDeposits(solanaAddresses, processedSignatures);
       for (const ev of solEvents) {
-        console.log(`✅ [Chain Processor] Confirmed Solana Deposit: ${ev.amountUSDC} USDC (Signature: ${ev.signature})`);
+        // Confirmation gate (defense in depth — the listener only emits
+        // finalized events, but credit still requires confirmed === true).
+        if (!ev.confirmed) {
+          console.log(`⏳ [Chain Processor] Skipping unconfirmed Solana deposit ${ev.signature.slice(0, 12)}...`);
+          continue;
+        }
+        console.log(`✅ [Chain Processor] Confirmed Solana Deposit: ${ev.amountUSDC} USDC (Signature: ${ev.signature.slice(0, 12)}...)`);
         await this.processDepositEvent({
           address: ev.userWalletAddress,
           amountUSDC: Number(ev.amountUSDC),
           signature: ev.signature,
           chain: 'solana',
-          tokenSymbol: 'USDC'
+          tokenSymbol: 'USDC',
+          confirmed: ev.confirmed
         });
       }
     } catch (err: unknown) {
@@ -147,19 +190,24 @@ export class ChainDepositProcessor {
     return process.env.KUDI_TREASURY_EVM_ADDRESS || process.env.KUDI_MONAD_TREASURY_ADDRESS || process.env.KUDI_TREASURY_EVM_ADDRESS;
   }
 
-  private async updateDepositSweep(signature: string, status: string, txHash?: string, error?: string): Promise<void> {
+  private async updateDepositSweep(signature: string, status: string, txHash?: string, error?: string, actualSweptUSDC?: number): Promise<void> {
     const shouldRetry = status === 'SWEEP_FAILED' || status === 'SWEEP_BLOCKED';
     await prisma.$executeRaw`
       UPDATE "Deposit"
       SET "sweepStatus" = ${status},
           "sweepTxHash" = COALESCE(${txHash ?? null}, "sweepTxHash"),
+          -- Record the ACTUAL swept amount (no dedicated column exists without a
+          -- migration, so amountUSDC is corrected to on-chain reality on SWEPT).
+          "amountUSDC" = COALESCE(${actualSweptUSDC ?? null}, "amountUSDC"),
           "sweepError" = ${error ?? null},
           "sweepAttemptCount" = CASE
             WHEN ${status} = 'SWEEP_PROCESSING' THEN "sweepAttemptCount" + 1
             ELSE "sweepAttemptCount"
           END,
           "nextSweepAttemptAt" = CASE
-            WHEN ${shouldRetry} THEN NOW() + (LEAST(GREATEST("sweepAttemptCount", 1), 3) * INTERVAL '10 seconds')
+            -- Shared retry schedule: 2^(attempt-1) minutes, capped at 64 (mirrors
+            -- SWEEP_RETRY_POLICY in @kudi/chains; SQL-side equivalent).
+            WHEN ${shouldRetry} THEN NOW() + (LEAST(64, POWER(2, GREATEST("sweepAttemptCount", 1) - 1)) * INTERVAL '1 minute')
             WHEN ${status} = 'SWEPT' THEN "nextSweepAttemptAt"
             ELSE NOW()
           END,
@@ -188,7 +236,7 @@ export class ChainDepositProcessor {
 
     if (!params.wallet.privyWalletId) {
       const errMsg = `Wallet ${params.wallet.address} has no privyWalletId stored in DB`;
-      console.error(`[Chain Processor] ❌ ${normalizedChain.toUpperCase()} sweep SKIPPED: ${errMsg}`);
+      console.error(`[Chain Processor] ❌ ${normalizedChain.toUpperCase()} sweep SKIPPED: ${errMsg.split(params.wallet.address).join(redactAddress(params.wallet.address))}`);
       await this.updateDepositSweep(params.signature, 'FLOAT_EXPOSURE', undefined, errMsg);
       return;
     }
@@ -197,26 +245,58 @@ export class ChainDepositProcessor {
       if (!params.alreadyMarkedProcessing) {
         await this.updateDepositSweep(params.signature, 'SWEEP_PROCESSING');
       }
-      console.log(`[Chain Processor] 🔄 Sweeping ${params.amountUSDC} USDC from deposit ${params.wallet.address} → treasury (${targetTreasury})...`);
+      const gasPaymentMode = await this.getStoredGasPaymentMode();
+      const parsedAmount = parseDepositAmount(params.amountUSDC);
+      if (parsedAmount === null) {
+        throw new Error(`Invalid sweep amount for ${params.signature}: ${String(params.amountUSDC)}`);
+      }
+
+      // Pre-sweep on-chain balance check: sweep min(detected, available - reserve).
+      const tokenAddress = normalizedChain === 'solana'
+        ? (process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU')
+        : (process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3');
+      const available = Number(
+        await this.selfCustody.getWalletBalance(params.wallet.address, normalizedChain, tokenAddress)
+      );
+      if (!Number.isFinite(available) || available <= 0) {
+        throw new Error(`INSUFFICIENT_FUNDS: on-chain balance ${available} < detected ${parsedAmount} for ${params.wallet.address}`);
+      }
+      const { sweepAmount, shortfallUSDC } = resolveSweepAmount({
+        detectedUSDC: parsedAmount,
+        availableUSDC: available,
+        chain: normalizedChain
+      });
+      if (sweepAmount <= 0) {
+        throw new Error(`INSUFFICIENT_FUNDS: available ${available} covers only reserve for ${params.wallet.address} (detected ${parsedAmount})`);
+      }
+      if (shortfallUSDC > 0) {
+        console.warn(
+          `[Chain Processor] ⚠️ Partial sweep: detected ${parsedAmount} but only ${sweepAmount} available on-chain ` +
+          `(shortfall ${shortfallUSDC}) for ${params.wallet.address} — sweeping actual balance.`
+        );
+      }
+
+      console.log(`[Chain Processor] 🔄 Sweeping ${sweepAmount} USDC from deposit ${params.wallet.address} → treasury (${targetTreasury})...`);
       const { txHash } = await this.selfCustody.sendCrypto({
         treasuryWalletId: params.wallet.privyWalletId,
         fromAddress: normalizedChain === 'solana' ? params.wallet.address : undefined,
         // feePayerAddress intentionally omitted: user wallet (signerAddr) always pays its own fees.
-        // Setting treasury as fee payer would require 2 signers — Privy only signs with 1 wallet.
+        // TREASURY_FEE_PAYER is rejected loudly inside sendCrypto (2nd signer unavailable via Privy).
         toAddress: targetTreasury,
-        amountUSDC: params.amountUSDC,
-        chain: normalizedChain
+        amountUSDC: sweepAmount,
+        chain: normalizedChain,
+        gasPaymentMode
       });
       const confirmed = await this.selfCustody.waitForConfirmation(txHash, normalizedChain);
       if (!confirmed) {
         throw new Error(`Sweep transaction ${txHash} was not confirmed before timeout`);
       }
-      await this.updateDepositSweep(params.signature, 'SWEPT', txHash);
-      console.log(`[Chain Processor] 🏦 ${normalizedChain.toUpperCase()} sweep CONFIRMED for ${params.signature.slice(0, 12)}... | TxHash: ${txHash}`);
+      await this.updateDepositSweep(params.signature, 'SWEPT', txHash, undefined, sweepAmount);
+      console.log(`[Chain Processor] 🏦 ${normalizedChain.toUpperCase()} sweep CONFIRMED for ${params.signature.slice(0, 12)}... | TxHash: ${txHash} | swept ${sweepAmount}`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       await this.updateDepositSweep(params.signature, 'SWEEP_FAILED', undefined, message);
-      console.error(`[Chain Processor] ❌ ${normalizedChain.toUpperCase()} sweep FAILED for signature ${params.signature}: ${message}`, err);
+      console.error(`[Chain Processor] ❌ ${normalizedChain.toUpperCase()} sweep FAILED for signature ${params.signature.slice(0, 12)}...: ${message}`);
     }
   }
 
@@ -239,15 +319,18 @@ export class ChainDepositProcessor {
   }
   public async processSweepRetries(): Promise<void> {
     const rows: any[] = await prisma.$transaction(async (tx) => {
+      // LEFT JOIN: deposits whose wallet row is missing must surface here so
+      // they can be dead-lettered below — an inner JOIN would strand them
+      // silently with no status change, no alert, and no retry.
       const due: any[] = await tx.$queryRaw`
         SELECT
           d.signature, d.chain, d."amountUSDC", d."walletAddress", d."userId",
           w.id AS "walletId", w.address, w."privyWalletId", w."custodyType"
         FROM "Deposit" d
-        JOIN "Wallet" w ON w.address = d."walletAddress"
+        LEFT JOIN "Wallet" w ON w.address = d."walletAddress"
         WHERE d."sweepStatus" IN ('SWEEP_PENDING', 'SWEEP_FAILED', 'SWEEP_BLOCKED')
           AND d."nextSweepAttemptAt" <= NOW()
-          AND d."sweepAttemptCount" < 4
+          AND d."sweepAttemptCount" < ${SWEEP_MAX_ATTEMPTS}
         ORDER BY d."nextSweepAttemptAt" ASC, d."createdAt" ASC
         LIMIT 10
         FOR UPDATE SKIP LOCKED
@@ -272,6 +355,22 @@ export class ChainDepositProcessor {
     }
 
     for (const row of rows) {
+      // Dead-letter: no wallet row (or no address) means this deposit can never
+      // sweep. Pin attemptCount at the cap so it is never re-queued, mark it
+      // BLOCKED with an explicit orphan error for manual review/alerting.
+      if (!row.walletId || !row.address) {
+        const errMsg = `ORPHAN_WALLET (dead-letter): no Wallet row for deposit address ${row.walletAddress}; cannot sweep, needs manual review`;
+        console.error(`[Chain Processor] 🚫 ${errMsg}`);
+        await prisma.$executeRaw`
+          UPDATE "Deposit"
+          SET "sweepStatus" = 'SWEEP_BLOCKED',
+              "sweepError" = ${errMsg},
+              "sweepAttemptCount" = ${SWEEP_MAX_ATTEMPTS},
+              "updatedAt" = NOW()
+          WHERE signature = ${row.signature}
+        `;
+        continue;
+      }
       await this.attemptSweep({
         signature: row.signature,
         chain: row.chain,
@@ -299,8 +398,22 @@ export class ChainDepositProcessor {
     chain: string;
     tokenSymbol: string;
     blockNumber?: number;
+    /** Fail closed: only credit when explicitly true. */
+    confirmed?: boolean;
   }): Promise<void> {
-    if (!params.signature || params.amountUSDC <= 0) return;
+    if (!params.signature) return;
+    // Confirmation gate (defense in depth — callers already filter, but an
+    // unconfirmed event must never reach the credit transaction).
+    if (params.confirmed !== true) {
+      console.log(`⏳ [Chain Processor] Skipping unconfirmed deposit event ${params.signature.slice(0, 12)}... — never credited.`);
+      return;
+    }
+    const parsedAmount = parseDepositAmount(params.amountUSDC);
+    if (parsedAmount === null) {
+      console.warn(`[Chain Processor] ⚠️ Rejected invalid deposit amount for ${params.signature.slice(0, 12)}...: ${String(params.amountUSDC)}`);
+      return;
+    }
+    params = { ...params, amountUSDC: parsedAmount };
 
     try {
       // 1. Resolve wallet owner in Neon DB before entering the credit transaction.
@@ -317,7 +430,7 @@ export class ChainDepositProcessor {
       const wallet = walletRows[0];
 
       if (!wallet) {
-        console.warn(`[Chain Processor] ⚠️ No registered user found for deposit address ${params.address}`);
+        console.warn(`[Chain Processor] ⚠️ No registered user found for deposit address ${redactAddress(params.address)}`);
         return;
       }
 
@@ -474,11 +587,11 @@ export class ChainDepositProcessor {
           );
         }
       } catch (pushErr: unknown) {
-        console.warn(`[Chain Processor] Push notification error:`, pushErr);
+        console.warn(`[Chain Processor] Push notification error:`, pushErr instanceof Error ? pushErr.message : String(pushErr));
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[Chain Processor] ⚠️ Error writing deposit ${params.signature} to Neon DB: ${msg}`);
+      console.error(`[Chain Processor] ⚠️ Error writing deposit ${params.signature.slice(0, 12)}... to Neon DB: ${msg}`);
     }
   }
 }
@@ -507,7 +620,7 @@ async function sendExpoPushNotification(pushToken: string, title: string, body: 
     });
 
     const resData = await response.json();
-    console.log(`[Push Engine] 📲 Push notification dispatched to ${pushToken.slice(0, 25)}...:`, resData);
+    console.log(`[Push Engine] 📲 Push notification dispatched to ${REDACTED}:`, resData);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.warn(`[Push Engine] ⚠️ Error dispatching push notification: ${msg}`);

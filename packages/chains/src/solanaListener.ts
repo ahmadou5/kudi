@@ -8,7 +8,13 @@ export interface SolanaDepositEvent {
   userWalletAddress: string;
   amountUSDC: string;
   slot: number;
+  /**
+   * True only when the transaction reached the `finalized` commitment level.
+   * Credit paths must gate on this — never credit when false.
+   */
   confirmed: boolean;
+  /** Raw Solana confirmation status (`finalized` | `confirmed` | `processed`). */
+  confirmationStatus?: string;
 }
 
 export class SolanaListener {
@@ -102,8 +108,8 @@ export class SolanaListener {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jsonrpc: '2.0',
-          method: 'getTransaction',
-          params: [signature, { encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0 }],
+          // finalized: only credit-grade transactions are returned for deposits
+          params: [signature, { encoding: 'jsonParsed', commitment: 'finalized', maxSupportedTransactionVersion: 0 }],
           id: 2
         })
       });
@@ -124,6 +130,33 @@ export class SolanaListener {
     }
 
     return null;
+  }
+
+  /**
+   * Reads the live confirmation status for a signature.
+   * Returns 'finalized' only when the network reports finalized; any RPC
+   * failure or unknown status returns null (fail closed — not credited).
+   */
+  private async getConfirmationStatus(signature: string): Promise<string | null> {
+    try {
+      const res = await fetch(this.config.rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'getSignatureStatuses',
+          params: [[signature], { searchTransactionHistory: true }],
+          id: 3
+        })
+      });
+      const data = await res.json() as any;
+      const status = data.result?.value?.[0];
+      if (status?.err) return null;
+      return typeof status?.confirmationStatus === 'string' ? status.confirmationStatus : null;
+    } catch (err) {
+      console.warn(`[SolanaListener] getSignatureStatuses failed for ${signature.slice(0, 12)}...:`, err);
+      return null;
+    }
   }
 
   /**
@@ -163,7 +196,7 @@ export class SolanaListener {
             body: JSON.stringify({
               jsonrpc: '2.0',
               method: 'getSignaturesForAddress',
-              params: [addressToScan, { limit: 25 }],
+              params: [addressToScan, { limit: 25, commitment: 'finalized' }],
               id: 1
             })
           });
@@ -234,13 +267,26 @@ export class SolanaListener {
           const diff = postAmount - preAmount;
 
           if (diff > 0) {
+            // Credit-grade check: only finalized transactions may be credited.
+            // getTransaction above already used finalized commitment; confirm via
+            // live signature status and fail closed (skip) when not finalized.
+            const confirmationStatus = await this.getConfirmationStatus(sigInfo.signature);
+            const confirmed = confirmationStatus === 'finalized';
+            if (!confirmed) {
+              console.log(
+                `[SolanaListener] ⏳ Deposit ${sigInfo.signature.slice(0, 12)}... not yet finalized ` +
+                `(status: ${confirmationStatus ?? 'unknown'}) — skipping until finalized.`
+              );
+              continue;
+            }
             console.log(`[SolanaListener] ✅ Incoming USDC deposit detected: +${diff} USDC | sig: ${sigInfo.signature.slice(0, 12)}...`);
             events.push({
               signature: sigInfo.signature,
               userWalletAddress: walletAddress,
               amountUSDC: diff.toFixed(6),
               slot: sigInfo.slot ?? tx.slot ?? 0,
-              confirmed: true
+              confirmed,
+              confirmationStatus
             });
           } else if (diff < 0) {
             console.log(`[SolanaListener] ↩️ Outgoing transfer detected (${diff} USDC), skipping.`);

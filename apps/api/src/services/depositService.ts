@@ -1,4 +1,4 @@
-import { SolanaListener, EVMListener } from '@kudi/chains';
+import { SolanaListener, EVMListener, parseDepositAmount } from '@kudi/chains';
 import { EVMChainConfig, ChainType } from '@kudi/types';
 import { LedgerService } from './ledgerService';
 import { sendPushNotification } from '../lib/notifications';
@@ -57,6 +57,148 @@ export class DepositService {
   }
 
   /**
+   * Transactional credit path (single DB transaction):
+   * ProcessedSignature insert (idempotency) + BalanceAccount credit +
+   * LedgerEntry insert + Deposit row insert all commit atomically. Returns
+   * credited:false when the signature was already processed or the amount is
+   * invalid. In-memory ledger sets are updated only as cache after commit —
+   * the DB is the source of truth, so restarts can neither double-credit nor
+   * credit-without-a-sweep-row.
+   */
+  private async creditDepositTransactionally(params: {
+    userId: string;
+    walletAddress: string;
+    chain: string;
+    tokenSymbol: string;
+    rawAmount: unknown;
+    signature: string;
+    blockNumber?: number | null;
+    sweepStatus: string;
+    privyWalletId?: string | null;
+  }): Promise<{ credited: boolean; newBalance: number; amount: number }> {
+    const amount = parseDepositAmount(params.rawAmount);
+    if (amount === null) {
+      console.warn(`[DepositService] ⚠️ Rejected invalid deposit amount for ${params.signature.slice(0, 12)}...: ${String(params.rawAmount)}`);
+      return { credited: false, newBalance: 0, amount: 0 };
+    }
+
+    let credited = false;
+    let newBal = 0;
+
+    await prisma.$transaction(async (tx) => {
+      const inserted: Array<{ signature: string }> = await tx.$queryRaw`
+        INSERT INTO "ProcessedSignature" (signature, "createdAt")
+        VALUES (${params.signature}, NOW())
+        ON CONFLICT (signature) DO NOTHING
+        RETURNING signature
+      `;
+      if (inserted.length === 0) return;
+
+      const latestLedger: any[] = await tx.$queryRaw`
+        SELECT "resultingBalanceUSDC"
+        FROM "LedgerEntry"
+        WHERE "userId" = ${params.userId}
+        ORDER BY "createdAt" DESC
+        LIMIT 1
+      `;
+      const initialBalance = latestLedger.length ? Number(latestLedger[0].resultingBalanceUSDC) : 0;
+
+      await tx.$executeRaw`
+        INSERT INTO "BalanceAccount" (id, "userId", asset, "availableUSDC", "reservedUSDC", version, "createdAt", "updatedAt")
+        VALUES (gen_random_uuid(), ${params.userId}, 'USDC', ${initialBalance}, 0, 0, NOW(), NOW())
+        ON CONFLICT ("userId", asset) DO NOTHING
+      `;
+
+      const balanceRows: any[] = await tx.$queryRaw`
+        SELECT "availableUSDC"
+        FROM "BalanceAccount"
+        WHERE "userId" = ${params.userId} AND asset = 'USDC'
+        FOR UPDATE
+      `;
+      const currentBal = balanceRows.length ? Number(balanceRows[0].availableUSDC) : initialBalance;
+      newBal = currentBal + amount;
+
+      await tx.$executeRaw`
+        UPDATE "BalanceAccount"
+        SET "availableUSDC" = ${newBal}, version = version + 1, "updatedAt" = NOW()
+        WHERE "userId" = ${params.userId} AND asset = 'USDC'
+      `;
+
+      await tx.$executeRaw`
+        INSERT INTO "LedgerEntry" (id, "userId", type, "amountUSDC", "resultingBalanceUSDC", "referenceId", metadata, "createdAt")
+        VALUES (
+          gen_random_uuid(),
+          ${params.userId},
+          'DEPOSIT_CREDIT',
+          ${amount},
+          ${newBal},
+          ${params.signature},
+          ${JSON.stringify({
+            chain: params.chain,
+            walletAddress: params.walletAddress,
+            signature: params.signature,
+            blockNumber: params.blockNumber ?? null,
+            tokenSymbol: params.tokenSymbol,
+            title: `${params.tokenSymbol} Deposit`,
+            status: 'CONFIRMED'
+          })},
+          NOW()
+        )
+        ON CONFLICT (type, "referenceId") DO NOTHING
+      `;
+
+      await tx.$executeRaw`
+        INSERT INTO "Deposit" (id, "userId", "walletAddress", chain, "tokenSymbol", "amountUSDC", signature, "blockNumber", "creditStatus", "sweepStatus", "privyWalletId", "sweepAttemptCount", "nextSweepAttemptAt", "creditedAt", "createdAt", "updatedAt")
+        VALUES (
+          gen_random_uuid(),
+          ${params.userId},
+          ${params.walletAddress},
+          ${params.chain},
+          ${params.tokenSymbol},
+          ${amount},
+          ${params.signature},
+          ${params.blockNumber ?? null},
+          'CREDITED',
+          ${params.sweepStatus},
+          ${params.privyWalletId ?? null},
+          0,
+          NOW(),
+          NOW(),
+          NOW(),
+          NOW()
+        )
+        ON CONFLICT (signature) DO NOTHING
+      `;
+
+      credited = true;
+    });
+
+    if (credited) {
+      // Cache-only in-memory updates after the DB commit (source of truth).
+      this.ledgerService.markSignatureProcessed(params.signature);
+      this.ledgerService.setBalance(params.userId, newBal);
+      this.ledgerService.recordTransaction({
+        fromUserId: 'CHAIN_DEPOSIT',
+        toUserId: params.userId,
+        amount,
+        currency: 'USDC',
+        reference: params.signature,
+        timestamp: new Date().toISOString(),
+        metadata: {
+          type: 'DEPOSIT',
+          chain: params.chain,
+          walletAddress: params.walletAddress,
+          signature: params.signature,
+          blockNumber: params.blockNumber ?? null,
+          tokenSymbol: params.tokenSymbol
+        }
+      });
+    }
+
+    return { credited, newBalance: newBal, amount };
+  }
+
+  /**
    * Manually trigger a deposit rescan immediately.
    * Used by the /deposits/rescan API endpoint for testing and debugging.
    */
@@ -94,58 +236,46 @@ export class DepositService {
           const events = await this.solanaListener.pollSolanaForDeposits([solanaWallet.address]);
 
           for (const ev of events) {
-            // Idempotency: skip signatures we already credited
+            // Confirmation gate: only finalized Solana deposits may be credited.
+            // Unconfirmed events are skipped/logged, never credited.
+            if (!ev.confirmed) {
+              console.log(`[DepositService] ⏳ Skipping unconfirmed Solana deposit ${ev.signature.slice(0, 12)}... (status: ${ev.confirmationStatus ?? 'unknown'})`);
+              continue;
+            }
+
+            // Idempotency: skip signatures we already credited (memory fast-path;
+            // the DB transaction below is the authoritative guard)
             if (this.ledgerService.isSignatureProcessed(ev.signature)) {
               continue;
             }
 
-            const amount = Number(ev.amountUSDC);
-            if (amount <= 0) continue;
-
             console.log(
               `[DepositService] 💸 New Solana deposit tx ${ev.signature.slice(0, 12)}...: ` +
-              `+${amount} USDC → user ${user.id} (${solanaWallet.address.slice(0, 8)}...)`
+              `+${ev.amountUSDC} USDC → user ${user.id} (${solanaWallet.address.slice(0, 8)}...)`
             );
 
-            // Mark as processed FIRST before crediting to prevent double-credit on crash/retry
-            this.ledgerService.markSignatureProcessed(ev.signature);
+            // Float-model wallets (mock / user-held) don't need sweeping — mark SWEEP_UNSUPPORTED
+            const privyWalletId = (solanaWallet as any).privyWalletId || (solanaWallet as any).metadata?.privyWalletId as string | undefined;
+            const isMockWallet = !!(solanaWallet as any).metadata?.mock || privyWalletId?.startsWith?.('mock_');
 
-            // Credit the off-chain ledger balance
-            const newBal = this.ledgerService.creditUserBalance(user.id, amount, ev.signature, {
-              chain: 'solana',
+            // Single DB transaction: credit + Deposit insert + ProcessedSignature insert
+            const { credited, newBalance, amount } = await this.creditDepositTransactionally({
+              userId: user.id,
               walletAddress: solanaWallet.address,
+              chain: 'solana',
+              tokenSymbol: 'USDC',
+              rawAmount: ev.amountUSDC,
               signature: ev.signature,
-              slot: ev.slot
+              blockNumber: ev.slot ?? null,
+              sweepStatus: isMockWallet || !privyWalletId ? 'SWEEP_UNSUPPORTED' : 'SWEEP_PENDING',
+              privyWalletId: privyWalletId ?? null
             });
+            if (!credited) continue;
+            const newBal = newBalance;
 
             newDeposits++;
 
             console.log(`[DepositService] ✅ Balance updated for user ${user.id}: ${newBal.toFixed(6)} USDC`);
-
-            // Write deposit record to DB with SWEEP_PENDING so the SweepWorkerService picks it up.
-            // This replaces the unreliable fire-and-forget sweep that was silently dropping failures.
-            const privyWalletId = (solanaWallet as any).privyWalletId || (solanaWallet as any).metadata?.privyWalletId as string | undefined;
-            const isMockWallet = !!(solanaWallet as any).metadata?.mock || privyWalletId?.startsWith?.('mock_');
-            prisma.deposit.create({
-              data: {
-                userId: user.id,
-                walletAddress: solanaWallet.address,
-                chain: 'solana',
-                tokenSymbol: 'USDC',
-                amountUSDC: amount,
-                signature: ev.signature,
-                blockNumber: ev.slot ?? null,
-                creditStatus: 'CREDITED',
-                // Float-model wallets (mock / user-held) don't need sweeping — mark SWEEP_UNSUPPORTED
-                sweepStatus: isMockWallet || !privyWalletId ? 'SWEEP_UNSUPPORTED' : 'SWEEP_PENDING',
-                privyWalletId: privyWalletId ?? null
-              }
-            }).catch((err: any) => {
-              // Non-fatal: duplicate signature will throw; that's fine (idempotency)
-              if (!err?.message?.includes('Unique constraint')) {
-                console.warn('[DepositService] DB deposit record write failed (non-fatal):', err?.message);
-              }
-            });
 
             // Real-time notification via Socket.io
             if (this.io) {
@@ -178,53 +308,43 @@ export class DepositService {
           const evmEvents = await this.evmListener.pollChainForDeposits('monad-testnet', [monadWallet.address]);
 
           for (const ev of evmEvents) {
+            // Confirmation gate: only deposits at/above the chain threshold may
+            // be credited. Unconfirmed logs are skipped/logged, never credited.
+            if (!ev.confirmed) {
+              console.log(`[DepositService] ⏳ Skipping unconfirmed Monad deposit ${ev.txHash.slice(0, 12)}... (block ${ev.blockNumber})`);
+              continue;
+            }
+
             if (this.ledgerService.isSignatureProcessed(ev.txHash)) {
               continue;
             }
 
-            const amount = Number(ev.amountToken);
-            if (amount <= 0) continue;
-
             console.log(
               `[DepositService] 💸 New Monad deposit tx ${ev.txHash.slice(0, 12)}...: ` +
-              `+${amount} AUSD → user ${user.id} (${monadWallet.address.slice(0, 8)}...)`
+              `+${ev.amountToken} AUSD → user ${user.id} (${monadWallet.address.slice(0, 8)}...)`
             );
-
-            this.ledgerService.markSignatureProcessed(ev.txHash);
-
-            const newBal = this.ledgerService.creditUserBalance(user.id, amount, ev.txHash, {
-              chain: 'monad',
-              walletAddress: monadWallet.address,
-              signature: ev.txHash,
-              blockNumber: ev.blockNumber,
-              tokenSymbol: 'AUSD'
-            });
-
-            newDeposits++;
-
-            console.log(`[DepositService] ✅ Monad Balance updated for user ${user.id}: ${newBal.toFixed(6)} AUSD/USDC`);
 
             // Write deposit record to DB with SWEEP_PENDING for the SweepWorkerService to pick up.
             const monadPrivyWalletId = (monadWallet as any).privyWalletId || (monadWallet as any).metadata?.privyWalletId as string | undefined;
             const isMockMonadWallet = !!(monadWallet as any).metadata?.mock || monadPrivyWalletId?.startsWith?.('mock_');
-            prisma.deposit.create({
-              data: {
-                userId: user.id,
-                walletAddress: monadWallet.address,
-                chain: 'monad',
-                tokenSymbol: 'AUSD',
-                amountUSDC: amount,
-                signature: ev.txHash,
-                blockNumber: ev.blockNumber ?? null,
-                creditStatus: 'CREDITED',
-                sweepStatus: isMockMonadWallet || !monadPrivyWalletId ? 'SWEEP_UNSUPPORTED' : 'SWEEP_PENDING',
-                privyWalletId: monadPrivyWalletId ?? null
-              }
-            }).catch((err: any) => {
-              if (!err?.message?.includes('Unique constraint')) {
-                console.warn('[DepositService] DB monad deposit record write failed (non-fatal):', err?.message);
-              }
+
+            const { credited, newBalance, amount } = await this.creditDepositTransactionally({
+              userId: user.id,
+              walletAddress: monadWallet.address,
+              chain: 'monad',
+              tokenSymbol: 'AUSD',
+              rawAmount: ev.amountToken,
+              signature: ev.txHash,
+              blockNumber: ev.blockNumber ?? null,
+              sweepStatus: isMockMonadWallet || !monadPrivyWalletId ? 'SWEEP_UNSUPPORTED' : 'SWEEP_PENDING',
+              privyWalletId: monadPrivyWalletId ?? null
             });
+            if (!credited) continue;
+            const newBal = newBalance;
+
+            newDeposits++;
+
+            console.log(`[DepositService] ✅ Monad Balance updated for user ${user.id}: ${newBal.toFixed(6)} AUSD/USDC`);
 
             if (this.io) {
               this.io.to(user.id).emit('deposit:received', {

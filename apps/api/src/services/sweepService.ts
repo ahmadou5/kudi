@@ -20,14 +20,17 @@
  * and reconciles periodically).
  */
 
-import { SelfCustodyProvider } from '@kudi/chains';
+import { SelfCustodyProvider, resolveGasPaymentMode, resolveSweepAmount, type GasPaymentMode } from '@kudi/chains';
 import { LedgerService } from './ledgerService';
 import { prisma } from '@kudi/database';
+import { fetchJsonWithRpcFallback, redactAddress } from '@kudi/config';
 
 export interface SweepResult {
   success: boolean;
   txHash?: string;
   amountUSDC: number;
+  /** On-chain amount actually swept (<= amountUSDC on partial sweeps). */
+  actualSweptUSDC?: number;
   fromAddress: string;
   toAddress: string;
   error?: string;
@@ -39,29 +42,29 @@ export class SweepService {
   private solanaRpcUrl: string;
   private usdcMintAddress: string;
   private selfCustodyProvider: SelfCustodyProvider;
-  private gasPaymentMode: 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER' = 'PRIVY_SPONSOR';
+  private evmTokenContract: string;
 
   public readonly solanaTreasuryAddress: string;
   public readonly evmTreasuryAddress: string;
   public readonly treasuryAddress: string;
 
-  private async getGasPaymentMode(): Promise<'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER'> {
+  private async getGasPaymentMode(): Promise<GasPaymentMode> {
     try {
       const config = await prisma.appConfig.findUnique({
         where: { key: 'sweep_config' }
       });
       if (config?.value) {
         try {
-          const parsed = JSON.parse(config.value);
-          return parsed.gasPaymentMode || 'PRIVY_SPONSOR';
+          // DB sweep_config wins; resolveGasPaymentMode validates + falls back to env.
+          return resolveGasPaymentMode(JSON.parse(config.value).gasPaymentMode);
         } catch {
-          // ignore parse error, fall back to default
+          // ignore parse error, fall through to env/default
         }
       }
     } catch (err: any) {
-      console.warn('[SweepService] Failed to fetch sweep config for gas payment mode:', err?.message || err);
+      console.warn('[SweepService] Failed to fetch sweep config for gas payment mode:', err instanceof Error ? err.message : String(err));
     }
-    return 'PRIVY_SPONSOR';
+    return resolveGasPaymentMode(undefined);
   }
 
   private shouldSponsorTransactions(): boolean {
@@ -73,12 +76,13 @@ export class SweepService {
     this.privyAppSecret = process.env.PRIVY_APP_SECRET || '';
     this.solanaRpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
     this.usdcMintAddress = process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
+    this.evmTokenContract = process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3';
     this.solanaTreasuryAddress = process.env.KUDI_TREASURY_SOLANA_ADDRESS || 'KudiTreasurySolanaDevnet11111111111111111111';
     this.evmTreasuryAddress = process.env.KUDI_TREASURY_EVM_ADDRESS || '0xKudiTreasuryMonadMetropolisTestnet000';
 
     this.treasuryAddress = this.solanaTreasuryAddress;
     this.selfCustodyProvider = new SelfCustodyProvider();
-    console.log(`[SweepService] 🏦 Solana Treasury: ${this.solanaTreasuryAddress} | EVM Treasury: ${this.evmTreasuryAddress}`);
+    console.log(`[SweepService] 🏦 Solana Treasury: ${redactAddress(this.solanaTreasuryAddress)} | EVM Treasury: ${redactAddress(this.evmTreasuryAddress)}`);
   }
 
   /**
@@ -101,7 +105,7 @@ export class SweepService {
       // Self-custody wallet (Track A): Keys are held on user's device/Privy embedded session.
       // Kudi backend cannot unilaterally sign outbound transactions.
       // Float Model Applies: On-chain funds remain in user deposit address while ledger balance is credited for spending.
-      console.log(`[SweepService] ℹ️ Self-custody wallet (${chain.toUpperCase()}) ${walletAddress.slice(0, 8)}... — Float Model active. On-chain balance preserved in user wallet.`);
+      console.log(`[SweepService] ℹ️ Self-custody wallet (${chain.toUpperCase()}) ${redactAddress(walletAddress)} — Float Model active. On-chain balance preserved in user wallet.`);
       return {
         success: false,
         amountUSDC,
@@ -116,31 +120,62 @@ export class SweepService {
     }
 
     try {
-      console.log(`[SweepService] 🔄 Initiating ${chain.toUpperCase()} sweep: ${amountUSDC} USDC from ${walletAddress} → treasury (${targetTreasury})...`);
+      console.log(`[SweepService] 🔄 Initiating ${chain.toUpperCase()} sweep: ${amountUSDC} USDC from ${redactAddress(walletAddress)} → treasury (${redactAddress(targetTreasury)})...`);
 
       const gasPaymentMode = await this.getGasPaymentMode();
+
+      // Pre-sweep on-chain balance check: never trust the detected amount.
+      // Sweep min(detected, available - reserve); fail loudly on shortfall so a
+      // partially-drained wallet settles the actual amount instead of failing
+      // silently or corrupting the ledger.
+      const tokenAddress = chain === 'monad' ? this.evmTokenContract : this.usdcMintAddress;
+      const onChainBalance = Number(
+        await this.selfCustodyProvider.getWalletBalance(walletAddress, chain, tokenAddress)
+      );
+      if (!Number.isFinite(onChainBalance) || onChainBalance <= 0) {
+        const errMsg = `INSUFFICIENT_FUNDS: on-chain balance ${onChainBalance} USDC < detected ${amountUSDC} USDC for ${walletAddress}`;
+        console.error(`[SweepService] ❌ ${errMsg.split(walletAddress).join(redactAddress(walletAddress))}`);
+        return { success: false, amountUSDC, fromAddress: walletAddress, toAddress: targetTreasury, error: errMsg };
+      }
+      const { sweepAmount, shortfallUSDC } = resolveSweepAmount({
+        detectedUSDC: amountUSDC,
+        availableUSDC: onChainBalance,
+        chain
+      });
+      if (sweepAmount <= 0) {
+        const errMsg = `INSUFFICIENT_FUNDS: available ${onChainBalance} USDC covers only reserve for ${walletAddress} (detected ${amountUSDC} USDC)`;
+        console.error(`[SweepService] ❌ ${errMsg.split(walletAddress).join(redactAddress(walletAddress))}`);
+        return { success: false, amountUSDC, fromAddress: walletAddress, toAddress: targetTreasury, error: errMsg };
+      }
+      if (shortfallUSDC > 0) {
+        console.warn(
+          `[SweepService] ⚠️ Partial sweep: detected ${amountUSDC} USDC but only ${sweepAmount} USDC available on-chain ` +
+          `(shortfall ${shortfallUSDC} USDC) for ${redactAddress(walletAddress)} — sweeping actual balance.`
+        );
+      }
 
       const result = await this.selfCustodyProvider.sendCrypto({
         treasuryWalletId: privyWalletId,
         fromAddress: walletAddress,
         toAddress: targetTreasury,
-        amountUSDC,
+        amountUSDC: sweepAmount,
         chain,
         gasPaymentMode
       });
 
-      console.log(`[SweepService] ✅ ${chain.toUpperCase()} sweep SUCCESSFUL: ${amountUSDC} USDC from ${walletAddress} → treasury (${targetTreasury}) | TxHash: ${result.txHash}`);
+      console.log(`[SweepService] ✅ ${chain.toUpperCase()} sweep SUCCESSFUL: ${sweepAmount} USDC from ${redactAddress(walletAddress)} → treasury (${redactAddress(targetTreasury)}) | TxHash: ${result.txHash}`);
 
       return {
         success: true,
         txHash: result.txHash,
         amountUSDC,
+        actualSweptUSDC: sweepAmount,
         fromAddress: walletAddress,
         toAddress: targetTreasury
       };
     } catch (err: any) {
       const errMsg = err?.message || String(err);
-      console.error(`[SweepService] ❌ ${chain.toUpperCase()} sweep FAILED for ${walletAddress} → treasury (${targetTreasury}): ${errMsg}`, err);
+      console.error(`[SweepService] ❌ ${chain.toUpperCase()} sweep FAILED for ${redactAddress(walletAddress)} → treasury (${redactAddress(targetTreasury)}): ${errMsg}`);
       return {
         success: false,
         amountUSDC,
@@ -159,24 +194,23 @@ export class SweepService {
   public async getTreasuryBalance(): Promise<number> {
     if (!this.treasuryAddress) return 0;
     try {
-      const res = await fetch(this.solanaRpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const data = await fetchJsonWithRpcFallback(
+        [this.solanaRpcUrl, process.env.SOLANA_RPC_URL_FALLBACK],
+        {
           jsonrpc: '2.0',
           method: 'getTokenAccountsByOwner',
           params: [this.treasuryAddress, { mint: this.usdcMintAddress }, { encoding: 'jsonParsed' }],
           id: 1
-        })
-      });
-      const data = await res.json() as any;
+        },
+        'SweepService treasury balance'
+      ) as any;
       const accounts: any[] = data.result?.value || [];
       if (accounts.length > 0) {
         const tokenAmt = accounts[0].account?.data?.parsed?.info?.tokenAmount;
         return Number(tokenAmt?.uiAmount || 0);
       }
     } catch (err) {
-      console.warn('[SweepService] Treasury balance check failed:', err);
+      console.warn('[SweepService] Treasury balance check failed:', err instanceof Error ? err.message : String(err));
     }
     return 0;
   }

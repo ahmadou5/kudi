@@ -106,13 +106,14 @@ export class PartnerCustodyProvider implements CustodyProvider {
       }
     }
 
-    // Structured fallback for Track B sandbox testing
+    // Fail closed: never synthesize a confirmed deposit. Sandbox callers must
+    // handle confirmed:false explicitly instead of crediting fake amounts.
     return {
-      confirmed: true,
-      amount: '500.00',
-      sender: `0xVASPSender_${chain}`,
-      tokenAddress: chain.includes('solana') ? '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU' : '0xMockAUSDContract',
-      blockNumber: 998877
+      confirmed: false,
+      amount: '0.00',
+      sender: '',
+      tokenAddress: '',
+      blockNumber: undefined
     };
   }
 }

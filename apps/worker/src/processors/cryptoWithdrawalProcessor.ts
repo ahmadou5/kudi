@@ -6,11 +6,25 @@
  * them confirmed or failed. No financial job state lives in process memory.
  */
 
-import { SelfCustodyProvider } from '@kudi/chains';
+import { SelfCustodyProvider, resolveGasPaymentMode } from '@kudi/chains';
 import { WithdrawalStatus } from '@kudi/types';
 import { prisma } from '@kudi/database';
 
 const selfCustody = new SelfCustodyProvider();
+
+// DB sweep_config wins for gas mode (same shared resolver as the sweep paths);
+// env vars are only the fallback. Never trust an unvalidated stored value.
+async function getWithdrawalGasPaymentMode() {
+  try {
+    const config = await prisma.appConfig.findUnique({ where: { key: 'sweep_config' } });
+    if (config?.value) {
+      return resolveGasPaymentMode(JSON.parse(config.value).gasPaymentMode);
+    }
+  } catch (err) {
+    console.warn('[Worker CryptoWithdrawalProcessor] Failed to read sweep_config gas mode:', err instanceof Error ? err.message : err);
+  }
+  return resolveGasPaymentMode(undefined);
+}
 
 interface PendingWithdrawalRow {
   id: string;
@@ -180,11 +194,13 @@ export async function processCryptoWithdrawals(): Promise<void> {
 
     try {
       const treasuryWalletId = treasuryWalletIdFor(job.chain);
+      const gasPaymentMode = await getWithdrawalGasPaymentMode();
       const { txHash } = await selfCustody.sendCrypto({
         treasuryWalletId,
         toAddress: job.toAddress,
         amountUSDC: job.amountUSDC,
-        chain: job.chain
+        chain: job.chain,
+        gasPaymentMode
       });
 
       await markWithdrawal(job.reference, WithdrawalStatus.BROADCAST, { txHash });

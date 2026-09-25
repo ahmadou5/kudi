@@ -200,12 +200,12 @@ export default function SettingsPage() {
   const solanaTreasury =
     settings.treasuryAddresses?.solana ||
     process.env.NEXT_PUBLIC_KUDI_TREASURY_SOLANA_ADDRESS ||
-    'KudiTreasurySolanaDevnet11111111111111111111';
+    null;
 
   const monadTreasury =
     settings.treasuryAddresses?.monad ||
     process.env.NEXT_PUBLIC_KUDI_TREASURY_EVM_ADDRESS ||
-    '0xKudiTreasuryMonadMetropolisTestnet000';
+    null;
 
   return (
     <div className="space-y-6 pb-12">
@@ -246,28 +246,36 @@ export default function SettingsPage() {
               </Badge>
             </div>
             <div className="rounded-lg border border-border/60 bg-black/60 p-3 flex items-center justify-between gap-2">
-              <span className="font-mono text-xs text-emerald-300 truncate select-all">{solanaTreasury}</span>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  onClick={() => copyToClipboard(solanaTreasury, 'solanaTreasury')}
-                  className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                  title="Copy Solana Treasury Address"
-                >
-                  {copiedField === 'solanaTreasury' ? (
-                    <Check className="h-4 w-4 text-emerald-400" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </button>
-                <a
-                  href={`https://explorer.solana.com/address/${solanaTreasury}?cluster=devnet`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              </div>
+              {solanaTreasury ? (
+                <>
+                  <span className="font-mono text-xs text-emerald-300 truncate select-all">{solanaTreasury}</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => copyToClipboard(solanaTreasury, 'solanaTreasury')}
+                      className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                      title="Copy Solana Treasury Address"
+                    >
+                      {copiedField === 'solanaTreasury' ? (
+                        <Check className="h-4 w-4 text-emerald-400" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </button>
+                    <a
+                      href={`https://explorer.solana.com/address/${solanaTreasury}?cluster=devnet`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <span className="text-xs text-amber-400 italic flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5" /> KUDI_TREASURY_SOLANA_ADDRESS not set in environment
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
               All user SPL USDC deposits are swept directly to this Treasury account to back off-ramp liquidity.
@@ -286,28 +294,36 @@ export default function SettingsPage() {
               </Badge>
             </div>
             <div className="rounded-lg border border-border/60 bg-black/60 p-3 flex items-center justify-between gap-2">
-              <span className="font-mono text-xs text-purple-300 truncate select-all">{monadTreasury}</span>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  onClick={() => copyToClipboard(monadTreasury, 'monadTreasury')}
-                  className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                  title="Copy Monad Treasury Address"
-                >
-                  {copiedField === 'monadTreasury' ? (
-                    <Check className="h-4 w-4 text-emerald-400" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </button>
-                <a
-                  href={`https://testnet.monadexplorer.com/address/${monadTreasury}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              </div>
+              {monadTreasury ? (
+                <>
+                  <span className="font-mono text-xs text-purple-300 truncate select-all">{monadTreasury}</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => copyToClipboard(monadTreasury, 'monadTreasury')}
+                      className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                      title="Copy Monad Treasury Address"
+                    >
+                      {copiedField === 'monadTreasury' ? (
+                        <Check className="h-4 w-4 text-emerald-400" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </button>
+                    <a
+                      href={`https://testnet.monadexplorer.com/address/${monadTreasury}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <span className="text-xs text-amber-400 italic flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5" /> KUDI_TREASURY_EVM_ADDRESS not set in environment
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
               All Monad Testnet AUSD/USDC deposits are swept directly to this EVM Treasury address.

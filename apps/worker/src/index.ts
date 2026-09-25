@@ -6,7 +6,7 @@ import { processCryptoWithdrawals, recoverStaleProcessingWithdrawals } from './p
 import { recordReconciliationSnapshot } from './processors/reconciliationProcessor';
 import { EVMChainConfig, ChainType, SolanaChainConfig } from '@kudi/types';
 import { prisma } from '@kudi/database';
-import { workerConfig } from '@kudi/config';
+import { workerConfig, validateChainRuntimeConfig, redactRpcUrl } from '@kudi/config';
 
 const monadTestnetConfig: EVMChainConfig = {
   id: 'monad-testnet',
@@ -30,6 +30,25 @@ const solanaConfig: Partial<SolanaChainConfig> = {
   confirmationThreshold: 1,
   enabled: true
 };
+
+// R6: fail closed on missing/invalid chain config before any polling starts.
+// Secondary RPC endpoints (SOLANA_RPC_URL_FALLBACK / MONAD_RPC_URL_FALLBACK)
+// are validated as URLs by the config schema; listeners keep single-rpcUrl
+// behavior (see @kudi/chains) — the fallbacks are consumed via
+// fetchJsonWithRpcFallback in RPC read paths until listener failover lands.
+validateChainRuntimeConfig(
+  {
+    nodeEnv: workerConfig.NODE_ENV,
+    solanaTreasuryAddress: workerConfig.KUDI_TREASURY_SOLANA_ADDRESS,
+    evmTreasuryAddress: workerConfig.KUDI_TREASURY_EVM_ADDRESS,
+    usdcMintAddress: workerConfig.USDC_MINT_ADDRESS,
+    ausdTokenAddress: workerConfig.AUSD_TOKEN_ADDRESS,
+    monadChainId: workerConfig.MONAD_CHAIN_ID,
+    privyAppId: workerConfig.PRIVY_APP_ID,
+    privyAppSecret: workerConfig.PRIVY_APP_SECRET
+  },
+  'worker'
+);
 
 
 async function recordWorkerHeartbeat(): Promise<void> {
@@ -68,6 +87,12 @@ function runWorkerTask(name: string, task: () => Promise<unknown> | unknown): vo
 console.log('⚡ Kudi Background Worker started');
 console.log(`🔗 Listening on Solana USDC Mint: ${depositProcessor.getSolanaConfig().usdcMintAddress}`);
 console.log(`🔗 Listening on EVM Chain: ${monadTestnetConfig.name} (${monadTestnetConfig.tokenSymbol})`);
+if (workerConfig.SOLANA_RPC_URL_FALLBACK) {
+  console.log(`🔗 Solana RPC failover configured: ${redactRpcUrl(workerConfig.SOLANA_RPC_URL_FALLBACK)}`);
+}
+if (workerConfig.MONAD_RPC_URL_FALLBACK) {
+  console.log(`🔗 Monad RPC failover configured: ${redactRpcUrl(workerConfig.MONAD_RPC_URL_FALLBACK)}`);
+}
 console.log('📥 Webhook Processor active for Squad, Monnify, Paystack, Korapay, Privy');
 console.log('📤 Crypto Withdrawal Processor active (polling every 5s)');
 console.log('🧾 Reconciliation snapshots active (every 5m)');

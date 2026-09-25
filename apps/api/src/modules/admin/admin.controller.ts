@@ -212,9 +212,12 @@ export class AdminController {
       if (config?.value) {
         try {
           const parsed = JSON.parse(config.value);
+          const storedGasMode = parsed.gasPaymentMode === 'PRIVY_SPONSOR' || parsed.gasPaymentMode === 'TREASURY_FEE_PAYER'
+            ? parsed.gasPaymentMode
+            : 'PRIVY_SPONSOR';
           sweepConfig = {
             mode: parsed.mode || 'AUTO',
-            gasPaymentMode: parsed.gasPaymentMode || 'PRIVY_SPONSOR',
+            gasPaymentMode: storedGasMode,
             updatedAt: parsed.updatedAt || config.updatedAt?.toISOString?.() || null
           };
         } catch {}
@@ -233,13 +236,34 @@ export class AdminController {
       return reply.status(400).send(errorResponse('INVALID_BODY', `Field "mode" must be one of: ${validModes.join(', ')}`, 400));
     }
 
-    const gasPaymentMode = body.gasPaymentMode && validGasPaymentModes.includes(body.gasPaymentMode)
-      ? body.gasPaymentMode
-      : undefined;
+    // gasPaymentMode is required-or-preserved: when present it must be a valid
+    // union member (400 otherwise); when omitted the stored value is kept so we
+    // never persist `gasPaymentMode: undefined` (JSON.stringify would drop the
+    // key and the next read would silently fall back to a default).
+    let gasPaymentMode: string;
+    if (body.gasPaymentMode === undefined) {
+      gasPaymentMode = 'PRIVY_SPONSOR';
+      try {
+        const stored = await prisma.appConfig.findUnique({ where: { key: 'sweep_config' } });
+        if (stored?.value) {
+          const parsed = JSON.parse(stored.value);
+          if (parsed.gasPaymentMode && validGasPaymentModes.includes(parsed.gasPaymentMode)) {
+            gasPaymentMode = parsed.gasPaymentMode;
+          }
+        }
+      } catch {
+        // fall back to default on read/parse failure
+      }
+    } else if (validGasPaymentModes.includes(body.gasPaymentMode)) {
+      gasPaymentMode = body.gasPaymentMode;
+    } else {
+      return reply.status(400).send(errorResponse('INVALID_BODY', `Field "gasPaymentMode" must be one of: ${validGasPaymentModes.join(', ')}`, 400));
+    }
 
     const payload = {
       mode: body.mode,
-      gasPaymentMode
+      gasPaymentMode,
+      updatedAt: new Date().toISOString()
     };
     const configValue = JSON.stringify(payload);
 
@@ -257,6 +281,31 @@ export class AdminController {
     });
 
     return successResponse(payload, 'Sweep configuration updated successfully');
+  };
+
+  /**
+   * GET /api/admin/settings — Returns system-wide settings including
+   * real treasury addresses sourced from environment variables.
+   */
+  public getSystemSettings = async (_request: FastifyRequest, _reply: FastifyReply) => {
+    return successResponse({
+      maintenanceMode: false,
+      autoFailoverEnabled: true,
+      maxDailySpendLimitNGN: 10000000,
+      rateSpreadToleranceBps: 150,
+      treasuryAddresses: {
+        solana: process.env.KUDI_TREASURY_SOLANA_ADDRESS || '',
+        monad: process.env.KUDI_TREASURY_EVM_ADDRESS || process.env.KUDI_MONAD_TREASURY_ADDRESS || ''
+      },
+      health: {
+        fastifyApi: 'HEALTHY',
+        postgresPrisma: 'HEALTHY',
+        redisBullmq: 'HEALTHY',
+        monadMetropolisRpc: 'HEALTHY',
+        solanaRpc: 'HEALTHY'
+      },
+      auditLogs: []
+    }, 'System settings retrieved');
   };
 
   public getPayoutRails = async (_request: FastifyRequest, _reply: FastifyReply) => {
