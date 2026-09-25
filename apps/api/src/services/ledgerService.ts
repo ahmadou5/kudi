@@ -332,7 +332,7 @@ export class LedgerService {
         await this.syncUserToDb(user);
       }
 
-      const rawPrivyWalletId = typeof wallet.metadata?.privyWalletId === 'string' ? wallet.metadata.privyWalletId : null;
+      const rawPrivyWalletId = (wallet as any).privyWalletId || (typeof wallet.metadata?.privyWalletId === 'string' ? wallet.metadata.privyWalletId : null);
       const isMockWallet =
         wallet.metadata?.mock === true ||
         wallet.metadata?.generatedBy === 'MOCK_PRIVY_SERVER_WALLET' ||

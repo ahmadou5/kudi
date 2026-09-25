@@ -76,7 +76,18 @@ export class SweepService {
   ): Promise<SweepResult> {
     const targetTreasury = chain === 'monad' ? this.evmTreasuryAddress : this.solanaTreasuryAddress;
 
-    if (!privyWalletId) {
+    let effectivePrivyWalletId = privyWalletId;
+    if (!effectivePrivyWalletId) {
+      try {
+        const { prisma } = await import('@kudi/database');
+        const walletRecord = await prisma.wallet.findFirst({ where: { address: walletAddress } });
+        if (walletRecord?.privyWalletId) {
+          effectivePrivyWalletId = walletRecord.privyWalletId;
+        }
+      } catch {}
+    }
+
+    if (!effectivePrivyWalletId) {
       // Self-custody wallet (Track A): Keys are held on user's device/Privy embedded session.
       // Kudi backend cannot unilaterally sign outbound transactions.
       // Float Model Applies: On-chain funds remain in user deposit address while ledger balance is credited for spending.
@@ -98,7 +109,7 @@ export class SweepService {
       console.log(`[SweepService] 🔄 Initiating ${chain.toUpperCase()} sweep: ${amountUSDC} USDC from ${walletAddress} → treasury (${targetTreasury})...`);
 
       const result = await this.selfCustodyProvider.sendCrypto({
-        treasuryWalletId: privyWalletId,
+        treasuryWalletId: effectivePrivyWalletId,
         fromAddress: walletAddress,
         toAddress: targetTreasury,
         amountUSDC,

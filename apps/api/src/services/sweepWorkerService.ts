@@ -165,10 +165,26 @@ export class SweepWorkerService {
       `(${deposit.amountUSDC} USDC on ${chain.toUpperCase()}, user ${deposit.userId})`
     );
 
+    let effectivePrivyWalletId = deposit.privyWalletId ?? undefined;
+    if (!effectivePrivyWalletId) {
+      try {
+        const walletRecord = await prisma.wallet.findFirst({
+          where: { address: deposit.walletAddress }
+        });
+        if (walletRecord?.privyWalletId) {
+          effectivePrivyWalletId = walletRecord.privyWalletId;
+          await prisma.deposit.update({
+            where: { id: deposit.id },
+            data: { privyWalletId: effectivePrivyWalletId }
+          }).catch(() => {});
+        }
+      } catch {}
+    }
+
     try {
       const result = await this.sweepService.sweepToTreasury(
         deposit.walletAddress,
-        deposit.privyWalletId ?? undefined,
+        effectivePrivyWalletId,
         Number(deposit.amountUSDC),
         chain
       );

@@ -124,8 +124,8 @@ export class DepositService {
 
             // Write deposit record to DB with SWEEP_PENDING so the SweepWorkerService picks it up.
             // This replaces the unreliable fire-and-forget sweep that was silently dropping failures.
-            const privyWalletId = (solanaWallet as any).metadata?.privyWalletId as string | undefined;
-            const isMockWallet = !!(solanaWallet as any).metadata?.mock;
+            const privyWalletId = (solanaWallet as any).privyWalletId || (solanaWallet as any).metadata?.privyWalletId as string | undefined;
+            const isMockWallet = !!(solanaWallet as any).metadata?.mock || privyWalletId?.startsWith?.('mock_');
             prisma.deposit.create({
               data: {
                 userId: user.id,
@@ -205,8 +205,8 @@ export class DepositService {
             console.log(`[DepositService] ✅ Monad Balance updated for user ${user.id}: ${newBal.toFixed(6)} AUSD/USDC`);
 
             // Write deposit record to DB with SWEEP_PENDING for the SweepWorkerService to pick up.
-            const monadPrivyWalletId = (monadWallet as any).metadata?.privyWalletId as string | undefined;
-            const isMockMonadWallet = !!(monadWallet as any).metadata?.mock;
+            const monadPrivyWalletId = (monadWallet as any).privyWalletId || (monadWallet as any).metadata?.privyWalletId as string | undefined;
+            const isMockMonadWallet = !!(monadWallet as any).metadata?.mock || monadPrivyWalletId?.startsWith?.('mock_');
             prisma.deposit.create({
               data: {
                 userId: user.id,
