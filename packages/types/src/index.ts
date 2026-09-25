@@ -23,7 +23,7 @@ export interface CustodyProvider {
   track: CustodyTrack;
   name: string;
   generateWallet(userId: string, chain: string): Promise<DepositWallet>;
-  getWalletBalance(address: string, chain: string, tokenAddress?: string): Promise<string>;
+  getWalletBalance(address: string, chain: string, tokenAddress?: string, tokenDecimals?: number): Promise<string>;
   verifyDepositTransaction(txHash: string, chain: string): Promise<{
     confirmed: boolean;
     amount: string;

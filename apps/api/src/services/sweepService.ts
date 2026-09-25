@@ -130,7 +130,8 @@ export class SweepService {
       // silently or corrupting the ledger.
       const tokenAddress = chain === 'monad' ? this.evmTokenContract : this.usdcMintAddress;
       const onChainBalance = Number(
-        await this.selfCustodyProvider.getWalletBalance(walletAddress, chain, tokenAddress)
+        // Both swept tokens are 6-decimal (USDC SPL, AUSD ERC-20) — explicit.
+        await this.selfCustodyProvider.getWalletBalance(walletAddress, chain, tokenAddress, 6)
       );
       if (!Number.isFinite(onChainBalance) || onChainBalance <= 0) {
         const errMsg = `INSUFFICIENT_FUNDS: on-chain balance ${onChainBalance} USDC < detected ${amountUSDC} USDC for ${walletAddress}`;

@@ -292,7 +292,12 @@ export class SelfCustodyProvider implements CustodyProvider {
     };
   }
 
-  async getWalletBalance(address: string, chain: string, tokenAddress?: string): Promise<string> {
+  /**
+   * Token balance read with explicit decimals. Throws on transport/RPC errors
+   * so callers can distinguish "balance unknown → retry" from genuine zero.
+   * '0.00' is returned ONLY for a valid empty/zero result.
+   */
+  async getWalletBalance(address: string, chain: string, tokenAddress?: string, tokenDecimals?: number): Promise<string> {
     const isSolana = chain.includes('solana') || address.startsWith('Sol');
 
     if (isSolana) {
@@ -310,6 +315,9 @@ export class SelfCustodyProvider implements CustodyProvider {
             })
           });
           const data = await res.json();
+          if (data.error) {
+            throw new Error(`Solana RPC getTokenAccountsByOwner failed: ${JSON.stringify(data.error).slice(0, 200)}`);
+          }
           const accounts = data.result?.value || [];
           if (accounts.length > 0) {
             const tokenAmount = accounts[0].account?.data?.parsed?.info?.tokenAmount;
@@ -329,14 +337,19 @@ export class SelfCustodyProvider implements CustodyProvider {
             })
           });
           const data = await res.json();
+          if (data.error) {
+            throw new Error(`Solana RPC getBalance failed: ${JSON.stringify(data.error).slice(0, 200)}`);
+          }
           if (typeof data.result?.value === 'number') {
             return (data.result.value / 1e9).toFixed(4);
           }
+          return '0.00';
         }
       } catch (err) {
-        console.warn('Solana RPC Balance query failed:', err);
+        // Unknown balance must NOT look like zero (see EVM branch note).
+        console.warn('Solana RPC Balance query failed:', err instanceof Error ? err.message : err);
+        throw err instanceof Error ? err : new Error(String(err));
       }
-      return '0.00';
     }
 
     if (!this.defaultRpcUrl) {
@@ -360,13 +373,24 @@ export class SelfCustodyProvider implements CustodyProvider {
         });
 
         const data = await res.json();
+        if (data.error) {
+          throw new Error(`EVM RPC eth_call balance failed: ${JSON.stringify(data.error).slice(0, 200)}`);
+        }
         if (data.result && data.result !== '0x') {
           const raw = BigInt(data.result);
-          // Default USDC 6 decimals or ERC20 18 decimals
-          const decimals = tokenAddress.toLowerCase().includes('usdc') ? 6 : 18;
+          // Decimals: explicit param wins, then known 6-decimal stablecoins
+          // (USDC mint + AUSD contract), else standard ERC-20 18. Never guess
+          // from address substrings — AUSD misread as 18 decimals once caused
+          // every Monad sweep to see balance 0 (INSUFFICIENT_FUNDS loop).
+          const knownSix = new Set(
+            [this.solanaUsdcMintAddress, this.ausdTokenAddress].map((a) => a.toLowerCase())
+          );
+          const decimals = tokenDecimals
+            ?? (tokenAddress && knownSix.has(tokenAddress.toLowerCase()) ? 6 : 18);
           const balance = Number(raw) / Math.pow(10, decimals);
           return balance.toFixed(decimals === 6 ? 2 : 4);
         }
+        throw new Error('EVM RPC eth_call balance returned no result');
       } else {
         // JSON-RPC eth_getBalance query for EVM native currency
         const res = await fetch(this.defaultRpcUrl, {
@@ -381,17 +405,22 @@ export class SelfCustodyProvider implements CustodyProvider {
         });
 
         const data = await res.json();
+        if (data.error) {
+          throw new Error(`EVM RPC eth_getBalance failed: ${JSON.stringify(data.error).slice(0, 200)}`);
+        }
         if (data.result) {
           const wei = BigInt(data.result);
           const eth = Number(wei) / 1e18;
           return eth.toFixed(4);
         }
+        return '0.00';
       }
     } catch (err) {
-      console.warn('EVM RPC Balance query failed:', err);
+      // Unknown balance (transport/RPC failure) must NOT look like zero —
+      // callers treat zero as INSUFFICIENT_FUNDS (permanent), unknown must retry.
+      console.warn('EVM RPC Balance query failed:', err instanceof Error ? err.message : err);
+      throw err instanceof Error ? err : new Error(String(err));
     }
-
-    return '0.00';
   }
 
   async verifyDepositTransaction(txHash: string, chain: string): Promise<{

@@ -256,7 +256,9 @@ export class ChainDepositProcessor {
         ? (process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU')
         : (process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3');
       const available = Number(
-        await this.selfCustody.getWalletBalance(params.wallet.address, normalizedChain, tokenAddress)
+        // Both swept tokens are 6-decimal (USDC SPL, AUSD ERC-20) — pass
+        // explicitly so a misconfigured token address can't silently rescale.
+        await this.selfCustody.getWalletBalance(params.wallet.address, normalizedChain, tokenAddress, 6)
       );
       if (!Number.isFinite(available) || available <= 0) {
         throw new Error(`INSUFFICIENT_FUNDS: on-chain balance ${available} < detected ${parsedAmount} for ${params.wallet.address}`);
