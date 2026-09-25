@@ -1191,21 +1191,35 @@ export class SelfCustodyProvider implements CustodyProvider {
         ],
         data
       };
+      // Broadcast with one stale-blockhash retry: our blockhash comes from the
+      // public RPC while Privy simulates on its own node — a lagging Privy
+      // node 400s with "Blockhash not found". Each attempt fetches a fresh hash.
       const rpc = createSolanaRpc(this.rpcUrlSolana);
-      const { value: latestBlockhash } = await rpc.getLatestBlockhash({ commitment: 'confirmed' }).send();
-      const txMessage = pipe(
-        createTransactionMessage({ version: 0 as const }),
-        (tx) => setTransactionMessageFeePayer(fromAddr, tx),
-        (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-        (tx) => appendTransactionMessageInstruction(transferIx, tx)
-      );
-      const res = await this.privyRpc(this.solanaTreasuryWalletId, {
-        method: 'signAndSendTransaction',
-        caip2: this.solanaCaip2,
-        params: { transaction: this.compileUnsignedBase64(txMessage), encoding: 'base64' }
-      });
-      if (!res.ok) {
-        throw new Error(`[SelfCustody] Treasury SOL drip failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
+      let res: Response | null = null;
+      let lastErrText = '';
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        const { value: latestBlockhash } = await rpc.getLatestBlockhash({ commitment: 'confirmed' }).send();
+        const txMessage = pipe(
+          createTransactionMessage({ version: 0 as const }),
+          (tx) => setTransactionMessageFeePayer(fromAddr, tx),
+          (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+          (tx) => appendTransactionMessageInstruction(transferIx, tx)
+        );
+        res = await this.privyRpc(this.solanaTreasuryWalletId, {
+          method: 'signAndSendTransaction',
+          caip2: this.solanaCaip2,
+          params: { transaction: this.compileUnsignedBase64(txMessage), encoding: 'base64' }
+        });
+        if (res.ok) break;
+        lastErrText = (await res.text()).slice(0, 300);
+        const staleHash = lastErrText.toLowerCase().includes('blockhash not found');
+        if (!staleHash || attempt === 2) {
+          throw new Error(`[SelfCustody] Treasury SOL drip failed: ${res.status} ${lastErrText}`);
+        }
+        console.log('[SelfCustody] 🔄 Drip broadcast hit stale blockhash, retrying once with a fresh hash...');
+      }
+      if (!res || !res.ok) {
+        throw new Error(`[SelfCustody] Treasury SOL drip failed: ${res?.status} ${lastErrText}`);
       }
       const data2 = await res.json() as any;
       const txHash = data2.data?.signature || data2.signature || data2.data?.hash || data2.hash || data2.result;

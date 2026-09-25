@@ -226,6 +226,7 @@ async function main() {
   rateService.onRateUpdate((rateState) => {
     io.emit('rate:updated', rateState);
   });
+  rateService.startPolling(30_000);
 
   // Single sweep ownership (ADR-0001): the dedicated worker process
   // (apps/worker ChainDepositProcessor.processSweepRetries) is the sole

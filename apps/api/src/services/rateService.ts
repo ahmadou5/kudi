@@ -1,3 +1,5 @@
+import { prisma } from '@kudi/database';
+
 export interface RateState {
   currentRateNGN: number;
   rawP2PRateNGN: number;
@@ -46,6 +48,26 @@ export class RateService {
 
   public async fetchLiveRate(): Promise<number> {
     if (this.state.isManualOverride) return this.state.currentRateNGN;
+
+    // Check database rate feed log first (e.g., populated by worker rate engine)
+    try {
+      const latestLog = await prisma.rateFeedLog.findFirst({
+        orderBy: { createdAt: 'desc' }
+      });
+      if (latestLog && latestLog.blendedRate > 0) {
+        const ageMs = Date.now() - new Date(latestLog.createdAt).getTime();
+        if (ageMs < 15 * 60 * 1000) { // Fresh within 15 mins
+          this.state.rawP2PRateNGN = Number(latestLog.bidRate);
+          this.state.currentRateNGN = Number(latestLog.blendedRate);
+          this.state.lastUpdated = new Date(latestLog.createdAt).toISOString();
+          this.state.isStale = false;
+          this.notifyListeners();
+          return this.state.currentRateNGN;
+        }
+      }
+    } catch (err: unknown) {
+      // Ignore DB error, proceed to fetch directly from APIs
+    }
 
     const providers = [
       {
