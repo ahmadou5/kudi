@@ -26,6 +26,7 @@ Source audit: `SWEEP_DEPOSIT_SECURITY_AUDIT.md`. Owner split across two parallel
 ## R4 — Sweep safety & liability [agent: chain-security] ✅ DONE (breaker is alert-level)
 - [x] Pre-sweep on-chain balance check; sweep `min(detected, available - reserve)`; simulate before broadcast; record actual swept amount.
 - [x] Un-swept exposure helper (`computeUnbackedExposure`) wired into sweep health + existing reconciliation alerts. NOTE: this is alert-level, not a hard spend block — a hard un-swept spend cap is still open if you want it.
+- [x] Post-deploy fix 2026-09-25: treasury native-gas drip (`dripNativeGas` + `sendCryptoWithGasRetry`). Deposit wallets start with 0 SOL/MON; on signer-insufficient-balance the treasury funds the signer (treasury signs its own transfer — single signer) and the sweep retries once. Also retries once on stale-blockhash simulation failure. Fixes `AUSD_TOKEN_ADDRESS` placeholder in `.env` (was invalid hex → every Monad balance read RPC-errored to 0) and the 18-decimal misread of 6-decimal AUSD in `getWalletBalance` (explicit `tokenDecimals` param + known-token map; RPC failures now throw instead of masquerading as zero).
 - Accept: sweep of a partially-drained wallet settles the actual amount (or fails loudly) without corrupting the ledger; exposure metric wired to existing reconciliation alerts.
 
 ## R5 — Credit integrity, ownership, cursors [agent: chain-security code + integrator decision] ⚠️ MOSTLY DONE — 1 item open

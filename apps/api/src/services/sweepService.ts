@@ -155,14 +155,16 @@ export class SweepService {
         );
       }
 
-      const result = await this.selfCustodyProvider.sendCrypto({
+      // Gas-retry wrapper: drips native gas from treasury on signer-insufficient
+      // errors (deposit wallets start with 0 SOL/MON), retries stale blockhash.
+      const result = await this.selfCustodyProvider.sendCryptoWithGasRetry({
         treasuryWalletId: privyWalletId,
         fromAddress: walletAddress,
         toAddress: targetTreasury,
-        amountUSDC: sweepAmount,
+        amountUSDC,
         chain,
         gasPaymentMode
-      });
+      }, walletAddress);
 
       console.log(`[SweepService] ✅ ${chain.toUpperCase()} sweep SUCCESSFUL: ${sweepAmount} USDC from ${redactAddress(walletAddress)} → treasury (${redactAddress(targetTreasury)}) | TxHash: ${result.txHash}`);
 

@@ -279,16 +279,19 @@ export class ChainDepositProcessor {
       }
 
       console.log(`[Chain Processor] 🔄 Sweeping ${sweepAmount} USDC from deposit ${params.wallet.address} → treasury (${targetTreasury})...`);
-      const { txHash } = await this.selfCustody.sendCrypto({
+      // Gas-retry wrapper: drips native gas from treasury on signer-insufficient
+      // errors (deposit wallets start with 0 SOL/MON), retries stale blockhash.
+      const { txHash } = await this.selfCustody.sendCryptoWithGasRetry({
         treasuryWalletId: params.wallet.privyWalletId,
         fromAddress: normalizedChain === 'solana' ? params.wallet.address : undefined,
-        // feePayerAddress intentionally omitted: user wallet (signerAddr) always pays its own fees.
-        // TREASURY_FEE_PAYER is rejected loudly inside sendCrypto (2nd signer unavailable via Privy).
+        // feePayerAddress intentionally omitted: user wallet (signerAddr) always pays its own fees
+        // (topped up via treasury drip when empty). TREASURY_FEE_PAYER is rejected
+        // loudly inside sendCrypto (2nd signer unavailable via Privy).
         toAddress: targetTreasury,
         amountUSDC: sweepAmount,
         chain: normalizedChain,
         gasPaymentMode
-      });
+      }, params.wallet.address);
       const confirmed = await this.selfCustody.waitForConfirmation(txHash, normalizedChain);
       if (!confirmed) {
         throw new Error(`Sweep transaction ${txHash} was not confirmed before timeout`);

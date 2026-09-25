@@ -169,6 +169,9 @@ export class SelfCustodyProvider implements CustodyProvider {
   private solanaUsdcMintAddress: string;
   private solanaTreasuryAddress: string;
   private solanaTreasuryWalletId: string;
+  private evmTreasuryAddress: string;
+  private evmTreasuryWalletId: string;
+  private cachedEvmTreasuryAddress?: string;
   private solanaCaip2: string;
   private ausdTokenAddress: string;
   private monadChainId: number;
@@ -214,7 +217,9 @@ export class SelfCustodyProvider implements CustodyProvider {
     solanaCaip2 = process.env.SOLANA_CAIP2 || 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
     ausdTokenAddress = process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3',
     monadChainId = Number(process.env.MONAD_CHAIN_ID || 10143),
-    solanaTreasuryWalletId = process.env.KUDI_SOLANA_TREASURY_WALLET_ID || ''
+    solanaTreasuryWalletId = process.env.KUDI_SOLANA_TREASURY_WALLET_ID || '',
+    evmTreasuryAddress = process.env.KUDI_TREASURY_EVM_ADDRESS || '',
+    evmTreasuryWalletId = process.env.KUDI_EVM_TREASURY_WALLET_ID || ''
   ) {
     this.privyAppId = privyAppId;
     this.privyAppSecret = privyAppSecret;
@@ -226,6 +231,8 @@ export class SelfCustodyProvider implements CustodyProvider {
     this.ausdTokenAddress = ausdTokenAddress;
     this.monadChainId = monadChainId;
     this.solanaTreasuryWalletId = solanaTreasuryWalletId;
+    this.evmTreasuryAddress = evmTreasuryAddress;
+    this.evmTreasuryWalletId = evmTreasuryWalletId;
   }
 
   async generateWallet(userId: string, chain: string): Promise<DepositWallet> {
@@ -853,6 +860,179 @@ export class SelfCustodyProvider implements CustodyProvider {
     } catch (err: any) {
       console.error(`[SelfCustody] ❌ Privy broadcast failed: ${err?.message || err}`);
       throw err;
+    }
+  }
+
+  /**
+   * Resolve the treasury EVM address: explicit env first, else the address of
+   * the configured Privy EVM server wallet (fetched once and cached).
+   */
+  private async getEvmTreasuryAddress(): Promise<string> {
+    if (this.evmTreasuryAddress) return this.evmTreasuryAddress;
+    if (this.cachedEvmTreasuryAddress) return this.cachedEvmTreasuryAddress;
+    if (!this.evmTreasuryWalletId) {
+      throw new Error(
+        '[SelfCustody] EVM treasury address unresolved: set KUDI_TREASURY_EVM_ADDRESS or KUDI_EVM_TREASURY_WALLET_ID.'
+      );
+    }
+    const res = await fetch(`https://api.privy.io/v1/wallets/${this.evmTreasuryWalletId}`, {
+      headers: {
+        'privy-app-id': this.appId,
+        Authorization: `Basic ${Buffer.from(`${this.appId}:${this.appSecret}`).toString('base64')}`
+      }
+    });
+    if (!res.ok) {
+      throw new Error(`[SelfCustody] Could not resolve EVM treasury address from Privy wallet ${this.evmTreasuryWalletId}: ${res.status}`);
+    }
+    const data = await res.json() as any;
+    const address = data.address || data.data?.address;
+    if (!address) throw new Error('[SelfCustody] Privy wallet lookup returned no address for EVM treasury.');
+    this.cachedEvmTreasuryAddress = address;
+    return address;
+  }
+
+  /** Compile an unsigned @solana/kit transaction message to Privy wire format. */
+  private compileUnsignedBase64(txMessage: any): string {
+    const compiled = compileTransaction(txMessage);
+    const msgBytes = compiled.messageBytes as unknown as Uint8Array;
+    const numSigs = Object.keys(compiled.signatures).length || 1;
+    const wireBytes = new Uint8Array(1 + (numSigs * 64) + msgBytes.length);
+    wireBytes[0] = numSigs;
+    wireBytes.set(msgBytes, 1 + (numSigs * 64));
+    return Buffer.from(wireBytes).toString('base64');
+  }
+
+  private privyRpc(walletId: string, body: Record<string, unknown>): Promise<Response> {
+    return fetch(`https://api.privy.io/v1/wallets/${walletId}/rpc`, {
+      method: 'POST',
+      headers: {
+        'privy-app-id': this.appId,
+        Authorization: `Basic ${Buffer.from(`${this.appId}:${this.appSecret}`).toString('base64')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+  }
+
+  /**
+   * Treasury gas drip: fund a deposit wallet's NATIVE balance from treasury so
+   * it can pay its own transaction fees. The treasury signs its OWN transfer
+   * (single signer — no 2-signer problem). Skips when the wallet already holds
+   * at least the minimum. Amounts/thresholds are env-tunable:
+   * SWEEP_SOL_MIN_BALANCE / SWEEP_SOL_DRIP_AMOUNT (SOL),
+   * SWEEP_MON_MIN_BALANCE / SWEEP_MON_DRIP_AMOUNT (MON).
+   */
+  async dripNativeGas(params: { toAddress: string; chain: 'solana' | 'monad' }): Promise<{ dripped: boolean; txHash?: string }> {
+    const { toAddress, chain } = params;
+    const isSolana = chain === 'solana';
+    const minBalance = Number(isSolana
+      ? (process.env.SWEEP_SOL_MIN_BALANCE || 0.002)
+      : (process.env.SWEEP_MON_MIN_BALANCE || 0.001));
+    const dripAmount = Number(isSolana
+      ? (process.env.SWEEP_SOL_DRIP_AMOUNT || 0.005)
+      : (process.env.SWEEP_MON_DRIP_AMOUNT || 0.005));
+
+    const current = Number(await this.getWalletBalance(toAddress, chain));
+    if (Number.isFinite(current) && current >= minBalance) {
+      return { dripped: false };
+    }
+
+    if (isSolana) {
+      if (!this.solanaTreasuryAddress || !this.solanaTreasuryWalletId) {
+        throw new Error('[SelfCustody] Cannot drip SOL: KUDI_TREASURY_SOLANA_ADDRESS / KUDI_SOLANA_TREASURY_WALLET_ID not configured.');
+      }
+      const fromAddr = solanaAddress(this.solanaTreasuryAddress as Address);
+      const toAddr = solanaAddress(toAddress as Address);
+      const lamports = BigInt(Math.floor(dripAmount * 1e9));
+      // SystemProgram.transfer (index 2): u32 LE discriminator + u64 LE lamports.
+      const data = new Uint8Array(12);
+      const view = new DataView(data.buffer);
+      view.setUint32(0, 2, true);
+      view.setBigUint64(4, lamports, true);
+      const transferIx = {
+        programAddress: solanaAddress('11111111111111111111111111111111' as Address),
+        accounts: [
+          { address: fromAddr, role: 3 as const }, // Writable Signer (treasury pays + signs)
+          { address: toAddr, role: 1 as const }    // Writable (deposit wallet)
+        ],
+        data
+      };
+      const rpc = createSolanaRpc(this.rpcUrlSolana);
+      const { value: latestBlockhash } = await rpc.getLatestBlockhash({ commitment: 'confirmed' }).send();
+      const txMessage = pipe(
+        createTransactionMessage({ version: 0 as const }),
+        (tx) => setTransactionMessageFeePayer(fromAddr, tx),
+        (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+        (tx) => appendTransactionMessageInstruction(transferIx, tx)
+      );
+      const res = await this.privyRpc(this.solanaTreasuryWalletId, {
+        method: 'signAndSendTransaction',
+        caip2: this.solanaCaip2,
+        params: { transaction: this.compileUnsignedBase64(txMessage), encoding: 'base64' }
+      });
+      if (!res.ok) {
+        throw new Error(`[SelfCustody] Treasury SOL drip failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
+      }
+      const data2 = await res.json() as any;
+      const txHash = data2.data?.signature || data2.signature || data2.data?.hash || data2.hash || data2.result;
+      if (!txHash) throw new Error('[SelfCustody] Treasury SOL drip returned no signature.');
+      console.log(`[SelfCustody] 💧 Dripped ${dripAmount} SOL treasury → deposit wallet for gas: ${String(txHash).slice(0, 20)}...`);
+      if (!(await this.waitForConfirmation(txHash, 'solana'))) {
+        throw new Error(`Treasury SOL drip ${txHash} was not confirmed before timeout`);
+      }
+      return { dripped: true, txHash };
+    }
+
+    // Monad/EVM native transfer: treasury signs its own tx (treasury pays itself).
+    await this.getEvmTreasuryAddress();
+    const dripWei = BigInt(Math.floor(dripAmount * 1e18));
+    const res = await this.privyRpc(this.evmTreasuryWalletId, {
+      method: 'eth_sendTransaction',
+      caip2: `eip155:${this.monadChainId}`,
+      params: { transaction: { to: toAddress, value: `0x${dripWei.toString(16)}` } }
+    });
+    if (!res.ok) {
+      throw new Error(`[SelfCustody] Treasury MON drip failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
+    }
+    const data3 = await res.json() as any;
+    const txHash = data3.data?.hash || data3.hash || data3.result;
+    if (!txHash) throw new Error('[SelfCustody] Treasury MON drip returned no hash.');
+    console.log(`[SelfCustody] 💧 Dripped ${dripAmount} MON treasury → deposit wallet for gas: ${String(txHash).slice(0, 20)}...`);
+    if (!(await this.waitForConfirmation(txHash, 'monad'))) {
+      throw new Error(`Treasury MON drip ${txHash} was not confirmed before timeout`);
+    }
+    return { dripped: true, txHash };
+  }
+
+  /**
+   * Sweep send with one automatic recovery retry: on signer-insufficient-balance
+   * it drips native gas from treasury first, then retries; on stale-blockhash
+   * simulation failure it retries once (fresh blockhash per sendCrypto call).
+   * Anything else throws immediately.
+   */
+  async sendCryptoWithGasRetry(
+    params: Parameters<SelfCustodyProvider['sendCrypto']>[0],
+    signerAddress: string
+  ): Promise<{ txHash: string }> {
+    try {
+      return await this.sendCrypto(params);
+    } catch (err: any) {
+      const msg = (err?.message || String(err)).toLowerCase();
+      const needsGas = msg.includes('insufficient') && (msg.includes('balance') || msg.includes('funds'));
+      const staleBlockhash = msg.includes('blockhash not found');
+      if (!needsGas && !staleBlockhash) throw err;
+      if (needsGas) {
+        if (!signerAddress) throw err;
+        console.log(`[SelfCustody] ⛽ Signer lacks gas, dripping from treasury then retrying (${params.chain})...`);
+        try {
+          await this.dripNativeGas({ toAddress: signerAddress, chain: params.chain });
+        } catch (dripErr: any) {
+          throw new Error(`${err?.message || err} [gas drip also failed: ${dripErr?.message || dripErr}]`);
+        }
+      } else {
+        console.log(`[SelfCustody] 🔄 Stale blockhash, retrying broadcast once (${params.chain})...`);
+      }
+      return await this.sendCrypto(params);
     }
   }
 
