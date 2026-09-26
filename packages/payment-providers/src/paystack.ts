@@ -12,24 +12,16 @@ export class PaystackProvider implements PaymentProvider {
 
   private secretKey: string;
 
-  constructor(secretKey: string = '') {
-    this.secretKey = secretKey;
-  }
-
-  async resolveAccount(accountNumber: string, bankCode: string): Promise<BankAccountResolution> {
-    if (!this.secretKey) {
+  constructor(secretKey?: string) {
+    if (!secretKey) {
       if (process.env.NODE_ENV === 'production') {
         throw new Error('[PaystackProvider] PAYSTACK_SECRET_KEY is required in production environment.');
       }
-      // Return sandbox / mock resolution when secret key is not set
-      return {
-        accountNumber,
-        bankCode,
-        accountName: `Demo User (${bankCode})`,
-        provider: this.id
-      };
     }
+    this.secretKey = secretKey || '';
+  }
 
+  async resolveAccount(accountNumber: string, bankCode: string): Promise<BankAccountResolution> {
     const response = await fetch(
       `https://api.paystack.co/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`,
       {
@@ -53,21 +45,6 @@ export class PaystackProvider implements PaymentProvider {
   }
 
   async initiateTransfer(request: TransferRequest): Promise<TransferResponse> {
-    if (!this.secretKey) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error('[PaystackProvider] Missing PAYSTACK_SECRET_KEY in production. Cannot execute payout.');
-      }
-      // Mock successful transfer for sandbox testing
-      return {
-        reference: request.reference,
-        transferCode: `TRF_PAYSTACK_MOCK_${Date.now()}`,
-        status: 'success',
-        provider: this.id,
-        providerReference: `PAYSTACK_REF_${Date.now()}`,
-        message: 'Mock payout completed successfully'
-      };
-    }
-
     // Step 1: Create Transfer Recipient
     const recipientRes = await fetch('https://api.paystack.co/transferrecipient', {
       method: 'POST',
@@ -127,18 +104,6 @@ export class PaystackProvider implements PaymentProvider {
   }
 
   async checkTransferStatus(reference: string): Promise<TransferResponse> {
-    if (!this.secretKey) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error('[PaystackProvider] Missing PAYSTACK_SECRET_KEY in production. Cannot verify transfer.');
-      }
-      return {
-        reference,
-        status: 'success',
-        provider: this.id,
-        message: 'Mock status verified'
-      };
-    }
-
     const response = await fetch(`https://api.paystack.co/transfer/verify/${reference}`, {
       headers: {
         Authorization: `Bearer ${this.secretKey}`
@@ -160,19 +125,6 @@ export class PaystackProvider implements PaymentProvider {
   }
 
   async listSupportedBanks(): Promise<Array<{ code: string; name: string }>> {
-    if (!this.secretKey) {
-      return [
-        { code: '058', name: 'GTBank' },
-        { code: '011', name: 'First Bank' },
-        { code: '057', name: 'Zenith Bank' },
-        { code: '033', name: 'UBA' },
-        { code: '044', name: 'Access Bank' },
-        { code: '999992', name: 'OPay' },
-        { code: '999991', name: 'Palmpay' },
-        { code: '50515', name: 'Moniepoint Microfinance Bank' }
-      ];
-    }
-
     const response = await fetch('https://api.paystack.co/bank?country=nigeria', {
       headers: { Authorization: `Bearer ${this.secretKey}` }
     });

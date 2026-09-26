@@ -104,7 +104,12 @@ setInterval(() => runWorkerTask('crypto withdrawal processor', processCryptoWith
 setInterval(() => runWorkerTask('stale withdrawal recovery', recoverStaleProcessingWithdrawals), 60000);
 setInterval(() => runWorkerTask('stale deposit sweep recovery', () => depositProcessor.recoverStaleProcessingSweeps()), 60000);
 setInterval(() => runWorkerTask('deposit sweep retries', () => depositProcessor.processSweepRetries()), 60000);
-setInterval(() => runWorkerTask('reconciliation snapshot', recordReconciliationSnapshot), 300000);
+setInterval(() => runWorkerTask('reconciliation snapshot', async () => {
+    const metrics = await recordReconciliationSnapshot();
+    if (metrics) {
+      console.log(`[Reconciliation] 📊 Liability: $${metrics.totalLiabilityUSDC.toFixed(2)} | Available: $${metrics.totalAvailableUSDC.toFixed(2)} | Unbacked: $${metrics.unbackedExposureUSDC.toFixed(2)} | Swept: $${metrics.sweptUSDC.toFixed(2)} | Failed: $${metrics.sweepFailedUSDC.toFixed(2)}`);
+    }
+  }), 300000);
 setInterval(() => runWorkerTask('worker heartbeat', recordWorkerHeartbeat), 30000);
 
 runWorkerTask('rate poller', pollRateEngine);
@@ -112,4 +117,9 @@ runWorkerTask('worker heartbeat', recordWorkerHeartbeat);
 runWorkerTask('stale withdrawal recovery', recoverStaleProcessingWithdrawals);
 runWorkerTask('stale deposit sweep recovery', () => depositProcessor.recoverStaleProcessingSweeps());
 runWorkerTask('deposit sweep retries', () => depositProcessor.processSweepRetries());
-runWorkerTask('reconciliation snapshot', recordReconciliationSnapshot);
+runWorkerTask('reconciliation snapshot', async () => {
+  const metrics = await recordReconciliationSnapshot();
+  if (metrics) {
+    console.log(`[Reconciliation] 📊 Liability: $${metrics.totalLiabilityUSDC.toFixed(2)} | Available: $${metrics.totalAvailableUSDC.toFixed(2)} | Unbacked: $${metrics.unbackedExposureUSDC.toFixed(2)} | Swept: $${metrics.sweptUSDC.toFixed(2)} | Failed: $${metrics.sweepFailedUSDC.toFixed(2)}`);
+  }
+});

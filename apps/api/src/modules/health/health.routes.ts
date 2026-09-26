@@ -8,4 +8,5 @@ export async function healthRoutes(server: FastifyInstance, controller: HealthCo
   server.get(apiRoutes.healthConfig, controller.getHealthConfig);
   server.get('/health/config', controller.getHealthConfig);
   server.get('/api/health/config', controller.getHealthConfig);
+  server.get('/api/health/sweep', controller.getSweepHealth);
 }

@@ -7,28 +7,15 @@ export class PartnerCustodyProvider implements CustodyProvider {
   private partnerApiKey: string;
   private partnerApiUrl: string;
 
-  constructor(
-    partnerApiKey: string = '',
-    partnerApiUrl: string = 'https://api.busha.co/v1'
-  ) {
+  constructor(partnerApiKey: string, partnerApiUrl: string = 'https://api.busha.co/v1') {
+    if (!partnerApiKey) {
+      throw new Error('[PartnerCustodyProvider] Partner API key is required');
+    }
     this.partnerApiKey = partnerApiKey;
     this.partnerApiUrl = partnerApiUrl;
   }
 
   async generateWallet(userId: string, chain: string): Promise<DepositWallet> {
-    if (!this.partnerApiKey) {
-      // Mock VASP-issued deposit address for Track B testing
-      return {
-        address: `0xPartnerVASP_${chain}_${userId.slice(-6)}`,
-        chain,
-        metadata: {
-          generatedBy: 'PartnerCustodyProvider_Busha_Mock',
-          licensedEntity: 'Busha SEC AVASP',
-          createdAt: new Date().toISOString()
-        }
-      };
-    }
-
     // Call Busha / Quidax VASP Partner API to issue deposit address
     const res = await fetch(`${this.partnerApiUrl}/addresses`, {
       method: 'POST',
@@ -42,6 +29,10 @@ export class PartnerCustodyProvider implements CustodyProvider {
       })
     });
 
+    if (!res.ok) {
+      throw new Error(`[PartnerCustody] Failed to generate wallet: ${res.status} ${await res.text().catch(() => '')}`);
+    }
+
     const data = await res.json();
     return {
       address: data.address,
@@ -54,26 +45,22 @@ export class PartnerCustodyProvider implements CustodyProvider {
   }
 
   async getWalletBalance(address: string, chain: string, tokenAddress?: string): Promise<string> {
-    if (this.partnerApiKey) {
-      try {
-        const res = await fetch(`${this.partnerApiUrl}/wallets/${address}/balance`, {
-          headers: {
-            Authorization: `Bearer ${this.partnerApiKey}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const rawBalance = data.balance || data.available_balance || data.amount || '0.00';
-          return Number(rawBalance).toFixed(2);
+    try {
+      const res = await fetch(`${this.partnerApiUrl}/wallets/${address}/balance`, {
+        headers: {
+          Authorization: `Bearer ${this.partnerApiKey}`,
+          'Content-Type': 'application/json'
         }
-      } catch (err) {
-        console.warn('VASP Partner Balance query failed:', err);
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const rawBalance = data.balance || data.available_balance || data.amount || '0.00';
+        return Number(rawBalance).toFixed(2);
       }
+    } catch (err) {
+      console.warn('VASP Partner Balance query failed:', err);
     }
-
-    // Deterministic fallback for Track B mock/sandbox testing
-    return '500.00';
+    throw new Error('[PartnerCustody] Failed to get wallet balance from VASP partner');
   }
 
   async verifyDepositTransaction(txHash: string, chain: string): Promise<{
@@ -83,30 +70,28 @@ export class PartnerCustodyProvider implements CustodyProvider {
     tokenAddress: string;
     blockNumber?: number;
   }> {
-    if (this.partnerApiKey) {
-      try {
-        const res = await fetch(`${this.partnerApiUrl}/transactions/${txHash}`, {
-          headers: {
-            Authorization: `Bearer ${this.partnerApiKey}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          return {
-            confirmed: data.status === 'completed' || data.status === 'confirmed' || data.status === 'success',
-            amount: String(data.amount || '0.00'),
-            sender: data.sender || data.from || 'VASP_Partner_Sender',
-            tokenAddress: data.currency || data.token_address || (chain.includes('solana') ? 'USDC' : 'AUSD'),
-            blockNumber: data.block_number || data.slot
-          };
+    try {
+      const res = await fetch(`${this.partnerApiUrl}/transactions/${txHash}`, {
+        headers: {
+          Authorization: `Bearer ${this.partnerApiKey}`,
+          'Content-Type': 'application/json'
         }
-      } catch (err) {
-        console.warn('VASP Partner Tx verification query failed:', err);
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return {
+          confirmed: data.status === 'completed' || data.status === 'confirmed' || data.status === 'success',
+          amount: String(data.amount || '0.00'),
+          sender: data.sender || data.from || 'VASP_Partner_Sender',
+          tokenAddress: data.currency || data.token_address || (chain.includes('solana') ? 'USDC' : 'AUSD'),
+          blockNumber: data.block_number || data.slot
+        };
       }
+    } catch (err) {
+      console.warn('VASP Partner Tx verification query failed:', err);
     }
 
-    // Fail closed: never synthesize a confirmed deposit. Sandbox callers must
+    // Fail closed: never synthesize a confirmed deposit. Callers must
     // handle confirmed:false explicitly instead of crediting fake amounts.
     return {
       confirmed: false,

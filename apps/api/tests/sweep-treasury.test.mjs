@@ -74,3 +74,61 @@ test('sweep: handles idempotency when wallet address is already treasury', () =>
   assert.equal(result.success, true);
   assert.equal(result.mode, 'NO_OP');
 });
+
+function validateSweepConfigPayload(body, previous = { mode: 'AUTO', gasPaymentMode: 'PRIVY_SPONSOR' }) {
+  const validModes = ['AUTO', 'SPONSORED'];
+  const validGasPaymentModes = ['PRIVY_SPONSOR'];
+
+  if (!body?.mode || !validModes.includes(body.mode)) {
+    throw new Error(`Field "mode" must be one of: ${validModes.join(', ')}`);
+  }
+
+  let gasPaymentMode = 'PRIVY_SPONSOR';
+  if (body.gasPaymentMode !== undefined) {
+    if (body.gasPaymentMode === 'TREASURY_FEE_PAYER') {
+      throw new Error('TREASURY_FEE_PAYER is not supported for sweeps because Privy single-wallet signing cannot provide a 2nd fee payer signature. Please select PRIVY_SPONSOR.');
+    }
+    if (!validGasPaymentModes.includes(body.gasPaymentMode)) {
+      throw new Error(`Field "gasPaymentMode" must be one of: ${validGasPaymentModes.join(', ')}`);
+    }
+    gasPaymentMode = body.gasPaymentMode;
+  } else if (validGasPaymentModes.includes(previous.gasPaymentMode)) {
+    gasPaymentMode = previous.gasPaymentMode;
+  }
+
+  return {
+    mode: body.mode,
+    gasPaymentMode
+  };
+}
+
+test('sweep gas policy: strictly enforces PRIVY_SPONSOR and rejects TREASURY_FEE_PAYER', () => {
+  // Valid PRIVY_SPONSOR succeeds
+  const valid = validateSweepConfigPayload({ mode: 'AUTO', gasPaymentMode: 'PRIVY_SPONSOR' });
+  assert.equal(valid.gasPaymentMode, 'PRIVY_SPONSOR');
+
+  // TREASURY_FEE_PAYER is rejected with clear message
+  assert.throws(
+    () => validateSweepConfigPayload({ mode: 'AUTO', gasPaymentMode: 'TREASURY_FEE_PAYER' }),
+    { message: /TREASURY_FEE_PAYER is not supported for sweeps/ }
+  );
+
+  // Invalid gasPaymentMode is rejected
+  assert.throws(
+    () => validateSweepConfigPayload({ mode: 'AUTO', gasPaymentMode: 'INVALID_MODE' }),
+    { message: /Field "gasPaymentMode" must be one of: PRIVY_SPONSOR/ }
+  );
+
+  // Omitted gasPaymentMode preserves previous valid mode and never yields undefined
+  const preserved = validateSweepConfigPayload({ mode: 'SPONSORED' }, { mode: 'AUTO', gasPaymentMode: 'PRIVY_SPONSOR' });
+  assert.equal(preserved.gasPaymentMode, 'PRIVY_SPONSOR');
+  assert.notEqual(preserved.gasPaymentMode, undefined);
+});
+
+test('sweep gas policy: resolves effective gas payment mode with PRIVY_SPONSOR fallback', async () => {
+  const { resolveGasPaymentMode } = await import('../../../packages/chains/dist/index.mjs');
+  assert.equal(resolveGasPaymentMode('PRIVY_SPONSOR'), 'PRIVY_SPONSOR');
+  assert.equal(resolveGasPaymentMode(undefined), 'PRIVY_SPONSOR');
+  assert.equal(resolveGasPaymentMode('unknown_mode'), 'PRIVY_SPONSOR');
+});
+

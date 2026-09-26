@@ -254,9 +254,8 @@ export class DepositService {
               `+${ev.amountUSDC} USDC → user ${user.id} (${solanaWallet.address.slice(0, 8)}...)`
             );
 
-            // Float-model wallets (mock / user-held) don't need sweeping — mark SWEEP_UNSUPPORTED
+            // All wallets must be Privy server wallets with valid privyWalletId
             const privyWalletId = (solanaWallet as any).privyWalletId || (solanaWallet as any).metadata?.privyWalletId as string | undefined;
-            const isMockWallet = !!(solanaWallet as any).metadata?.mock || privyWalletId?.startsWith?.('mock_');
 
             // Single DB transaction: credit + Deposit insert + ProcessedSignature insert
             const { credited, newBalance, amount } = await this.creditDepositTransactionally({
@@ -267,7 +266,7 @@ export class DepositService {
               rawAmount: ev.amountUSDC,
               signature: ev.signature,
               blockNumber: ev.slot ?? null,
-              sweepStatus: isMockWallet || !privyWalletId ? 'SWEEP_UNSUPPORTED' : 'SWEEP_PENDING',
+              sweepStatus: !privyWalletId ? 'SWEEP_UNSUPPORTED' : 'SWEEP_PENDING',
               privyWalletId: privyWalletId ?? null
             });
             if (!credited) continue;
@@ -324,9 +323,7 @@ export class DepositService {
               `+${ev.amountToken} AUSD → user ${user.id} (${monadWallet.address.slice(0, 8)}...)`
             );
 
-            // Write deposit record to DB with SWEEP_PENDING for the SweepWorkerService to pick up.
             const monadPrivyWalletId = (monadWallet as any).privyWalletId || (monadWallet as any).metadata?.privyWalletId as string | undefined;
-            const isMockMonadWallet = !!(monadWallet as any).metadata?.mock || monadPrivyWalletId?.startsWith?.('mock_');
 
             const { credited, newBalance, amount } = await this.creditDepositTransactionally({
               userId: user.id,
@@ -336,7 +333,7 @@ export class DepositService {
               rawAmount: ev.amountToken,
               signature: ev.txHash,
               blockNumber: ev.blockNumber ?? null,
-              sweepStatus: isMockMonadWallet || !monadPrivyWalletId ? 'SWEEP_UNSUPPORTED' : 'SWEEP_PENDING',
+              sweepStatus: !monadPrivyWalletId ? 'SWEEP_UNSUPPORTED' : 'SWEEP_PENDING',
               privyWalletId: monadPrivyWalletId ?? null
             });
             if (!credited) continue;

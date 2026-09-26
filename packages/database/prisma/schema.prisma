@@ -97,6 +97,7 @@ model Deposit {
   nextSweepAttemptAt DateTime @default(now())
   creditedAt         DateTime @default(now())
   sweptAt       DateTime?
+  sweptAmountUSDC   Float?  // Actual on-chain amount swept (may differ from amountUSDC on partial sweeps)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

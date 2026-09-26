@@ -97,7 +97,8 @@ export class SweepService {
     walletAddress: string,
     privyWalletId: string | undefined,
     amountUSDC: number,
-    chain: 'solana' | 'monad' = 'solana'
+    chain: 'solana' | 'monad' = 'solana',
+    idempotencyKey?: string // Unique key to prevent duplicate submissions (e.g., deposit signature)
   ): Promise<SweepResult> {
     const targetTreasury = chain === 'monad' ? this.evmTreasuryAddress : this.solanaTreasuryAddress;
 
@@ -169,7 +170,8 @@ export class SweepService {
         toAddress: targetTreasury,
         amountUSDC: sweepAmount,
         chain,
-        gasPaymentMode
+        gasPaymentMode,
+        idempotencyKey
       }, walletAddress, {
         depositAmountUSDC: amountUSDC,
         checkDripEligibility: (ctx) => checkDripEligibility(prisma, ctx),

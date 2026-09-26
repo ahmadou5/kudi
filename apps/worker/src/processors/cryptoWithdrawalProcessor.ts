@@ -200,7 +200,8 @@ export async function processCryptoWithdrawals(): Promise<void> {
         toAddress: job.toAddress,
         amountUSDC: job.amountUSDC,
         chain: job.chain,
-        gasPaymentMode
+        gasPaymentMode,
+        idempotencyKey: job.reference // Use withdrawal reference as idempotency key to prevent duplicate broadcasts on retry
       });
 
       await markWithdrawal(job.reference, WithdrawalStatus.BROADCAST, { txHash });

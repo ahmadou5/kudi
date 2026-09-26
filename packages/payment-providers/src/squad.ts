@@ -13,27 +13,17 @@ export class SquadProvider implements PaymentProvider {
   private secretKey: string;
   private baseUrl: string;
 
-  constructor(
-    secretKey: string = '',
-    baseUrl: string = 'https://api-d.squadco.com'
-  ) {
-    this.secretKey = secretKey;
+  constructor(secretKey?: string, baseUrl: string = 'https://api-d.squadco.com') {
+    if (!secretKey) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[SquadProvider] SQUAD_SECRET_KEY is required in production environment.');
+      }
+    }
+    this.secretKey = secretKey || '';
     this.baseUrl = baseUrl;
   }
 
   async resolveAccount(accountNumber: string, bankCode: string): Promise<BankAccountResolution> {
-    if (!this.secretKey) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error('[SquadProvider] Missing SQUAD_SECRET_KEY in production.');
-      }
-      return {
-        accountNumber,
-        bankCode,
-        accountName: `Squad Demo User (${bankCode})`,
-        provider: this.id
-      };
-    }
-
     const response = await fetch(`${this.baseUrl}/payout/account/lookup`, {
       method: 'POST',
       headers: {
@@ -60,20 +50,6 @@ export class SquadProvider implements PaymentProvider {
   }
 
   async initiateTransfer(request: TransferRequest): Promise<TransferResponse> {
-    if (!this.secretKey) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error('[SquadProvider] Missing SQUAD_SECRET_KEY in production. Cannot execute payout.');
-      }
-      return {
-        reference: request.reference,
-        transferCode: `TRF_SQUAD_MOCK_${Date.now()}`,
-        status: 'success',
-        provider: this.id,
-        providerReference: `SQUAD_REF_${Date.now()}`,
-        message: 'Squad Mock payout completed'
-      };
-    }
-
     const response = await fetch(`${this.baseUrl}/payout/transfer`, {
       method: 'POST',
       headers: {
@@ -110,18 +86,6 @@ export class SquadProvider implements PaymentProvider {
   }
 
   async checkTransferStatus(reference: string): Promise<TransferResponse> {
-    if (!this.secretKey) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error('[SquadProvider] Missing SQUAD_SECRET_KEY in production. Cannot verify transfer.');
-      }
-      return {
-        reference,
-        status: 'success',
-        provider: this.id,
-        message: 'Squad transfer verified'
-      };
-    }
-
     const response = await fetch(`${this.baseUrl}/payout/requery/${reference}`, {
       headers: { Authorization: `Bearer ${this.secretKey}` }
     });

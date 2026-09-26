@@ -66,7 +66,7 @@ export default function SettingsPage() {
   // sweeps — only AUTO / SPONSORED are selectable here).
   const [sweepMode, setSweepMode] = useState<'AUTO' | 'SPONSORED'>('AUTO');
   const [storedSweepModeRaw, setStoredSweepModeRaw] = useState<string | null>(null);
-  const [gasPaymentMode, setGasPaymentMode] = useState<'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER'>('PRIVY_SPONSOR');
+  const [gasPaymentMode, setGasPaymentMode] = useState<'PRIVY_SPONSOR'>('PRIVY_SPONSOR');
   const [effectiveMode, setEffectiveMode] = useState<string | null>(null);
   const [sweepReceipt, setSweepReceipt] = useState<AdminSweepConfig['receipt']>(null);
   const [sweepAuditId, setSweepAuditId] = useState<string | null>(null);
@@ -123,8 +123,10 @@ export default function SettingsPage() {
           if (sweepData.mode === 'AUTO' || sweepData.mode === 'SPONSORED') {
             setSweepMode(sweepData.mode);
           }
-          if (sweepData.gasPaymentMode === 'PRIVY_SPONSOR' || sweepData.gasPaymentMode === 'TREASURY_FEE_PAYER') {
-            setGasPaymentMode(sweepData.gasPaymentMode);
+          if (sweepData.gasPaymentMode === 'PRIVY_SPONSOR') {
+            setGasPaymentMode('PRIVY_SPONSOR');
+          } else {
+            setGasPaymentMode('PRIVY_SPONSOR');
           }
           if (sweepData.effectiveMode) setEffectiveMode(sweepData.effectiveMode);
           if (sweepData.receipt) {
@@ -152,8 +154,8 @@ export default function SettingsPage() {
           const res = await updateSweepConfig(sweepMode, gasPaymentMode);
           if (res) {
             if (res.mode === 'AUTO' || res.mode === 'SPONSORED') setSweepMode(res.mode);
-            if (res.gasPaymentMode === 'PRIVY_SPONSOR' || res.gasPaymentMode === 'TREASURY_FEE_PAYER') {
-              setGasPaymentMode(res.gasPaymentMode);
+            if (res.gasPaymentMode === 'PRIVY_SPONSOR') {
+              setGasPaymentMode('PRIVY_SPONSOR');
             }
             if (res.effectiveMode) setEffectiveMode(res.effectiveMode);
             setSweepReceipt(res.receipt || null);
@@ -791,26 +793,20 @@ export default function SettingsPage() {
           {/* Gas payment mode selector */}
           <div className="rounded-xl border border-border/60 bg-muted/30 p-4 space-y-2">
             <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <Coins className="h-4 w-4 text-amber-400" /> Gas Payment Mode (stored knob, strictly validated)
+              <Coins className="h-4 w-4 text-amber-400" /> Gas Payment Mode (Privy Gas Sponsorship)
             </span>
             <div className="flex flex-wrap gap-2">
-              {(['PRIVY_SPONSOR', 'TREASURY_FEE_PAYER'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setGasPaymentMode(mode)}
-                  className={`rounded-xl px-3 py-1.5 text-xs font-mono font-semibold transition-all cursor-pointer ${
-                    gasPaymentMode === mode
-                      ? 'bg-foreground text-background shadow-xs'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  }`}
-                >
-                  {mode}
-                </button>
-              ))}
+              <button
+                type="button"
+                onClick={() => setGasPaymentMode('PRIVY_SPONSOR')}
+                className="rounded-xl px-3 py-1.5 text-xs font-mono font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-xs cursor-pointer"
+              >
+                PRIVY_SPONSOR (Recommended)
+              </button>
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Resolved effective mode: <span className="font-mono font-bold text-foreground">{effectiveMode || '—'}</span>
-              <span className="block">The backend resolves the effective mode from the stored value (DB wins, validated union) — what you see here is what sweeps use.</span>
+              Resolved effective mode: <span className="font-mono font-bold text-emerald-400">{effectiveMode || 'PRIVY_SPONSOR'}</span>
+              <span className="block mt-0.5">Privy sponsors gas fees for all automated deposit sweeps. TREASURY_FEE_PAYER is disabled because Privy single-wallet signing cannot provide a 2nd fee-payer signature.</span>
             </p>
           </div>
 

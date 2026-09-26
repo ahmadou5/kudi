@@ -4,6 +4,7 @@ import { PaymentProviderRegistry } from '@kudi/payment-providers';
 import { apiConfig } from '@kudi/config';
 import { prisma } from '../../lib/prisma';
 import { MaintenanceService } from '../../services/maintenanceService';
+import { computeUnbackedExposure, UNBACKED_SWEEP_STATUSES } from '@kudi/chains';
 
 export class HealthController {
   constructor(
@@ -61,6 +62,64 @@ export class HealthController {
       message: 'App config fetched',
       data: { maintenance }
     });
+  };
+
+  public getSweepHealth = async (_request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const rows: Array<{ sweepStatus: string; amountUSDC: number | string | null }> = await prisma.$queryRaw`
+        SELECT "sweepStatus", "amountUSDC"
+        FROM "Deposit"
+        WHERE "sweepStatus" = ANY(${UNBACKED_SWEEP_STATUSES})
+      `;
+
+      const { totalUSDC, byStatus } = computeUnbackedExposure(rows);
+
+      const statusCounts: Array<{ sweepStatus: string; count: string }> = await prisma.$queryRaw`
+        SELECT "sweepStatus", COUNT(*)::int AS count
+        FROM "Deposit"
+        GROUP BY "sweepStatus"
+      `;
+
+      const counts: Record<string, number> = {};
+      for (const r of statusCounts) {
+        counts[r.sweepStatus] = Number(r.count);
+      }
+
+      const latestSnapshot: Array<{ unbackedExposureUSDC: number; createdAt: Date }> = await prisma.$queryRaw`
+        SELECT metadata->>'unbackedExposureUSDC' as "unbackedExposureUSDC", "createdAt"
+        FROM "ReconciliationSnapshot"
+        ORDER BY "createdAt" DESC
+        LIMIT 1
+      `;
+
+      const latestUnbacked = latestSnapshot[0] ? Number(latestSnapshot[0].unbackedExposureUSDC) : null;
+
+      return reply.send({
+        success: true,
+        data: {
+          sweepQueue: {
+            pending: counts['SWEEP_PENDING'] ?? 0,
+            processing: counts['SWEEP_PROCESSING'] ?? 0,
+            failed: counts['SWEEP_FAILED'] ?? 0,
+            blocked: counts['SWEEP_BLOCKED'] ?? 0,
+            swept: counts['SWEPT'] ?? 0,
+            floatExposure: counts['FLOAT_EXPOSURE'] ?? 0,
+            unsupported: counts['SWEEP_UNSUPPORTED'] ?? 0
+          },
+          unbackedExposureUSDC: totalUSDC,
+          unbackedByStatus: byStatus,
+          latestSnapshotUnbackedUSDC: latestUnbacked,
+          alertThresholdUSDC: apiConfig.RECONCILIATION_ALERT_THRESHOLD_USDC ?? 10000,
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (err: any) {
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to fetch sweep health',
+        message: err?.message || String(err)
+      });
+    }
   };
 }
 

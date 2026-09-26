@@ -393,10 +393,6 @@ export class SelfCustodyProvider implements CustodyProvider {
     return resolveGasPaymentMode(undefined);
   }
 
-  private allowsMockWalletFallback(): boolean {
-    return process.env.NODE_ENV !== 'production' || process.env.ALLOW_MOCK_PRIVY_WALLETS === 'true';
-  }
-
   constructor(
     privyAppId = process.env.PRIVY_APP_ID || '',
     privyAppSecret = process.env.PRIVY_APP_SECRET || '',
@@ -467,26 +463,8 @@ export class SelfCustodyProvider implements CustodyProvider {
       privyFailure = 'PRIVY_APP_ID/PRIVY_APP_SECRET are not configured';
     }
 
-    if (!this.allowsMockWalletFallback()) {
-      throw new Error(`[SelfCustody] Cannot create deposit wallet: ${privyFailure || 'Privy wallet creation failed'}`);
-    }
-
-    // Return deterministic sandbox testnet deposit address for local/dev testing only.
-    // These wallets are intentionally marked mock so the API never treats them as sweepable server custody.
-    const mockAddress = chain.includes('solana')
-      ? `Sol${Buffer.from(`user_${userId}_${chain}`).toString('hex').slice(0, 32)}`
-      : `0x${Buffer.from(`user_${userId}_${chain}`).toString('hex').slice(0, 40)}`;
-
-    return {
-      address: mockAddress,
-      chain,
-      metadata: {
-        mock: true,
-        generatedBy: 'MOCK_PRIVY_SERVER_WALLET',
-        mockReason: privyFailure || 'Privy wallet creation failed',
-        createdAt: new Date().toISOString()
-      }
-    };
+    // Production: fail fast if Privy wallet creation fails. No mock fallbacks.
+    throw new Error(`[SelfCustody] Cannot create deposit wallet: ${privyFailure || 'Privy wallet creation failed'}`);
   }
 
   /**
@@ -781,8 +759,9 @@ export class SelfCustodyProvider implements CustodyProvider {
     fromAddress?: string;
     feePayerAddress?: string;
     gasPaymentMode?: 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER';
+    idempotencyKey?: string; // Unique key to prevent duplicate submissions (e.g., deposit signature)
   }): Promise<{ txHash: string }> {
-    const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress, fromAddress } = params;
+    const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress, fromAddress, idempotencyKey } = params;
 
     if (!this.appId || !this.appSecret || !treasuryWalletId) {
       const missing = {
@@ -978,6 +957,7 @@ export class SelfCustodyProvider implements CustodyProvider {
         method: 'signAndSendTransaction',
         caip2: this.solanaCaip2,
         ...(sponsorFlag ? { sponsor: true } : {}),
+        ...(idempotencyKey ? { idempotencyKey } : {}),
         params: { transaction: buildSerializedTx(latestBlockhash), encoding: 'base64' }
       };
     } else {
@@ -991,6 +971,7 @@ export class SelfCustodyProvider implements CustodyProvider {
         method: 'eth_sendTransaction',
         caip2: `eip155:${this.monadChainId}`,
         ...(sponsorFlag ? { sponsor: true } : {}),
+        ...(idempotencyKey ? { idempotencyKey } : {}),
         params: {
           transaction: {
             to: contract,

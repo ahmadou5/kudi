@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { loadDeposits, loadOperatorAlerts, loadSweepHealth, requeueSweep, recheckSweep, AdminDeposit, OperatorAlert, SweepHealth } from '@/lib/admin-data';
+import { loadDeposits, loadOperatorAlerts, loadSweepHealth, loadPublicSweepHealth, requeueSweep, recheckSweep, AdminDeposit, OperatorAlert, SweepHealth } from '@/lib/admin-data';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,10 +32,19 @@ export default function DepositsPage() {
   const [selectedDeposit, setSelectedDeposit] = useState<AdminDeposit | null>(null);
 
   async function refreshDeposits() {
-    const [data, alertData, healthData] = await Promise.all([loadDeposits(), loadOperatorAlerts(), loadSweepHealth()]);
+    const [data, alertData, healthData, publicHealthData] = await Promise.all([
+      loadDeposits(),
+      loadOperatorAlerts(),
+      loadSweepHealth(),
+      loadPublicSweepHealth()
+    ]);
     setDeposits(data);
     setAlerts(alertData);
     setSweepHealth(healthData);
+    // Merge public health data (unbacked exposure, alert threshold) into sweepHealth
+    if (publicHealthData) {
+      setSweepHealth(prev => prev ? { ...prev, ...publicHealthData } : publicHealthData as SweepHealth);
+    }
     setLoading(false);
   }
 
@@ -115,7 +124,7 @@ export default function DepositsPage() {
         </div>
       </div>
 
-      {/* Server-computed sweep health — augments (not replaces) the client-side
+{/* Server-computed sweep health — augments (not replaces) the client-side
           derivation above; the client-side counts keep working if the endpoint fails. */}
       {sweepHealth ? (
         <div className="rounded-xl border border-border/60 bg-card/70 p-4">
@@ -138,7 +147,7 @@ export default function DepositsPage() {
                 </Badge>
                 {sweepHealth.staleProcessing.length > 0 && (
                   <Badge variant="warning" className="font-mono">
-                    {sweepHealth.staleProcessing.length} stale processing (&gt;10 min)
+                    {sweepHealth.staleProcessing.length} stale processing ({'>'}10 min)
                   </Badge>
                 )}
                 {sweepHealth.summary.exhaustedCount > 0 && (
@@ -155,6 +164,42 @@ export default function DepositsPage() {
                     .map((a) => `${a.accessMode} ${a.count}× $${a.amountUSDC.toFixed(2)} (${a.chain}/${a.sweepStatus})`)
                     .join(' · ')}
                 </p>
+              )}
+              {/* New unbacked exposure metrics from reconciliation */}
+              {sweepHealth.unbackedExposureUSDC !== undefined && (
+                <div className="mt-3 pt-3 border-t border-border/40">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] mb-1">
+                    <span className="text-xs font-semibold text-foreground">Unbacked Exposure</span>
+                    <Badge variant={
+                      sweepHealth.alertThresholdUSDC && sweepHealth.unbackedExposureUSDC >= sweepHealth.alertThresholdUSDC * 5
+                        ? 'destructive'
+                        : sweepHealth.alertThresholdUSDC && sweepHealth.unbackedExposureUSDC >= sweepHealth.alertThresholdUSDC
+                          ? 'warning'
+                          : 'success'
+                    } className="font-mono">
+                      ${sweepHealth.unbackedExposureUSDC.toFixed(2)} USDC
+                    </Badge>
+                    {sweepHealth.alertThresholdUSDC && (
+                      <Badge variant="silver" className="font-mono">
+                        alert at ${sweepHealth.alertThresholdUSDC.toLocaleString()} USDC
+                      </Badge>
+                    )}
+                    {sweepHealth.latestSnapshotUnbackedUSDC !== undefined && (
+                      <Badge variant="outline" className="font-mono">
+                        last snapshot: ${sweepHealth.latestSnapshotUnbackedUSDC.toFixed(2)}
+                      </Badge>
+                    )}
+                  </div>
+                  {sweepHealth.unbackedByStatus && Object.keys(sweepHealth.unbackedByStatus).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 text-[10px] font-mono text-muted-foreground">
+                      {Object.entries(sweepHealth.unbackedByStatus).map(([status, amount]) => (
+                        <Badge key={status} variant="silver" className="font-mono">
+                          {status}: ${amount.toFixed(2)}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

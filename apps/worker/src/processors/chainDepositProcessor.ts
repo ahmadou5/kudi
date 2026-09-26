@@ -10,9 +10,9 @@ import { prisma, checkDripEligibility, recordDrip } from '@kudi/database';
 import { REDACTED, redactAddress, redactRpcUrl } from '@kudi/config';
 
 // Retry schedule is owned by SWEEP_RETRY_POLICY (single shared definition in
-// @kudi/chains; API SweepWorkerService is the designated sweep owner). This
-// processor reuses the same cap/backoff so the two engines converge instead
-// of flapping between divergent policies.
+// @kudi/chains). This processor (ChainDepositProcessor.processSweepRetries)
+// is the SOLE sweep owner per ADR-0001. The legacy API SweepWorkerService
+// has been removed.
 const SWEEP_MAX_ATTEMPTS = SWEEP_RETRY_POLICY.MAX_ATTEMPTS;
 
 interface DepositWalletRow {
@@ -196,9 +196,9 @@ export class ChainDepositProcessor {
       UPDATE "Deposit"
       SET "sweepStatus" = ${status},
           "sweepTxHash" = COALESCE(${txHash ?? null}, "sweepTxHash"),
-          -- Record the ACTUAL swept amount (no dedicated column exists without a
-          -- migration, so amountUSDC is corrected to on-chain reality on SWEPT).
-          "amountUSDC" = COALESCE(${actualSweptUSDC ?? null}, "amountUSDC"),
+          -- Record actual swept amount in dedicated column; amountUSDC preserves
+          -- the originally detected deposit amount for reconciliation.
+          "sweptAmountUSDC" = CASE WHEN ${status} = 'SWEPT' THEN COALESCE(${actualSweptUSDC ?? null}, "amountUSDC") ELSE "sweptAmountUSDC" END,
           "sweepError" = ${error ?? null},
           "sweepAttemptCount" = CASE
             WHEN ${status} = 'SWEEP_PROCESSING' THEN "sweepAttemptCount" + 1
@@ -295,7 +295,8 @@ export class ChainDepositProcessor {
         toAddress: targetTreasury,
         amountUSDC: sweepAmount,
         chain: normalizedChain,
-        gasPaymentMode
+        gasPaymentMode,
+        idempotencyKey: params.signature // Use deposit signature as idempotency key to prevent duplicate sweeps
       }, params.wallet.address, {
         depositAmountUSDC: parsedAmount,
         checkDripEligibility: (ctx) => checkDripEligibility(prisma, ctx),

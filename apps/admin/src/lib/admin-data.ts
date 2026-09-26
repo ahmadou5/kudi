@@ -976,6 +976,11 @@ export type SweepHealth = {
     nextSweepAttemptAt: string | null;
     createdAt: string;
   }>;
+  // New fields from /api/health/sweep endpoint
+  unbackedExposureUSDC?: number;
+  unbackedByStatus?: Record<string, number>;
+  latestSnapshotUnbackedUSDC?: number;
+  alertThresholdUSDC?: number;
 };
 
 export async function loadSweepConfig(): Promise<AdminSweepConfig> {
@@ -1053,6 +1058,22 @@ export async function loadSweepHealth(): Promise<SweepHealth | null> {
     return payload as SweepHealth;
   } catch (error) {
     console.warn('[AdminData] Live sweep health fetch failed:', error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+export async function loadPublicSweepHealth(): Promise<Partial<SweepHealth> | null> {
+  try {
+    const response = await fetch('/api/health/sweep', {
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store'
+    });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    if (payload?.data) return payload.data as Partial<SweepHealth>;
+    return payload as Partial<SweepHealth>;
+  } catch (error) {
+    console.warn('[AdminData] Public sweep health fetch failed:', error instanceof Error ? error.message : error);
     return null;
   }
 }

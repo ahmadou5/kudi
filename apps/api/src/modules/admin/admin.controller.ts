@@ -245,7 +245,7 @@ export class AdminController {
     // `gasPaymentMode` union member of the same name is a separate stored knob
     // and keeps its strict validation below.
     const validModes = ['AUTO', 'SPONSORED'];
-    const validGasPaymentModes = ['PRIVY_SPONSOR', 'TREASURY_FEE_PAYER'];
+    const validGasPaymentModes = ['PRIVY_SPONSOR'];
     if (!body?.mode || !validModes.includes(body.mode)) {
       return reply.status(400).send(errorResponse('INVALID_BODY', `Field "mode" must be one of: ${validModes.join(', ')}`, 400));
     }
@@ -267,12 +267,16 @@ export class AdminController {
       }
     } catch {}
 
-    // gasPaymentMode is required-or-preserved: when present it must be a valid
-    // union member (400 otherwise); when omitted the stored value is kept so we
-    // never persist `gasPaymentMode: undefined` (JSON.stringify would drop the
-    // key and the next read would silently fall back to a default).
-    let gasPaymentMode: string = previous.gasPaymentMode;
+    // gasPaymentMode is required-or-preserved: must be PRIVY_SPONSOR (TREASURY_FEE_PAYER requires 2 signers that Privy cannot provide)
+    let gasPaymentMode: string = 'PRIVY_SPONSOR';
     if (body.gasPaymentMode !== undefined) {
+      if (body.gasPaymentMode === 'TREASURY_FEE_PAYER') {
+        return reply.status(400).send(errorResponse(
+          'INVALID_BODY',
+          'TREASURY_FEE_PAYER is not supported for sweeps because Privy single-wallet signing cannot provide a 2nd fee payer signature. Please select PRIVY_SPONSOR.',
+          400
+        ));
+      }
       if (!validGasPaymentModes.includes(body.gasPaymentMode)) {
         return reply.status(400).send(errorResponse('INVALID_BODY', `Field "gasPaymentMode" must be one of: ${validGasPaymentModes.join(', ')}`, 400));
       }
@@ -919,7 +923,7 @@ export class AdminController {
     const [userStats, balanceStats, depositStats, recentDeposits, recentTransactions] = await Promise.all([
       prisma.$queryRawUnsafe<any[]>("SELECT COUNT(*)::int AS total, COALESCE(SUM(CASE WHEN \"kycTier\" = 'TIER_1' THEN 1 ELSE 0 END), 0)::int AS tier1, COALESCE(SUM(CASE WHEN \"kycTier\" = 'TIER_2' THEN 1 ELSE 0 END), 0)::int AS tier2, COALESCE(SUM(CASE WHEN \"kycStatus\" = 'VERIFIED' THEN 1 ELSE 0 END), 0)::int AS verified FROM \"User\""),
       prisma.$queryRawUnsafe<any[]>("SELECT COALESCE(SUM(\"availableUSDC\"), 0) AS \"availableUSDC\", COUNT(*)::int AS wallets FROM \"BalanceAccount\""),
-      prisma.$queryRawUnsafe<any[]>("SELECT COALESCE(SUM(\"amountUSDC\"), 0) AS \"depositUSDC\", COUNT(*)::int AS count, COALESCE(SUM(CASE WHEN \"sweepStatus\" = 'SWEPT' THEN \"amountUSDC\" ELSE 0 END), 0) AS \"sweptUSDC\", COALESCE(SUM(CASE WHEN \"sweepStatus\" <> 'SWEPT' THEN \"amountUSDC\" ELSE 0 END), 0) AS \"unsweptUSDC\" FROM \"Deposit\" WHERE \"createdAt\" >= NOW() - INTERVAL '24 hours'"),
+      prisma.$queryRawUnsafe<any[]>("SELECT COALESCE(SUM(\"amountUSDC\"), 0) AS \"depositUSDC\", COUNT(*)::int AS count, COALESCE(SUM(CASE WHEN \"sweepStatus\" = 'SWEPT' THEN COALESCE(\"sweptAmountUSDC\", \"amountUSDC\") ELSE 0 END), 0) AS \"sweptUSDC\", COALESCE(SUM(CASE WHEN \"sweepStatus\" <> 'SWEPT' THEN \"amountUSDC\" ELSE 0 END), 0) AS \"unsweptUSDC\" FROM \"Deposit\" WHERE \"createdAt\" >= NOW() - INTERVAL '24 hours'"),
       prisma.$queryRawUnsafe<any[]>("SELECT d.id, d.\"userId\", COALESCE(u.\"fullName\", u.email, u.\"phoneNumber\", d.\"userId\") AS \"userName\", d.chain, d.\"tokenSymbol\", d.\"amountUSDC\", d.signature, d.\"blockNumber\", d.\"creditStatus\", d.\"sweepStatus\", d.\"sweepTxHash\", d.\"sweepError\", d.\"sweepAttemptCount\", d.\"nextSweepAttemptAt\", d.\"sweptAt\", d.\"createdAt\" FROM \"Deposit\" d LEFT JOIN \"User\" u ON u.id = d.\"userId\" ORDER BY d.\"createdAt\" DESC LIMIT 10"),
       prisma.$queryRawUnsafe<any[]>("SELECT le.id, le.\"referenceId\", le.\"userId\", COALESCE(u.\"fullName\", u.email, u.\"phoneNumber\", le.\"userId\") AS \"userName\", u.email AS \"userEmail\", le.type, le.\"amountUSDC\", le.\"createdAt\", d.\"sweepStatus\", d.\"sweepTxHash\", d.\"sweepError\", d.\"sweepAttemptCount\" FROM \"LedgerEntry\" le LEFT JOIN \"User\" u ON u.id = le.\"userId\" LEFT JOIN \"Deposit\" d ON d.signature = le.\"referenceId\" ORDER BY le.\"createdAt\" DESC LIMIT 10")
     ]);

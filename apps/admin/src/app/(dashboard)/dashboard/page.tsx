@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   loadDashboardSnapshot,
+  loadPublicSweepHealth,
   AdminDashboardSnapshot,
   AdminSpendTransaction,
   AdminDeposit,
@@ -25,10 +26,12 @@ import {
   AlertCircle,
   Sliders,
   TrendingUp,
+  AlertTriangle,
 } from 'lucide-react';
 
 export default function DashboardPage() {
   const [snapshot, setSnapshot] = useState<AdminDashboardSnapshot | null>(null);
+  const [publicSweepHealth, setPublicSweepHealth] = useState<{ unbackedExposureUSDC?: number; alertThresholdUSDC?: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [rateInput, setRateInput] = useState('1585.50');
   const [activeProvider, setActiveProvider] = useState('PAYSTACK');
@@ -46,6 +49,8 @@ export default function DashboardPage() {
       }
       setLoading(false);
     });
+    // Fetch public sweep health for unbacked exposure
+    loadPublicSweepHealth().then(setPublicSweepHealth);
   }, []);
 
   const handleRateOverride = async () => {
@@ -116,7 +121,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 pb-12">
       {/* ─── Top KPI Cards Row ─── */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {snapshot.kpis.map((kpi, i) => (
           <StatCard
             key={i}
@@ -127,6 +132,28 @@ export default function DashboardPage() {
             description={kpi.description}
           />
         ))}
+        {/* Unbacked Exposure KPI */}
+        <StatCard
+          label="Unbacked Exposure"
+          value={publicSweepHealth?.unbackedExposureUSDC !== undefined
+            ? `$${publicSweepHealth.unbackedExposureUSDC.toFixed(2)}`
+            : 'Loading...'}
+          delta={publicSweepHealth?.alertThresholdUSDC
+            ? `Alert at $${publicSweepHealth.alertThresholdUSDC.toLocaleString()}`
+            : '—'}
+          tone={
+            publicSweepHealth?.unbackedExposureUSDC !== undefined &&
+            publicSweepHealth.alertThresholdUSDC &&
+            publicSweepHealth.unbackedExposureUSDC >= publicSweepHealth.alertThresholdUSDC * 5
+              ? 'warning'
+              : publicSweepHealth?.unbackedExposureUSDC !== undefined &&
+                publicSweepHealth.alertThresholdUSDC &&
+                publicSweepHealth.unbackedExposureUSDC >= publicSweepHealth.alertThresholdUSDC
+                ? 'warning'
+                : 'success'
+          }
+          description="Credited deposits not yet swept to treasury"
+        />
       </section>
 
       {/* ─── Main Grid: Volume Chart & Quick Rate Control ─── */}

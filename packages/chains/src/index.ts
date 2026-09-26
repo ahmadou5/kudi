@@ -25,7 +25,7 @@ export interface CustodyManagerConfig {
 export class CustodyManager {
   private activeTrack: CustodyTrack = CustodyTrack.TRACK_A_SELF_CUSTODY;
   private selfCustodyProvider: SelfCustodyProvider;
-  private partnerCustodyProvider: PartnerCustodyProvider;
+  private partnerCustodyProvider: PartnerCustodyProvider | null = null;
 
   constructor(config: CustodyManagerConfig = {}) {
     this.selfCustodyProvider = new SelfCustodyProvider(
@@ -39,12 +39,17 @@ export class CustodyManager {
       config.ausdTokenAddress,
       config.monadChainId
     );
-    this.partnerCustodyProvider = new PartnerCustodyProvider(config.partnerApiKey, config.partnerApiUrl);
+    if (config.partnerApiKey) {
+      this.partnerCustodyProvider = new PartnerCustodyProvider(config.partnerApiKey, config.partnerApiUrl);
+    }
   }
 
   public getActiveProvider(): CustodyProvider {
     if (this.activeTrack === CustodyTrack.TRACK_A_SELF_CUSTODY) {
       return this.selfCustodyProvider;
+    }
+    if (!this.partnerCustodyProvider) {
+      throw new Error('[CustodyManager] Partner custody provider not configured (missing partnerApiKey)');
     }
     return this.partnerCustodyProvider;
   }

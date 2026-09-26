@@ -16,15 +16,20 @@ export class MonnifyProvider implements PaymentProvider {
   private sourceAccountNumber: string;
 
   constructor(
-    apiKey: string = '',
-    secretKey: string = '',
+    apiKey?: string,
+    secretKey?: string,
     baseUrl: string = 'https://api.monnify.com',
-    sourceAccountNumber: string = ''
+    sourceAccountNumber?: string
   ) {
-    this.apiKey = apiKey;
-    this.secretKey = secretKey;
+    if (!apiKey || !secretKey) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[MonnifyProvider] MONNIFY_API_KEY and MONNIFY_SECRET_KEY are required in production environment.');
+      }
+    }
+    this.apiKey = apiKey || '';
+    this.secretKey = secretKey || '';
     this.baseUrl = baseUrl;
-    this.sourceAccountNumber = sourceAccountNumber;
+    this.sourceAccountNumber = sourceAccountNumber || '';
   }
 
   private async getAccessToken(): Promise<string> {
@@ -32,7 +37,7 @@ export class MonnifyProvider implements PaymentProvider {
     const response = await fetch(`${this.baseUrl}/api/v1/auth/login`, {
       method: 'POST',
       headers: {
-        Authorization: `Basic ${authString}`
+        Authorization: `Basic ${Buffer.from(`${this.apiKey}:${this.secretKey}`).toString('base64')}`
       }
     });
 
@@ -45,18 +50,6 @@ export class MonnifyProvider implements PaymentProvider {
   }
 
   async resolveAccount(accountNumber: string, bankCode: string): Promise<BankAccountResolution> {
-    if (!this.apiKey || !this.secretKey) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error('[MonnifyProvider] Missing MONNIFY_API_KEY or MONNIFY_SECRET_KEY in production.');
-      }
-      return {
-        accountNumber,
-        bankCode,
-        accountName: `Monnify Demo User (${bankCode})`,
-        provider: this.id
-      };
-    }
-
     const token = await this.getAccessToken();
     const response = await fetch(
       `${this.baseUrl}/api/v1/disbursements/account/validate?accountNumber=${accountNumber}&bankCode=${bankCode}`,
@@ -79,20 +72,6 @@ export class MonnifyProvider implements PaymentProvider {
   }
 
   async initiateTransfer(request: TransferRequest): Promise<TransferResponse> {
-    if (!this.apiKey || !this.secretKey) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error('[MonnifyProvider] Missing MONNIFY_API_KEY or MONNIFY_SECRET_KEY in production. Cannot execute payout.');
-      }
-      return {
-        reference: request.reference,
-        transferCode: `TRF_MONNIFY_MOCK_${Date.now()}`,
-        status: 'success',
-        provider: this.id,
-        providerReference: `MONNIFY_REF_${Date.now()}`,
-        message: 'Monnify Mock payout completed'
-      };
-    }
-
     const token = await this.getAccessToken();
     const response = await fetch(`${this.baseUrl}/api/v2/disbursements/single`, {
       method: 'POST',
@@ -131,18 +110,6 @@ export class MonnifyProvider implements PaymentProvider {
   }
 
   async checkTransferStatus(reference: string): Promise<TransferResponse> {
-    if (!this.apiKey || !this.secretKey) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error('[MonnifyProvider] Missing MONNIFY_API_KEY or MONNIFY_SECRET_KEY in production. Cannot verify transfer.');
-      }
-      return {
-        reference,
-        status: 'success',
-        provider: this.id,
-        message: 'Monnify transfer verified'
-      };
-    }
-
     const token = await this.getAccessToken();
     const response = await fetch(`${this.baseUrl}/api/v2/disbursements/single/summary?reference=${reference}`, {
       headers: { Authorization: `Bearer ${token}` }

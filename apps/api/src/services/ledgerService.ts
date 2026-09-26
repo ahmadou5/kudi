@@ -333,12 +333,8 @@ export class LedgerService {
       }
 
       const rawPrivyWalletId = (wallet as any).privyWalletId || (typeof wallet.metadata?.privyWalletId === 'string' ? wallet.metadata.privyWalletId : null);
-      const isMockWallet =
-        wallet.metadata?.mock === true ||
-        wallet.metadata?.generatedBy === 'MOCK_PRIVY_SERVER_WALLET' ||
-        rawPrivyWalletId?.startsWith('mock_');
-      const privyWalletId = isMockWallet ? null : rawPrivyWalletId;
-      const custodyType = privyWalletId ? 'SERVER_CUSTODY' : (wallet.metadata?.mock ? 'MOCK_CUSTODY' : 'SERVER_CUSTODY');
+      const privyWalletId = rawPrivyWalletId;
+      const custodyType = privyWalletId ? 'SERVER_CUSTODY' : 'SERVER_CUSTODY';
       const metadata = wallet.metadata ? JSON.stringify(wallet.metadata) : null;
 
       await prisma.$executeRaw`
