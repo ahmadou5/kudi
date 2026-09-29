@@ -207,8 +207,10 @@ async function adminFetch<T>(path: string, fallback: T): Promise<T> {
     return fallback;
   }
 
+  // Demo mode OFF: return empty/zero state, NOT mock data
   if (Array.isArray(fallback)) return [] as T;
-  return fallback;
+  // For objects, return a minimal empty structure matching the type
+  return {} as T;
 }
 // ─── MOCK / FALLBACK DATASETS ──────────────────────────────────────────
 
@@ -707,23 +709,53 @@ function normalizeDashboardSnapshot(snapshot: Partial<AdminDashboardSnapshot> | 
 
 // ─── LOADER FUNCTIONS ──────────────────────────────────────────────────
 
+const DEMO_MODE = process.env.NEXT_PUBLIC_ADMIN_ALLOW_DEMO_DATA === 'true';
+
+function emptyDashboardSnapshot(liveRails: AdminPayoutRail[]): AdminDashboardSnapshot {
+  return {
+    kpis: [
+      { label: '24h Processed Volume', value: '₦0', delta: '—', tone: 'primary', description: 'No data' },
+      { label: 'Active Custody Wallets', value: '0', delta: '—', tone: 'success', description: 'No data' },
+      { label: 'Live Exchange Rate', value: '₦0', delta: '—', tone: 'warning', description: 'No data' },
+      { label: 'Active Payout Rail', value: '—', delta: '—', tone: 'muted', description: 'No data' }
+    ],
+    volumeChart: [],
+    recentTransactions: [],
+    recentDeposits: [],
+    rateState: {
+      currentRateNGN: 0,
+      blendedMarketRate: 0,
+      binanceP2PRate: 0,
+      bybitP2PRate: 0,
+      spreadMarginPct: 0,
+      isOverridden: false,
+      lastPolledAt: 'Never'
+    },
+    payoutRails: liveRails,
+    custodyTrack: 'Unknown',
+    usersSummary: { total: 0, tier1: 0, tier2: 0, verifiedKycPct: 0 }
+  };
+}
+
 export async function loadDashboardSnapshot(): Promise<AdminDashboardSnapshot> {
   const liveRails = await loadPayoutRails();
-  const snapshotFallback: AdminDashboardSnapshot = {
-    kpis: fallbackKpis,
-    volumeChart: fallbackVolumeChart,
-    recentTransactions: fallbackTransactions,
-    recentDeposits: fallbackDeposits,
-    rateState: fallbackRateState,
-    payoutRails: liveRails,
-    custodyTrack: 'Track A: Self-Custody (Privy Embedded Server Wallets)',
-    usersSummary: {
-      total: fallbackUsers.length,
-      tier1: fallbackUsers.filter((u) => u.kycTier === 'TIER_1').length,
-      tier2: fallbackUsers.filter((u) => u.kycTier === 'TIER_2').length,
-      verifiedKycPct: 80
-    }
-  };
+  const snapshotFallback = DEMO_MODE
+    ? {
+        kpis: fallbackKpis,
+        volumeChart: fallbackVolumeChart,
+        recentTransactions: fallbackTransactions,
+        recentDeposits: fallbackDeposits,
+        rateState: fallbackRateState,
+        payoutRails: liveRails,
+        custodyTrack: 'Track A: Self-Custody (Privy Embedded Server Wallets)',
+        usersSummary: {
+          total: fallbackUsers.length,
+          tier1: fallbackUsers.filter((u) => u.kycTier === 'TIER_1').length,
+          tier2: fallbackUsers.filter((u) => u.kycTier === 'TIER_2').length,
+          verifiedKycPct: 80
+        }
+      }
+    : emptyDashboardSnapshot(liveRails);
 
   const res = await adminFetch<AdminDashboardSnapshot>('/dashboard', snapshotFallback);
   const normalized = normalizeDashboardSnapshot(res, snapshotFallback);
@@ -734,13 +766,12 @@ export async function loadDashboardSnapshot(): Promise<AdminDashboardSnapshot> {
 }
 
 export async function loadUsers(): Promise<AdminUser[]> {
-  return adminFetch<AdminUser[]>('/users', fallbackUsers);
+  return adminFetch<AdminUser[]>('/users', DEMO_MODE ? fallbackUsers : []);
 }
 
 export async function getUserDetail(id: string): Promise<AdminUser | null> {
   const users = await loadUsers();
-  const user = users.find((u) => u.id === id);
-  return user ?? users[0] ?? null;
+  return users.find((u) => u.id === id) ?? null;
 }
 
 export async function updateUserRole(userId: string, role: string): Promise<boolean> {
@@ -761,16 +792,16 @@ export async function updateUserRole(userId: string, role: string): Promise<bool
 }
 
 export async function loadTransactions(): Promise<AdminSpendTransaction[]> {
-  return adminFetch<AdminSpendTransaction[]>('/transactions', fallbackTransactions);
+  return adminFetch<AdminSpendTransaction[]>('/transactions', DEMO_MODE ? fallbackTransactions : []);
 }
 
 export async function getTransactionDetail(id: string): Promise<AdminSpendTransaction | null> {
   const txs = await loadTransactions();
-  return txs.find((t) => t.id === id || t.reference === id) ?? txs[0] ?? null;
+  return txs.find((t) => t.id === id || t.reference === id) ?? null;
 }
 
 export async function loadDeposits(): Promise<AdminDeposit[]> {
-  return adminFetch<AdminDeposit[]>('/deposits', fallbackDeposits);
+  return adminFetch<AdminDeposit[]>('/deposits', DEMO_MODE ? fallbackDeposits : []);
 }
 
 export async function requeueSweep(signature: string): Promise<boolean> {
@@ -806,19 +837,27 @@ export async function recheckSweep(signature: string): Promise<boolean> {
 }
 
 export async function loadKycQueue(): Promise<AdminKycQueueItem[]> {
-  return adminFetch<AdminKycQueueItem[]>('/kyc', fallbackKycQueue);
+  return adminFetch<AdminKycQueueItem[]>('/kyc', DEMO_MODE ? fallbackKycQueue : []);
 }
 
 export async function loadPayoutRails(): Promise<AdminPayoutRail[]> {
-  return adminFetch<AdminPayoutRail[]>('/rails', fallbackPayoutRails);
+  return adminFetch<AdminPayoutRail[]>('/rails', DEMO_MODE ? fallbackPayoutRails : []);
 }
 
 export async function loadRateEngineState(): Promise<AdminRateState> {
-  return adminFetch<AdminRateState>('/rates', fallbackRateState);
+  return adminFetch<AdminRateState>('/rates', DEMO_MODE ? fallbackRateState : {
+    currentRateNGN: 0,
+    blendedMarketRate: 0,
+    binanceP2PRate: 0,
+    bybitP2PRate: 0,
+    spreadMarginPct: 0,
+    isOverridden: false,
+    lastPolledAt: 'Never'
+  });
 }
 
 export async function loadChainConfigs(): Promise<AdminChainItem[]> {
-  return adminFetch<AdminChainItem[]>('/chains', fallbackChains);
+  return adminFetch<AdminChainItem[]>('/chains', DEMO_MODE ? fallbackChains : []);
 }
 
 
@@ -827,11 +866,25 @@ export async function loadOperatorAlerts(): Promise<OperatorAlert[]> {
 }
 
 export async function loadNotifications(): Promise<AdminNotification[]> {
-  return adminFetch<AdminNotification[]>('/notifications', fallbackNotifications);
+  return adminFetch<AdminNotification[]>('/notifications', DEMO_MODE ? fallbackNotifications : []);
 }
 
 export async function loadSystemSettings(): Promise<AdminSettings> {
-  return adminFetch<AdminSettings>('/settings', fallbackSettings);
+  return adminFetch<AdminSettings>('/settings', DEMO_MODE ? fallbackSettings : {
+    maintenanceMode: false,
+    autoFailoverEnabled: true,
+    maxDailySpendLimitNGN: 10000000,
+    rateSpreadToleranceBps: 150,
+    treasuryAddresses: { solana: '', monad: '' },
+    health: {
+      fastifyApi: 'DOWN',
+      postgresPrisma: 'DOWN',
+      redisBullmq: 'DOWN',
+      monadMetropolisRpc: 'DOWN',
+      solanaRpc: 'DOWN'
+    },
+    auditLogs: []
+  });
 }
 
 export type AdminMaintenanceConfig = {

@@ -129,6 +129,39 @@ The following threats have been partially or fully mitigated in this codebase se
 
 ---
 
+## 🚨 Live Runtime Issues (Observed 2026-09-16)
+
+The following issues were observed in live worker output and represent current active threats:
+
+| # | Issue | Severity | Evidence |
+|---|-------|----------|----------|
+| A | **Privy `idempotencyKey` rejected by RPC** | Critical | `Privy RPC error 400: Unrecognized key(s) in object: 'idempotencyKey'` — **FIXED**: Removed `idempotencyKey` from Privy request body in `packages/chains/src/selfCustody.ts:960,974`. Idempotency is already handled at the application level via `ProcessedSignature` model and `sweepAttemptCount`/`nextSweepAttemptAt` DB fields. |
+| B | **Prisma migration not applied: `sweptAmountUSDC` column missing** | Critical | `column "sweptAmountUSDC" does not exist` — Prisma schema defines the column but the migration `20260926213441_add_swept_amount_usdc` has not been pushed to production DB. Worker crashes when attempting sweep status updates. **Action required**: Run `pnpm db:push` against production Neon DB to apply the migration. |
+| C | **Sweep failure cascading into deposit non-sweep** | Critical | Solana sweep fails via Privy RPC → deposit remains `SWEEP_PENDING` without being swept to treasury → user credits without treasury backing. Partially addressed by fix A above. |
+| D | **Worker sweep retries fail on schema mismatch** | High | `Invalid prisma.$executeRaw() invocation: column "sweptAmountUSDC" does not exist` — Same migration gap causing all sweep retry operations to fail. Requires fix B. |
+
+---
+
+## 🚨 Live Runtime Issues (Observed 2026-09-16)
+
+The following issues were observed in live worker output and represent current active threats:
+
+| # | Issue | Severity | Evidence |
+|---|-------|----------|----------|
+| A | **Privy `idempotencyKey` rejected by RPC** | Critical | `Privy RPC error 400: Unrecognized key(s) in object: 'idempotencyKey'` — The worker's sweep broadcast includes an `idempotencyKey` field that Privy's API does not accept. Need to remove or route through correct Privy field. |
+| B | **Prisma migration not applied: `sweptAmountUSDC` column missing** | Critical | `column "sweptAmountUSDC" does not exist` — Prisma schema defines the column but the migration `20260926213441_add_swept_amount_usdc` has not been pushed to production DB. Worker crashes when attempting sweep status updates. |
+| C | **Sweep failure cascading into deposit non-sweep** | Critical | Solana sweep fails via Privy RPC → deposit remains `SWEEP_PENDING` without being swept to treasury → user credits without treasury backing. |
+| D | **Worker sweep retries fail on schema mismatch** | High | `Invalid prisma.$executeRaw() invocation: column "sweptAmountUSDC" does not exist` — Same migration gap causing all sweep retry operations to fail. |
+
+**Required immediate actions:**
+
+1. **Push Prisma migration** — Run `pnpm db:push` or `pnpm drizzle-kit push` to apply `20260926213441_add_swept_amount_usdc` and any pending migrations.
+2. **Fix Privy transaction build** — Remove `idempotencyKey` from the Privy broadcast payload or use the correct Privy API field for idempotency.
+3. **Restart worker after schema fix** — Ensure worker can claim due sweeps without `sweptAmountUSDC` column errors.
+4. **Validate sweep flow end-to-end** — After fixes, test Solana sweep from deposit → Privy broadcast → on-chain confirmation → `SWEPT` status.
+
+---
+
 ## 🛠️ Recommended Immediate Actions
 
 1. **Rotate all secrets** — Assume any secret in `.env` or git history is compromised. Generate new keys for: JWT, Paystack, Monnify, Squad, KoraPay, Privy, Sentry, Cloudinary, SMILE/DOJAH APIs.

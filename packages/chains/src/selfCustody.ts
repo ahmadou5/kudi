@@ -785,19 +785,28 @@ export class SelfCustodyProvider implements CustodyProvider {
     // Invalid values never pass through — resolveGasPaymentMode validates.
     const gasPaymentMode = resolveGasPaymentMode(params.gasPaymentMode);
 
-    // TREASURY_FEE_PAYER decision (documented, do not silently downgrade):
-    // Genuine treasury-pays would require the treasury wallet to sign as fee
-    // payer alongside the user authority (2-signer transaction), but Privy only
-    // ever signs with the single wallet passed as treasuryWalletId, so the
-    // second signature slot would stay empty and verification would fail.
-    // Implementing it for real needs the treasury as the signing wallet plus a
-    // funded + monitored treasury balance — until then, selecting this mode
-    // fails loudly instead of silently behaving as user-pays.
+    // TREASURY_FEE_PAYER: deposit wallet signs the token transfer (Solana) or
+    // an off-chain EIP-712 permit (Monad); the treasury wallet pays all fees.
+    // Deposit wallets never need to hold native gas under this mode.
     if (gasPaymentMode === 'TREASURY_FEE_PAYER') {
-      throw new Error(
-        `[SelfCustody] TREASURY_FEE_PAYER is not implemented for ${chain}: treasury-as-fee-payer needs a second signer Privy cannot provide. ` +
-        `Select PRIVY_SPONSOR (or fund the signing wallet) instead. No silent fallback to user-pays.`
-      );
+      if (isSolana) {
+        return this.solanaTreasuryFeePayer({
+          depositWalletId: treasuryWalletId, // caller passes the DEPOSIT wallet id here
+          depositWalletAddress: fromAddress || '',
+          toAddress,
+          amountUSDC,
+          usdcMintAddress: usdcMintAddress || this.solanaUsdcMintAddress,
+          idempotencyKey
+        });
+      } else {
+        return this.evmPermitAndSweep({
+          depositWalletId: treasuryWalletId, // caller passes the DEPOSIT wallet id here
+          depositWalletAddress: fromAddress || '',
+          toAddress,
+          amountUSDC,
+          usdcContractAddress: usdcContractAddress || this.ausdTokenAddress
+        });
+      }
     }
 
     // PRIVY_SPONSOR: request Privy gas sponsorship; if the dashboard has it
@@ -957,7 +966,6 @@ export class SelfCustodyProvider implements CustodyProvider {
         method: 'signAndSendTransaction',
         caip2: this.solanaCaip2,
         ...(sponsorFlag ? { sponsor: true } : {}),
-        ...(idempotencyKey ? { idempotencyKey } : {}),
         params: { transaction: buildSerializedTx(latestBlockhash), encoding: 'base64' }
       };
     } else {
@@ -971,7 +979,6 @@ export class SelfCustodyProvider implements CustodyProvider {
         method: 'eth_sendTransaction',
         caip2: `eip155:${this.monadChainId}`,
         ...(sponsorFlag ? { sponsor: true } : {}),
-        ...(idempotencyKey ? { idempotencyKey } : {}),
         params: {
           transaction: {
             to: contract,
@@ -1116,6 +1123,413 @@ export class SelfCustodyProvider implements CustodyProvider {
       },
       body: JSON.stringify(body)
     });
+  }
+
+  // ─── TREASURY_FEE_PAYER: Solana ─────────────────────────────────────────────
+  //
+  // Two sequential Privy signTransaction calls (no broadcast), then one
+  // self-broadcast via the public RPC.  The deposit wallet signs as token
+  // authority; the treasury wallet signs as fee payer.  Neither call requires
+  // the other wallet's credentials — Privy composes partial signatures across
+  // separate wallet IDs provided the same serialized tx bytes are passed.
+  //
+  // Wire format note: Privy's signTransaction returns the FULLY serialised
+  // transaction (including the signature it just added) as base64.  We feed
+  // that verbatim into the second signTransaction call so Solana's multi-signer
+  // composition works correctly.
+  private async solanaTreasuryFeePayer(params: {
+    depositWalletId: string;
+    depositWalletAddress: string;
+    toAddress: string;
+    amountUSDC: number;
+    usdcMintAddress: string;
+    idempotencyKey?: string;
+  }): Promise<{ txHash: string }> {
+    const {
+      depositWalletId, depositWalletAddress, toAddress, amountUSDC, usdcMintAddress
+    } = params;
+
+    if (!this.solanaTreasuryAddress || !this.solanaTreasuryWalletId) {
+      throw new Error(
+        '[SelfCustody] solanaTreasuryFeePayer: KUDI_TREASURY_SOLANA_ADDRESS / KUDI_SOLANA_TREASURY_WALLET_ID not configured.'
+      );
+    }
+    if (!depositWalletAddress) {
+      throw new Error('[SelfCustody] solanaTreasuryFeePayer: depositWalletAddress is required (fromAddress param).');
+    }
+
+    const USDC_DECIMALS = 6;
+    const rpc = createSolanaRpc(this.rpcUrlSolana);
+    const addrEncoder = getAddressEncoder();
+    const SYSTEM_PROGRAM_ADDRESS = solanaAddress('11111111111111111111111111111111' as Address);
+
+    const mintPubkey      = solanaAddress(usdcMintAddress as Address);
+    const depositAddr     = solanaAddress(depositWalletAddress as Address);
+    const treasuryAddr    = solanaAddress(this.solanaTreasuryAddress as Address);
+    const recipientAddr   = solanaAddress(toAddress as Address);
+
+    // Derive deposit-wallet source ATA (lookup first, derive as fallback)
+    const [derivedSourceAta] = await getProgramDerivedAddress({
+      programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+      seeds: [
+        addrEncoder.encode(depositAddr),
+        addrEncoder.encode(TOKEN_PROGRAM_ADDRESS),
+        addrEncoder.encode(mintPubkey)
+      ]
+    });
+    let sourceAta = derivedSourceAta;
+    try {
+      const res = await rpc.getTokenAccountsByOwner(depositAddr, { mint: mintPubkey }, { encoding: 'jsonParsed' }).send();
+      if (res.value?.[0]?.pubkey) sourceAta = solanaAddress(res.value[0].pubkey as Address);
+    } catch { /* fall through to derived */ }
+
+    // Derive / check treasury destination ATA
+    const [destAta] = await getProgramDerivedAddress({
+      programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+      seeds: [
+        addrEncoder.encode(recipientAddr),
+        addrEncoder.encode(TOKEN_PROGRAM_ADDRESS),
+        addrEncoder.encode(mintPubkey)
+      ]
+    });
+    let destAtaExists = false;
+    try {
+      const info = await rpc.getAccountInfo(destAta, { encoding: 'jsonParsed' }).send();
+      if (info.value !== null) destAtaExists = true;
+    } catch { /* assume absent */ }
+
+    const amountRaw = BigInt(Math.floor(amountUSDC * Math.pow(10, USDC_DECIMALS)));
+    const transferIx = getTransferCheckedInstruction({
+      source: sourceAta,
+      mint: mintPubkey,
+      destination: destAta,
+      authority: depositAddr,   // deposit wallet signs as token authority
+      amount: amountRaw,
+      decimals: USDC_DECIMALS
+    });
+
+    // Fetch blockhash late (after slow RPC lookups are done)
+    const { value: bh } = await rpc.getLatestBlockhash({ commitment: 'processed' }).send();
+
+    // Build transaction: feePayer = treasury, signers = [treasury (fee), deposit (authority)]
+    let txMessage: any;
+    if (!destAtaExists) {
+      const createDestAtaIx = {
+        programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+        accounts: [
+          { address: treasuryAddr, role: 3 as const },  // Writable Signer (treasury pays ATA creation)
+          { address: destAta,       role: 1 as const },
+          { address: recipientAddr, role: 0 as const },
+          { address: mintPubkey,    role: 0 as const },
+          { address: SYSTEM_PROGRAM_ADDRESS, role: 0 as const },
+          { address: TOKEN_PROGRAM_ADDRESS,  role: 0 as const }
+        ],
+        data: new Uint8Array([1]) // CreateIdempotent
+      };
+      txMessage = pipe(
+        createTransactionMessage({ version: 0 as const }),
+        (tx: any) => setTransactionMessageFeePayer(treasuryAddr, tx),
+        (tx: any) => setTransactionMessageLifetimeUsingBlockhash(bh, tx),
+        (tx: any) => appendTransactionMessageInstruction(createDestAtaIx, tx),
+        (tx: any) => appendTransactionMessageInstruction(transferIx, tx)
+      );
+    } else {
+      txMessage = pipe(
+        createTransactionMessage({ version: 0 as const }),
+        (tx: any) => setTransactionMessageFeePayer(treasuryAddr, tx),
+        (tx: any) => setTransactionMessageLifetimeUsingBlockhash(bh, tx),
+        (tx: any) => appendTransactionMessageInstruction(transferIx, tx)
+      );
+    }
+
+    // Step 1: treasury signs as fee payer (partial — deposit authority slot still empty)
+    const unsignedBase64 = this.compileUnsignedBase64(txMessage);
+    const step1Res = await this.privyRpc(this.solanaTreasuryWalletId, {
+      method: 'signTransaction',
+      caip2: this.solanaCaip2,
+      params: { transaction: unsignedBase64, encoding: 'base64' }
+    });
+    if (!step1Res.ok) {
+      const txt = await step1Res.text();
+      throw new Error(`[SelfCustody] solanaTreasuryFeePayer: treasury signTransaction failed (${step1Res.status}): ${txt}`);
+    }
+    const step1Data = await step1Res.json() as any;
+    // Privy returns the partially-signed tx as base64 in data.transaction or data.data.transaction
+    const partiallySignedBase64: string =
+      step1Data?.data?.transaction || step1Data?.transaction ||
+      step1Data?.data?.signedTransaction || step1Data?.signedTransaction;
+    if (!partiallySignedBase64) {
+      throw new Error(`[SelfCustody] solanaTreasuryFeePayer: treasury signTransaction returned no transaction bytes: ${JSON.stringify(step1Data)}`);
+    }
+
+    // Step 2: deposit wallet signs as token authority (adds its signature to treasury-signed tx)
+    const step2Res = await this.privyRpc(depositWalletId, {
+      method: 'signTransaction',
+      caip2: this.solanaCaip2,
+      params: { transaction: partiallySignedBase64, encoding: 'base64' }
+    });
+    if (!step2Res.ok) {
+      const txt = await step2Res.text();
+      throw new Error(`[SelfCustody] solanaTreasuryFeePayer: deposit signTransaction failed (${step2Res.status}): ${txt}`);
+    }
+    const step2Data = await step2Res.json() as any;
+    const fullySignedBase64: string =
+      step2Data?.data?.transaction || step2Data?.transaction ||
+      step2Data?.data?.signedTransaction || step2Data?.signedTransaction;
+    if (!fullySignedBase64) {
+      throw new Error(`[SelfCustody] solanaTreasuryFeePayer: deposit signTransaction returned no transaction bytes: ${JSON.stringify(step2Data)}`);
+    }
+
+    // Step 3: self-broadcast via public RPC (sendRawTransaction)
+    const broadcastRes = await fetch(this.rpcUrlSolana, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'sendRawTransaction',
+        params: [fullySignedBase64, { encoding: 'base64', preflightCommitment: 'processed' }]
+      })
+    });
+    const broadcastData = await broadcastRes.json() as any;
+    if (broadcastData.error) {
+      throw new Error(`[SelfCustody] solanaTreasuryFeePayer: sendRawTransaction failed: ${JSON.stringify(broadcastData.error)}`);
+    }
+    const txHash: string = broadcastData.result;
+    if (!txHash) {
+      throw new Error(`[SelfCustody] solanaTreasuryFeePayer: sendRawTransaction returned no signature: ${JSON.stringify(broadcastData)}`);
+    }
+    console.log(`[SelfCustody] ✅ TREASURY_FEE_PAYER sweep on solana — treasury paid fees, deposit wallet signed authority: ${txHash.slice(0, 20)}...`);
+    return { txHash };
+  }
+
+  // ─── TREASURY_FEE_PAYER: Monad EVM ──────────────────────────────────────────
+  //
+  // EIP-2612 permit + transferFrom batched via Multicall3 (canonical address
+  // confirmed deployed on Monad testnet). The deposit wallet signs an EIP-712
+  // permit message (off-chain, zero gas). The treasury submits a single
+  // Multicall3 aggregate3() call containing permit() + transferFrom().
+  // Deposit wallets never need to hold MON.
+  //
+  // AUSD at 0x534b2f3A21130d7a60830c2Df862319e593943A3 is confirmed EIP-2612
+  // (PERMIT_TYPEHASH, DOMAIN_SEPARATOR, nonces() all return valid data on
+  // Monad testnet as verified 2026-09-29).
+  private async evmPermitAndSweep(params: {
+    depositWalletId: string;
+    depositWalletAddress: string;
+    toAddress: string;
+    amountUSDC: number;
+    usdcContractAddress: string;
+  }): Promise<{ txHash: string }> {
+    const { depositWalletId, depositWalletAddress, toAddress, amountUSDC, usdcContractAddress } = params;
+
+    const treasuryAddress = await this.getEvmTreasuryAddress();
+    if (!this.evmTreasuryWalletId) {
+      throw new Error('[SelfCustody] evmPermitAndSweep: KUDI_EVM_TREASURY_WALLET_ID not configured.');
+    }
+    if (!depositWalletAddress) {
+      throw new Error('[SelfCustody] evmPermitAndSweep: depositWalletAddress is required (fromAddress param).');
+    }
+
+    const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11';
+    const DECIMALS   = 6;
+    const amountWei  = BigInt(Math.floor(amountUSDC * Math.pow(10, DECIMALS)));
+
+    // ── 1. Read nonce from AUSD contract ──────────────────────────────────────
+    // nonces(address) selector = 0x7ecebe00
+    const nonceCalldata = `0x7ecebe00${depositWalletAddress.replace('0x', '').padStart(64, '0')}`;
+    const nonceRes = await fetch(this.rpcUrlDefault, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1,
+        method: 'eth_call',
+        params: [{ to: usdcContractAddress, data: nonceCalldata }, 'latest']
+      })
+    });
+    const nonceData = await nonceRes.json() as any;
+    if (nonceData.error) {
+      throw new Error(`[SelfCustody] evmPermitAndSweep: nonces() RPC failed: ${JSON.stringify(nonceData.error)}`);
+    }
+    const nonce = BigInt(nonceData.result || '0x0');
+
+    // ── 2. Build the EIP-712 permit message ───────────────────────────────────
+    // deadline = now + 1 hour (plenty of runway; the tx broadcasts immediately)
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+
+    // Privy signTypedData payload.  EIP-2612 types are canonical across all
+    // ERC-20 permit implementations.
+    // EIP-712 domain: name and version MUST match what the token contract returns
+    // from name() and version() exactly — ecrecover uses these in the signed hash.
+    // Verified on Monad testnet 2026-09-29:
+    //   name()    → "USDC"  (NOT "AUSD")
+    //   version() → "2"     (NOT "1")
+    // Override via EIP712_TOKEN_NAME / EIP712_TOKEN_VERSION if the contract ever changes.
+    const eip712Name    = process.env.EIP712_TOKEN_NAME    || 'USDC';
+    const eip712Version = process.env.EIP712_TOKEN_VERSION || '2';
+
+    const typedData = {
+      domain: {
+        name: eip712Name,
+        version: eip712Version,
+        chainId: this.monadChainId,
+        verifyingContract: usdcContractAddress
+      },
+      types: {
+        Permit: [
+          { name: 'owner',    type: 'address' },
+          { name: 'spender',  type: 'address' },
+          { name: 'value',    type: 'uint256' },
+          { name: 'nonce',    type: 'uint256' },
+          { name: 'deadline', type: 'uint256' }
+        ]
+      },
+      primaryType: 'Permit',
+      message: {
+        owner:    depositWalletAddress,
+        spender:  treasuryAddress,
+        value:    amountWei.toString(),
+        nonce:    nonce.toString(),
+        deadline: deadline.toString()
+      }
+    };
+
+    // ── 3. Sign the permit with the DEPOSIT wallet (zero gas) ─────────────────
+    const signRes = await this.privyRpc(depositWalletId, {
+      method: 'eth_signTypedData_v4',
+      caip2: `eip155:${this.monadChainId}`,
+      params: { typedData }
+    });
+    if (!signRes.ok) {
+      const txt = await signRes.text();
+      throw new Error(`[SelfCustody] evmPermitAndSweep: deposit signTypedData failed (${signRes.status}): ${txt}`);
+    }
+    const signData = await signRes.json() as any;
+    const signature: string = signData?.data?.signature || signData?.signature || signData?.result;
+    if (!signature || signature.length < 130) {
+      throw new Error(`[SelfCustody] evmPermitAndSweep: deposit signTypedData returned no/short signature: ${JSON.stringify(signData)}`);
+    }
+
+    // Split the 65-byte signature into v, r, s
+    const sig = signature.startsWith('0x') ? signature.slice(2) : signature;
+    const r = `0x${sig.slice(0, 64)}`;
+    const s = `0x${sig.slice(64, 128)}`;
+    const v = parseInt(sig.slice(128, 130), 16);
+
+    // ── 4. Encode permit() calldata ───────────────────────────────────────────
+    // function permit(address owner, address spender, uint256 value,
+    //                 uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+    // selector = 0xd505accf
+    function padAddr(a: string): string { return a.replace('0x', '').padStart(64, '0'); }
+    function padUint(n: bigint | number): string { return BigInt(n).toString(16).padStart(64, '0'); }
+    const permitCalldata =
+      '0xd505accf' +
+      padAddr(depositWalletAddress) +   // owner
+      padAddr(treasuryAddress) +         // spender
+      padUint(amountWei) +               // value
+      padUint(deadline) +                // deadline
+      padUint(v) +                       // v  (uint8 → uint256 padded)
+      r.replace('0x', '').padStart(64, '0') + // r
+      s.replace('0x', '').padStart(64, '0');   // s
+
+    // ── 5. Encode transferFrom() calldata ────────────────────────────────────
+    // function transferFrom(address from, address to, uint256 amount)
+    // selector = 0x23b872dd
+    const transferFromCalldata =
+      '0x23b872dd' +
+      padAddr(depositWalletAddress) +   // from
+      padAddr(toAddress) +               // to
+      padUint(amountWei);                // amount
+
+    // ── 6. Encode Multicall3 aggregate3() calldata ───────────────────────────
+    // struct Call3 { address target; bool allowFailure; bytes callData; }
+    // function aggregate3(Call3[] calldata calls) returns (Result[] memory)
+    // selector = 0x82ad56cb
+    //
+    // ABI encoding of a dynamic array of Call3 structs with nested bytes:
+    //   [0x00] offset to array data                         = 0x20
+    //   [0x20] array length                                 = 2
+    //   [0x40] offset to Call3[0] from array data start     = 0x40
+    //   [0x60] offset to Call3[1] from array data start
+    //
+    // Each Call3 struct (dynamic because of bytes):
+    //   [+0x00] target  (address, 32 bytes padded)
+    //   [+0x20] allowFailure (bool = false → 0)
+    //   [+0x40] offset to bytes callData (from struct start)
+    //   [+0x60] length of callData
+    //   [+0x80] callData bytes (padded to 32-byte boundary)
+    function encodeMulticall3(calls: Array<{ target: string; data: string }>): string {
+      // Strip leading 0x and convert calldata to byte arrays
+      const callBytes = calls.map(c => {
+        const hex = c.data.startsWith('0x') ? c.data.slice(2) : c.data;
+        return { target: c.target, bytes: hex };
+      });
+
+      // Word helpers
+      const word = (n: number | bigint) => BigInt(n).toString(16).padStart(64, '0');
+      const addrW = (a: string) => a.replace('0x', '').padStart(64, '0');
+      const bytesWord = (hex: string) => {
+        const padded = hex.length % 64 === 0 ? hex : hex + '0'.repeat(64 - (hex.length % 64));
+        return padded;
+      };
+
+      // Compute struct sizes
+      // Each Call3 struct layout (dynamic bytes offsets relative to start of struct):
+      //   [0]  address target          (32)
+      //   [32] bool allowFailure       (32)
+      //   [64] offset to callData      (32)  → always 0x60 (3 × 32)
+      //   [96] length of callData bytes(32)
+      //   [128..] callData padded
+      const structSizes = callBytes.map(c => 4 + Math.ceil(c.bytes.length / 64));
+
+      // Head: [selector(4)][ofs to arr(32)][arr len(32)] then per-struct offsets
+      // Array data starts at offset 0x40 from arr start (after length word + offset words)
+      // Each struct offset is from the start of the array data
+      let structStart = callBytes.length * 32; // bytes taken by offset words
+      const structOffsets: number[] = [];
+      for (const c of callBytes) {
+        structOffsets.push(structStart);
+        structStart += 3 * 32 + 32 + Math.ceil(c.bytes.length / 64) * 32; // target+allowFail+offset+len+data
+      }
+
+      let encoded = '';
+      encoded += word(0x20);                  // offset to array from calldata start
+      encoded += word(callBytes.length);      // array length
+      for (const off of structOffsets) {
+        encoded += word(off);                 // per-element offset from array data start
+      }
+      for (const c of callBytes) {
+        encoded += addrW(c.target);           // target
+        encoded += word(0);                   // allowFailure = false
+        encoded += word(0x60);                // offset to callData bytes (3 * 32 = 0x60 from struct start)
+        encoded += word(c.bytes.length / 2); // byte length of callData
+        encoded += bytesWord(c.bytes);        // callData padded to 32-byte boundary
+      }
+      return '0x82ad56cb' + encoded;
+    }
+
+    const multicallData = encodeMulticall3([
+      { target: usdcContractAddress, data: permitCalldata },
+      { target: usdcContractAddress, data: transferFromCalldata }
+    ]);
+
+    // ── 7. Treasury broadcasts the single Multicall3 tx (pays all gas) ────────
+    const txRes = await this.privyRpc(this.evmTreasuryWalletId, {
+      method: 'eth_sendTransaction',
+      caip2: `eip155:${this.monadChainId}`,
+      params: { transaction: { to: MULTICALL3, data: multicallData, value: '0x0' } }
+    });
+    if (!txRes.ok) {
+      const txt = await txRes.text();
+      throw new Error(`[SelfCustody] evmPermitAndSweep: treasury eth_sendTransaction failed (${txRes.status}): ${txt}`);
+    }
+    const txData = await txRes.json() as any;
+    const txHash: string = txData?.data?.hash || txData?.hash || txData?.result;
+    if (!txHash) {
+      throw new Error(`[SelfCustody] evmPermitAndSweep: treasury broadcast returned no hash: ${JSON.stringify(txData)}`);
+    }
+    console.log(`[SelfCustody] ✅ TREASURY_FEE_PAYER sweep on monad — permit+transferFrom via Multicall3, treasury paid gas: ${txHash.slice(0, 20)}...`);
+    return { txHash };
   }
 
   /**
