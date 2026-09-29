@@ -4,6 +4,7 @@ import { LedgerService } from './ledgerService';
 import { sendPushNotification } from '../lib/notifications';
 import { Server as SocketIOServer } from 'socket.io';
 import { prisma } from '@kudi/database';
+import { apiConfig } from '@kudi/config';
 
 export class DepositService {
   private solanaListener: SolanaListener;
@@ -13,15 +14,19 @@ export class DepositService {
   private intervalId?: NodeJS.Timeout;
 
   constructor(ledgerService: LedgerService, io?: SocketIOServer) {
-    this.solanaListener = new SolanaListener();
+    this.solanaListener = new SolanaListener({
+      rpcUrl: apiConfig.SOLANA_RPC_URL,
+      rpcUrlFallback: apiConfig.SOLANA_RPC_URL_FALLBACK,
+      usdcMintAddress: apiConfig.USDC_MINT_ADDRESS
+    });
     
     const monadConfig: EVMChainConfig = {
       id: 'monad-testnet',
       name: 'Monad Metropolis Testnet',
       chainId: 10143,
       type: ChainType.EVM,
-      rpcUrl: process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz',
-      tokenContractAddress: process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3',
+      rpcUrl: apiConfig.MONAD_RPC_URL,
+      tokenContractAddress: apiConfig.AUSD_TOKEN_ADDRESS,
       tokenSymbol: 'AUSD',
       tokenDecimals: 6,
       confirmationThreshold: 1,

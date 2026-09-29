@@ -2,6 +2,7 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { DepositService } from '../../services/depositService';
 import { SweepService } from '../../services/sweepService';
 import { SolanaListener } from '@kudi/chains';
+import { apiConfig } from '@kudi/config';
 
 export class DepositsController {
   constructor(
@@ -34,7 +35,11 @@ export class DepositsController {
    */
   public getOnChainBalance = async (request: FastifyRequest, reply: FastifyReply) => {
     const { address } = request.params as { address: string };
-    const listener = new SolanaListener();
+    const listener = new SolanaListener({
+      rpcUrl: apiConfig.SOLANA_RPC_URL,
+      rpcUrlFallback: apiConfig.SOLANA_RPC_URL_FALLBACK,
+      usdcMintAddress: apiConfig.USDC_MINT_ADDRESS
+    });
     try {
       const balance = await listener.getSolanaUSDCBalance(address);
       return reply.send({ address, onChainUSDC: balance });

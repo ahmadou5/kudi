@@ -2,6 +2,10 @@ import { SolanaChainConfig, ChainType } from '@kudi/types';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+interface SolanaListenerConfig extends SolanaChainConfig {
+  rpcUrlFallback?: string;
+}
+
 
 export interface SolanaDepositEvent {
   signature: string;
@@ -18,14 +22,15 @@ export interface SolanaDepositEvent {
 }
 
 export class SolanaListener {
-  private config: SolanaChainConfig;
+  private config: SolanaListenerConfig;
 
-  constructor(config?: Partial<SolanaChainConfig>) {
+  constructor(config?: Partial<SolanaListenerConfig>) {
     this.config = {
       id: 'solana-devnet',
       name: 'Solana Devnet',
       type: ChainType.SOLANA,
       rpcUrl: config?.rpcUrl || 'https://api.devnet.solana.com',
+      rpcUrlFallback: config?.rpcUrlFallback,
       usdcMintAddress: config?.usdcMintAddress || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
       confirmationThreshold: 1,
       enabled: true
@@ -33,28 +38,52 @@ export class SolanaListener {
   }
 
   public getConfig(): SolanaChainConfig {
-    return this.config;
+    const { rpcUrlFallback, ...config } = this.config;
+    return config;
   }
 
   /**
-   * Helper to perform RPC calls with safe JSON response parsing.
+   * Helper to perform RPC calls with safe JSON response parsing and fallback support.
    * Prevents raw HTML/text error strings (e.g., "max usage reached") from causing unhandled JSON parse exceptions.
+   * Falls back to rpcUrlFallback on rate limit (429) or network errors.
    */
   private async safeRpcFetch(payload: any): Promise<any> {
-    const res = await fetch(this.config.rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const text = await res.text();
-    if (!res.ok) {
-      throw new Error(`Solana RPC HTTP ${res.status}: ${text.slice(0, 100)}`);
+    const urls = [this.config.rpcUrl, this.config.rpcUrlFallback].filter(Boolean) as string[];
+    let lastError: Error | undefined;
+
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const text = await res.text();
+        if (!res.ok) {
+          const status = res.status;
+          lastError = new Error(`Solana RPC HTTP ${status}: ${text.slice(0, 100)}`);
+          if (status === 429 && url !== urls[urls.length - 1]) {
+            console.warn(`[SolanaListener] Rate limited on ${url}, trying fallback...`);
+            continue;
+          }
+          throw lastError;
+        }
+        try {
+          return JSON.parse(text);
+        } catch {
+          throw new Error(`Solana RPC non-JSON response: ${text.slice(0, 100)}`);
+        }
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        if (url !== urls[urls.length - 1]) {
+          console.warn(`[SolanaListener] RPC error on ${url}: ${lastError.message}, trying fallback...`);
+          continue;
+        }
+        throw lastError;
+      }
     }
-    try {
-      return JSON.parse(text);
-    } catch {
-      throw new Error(`Solana RPC non-JSON response: ${text.slice(0, 100)}`);
-    }
+
+    throw lastError ?? new Error('Solana RPC: all endpoints failed');
   }
 
   /**

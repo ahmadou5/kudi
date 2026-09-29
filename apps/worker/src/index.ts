@@ -26,6 +26,7 @@ const solanaConfig: Partial<SolanaChainConfig> = {
   name: 'Solana SPL-Token RPC',
   type: ChainType.SOLANA,
   rpcUrl: workerConfig.SOLANA_RPC_URL,
+  rpcUrlFallback: workerConfig.SOLANA_RPC_URL_FALLBACK,
   usdcMintAddress: workerConfig.USDC_MINT_ADDRESS,
   confirmationThreshold: 1,
   enabled: true
@@ -97,9 +98,10 @@ console.log('📥 Webhook Processor active for Squad, Monnify, Paystack, Korapay
 console.log('📤 Crypto Withdrawal Processor active (polling every 5s)');
 console.log('🧾 Reconciliation snapshots active (every 5m)');
 console.log('🏦 Deposit sweep retry processor active (every 60s)');
+console.log('📥 Chain deposit poller active (every 60s)');
 
 setInterval(() => runWorkerTask('rate poller', pollRateEngine), 30000);
-setInterval(() => runWorkerTask('chain deposit poller', () => depositProcessor.pollAllChains()), 15000);
+setInterval(() => runWorkerTask('chain deposit poller', () => depositProcessor.pollAllChains()), 60000);
 setInterval(() => runWorkerTask('crypto withdrawal processor', processCryptoWithdrawals), 5000);
 setInterval(() => runWorkerTask('stale withdrawal recovery', recoverStaleProcessingWithdrawals), 60000);
 setInterval(() => runWorkerTask('stale deposit sweep recovery', () => depositProcessor.recoverStaleProcessingSweeps()), 60000);

@@ -104,6 +104,7 @@ export interface SolanaChainConfig {
   name: string;
   type: ChainType.SOLANA;
   rpcUrl: string;
+  rpcUrlFallback?: string;
   usdcMintAddress: string;
   confirmationThreshold: number;
   enabled: boolean;
