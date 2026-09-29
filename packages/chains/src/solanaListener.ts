@@ -37,30 +37,46 @@ export class SolanaListener {
   }
 
   /**
+   * Helper to perform RPC calls with safe JSON response parsing.
+   * Prevents raw HTML/text error strings (e.g., "max usage reached") from causing unhandled JSON parse exceptions.
+   */
+  private async safeRpcFetch(payload: any): Promise<any> {
+    const res = await fetch(this.config.rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`Solana RPC HTTP ${res.status}: ${text.slice(0, 100)}`);
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(`Solana RPC non-JSON response: ${text.slice(0, 100)}`);
+    }
+  }
+
+  /**
    * Gets the actual on-chain USDC balance for a wallet address.
    * Calls getTokenAccountsByOwner to find the USDC SPL token account
    * and reads its balance directly.
    */
   public async getSolanaUSDCBalance(address: string): Promise<number> {
     try {
-      const res = await fetch(this.config.rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'getTokenAccountsByOwner',
-          params: [address, { mint: this.config.usdcMintAddress }, { encoding: 'jsonParsed' }],
-          id: 1
-        })
+      const data = await this.safeRpcFetch({
+        jsonrpc: '2.0',
+        method: 'getTokenAccountsByOwner',
+        params: [address, { mint: this.config.usdcMintAddress }, { encoding: 'jsonParsed' }],
+        id: 1
       });
-      const data = await res.json() as any;
       const accounts = data.result?.value || [];
       if (accounts.length > 0) {
         const tokenAmount = accounts[0].account?.data?.parsed?.info?.tokenAmount;
         return Number(tokenAmount?.uiAmountString || tokenAmount?.uiAmount || 0);
       }
     } catch (err) {
-      console.warn(`[SolanaListener] Balance check failed for ${address}:`, err);
+      console.warn(`[SolanaListener] Balance check failed for ${address}:`, err instanceof Error ? err.message : err);
     }
     return 0;
   }
@@ -75,27 +91,22 @@ export class SolanaListener {
    */
   private async getUSDCTokenAccountAddress(walletAddress: string): Promise<string | null> {
     try {
-      const res = await fetch(this.config.rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'getTokenAccountsByOwner',
-          params: [
-            walletAddress,
-            { mint: this.config.usdcMintAddress },
-            { encoding: 'jsonParsed' }
-          ],
-          id: 1
-        })
+      const data = await this.safeRpcFetch({
+        jsonrpc: '2.0',
+        method: 'getTokenAccountsByOwner',
+        params: [
+          walletAddress,
+          { mint: this.config.usdcMintAddress },
+          { encoding: 'jsonParsed' }
+        ],
+        id: 1
       });
-      const data = await res.json() as any;
       const accounts: any[] = data.result?.value || [];
       if (accounts.length > 0) {
         return accounts[0].pubkey as string;
       }
     } catch (err) {
-      console.warn(`[SolanaListener] Failed to get USDC token account for ${walletAddress}:`, err);
+      console.warn(`[SolanaListener] Failed to get USDC token account for ${walletAddress}:`, err instanceof Error ? err.message : err);
     }
     return null;
   }
@@ -103,31 +114,31 @@ export class SolanaListener {
 
   private async getTransactionWithRetry(signature: string): Promise<any | null> {
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const txRes = await fetch(this.config.rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      try {
+        const txData = await this.safeRpcFetch({
           jsonrpc: '2.0',
           method: 'getTransaction',
           // finalized: only credit-grade transactions are returned for deposits
           params: [signature, { encoding: 'jsonParsed', commitment: 'finalized', maxSupportedTransactionVersion: 0 }],
           id: 2
-        })
-      });
+        });
 
-      const txData = await txRes.json() as any;
-      if (!txData.error) {
-        await sleep(Number(process.env.SOLANA_TX_FETCH_DELAY_MS || 150));
-        return txData.result || null;
+        if (!txData.error) {
+          await sleep(Number(process.env.SOLANA_TX_FETCH_DELAY_MS || 150));
+          return txData.result || null;
+        }
+
+        const isRateLimited = txData.error?.code === 429;
+        console.warn(
+          `[SolanaListener] getTransaction failed for ${signature.slice(0, 12)}...${isRateLimited ? ' (rate limited; retrying)' : ''}:`,
+          txData.error
+        );
+        if (!isRateLimited) return null;
+        await sleep(500 * (attempt + 1));
+      } catch (err) {
+        console.warn(`[SolanaListener] getTransaction fetch error for ${signature.slice(0, 12)}...:`, err instanceof Error ? err.message : err);
+        await sleep(500 * (attempt + 1));
       }
-
-      const isRateLimited = txData.error?.code === 429;
-      console.warn(
-        `[SolanaListener] getTransaction failed for ${signature.slice(0, 12)}...${isRateLimited ? ' (rate limited; retrying)' : ''}:`,
-        txData.error
-      );
-      if (!isRateLimited) return null;
-      await sleep(500 * (attempt + 1));
     }
 
     return null;
@@ -149,17 +160,12 @@ export class SolanaListener {
     if (signatures.length === 0) return out;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        const res = await fetch(this.config.rpcUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: 'getSignatureStatuses',
-            params: [signatures, { searchTransactionHistory: true }],
-            id: 3
-          })
+        const data = await this.safeRpcFetch({
+          jsonrpc: '2.0',
+          method: 'getSignatureStatuses',
+          params: [signatures, { searchTransactionHistory: true }],
+          id: 3
         });
-        const data = await res.json() as any;
         if (data.error) {
           const code = data.error?.code;
           console.warn(`[SolanaListener] getSignatureStatuses RPC error (attempt ${attempt + 1}/3):`, data.error);
