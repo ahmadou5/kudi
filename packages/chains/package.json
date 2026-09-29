@@ -21,6 +21,7 @@
     "@kudi/types": "workspace:*",
     "@solana-program/token": "^0.16.1",
     "@solana/kit": "^8.3.0",
+    "@solana/signers": "^8.3.0",
     "ethers": "^6.11.1",
     "@kudi/chains-core": "workspace:*"
   },

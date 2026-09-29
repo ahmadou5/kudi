@@ -4,6 +4,7 @@ if (dns.setDefaultResultOrder) {
 }
 
 import { CustodyProvider, CustodyTrack, DepositWallet } from '@kudi/types';
+import { createNoopSigner } from '@solana/signers';
 import {
   address as solanaAddress,
   createSolanaRpc,
@@ -1192,11 +1193,14 @@ export class SelfCustodyProvider implements CustodyProvider {
     } catch { /* assume absent */ }
 
     const amountRaw = BigInt(Math.floor(amountUSDC * Math.pow(10, USDC_DECIMALS)));
+    // Use noop signer for deposit wallet authority so instruction builder marks it as a signer.
+    // Privy will provide the actual signature via signTransaction.
+    const depositAuthoritySigner = createNoopSigner(depositAddr);
     const transferIx = getTransferCheckedInstruction({
       source: sourceAta,
       mint: mintPubkey,
       destination: destAta,
-      authority: depositAddr,   // deposit wallet signs as token authority
+      authority: depositAuthoritySigner,
       amount: amountRaw,
       decimals: USDC_DECIMALS
     });
@@ -1205,6 +1209,7 @@ export class SelfCustodyProvider implements CustodyProvider {
     const { value: bh } = await rpc.getLatestBlockhash({ commitment: 'processed' }).send();
 
     // Build transaction: feePayer = treasury, signers = [treasury (fee), deposit (authority)]
+    // The deposit authority is now a signer via the noop signer in transferIx.
     let txMessage: any;
     if (!destAtaExists) {
       const createDestAtaIx = {
@@ -1239,7 +1244,6 @@ export class SelfCustodyProvider implements CustodyProvider {
     const unsignedBase64 = this.compileUnsignedBase64(txMessage);
     const step1Res = await this.privyRpc(this.solanaTreasuryWalletId, {
       method: 'signTransaction',
-      caip2: this.solanaCaip2,
       params: { transaction: unsignedBase64, encoding: 'base64' }
     });
     if (!step1Res.ok) {
@@ -1247,9 +1251,9 @@ export class SelfCustodyProvider implements CustodyProvider {
       throw new Error(`[SelfCustody] solanaTreasuryFeePayer: treasury signTransaction failed (${step1Res.status}): ${txt}`);
     }
     const step1Data = await step1Res.json() as any;
-    // Privy returns the partially-signed tx as base64 in data.transaction or data.data.transaction
+    // Privy returns the partially-signed tx as base64 in data.signed_transaction or data.transaction
     const partiallySignedBase64: string =
-      step1Data?.data?.transaction || step1Data?.transaction ||
+      step1Data?.data?.signed_transaction || step1Data?.data?.transaction || step1Data?.transaction ||
       step1Data?.data?.signedTransaction || step1Data?.signedTransaction;
     if (!partiallySignedBase64) {
       throw new Error(`[SelfCustody] solanaTreasuryFeePayer: treasury signTransaction returned no transaction bytes: ${JSON.stringify(step1Data)}`);
@@ -1258,7 +1262,6 @@ export class SelfCustodyProvider implements CustodyProvider {
     // Step 2: deposit wallet signs as token authority (adds its signature to treasury-signed tx)
     const step2Res = await this.privyRpc(depositWalletId, {
       method: 'signTransaction',
-      caip2: this.solanaCaip2,
       params: { transaction: partiallySignedBase64, encoding: 'base64' }
     });
     if (!step2Res.ok) {
@@ -1267,7 +1270,7 @@ export class SelfCustodyProvider implements CustodyProvider {
     }
     const step2Data = await step2Res.json() as any;
     const fullySignedBase64: string =
-      step2Data?.data?.transaction || step2Data?.transaction ||
+      step2Data?.data?.signed_transaction || step2Data?.data?.transaction || step2Data?.transaction ||
       step2Data?.data?.signedTransaction || step2Data?.signedTransaction;
     if (!fullySignedBase64) {
       throw new Error(`[SelfCustody] solanaTreasuryFeePayer: deposit signTransaction returned no transaction bytes: ${JSON.stringify(step2Data)}`);

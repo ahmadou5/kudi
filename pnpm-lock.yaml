@@ -480,6 +480,9 @@ importers:
       '@solana/kit':
         specifier: ^8.3.0
         version: 8.3.0(typescript@5.9.3)
+      '@solana/signers':
+        specifier: ^8.3.0
+        version: 8.3.0(typescript@5.9.3)
       ethers:
         specifier: ^6.11.1
         version: 6.17.0

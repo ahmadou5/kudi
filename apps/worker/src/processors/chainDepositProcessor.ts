@@ -288,7 +288,7 @@ export class ChainDepositProcessor {
       // untouched — this only adds the drip gate + receipt.
       const { txHash, drip } = await this.selfCustody.sendCryptoWithGasRetry({
         treasuryWalletId: params.wallet.privyWalletId,
-        fromAddress: normalizedChain === 'solana' ? params.wallet.address : undefined,
+        fromAddress: params.wallet.address,
         // feePayerAddress intentionally omitted: user wallet (signerAddr) always pays its own fees
         // (topped up via treasury drip when empty). TREASURY_FEE_PAYER is rejected
         // loudly inside sendCrypto (2nd signer unavailable via Privy).
