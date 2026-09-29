@@ -53,17 +53,10 @@ export function resolveGasPaymentMode(stored?: unknown): GasPaymentMode {
   const explicitEnv = process.env.GAS_PAYMENT_MODE;
   if (isGasPaymentMode(explicitEnv)) return explicitEnv;
 
-  // Legacy boolean flags only ever select sponsorship; they can never select
-  // treasury-pays (which now fails loudly unless genuinely honored).
-  if (process.env.PRIVY_SPONSOR_TRANSACTIONS === 'true' || process.env.PRIVY_SPONSOR_SWEEPS === 'true') {
-    return 'PRIVY_SPONSOR';
-  }
-
-  // Safe default: attempt Privy sponsorship, signer pays when unavailable.
-  // (Previously defaulted to TREASURY_FEE_PAYER, which was never genuinely
-  // honored on Solana — see sendCrypto — so defaulting to it risked loud
-  // failures on every sweep.)
-  return 'PRIVY_SPONSOR';
+  throw new Error(
+    '[SelfCustody] GAS_PAYMENT_MODE must be explicitly set to "TREASURY_FEE_PAYER". ' +
+    'PRIVY_SPONSOR is no longer supported. Set GAS_PAYMENT_MODE=TREASURY_FEE_PAYER in env.'
+  );
 }
 
 /** Upper bound for a single credited deposit (Float columns kept; rejects absurd values). */

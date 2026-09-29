@@ -37,8 +37,7 @@ This document lists all environment variables required or supported across the M
 | `PRIVY_APP_ID` | Privy Application ID | **Yes** | `cmtmzjobd00t30dl1qgujdr3q` |
 | `PRIVY_APP_SECRET` | Privy App Secret (Server Wallet signing API) | **Yes** | *Privy Secret* |
 | `PRIVY_CLIENT_ID` | Privy Client ID for client SDK initialization | No | `client-WY6tG...` |
-| `PRIVY_SPONSOR_TRANSACTIONS` | Auto-sponsor gas fees for Privy wallets (`true`/`false`) | No | `true` |
-| `PRIVY_SPONSOR_SWEEPS` | Sponsor gas fees during treasury sweep (`true`/`false`) | No | `true` |
+| `GAS_PAYMENT_MODE` | Gas payment mode for sweeps. Only `TREASURY_FEE_PAYER` supported. | **Yes** | `TREASURY_FEE_PAYER` |
 
 ---
 

@@ -40,7 +40,7 @@ const apiEnvSchema = z
     KUDI_SOLANA_TREASURY_WALLET_ID: z.string().optional(),
     KUDI_EVM_TREASURY_WALLET_ID: z.string().optional(),
     SOLANA_CAIP2: z.string().default('solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1'),
-    GAS_PAYMENT_MODE: z.enum(['PRIVY_SPONSOR', 'TREASURY_FEE_PAYER']).default('PRIVY_SPONSOR'),
+GAS_PAYMENT_MODE: z.enum(['TREASURY_FEE_PAYER']),
     EIP712_TOKEN_NAME: z.string().default('USDC'),
     EIP712_TOKEN_VERSION: z.string().default('2'),
     VASP_PARTNER_API_KEY: z.string().optional(),
@@ -89,7 +89,7 @@ const workerEnvSchema = z.object({
   KUDI_EVM_TREASURY_WALLET_ID: z.string().optional(),
   PRIVY_APP_ID: z.string().optional(),
   PRIVY_APP_SECRET: z.string().optional(),
-  GAS_PAYMENT_MODE: z.enum(['PRIVY_SPONSOR', 'TREASURY_FEE_PAYER']).default('PRIVY_SPONSOR'),
+  GAS_PAYMENT_MODE: z.enum(['TREASURY_FEE_PAYER']),
   EIP712_TOKEN_NAME: z.string().default('USDC'),
   EIP712_TOKEN_VERSION: z.string().default('2'),
   RECONCILIATION_ALERT_THRESHOLD_USDC: z.coerce.number().int().positive().default(10000)

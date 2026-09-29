@@ -61,12 +61,10 @@ export default function SettingsPage() {
   const [dailyLimit, setDailyLimit] = useState('10000000');
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Sweep state (TREASURY_FEE_PAYER is not an admin-selectable sweep mode:
-  // the backend sendCrypto path throws in that mode, so offering it would DoS
-  // sweeps — only AUTO / SPONSORED are selectable here).
+  // Sweep state — TREASURY_FEE_PAYER is the only supported gas payment mode.
   const [sweepMode, setSweepMode] = useState<'AUTO' | 'SPONSORED'>('AUTO');
   const [storedSweepModeRaw, setStoredSweepModeRaw] = useState<string | null>(null);
-  const [gasPaymentMode, setGasPaymentMode] = useState<'PRIVY_SPONSOR'>('PRIVY_SPONSOR');
+  const [gasPaymentMode, setGasPaymentMode] = useState<'TREASURY_FEE_PAYER'>('TREASURY_FEE_PAYER');
   const [effectiveMode, setEffectiveMode] = useState<string | null>(null);
   const [sweepReceipt, setSweepReceipt] = useState<AdminSweepConfig['receipt']>(null);
   const [sweepAuditId, setSweepAuditId] = useState<string | null>(null);
@@ -123,10 +121,10 @@ export default function SettingsPage() {
           if (sweepData.mode === 'AUTO' || sweepData.mode === 'SPONSORED') {
             setSweepMode(sweepData.mode);
           }
-          if (sweepData.gasPaymentMode === 'PRIVY_SPONSOR') {
-            setGasPaymentMode('PRIVY_SPONSOR');
+          if (sweepData.gasPaymentMode === 'TREASURY_FEE_PAYER') {
+            setGasPaymentMode('TREASURY_FEE_PAYER');
           } else {
-            setGasPaymentMode('PRIVY_SPONSOR');
+            setGasPaymentMode('TREASURY_FEE_PAYER');
           }
           if (sweepData.effectiveMode) setEffectiveMode(sweepData.effectiveMode);
           if (sweepData.receipt) {
@@ -154,8 +152,8 @@ export default function SettingsPage() {
           const res = await updateSweepConfig(sweepMode, gasPaymentMode);
           if (res) {
             if (res.mode === 'AUTO' || res.mode === 'SPONSORED') setSweepMode(res.mode);
-            if (res.gasPaymentMode === 'PRIVY_SPONSOR') {
-              setGasPaymentMode('PRIVY_SPONSOR');
+            if (res.gasPaymentMode === 'TREASURY_FEE_PAYER') {
+              setGasPaymentMode('TREASURY_FEE_PAYER');
             }
             if (res.effectiveMode) setEffectiveMode(res.effectiveMode);
             setSweepReceipt(res.receipt || null);
@@ -793,20 +791,20 @@ export default function SettingsPage() {
           {/* Gas payment mode selector */}
           <div className="rounded-xl border border-border/60 bg-muted/30 p-4 space-y-2">
             <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <Coins className="h-4 w-4 text-amber-400" /> Gas Payment Mode (Privy Gas Sponsorship)
+              <Coins className="h-4 w-4 text-amber-400" /> Gas Payment Mode
             </span>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => setGasPaymentMode('PRIVY_SPONSOR')}
+                onClick={() => setGasPaymentMode('TREASURY_FEE_PAYER')}
                 className="rounded-xl px-3 py-1.5 text-xs font-mono font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-xs cursor-pointer"
               >
-                PRIVY_SPONSOR (Recommended)
+                TREASURY_FEE_PAYER (Only Mode)
               </button>
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Resolved effective mode: <span className="font-mono font-bold text-emerald-400">{effectiveMode || 'PRIVY_SPONSOR'}</span>
-              <span className="block mt-0.5">Privy sponsors gas fees for all automated deposit sweeps. TREASURY_FEE_PAYER is disabled because Privy single-wallet signing cannot provide a 2nd fee-payer signature.</span>
+              Resolved effective mode: <span className="font-mono font-bold text-emerald-400">{effectiveMode || 'TREASURY_FEE_PAYER'}</span>
+              <span className="block mt-0.5">Treasury wallet pays all gas fees. Deposit wallets never need native tokens.</span>
             </p>
           </div>
 

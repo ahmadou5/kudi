@@ -211,7 +211,7 @@ export class AdminController {
   };
 
   public getSweepConfig = async (_request: FastifyRequest, _reply: FastifyReply) => {
-    let sweepConfig = { mode: 'AUTO', gasPaymentMode: 'PRIVY_SPONSOR', effectiveMode: 'PRIVY_SPONSOR', updatedAt: null as string | null };
+    let sweepConfig = { mode: 'AUTO', gasPaymentMode: 'TREASURY_FEE_PAYER', effectiveMode: 'TREASURY_FEE_PAYER', updatedAt: null as string | null };
     try {
       const config = await prisma.appConfig.findUnique({
         where: { key: 'sweep_config' }
@@ -219,9 +219,9 @@ export class AdminController {
       if (config?.value) {
         try {
           const parsed = JSON.parse(config.value);
-          const storedGasMode = parsed.gasPaymentMode === 'PRIVY_SPONSOR' || parsed.gasPaymentMode === 'TREASURY_FEE_PAYER'
+          const storedGasMode = parsed.gasPaymentMode === 'TREASURY_FEE_PAYER'
             ? parsed.gasPaymentMode
-            : 'PRIVY_SPONSOR';
+            : 'TREASURY_FEE_PAYER';
           sweepConfig = {
             mode: parsed.mode || 'AUTO',
             gasPaymentMode: storedGasMode,
@@ -238,21 +238,15 @@ export class AdminController {
 
   public setSweepConfig = async (request: FastifyRequest, reply: FastifyReply) => {
     const body = request.body as { mode?: string; gasPaymentMode?: string };
-    // NOTE: TREASURY_FEE_PAYER is deliberately NOT admin-selectable as a sweep
-    // `mode`: backend `sendCrypto` throws loudly in that mode (Privy
-    // single-wallet signing cannot produce the 2nd treasury signature), so
-    // offering it would let an admin DoS all sweeps with one click. The
-    // `gasPaymentMode` union member of the same name is a separate stored knob
-    // and keeps its strict validation below.
     const validModes = ['AUTO', 'SPONSORED'];
-    const validGasPaymentModes = ['PRIVY_SPONSOR'];
+    const validGasPaymentModes = ['TREASURY_FEE_PAYER'];
     if (!body?.mode || !validModes.includes(body.mode)) {
       return reply.status(400).send(errorResponse('INVALID_BODY', `Field "mode" must be one of: ${validModes.join(', ')}`, 400));
     }
 
     // Read the previous config first so the response can carry a
     // previous → new confirmation receipt.
-    let previous = { mode: 'AUTO', gasPaymentMode: 'PRIVY_SPONSOR', updatedAt: null as string | null };
+    let previous = { mode: 'AUTO', gasPaymentMode: 'TREASURY_FEE_PAYER', updatedAt: null as string | null };
     try {
       const stored = await prisma.appConfig.findUnique({ where: { key: 'sweep_config' } });
       if (stored?.value) {
@@ -260,23 +254,16 @@ export class AdminController {
           const parsed = JSON.parse(stored.value);
           previous = {
             mode: parsed.mode || 'AUTO',
-            gasPaymentMode: validGasPaymentModes.includes(parsed.gasPaymentMode) ? parsed.gasPaymentMode : 'PRIVY_SPONSOR',
+            gasPaymentMode: validGasPaymentModes.includes(parsed.gasPaymentMode) ? parsed.gasPaymentMode : 'TREASURY_FEE_PAYER',
             updatedAt: parsed.updatedAt || stored.updatedAt?.toISOString?.() || null
           };
         } catch {}
       }
     } catch {}
 
-    // gasPaymentMode is required-or-preserved: must be PRIVY_SPONSOR (TREASURY_FEE_PAYER requires 2 signers that Privy cannot provide)
-    let gasPaymentMode: string = 'PRIVY_SPONSOR';
+    // gasPaymentMode is required-or-preserved: must be TREASURY_FEE_PAYER
+    let gasPaymentMode: string = 'TREASURY_FEE_PAYER';
     if (body.gasPaymentMode !== undefined) {
-      if (body.gasPaymentMode === 'TREASURY_FEE_PAYER') {
-        return reply.status(400).send(errorResponse(
-          'INVALID_BODY',
-          'TREASURY_FEE_PAYER is not supported for sweeps because Privy single-wallet signing cannot provide a 2nd fee payer signature. Please select PRIVY_SPONSOR.',
-          400
-        ));
-      }
       if (!validGasPaymentModes.includes(body.gasPaymentMode)) {
         return reply.status(400).send(errorResponse('INVALID_BODY', `Field "gasPaymentMode" must be one of: ${validGasPaymentModes.join(', ')}`, 400));
       }

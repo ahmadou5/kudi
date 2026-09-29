@@ -924,10 +924,10 @@ export async function updateMaintenanceConfig(config: {
 }
 
 export type AdminSweepConfig = {
-  mode: 'AUTO' | 'SPONSORED' | 'TREASURY_FEE_PAYER';
-  gasPaymentMode?: 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER' | string;
+  mode: 'AUTO' | 'SPONSORED';
+  gasPaymentMode?: 'TREASURY_FEE_PAYER' | string;
   /** Backend-resolved effective gas mode (DB value wins, validated union). */
-  effectiveMode?: 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER' | string;
+  effectiveMode?: 'TREASURY_FEE_PAYER' | string;
   auditId?: string | null;
   receipt?: {
     changedBy: string;
