@@ -106,7 +106,7 @@ setInterval(() => runWorkerTask('stale withdrawal recovery', recoverStaleProcess
 setInterval(() => runWorkerTask('reconciliation snapshot', async () => {
     const metrics = await recordReconciliationSnapshot();
     if (metrics) {
-      console.log(`[Reconciliation] 📊 Liability: $${metrics.totalLiabilityUSDC.toFixed(2)} | Available: $${metrics.totalAvailableUSDC.toFixed(2)} | Unbacked: $${metrics.unbackedExposureUSDC.toFixed(2)} | Pending Cashout: $${metrics.pendingCashOutUSDC.toFixed(2)} | Confirmed: $${metrics.confirmedCashOutUSDC.toFixed(2)} | Failed: $${metrics.failedCashOutUSDC.toFixed(2)}`);
+      console.log(`[Reconciliation] 📊 Liability: $${metrics.totalLiabilityUSDC.toFixed(2)} | Available: $${metrics.totalAvailableUSDC.toFixed(2)} | Unbacked: $${metrics.unbackedExposureUSDC.toFixed(2)} | Pending Sweep: $${metrics.pendingSweepUSDC.toFixed(2)} | Swept: $${metrics.sweptUSDC.toFixed(2)} | Failed: $${metrics.sweepFailedUSDC.toFixed(2)}`);
     }
   }), 300000);
 setInterval(() => runWorkerTask('worker heartbeat', recordWorkerHeartbeat), 30000);
@@ -117,6 +117,6 @@ runWorkerTask('stale withdrawal recovery', recoverStaleProcessingWithdrawals);
 runWorkerTask('reconciliation snapshot', async () => {
   const metrics = await recordReconciliationSnapshot();
   if (metrics) {
-    console.log(`[Reconciliation] 📊 Liability: $${metrics.totalLiabilityUSDC.toFixed(2)} | Available: $${metrics.totalAvailableUSDC.toFixed(2)} | Unbacked: $${metrics.unbackedExposureUSDC.toFixed(2)} | Pending Cashout: $${metrics.pendingCashOutUSDC.toFixed(2)} | Confirmed: $${metrics.confirmedCashOutUSDC.toFixed(2)} | Failed: $${metrics.failedCashOutUSDC.toFixed(2)}`);
+    console.log(`[Reconciliation] 📊 Liability: $${metrics.totalLiabilityUSDC.toFixed(2)} | Available: $${metrics.totalAvailableUSDC.toFixed(2)} | Unbacked: $${metrics.unbackedExposureUSDC.toFixed(2)} | Pending Sweep: $${metrics.pendingSweepUSDC.toFixed(2)} | Swept: $${metrics.sweptUSDC.toFixed(2)} | Failed: $${metrics.sweepFailedUSDC.toFixed(2)}`);
   }
 });

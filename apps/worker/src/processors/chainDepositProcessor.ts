@@ -257,8 +257,11 @@ export class ChainDepositProcessor {
           ON CONFLICT (type, "referenceId") DO NOTHING
         `;
 
+        const privyWalletId = wallet.privyWalletId || (wallet as any).metadata?.privyWalletId || null;
+        const sweepStatus = !privyWalletId ? 'SWEEP_UNSUPPORTED' : 'SWEEP_PENDING';
+
         await tx.$executeRaw`
-          INSERT INTO "Deposit" (id, "userId", "walletAddress", chain, "tokenSymbol", "amountUSDC", signature, "blockNumber", "creditStatus", "createdAt", "updatedAt")
+          INSERT INTO "Deposit" (id, "userId", "walletAddress", chain, "tokenSymbol", "amountUSDC", signature, "blockNumber", "creditStatus", "sweepStatus", "privyWalletId", "creditedAt", "createdAt", "updatedAt")
           VALUES (
             gen_random_uuid(),
             ${wallet.userId},
@@ -269,12 +272,16 @@ export class ChainDepositProcessor {
             ${params.signature},
             ${params.blockNumber ?? null},
             'CREDITED',
+            ${sweepStatus},
+            ${privyWalletId},
             NOW(),
             NOW(),
             NOW()
           )
           ON CONFLICT (signature) DO UPDATE SET
             "creditStatus" = 'CREDITED',
+            "sweepStatus" = COALESCE("Deposit"."sweepStatus", ${sweepStatus}),
+            "privyWalletId" = COALESCE("Deposit"."privyWalletId", ${privyWalletId}),
             "updatedAt" = NOW()
         `;
 
