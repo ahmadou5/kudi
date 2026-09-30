@@ -9,6 +9,10 @@ import { errorResponse, successResponse } from '../../utils/response';
 import { verifyPin, generateReference } from '../../utils/hash';
 import { getAuthenticatedUser } from '../../utils/authGuards';
 import { buildDailyLimitCheck, formatDailyLimitMessage, parseDailyLimitError } from '../../utils/dailyLimits';
+import { SolanaListener } from '@kudi/chains';
+import { SelfCustodyProvider, resolveGasPaymentMode } from '@kudi/chains';
+import { prisma } from '@kudi/database';
+import { apiConfig } from '@kudi/config';
 
 export class PayoutController {
   constructor(
@@ -363,6 +367,215 @@ export class PayoutController {
     });
 
     return reply.type('text/html').send(html);
+  };
+
+  public cashout = async (request: FastifyRequest, reply: FastifyReply) => {
+    const authUser = getAuthenticatedUser(request);
+    const body = request.body as {
+      userId?: string;
+      pin?: string;
+      amountUSDC: number;
+      walletAddress: string;
+      type: 'CRYPTO' | 'NGN_PAYOUT';
+      bankCode?: string;
+      accountNumber?: string;
+      accountName?: string;
+      payoutProvider?: 'paystack' | 'monnify' | 'squad';
+    };
+
+    const userId = authUser?.userId;
+    if (!userId) {
+      return reply.status(401).send(errorResponse('UNAUTHORIZED', 'Authentication is required', 401));
+    }
+
+    if (!body.amountUSDC || body.amountUSDC < 0.1) {
+      return reply.status(400).send(errorResponse('INVALID_AMOUNT', 'Minimum cashout amount is 0.1 USDC', 400));
+    }
+
+    if (body.type === 'NGN_PAYOUT' && (!body.bankCode || !body.accountNumber || !body.accountName)) {
+      return reply.status(400).send(errorResponse('INVALID_PAYOUT_DETAILS', 'Bank code, account number, and account name are required for NGN payout', 400));
+    }
+
+    const user = this.ledgerService.getUser(userId);
+    if (!user) {
+      return reply.status(404).send(errorResponse('USER_NOT_FOUND', 'User not found', 404));
+    }
+
+    if (!verifyPin(body.pin || '', user.pinHash)) {
+      return reply.status(401).send(errorResponse('INVALID_PIN', 'Incorrect transaction PIN', 401));
+    }
+
+    // Verify wallet ownership
+    const userWallets = this.ledgerService.getUserWallets(userId) || [];
+    const wallet = userWallets.find(w => w.address.toLowerCase() === body.walletAddress.toLowerCase());
+    if (!wallet) {
+      return reply.status(400).send(errorResponse('WALLET_NOT_FOUND', 'Deposit wallet not found for user', 400));
+    }
+
+    const privyWalletId = wallet.privyWalletId || (wallet.metadata?.privyWalletId as string | undefined);
+    if (!privyWalletId) {
+      return reply.status(400).send(errorResponse('SELF_CUSTODY', 'Cannot cashout from self-custody wallet. Use external wallet.', 400));
+    }
+
+    // Check on-chain balance
+    const chain = wallet.chain === 'solana' ? 'solana' : 'monad';
+    const listener = new SolanaListener({
+      rpcUrl: apiConfig.SOLANA_RPC_URL,
+      rpcUrlFallback: apiConfig.SOLANA_RPC_URL_FALLBACK,
+      usdcMintAddress: apiConfig.USDC_MINT_ADDRESS
+    });
+    const tokenAddress = chain === 'solana'
+      ? apiConfig.USDC_MINT_ADDRESS
+      : apiConfig.AUSD_TOKEN_ADDRESS;
+    const onChainBalance = await listener.getSolanaUSDCBalance(body.walletAddress);
+    
+    // Note: For Monad, we'd need EVM balance check - using placeholder for now
+    const availableUSDC = chain === 'solana' ? onChainBalance : Number.MAX_SAFE_INTEGER;
+    if (availableUSDC < body.amountUSDC) {
+      return reply.status(400).send(errorResponse('INSUFFICIENT_BALANCE', `On-chain balance insufficient. Available: ${availableUSDC} USDC`, 400));
+    }
+
+    const reference = generateReference('KUDI_CASHOUT');
+    const gasMode = apiConfig.GAS_PAYMENT_MODE || 'PRIVY_SPONSOR';
+    const selfCustody = new SelfCustodyProvider();
+
+    try {
+      const treasuryAddress = chain === 'solana' ? apiConfig.KUDI_TREASURY_SOLANA_ADDRESS : apiConfig.KUDI_TREASURY_EVM_ADDRESS;
+      if (!treasuryAddress) {
+        return reply.status(500).send(errorResponse('CONFIG_ERROR', 'Treasury address not configured', 500));
+      }
+
+      // Build and send USDC transfer from deposit wallet to treasury
+      const { txHash } = await selfCustody.sendCrypto({
+        treasuryWalletId: privyWalletId,
+        fromAddress: body.walletAddress,
+        toAddress: treasuryAddress,
+        amountUSDC: body.amountUSDC,
+        chain: chain as 'solana' | 'monad',
+        gasPaymentMode: (gasMode === 'TREASURY_FEE_PAYER' ? 'TREASURY_FEE_PAYER' : 'PRIVY_SPONSOR'),
+        idempotencyKey: reference
+      });
+
+      // Wait for confirmation
+      const confirmed = await selfCustody.waitForConfirmation(txHash, chain);
+      if (!confirmed) {
+        throw new Error(`Cashout transaction not confirmed: ${txHash}`);
+      }
+
+      // Deduct from user's USDC balance (amount + estimated gas for TREASURY_FEE_PAYER)
+      const gasEstimateUSDC = gasMode === 'TREASURY_FEE_PAYER' ? 0.001 : 0;
+      const totalDebitUSDC = body.amountUSDC + gasEstimateUSDC;
+      
+      await this.ledgerService.debitBalanceAtomic({
+        userId,
+        amountUSDC: totalDebitUSDC,
+        reference,
+        type: 'CASHOUT_CRYPTO',
+        metadata: {
+          chain,
+          walletAddress: body.walletAddress,
+          txHash,
+          title: 'Cashout to Treasury',
+          subtitle: `${chain.toUpperCase()} Network`,
+          status: 'CONFIRMED'
+        }
+      });
+
+      // Create cashout record in Deposit table
+      await prisma.$executeRaw`
+        INSERT INTO "Deposit" (id, "userId", "walletAddress", chain, "tokenSymbol", "amountUSDC", signature, "creditStatus", "cashOutType", "cashOutStatus", "cashOutTxHash", "createdAt", "updatedAt")
+        VALUES (
+          gen_random_uuid(),
+          ${userId},
+          ${body.walletAddress},
+          ${chain},
+          ${wallet.chain === 'solana' ? 'USDC' : 'AUSD'},
+          ${body.amountUSDC},
+          ${txHash},
+          'CREDITED',
+          ${body.type},
+          'CONFIRMED',
+          ${txHash},
+          NOW(),
+          NOW()
+        )
+      `;
+
+      let payoutTxId: string | undefined;
+      let payoutProvider: string | undefined;
+
+      if (body.type === 'NGN_PAYOUT') {
+        // Convert USDC to NGN
+        const rate = this.rateService.getCurrentRate();
+        const amountNGN = Math.floor(body.amountUSDC * rate);
+        const feeNGN = 20; // ₦20 flat fee
+        const netAmountNGN = amountNGN - feeNGN;
+
+        // Use existing payout provider failover
+        const transferRes = await this.paymentRegistry.initiateTransferWithFailover({
+          amountNGN: netAmountNGN,
+          bankCode: body.bankCode!,
+          accountNumber: body.accountNumber!,
+          accountName: body.accountName!,
+          narration: `Cashout ${body.amountUSDC} USDC`,
+          reference: `CASHOUT_${reference}`
+        });
+
+        payoutTxId = transferRes.reference;
+        payoutProvider = transferRes.provider;
+
+        // Create SpendTransaction record
+        this.ledgerService.recordSpend(`CASHOUT_${reference}`, {
+          reference: `CASHOUT_${reference}`,
+          userId,
+          amountUSDC: body.amountUSDC,
+          exchangeRateNGN: rate,
+          amountNGN: netAmountNGN,
+          feeNGN,
+          recipientBankCode: body.bankCode!,
+          recipientAccountNumber: body.accountNumber!,
+          recipientAccountName: body.accountName!,
+          payoutProvider: transferRes.provider,
+          status: 'PENDING'
+        });
+      }
+
+      const newBalance = await this.ledgerService.getBalanceAsync(userId);
+
+      return successResponse({
+        reference,
+        status: 'CONFIRMED',
+        cashOutTxHash: txHash,
+        payoutTxId,
+        newBalanceUSDC: newBalance.toFixed(2),
+        amountUSDC: body.amountUSDC
+      }, 'Cashout completed successfully');
+
+    } catch (err: any) {
+      console.error('[PayoutController] Cashout failed:', err);
+      
+      // Record failed cashout
+      await prisma.$executeRaw`
+        INSERT INTO "Deposit" (id, "userId", "walletAddress", chain, "tokenSymbol", "amountUSDC", signature, "creditStatus", "cashOutType", "cashOutStatus", "cashOutTxHash", "createdAt", "updatedAt")
+        VALUES (
+          gen_random_uuid(),
+          ${userId},
+          ${body.walletAddress},
+          ${chain},
+          ${wallet.chain === 'solana' ? 'USDC' : 'AUSD'},
+          ${body.amountUSDC},
+          ${reference},
+          'CREDITED',
+          ${body.type},
+          'FAILED',
+          NULL,
+          NOW(),
+          NOW()
+        )
+      `;
+
+      return reply.status(500).send(errorResponse('CASHOUT_FAILED', err.message || 'Cashout failed', 500));
+    }
   };
 }
 

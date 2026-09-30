@@ -97,19 +97,16 @@ if (workerConfig.MONAD_RPC_URL_FALLBACK) {
 console.log('📥 Webhook Processor active for Squad, Monnify, Paystack, Korapay, Privy');
 console.log('📤 Crypto Withdrawal Processor active (polling every 5s)');
 console.log('🧾 Reconciliation snapshots active (every 5m)');
-console.log('🏦 Deposit sweep retry processor active (every 60s)');
 console.log('📥 Chain deposit poller active (every 60s)');
 
 setInterval(() => runWorkerTask('rate poller', pollRateEngine), 30000);
 setInterval(() => runWorkerTask('chain deposit poller', () => depositProcessor.pollAllChains()), 60000);
 setInterval(() => runWorkerTask('crypto withdrawal processor', processCryptoWithdrawals), 5000);
 setInterval(() => runWorkerTask('stale withdrawal recovery', recoverStaleProcessingWithdrawals), 60000);
-setInterval(() => runWorkerTask('stale deposit sweep recovery', () => depositProcessor.recoverStaleProcessingSweeps()), 60000);
-setInterval(() => runWorkerTask('deposit sweep retries', () => depositProcessor.processSweepRetries()), 60000);
 setInterval(() => runWorkerTask('reconciliation snapshot', async () => {
     const metrics = await recordReconciliationSnapshot();
     if (metrics) {
-      console.log(`[Reconciliation] 📊 Liability: $${metrics.totalLiabilityUSDC.toFixed(2)} | Available: $${metrics.totalAvailableUSDC.toFixed(2)} | Unbacked: $${metrics.unbackedExposureUSDC.toFixed(2)} | Swept: $${metrics.sweptUSDC.toFixed(2)} | Failed: $${metrics.sweepFailedUSDC.toFixed(2)}`);
+      console.log(`[Reconciliation] 📊 Liability: $${metrics.totalLiabilityUSDC.toFixed(2)} | Available: $${metrics.totalAvailableUSDC.toFixed(2)} | Unbacked: $${metrics.unbackedExposureUSDC.toFixed(2)} | Pending Cashout: $${metrics.pendingCashOutUSDC.toFixed(2)} | Confirmed: $${metrics.confirmedCashOutUSDC.toFixed(2)} | Failed: $${metrics.failedCashOutUSDC.toFixed(2)}`);
     }
   }), 300000);
 setInterval(() => runWorkerTask('worker heartbeat', recordWorkerHeartbeat), 30000);
@@ -117,11 +114,9 @@ setInterval(() => runWorkerTask('worker heartbeat', recordWorkerHeartbeat), 3000
 runWorkerTask('rate poller', pollRateEngine);
 runWorkerTask('worker heartbeat', recordWorkerHeartbeat);
 runWorkerTask('stale withdrawal recovery', recoverStaleProcessingWithdrawals);
-runWorkerTask('stale deposit sweep recovery', () => depositProcessor.recoverStaleProcessingSweeps());
-runWorkerTask('deposit sweep retries', () => depositProcessor.processSweepRetries());
 runWorkerTask('reconciliation snapshot', async () => {
   const metrics = await recordReconciliationSnapshot();
   if (metrics) {
-    console.log(`[Reconciliation] 📊 Liability: $${metrics.totalLiabilityUSDC.toFixed(2)} | Available: $${metrics.totalAvailableUSDC.toFixed(2)} | Unbacked: $${metrics.unbackedExposureUSDC.toFixed(2)} | Swept: $${metrics.sweptUSDC.toFixed(2)} | Failed: $${metrics.sweepFailedUSDC.toFixed(2)}`);
+    console.log(`[Reconciliation] 📊 Liability: $${metrics.totalLiabilityUSDC.toFixed(2)} | Available: $${metrics.totalAvailableUSDC.toFixed(2)} | Unbacked: $${metrics.unbackedExposureUSDC.toFixed(2)} | Pending Cashout: $${metrics.pendingCashOutUSDC.toFixed(2)} | Confirmed: $${metrics.confirmedCashOutUSDC.toFixed(2)} | Failed: $${metrics.failedCashOutUSDC.toFixed(2)}`);
   }
 });

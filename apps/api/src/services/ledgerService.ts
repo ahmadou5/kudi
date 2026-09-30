@@ -17,7 +17,7 @@ export interface UserRecord {
   expoPushToken?: string;
   kycStatus: KYCStatus;
   kycTier: KYCTier;
-  wallets?: Array<{ chain: string; address: string; metadata?: Record<string, any> }>;
+  wallets?: Array<{ chain: string; address: string; privyWalletId?: string; metadata?: Record<string, any> }>;
 }
 
 export interface TransactionRecord {
@@ -324,7 +324,7 @@ export class LedgerService {
   /**
    * Upsert Wallet record in Neon DB.
    */
-  public async syncWalletToDb(userId: string, wallet: { chain: string; address: string; tokenAddress?: string; metadata?: Record<string, any> }): Promise<void> {
+  public async syncWalletToDb(userId: string, wallet: { chain: string; address: string; tokenAddress?: string; privyWalletId?: string; metadata?: Record<string, any> }): Promise<void> {
     if (!wallet.address) return;
     try {
       const user = this.users.get(userId);
@@ -1293,12 +1293,12 @@ export class LedgerService {
     return this.getUserVirtualAccounts(userId);
   }
 
-  public getUserWallets(userId: string): Array<{ chain: string; address: string; metadata?: Record<string, any> }> | undefined {
+  public getUserWallets(userId: string): Array<{ chain: string; address: string; privyWalletId?: string; metadata?: Record<string, any> }> | undefined {
     const user = this.users.get(userId);
     return user?.wallets;
   }
 
-  public setUserWallets(userId: string, wallets: Array<{ chain: string; address: string; metadata?: Record<string, any> }>): void {
+  public setUserWallets(userId: string, wallets: Array<{ chain: string; address: string; privyWalletId?: string; metadata?: Record<string, any> }>): void {
     const user = this.users.get(userId);
     if (user) {
       user.wallets = wallets;

@@ -88,22 +88,22 @@ model Deposit {
   amountUSDC    Float
   signature     String   @unique
   blockNumber   Int?
-  privyWalletId String?  // Privy server wallet ID for signing sweeps (null = float/self-custody model)
+  privyWalletId String?  // Privy server wallet ID for signing cashouts (null = float/self-custody model)
   creditStatus  String   @default("CREDITED")
-  sweepStatus   String   @default("SWEEP_PENDING")
-  sweepTxHash        String?
-  sweepError         String?
-  sweepAttemptCount Int      @default(0)
-  nextSweepAttemptAt DateTime @default(now())
+  cashOutType       String?   // "CRYPTO" | "NGN_PAYOUT"
+  cashOutStatus     String?   // "PENDING" | "CONFIRMED" | "FAILED"
+  cashOutTxHash     String?
+  payoutTxId        String?
+  payoutProvider    String?
+  payoutBankCode    String?
+  payoutAccount     String?
+  payoutAmountNGN   Int?
   creditedAt         DateTime @default(now())
-  sweptAt       DateTime?
-  sweptAmountUSDC   Float?  // Actual on-chain amount swept (may differ from amountUSDC on partial sweeps)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@index([userId, createdAt])
-  @@index([sweepStatus, nextSweepAttemptAt])
-  @@index([sweepStatus, createdAt])
+  @@index([cashOutStatus, createdAt])
   @@index([chain, createdAt])
 }
 
@@ -293,12 +293,10 @@ model ReconciliationSnapshot {
   totalLiabilityUSDC         Float    @default(0)
   totalAvailableUSDC         Float    @default(0)
   totalReservedUSDC          Float    @default(0)
-  pendingSweepUSDC           Float    @default(0)
-  processingSweepUSDC        Float    @default(0)
-  sweptUSDC                  Float    @default(0)
-  sweepFailedUSDC            Float    @default(0)
-  floatExposureUSDC          Float    @default(0)
-  unsupportedSweepUSDC       Float    @default(0)
+  pendingCashOutUSDC         Float    @default(0)
+  confirmedCashOutUSDC       Float    @default(0)
+  failedCashOutUSDC          Float    @default(0)
+  unbackedExposureUSDC       Float    @default(0)
   pendingWithdrawalUSDC      Float    @default(0)
   processingWithdrawalUSDC   Float    @default(0)
   broadcastWithdrawalUSDC    Float    @default(0)

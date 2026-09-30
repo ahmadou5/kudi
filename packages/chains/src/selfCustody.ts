@@ -48,16 +48,19 @@ export function isGasPaymentMode(value: unknown): value is GasPaymentMode {
  * Callers that have DB access must read `sweep_config` themselves and pass the
  * stored value in (this module has no DB dependency by design).
  */
+/**
+ * Resolves the effective gas payment mode for cashouts.
+ * Supports PRIVY_SPONSOR (Privy pays gas) or USER_PAYS (user pays gas).
+ * Defaults to PRIVY_SPONSOR if not explicitly set.
+ */
 export function resolveGasPaymentMode(stored?: unknown): GasPaymentMode {
   if (isGasPaymentMode(stored)) return stored;
 
   const explicitEnv = process.env.GAS_PAYMENT_MODE;
   if (isGasPaymentMode(explicitEnv)) return explicitEnv;
 
-  throw new Error(
-    '[SelfCustody] GAS_PAYMENT_MODE must be explicitly set to "TREASURY_FEE_PAYER". ' +
-    'PRIVY_SPONSOR is no longer supported. Set GAS_PAYMENT_MODE=TREASURY_FEE_PAYER in env.'
-  );
+  // Default to PRIVY_SPONSOR for cashouts
+  return 'PRIVY_SPONSOR';
 }
 
 /** Upper bound for a single credited deposit (Float columns kept; rejects absurd values). */
@@ -774,38 +777,9 @@ export class SelfCustodyProvider implements CustodyProvider {
 
     let requestBody: Record<string, unknown>;
 
-    // Determine gas payment mode: explicit param wins (already DB-resolved by
-    // callers via resolveGasPaymentMode), otherwise env/default fallback.
-    // Invalid values never pass through — resolveGasPaymentMode validates.
+    // Resolve gas payment mode: PRIVY_SPONSOR or USER_PAYS
     const gasPaymentMode = resolveGasPaymentMode(params.gasPaymentMode);
-
-    // TREASURY_FEE_PAYER: deposit wallet signs the token transfer (Solana) or
-    // an off-chain EIP-712 permit (Monad); the treasury wallet pays all fees.
-    // Deposit wallets never need to hold native gas under this mode.
-    if (gasPaymentMode === 'TREASURY_FEE_PAYER') {
-      if (isSolana) {
-        return this.solanaTreasuryFeePayer({
-          depositWalletId: treasuryWalletId, // caller passes the DEPOSIT wallet id here
-          depositWalletAddress: fromAddress || '',
-          toAddress,
-          amountUSDC,
-          usdcMintAddress: usdcMintAddress || this.solanaUsdcMintAddress,
-          idempotencyKey
-        });
-      } else {
-        return this.evmPermitAndSweep({
-          depositWalletId: treasuryWalletId, // caller passes the DEPOSIT wallet id here
-          depositWalletAddress: fromAddress || '',
-          toAddress,
-          amountUSDC,
-          usdcContractAddress: usdcContractAddress || this.ausdTokenAddress
-        });
-      }
-    }
-
-    // PRIVY_SPONSOR: request Privy gas sponsorship; if the dashboard has it
-    // disabled we retry once unsponsored below (signer pays ~$0.001 on Solana).
-    const sponsorFlag = true;
+    const sponsorFlag = gasPaymentMode === 'PRIVY_SPONSOR';
 
     // Hoisted helpers — only populated by the Solana branch, but referenced by the
     // outer blockhash-retry handler so they must live at the sendCrypto scope level.
@@ -1394,7 +1368,7 @@ export class SelfCustodyProvider implements CustodyProvider {
     const signRes = await this.privyRpc(depositWalletId, {
       method: 'eth_signTypedData_v4',
       caip2: `eip155:${this.monadChainId}`,
-      params: { typedData }
+      params: { typed_data: typedData }
     });
     if (!signRes.ok) {
       const txt = await signRes.text();

@@ -37,6 +37,7 @@ export const apiRoutes = {
     spend: '/api/v1/payout/spend',
     spendUser: '/api/v1/payout/spend-user',
     spendOnChain: '/api/v1/payout/spend-onchain',
+    cashout: '/api/v1/payout/cashout',
     cryptoStatus: (reference = ':reference') => `/api/v1/payout/crypto-status/${reference}`,
     receipt: (reference = ':reference') => `/api/v1/payout/receipt/${reference}`
   },
@@ -118,6 +119,7 @@ export const spendToBankRequestSchema = z.object({
 });
 export const spendToUserRequestSchema = z.object({ fromUserId: z.string().min(1), toHandle: z.string().min(1), amountUSDC: z.number().positive(), pin: z.string().optional() });
 export const spendOnChainRequestSchema = z.object({ userId: z.string().min(1), pin: z.string().optional(), amountUSDC: z.number().positive(), toAddress: z.string().min(1), chain: z.enum(['solana', 'monad']) });
+export const cashoutRequestSchema = z.object({ userId: z.string().min(1), pin: z.string().optional(), amountUSDC: z.number().positive().min(0.1), walletAddress: z.string().min(1), type: z.enum(['CRYPTO', 'NGN_PAYOUT']), bankCode: z.string().optional(), accountNumber: z.string().optional(), accountName: z.string().optional(), payoutProvider: z.enum(['paystack', 'monnify', 'squad']).optional() });
 export const overrideRateRequestSchema = z.object({ newRateNGN: z.number().positive() });
 export const payBillRequestSchema = z.object({ userId: z.string().min(1), billType: z.enum(['AIRTIME', 'ELECTRICITY', 'DATA']), billerName: z.string().min(1), recipientIdentifier: z.string().min(1), amountNGN: z.number().positive() });
 export const setActivePaymentProviderRequestSchema = z.object({ providerId: z.nativeEnum(PaymentProviderId) });
@@ -146,6 +148,7 @@ export type ResolveAccountRequest = z.infer<typeof resolveAccountRequestSchema>;
 export type SpendToBankRequest = z.infer<typeof spendToBankRequestSchema>;
 export type SpendToUserRequest = z.infer<typeof spendToUserRequestSchema>;
 export type SpendOnChainRequest = z.infer<typeof spendOnChainRequestSchema>;
+export type CashoutRequest = z.infer<typeof cashoutRequestSchema>;
 export type OverrideRateRequest = z.infer<typeof overrideRateRequestSchema>;
 export type PayBillRequest = z.infer<typeof payBillRequestSchema>;
 export type SetActivePaymentProviderRequest = z.infer<typeof setActivePaymentProviderRequestSchema>;
@@ -200,6 +203,15 @@ export interface SendCryptoResponseData {
   toAddress: string;
   amountUSDC: number;
   newBalanceUSDC: string;
+}
+
+export interface CashoutResponseData {
+  reference: string;
+  status: string;
+  cashOutTxHash?: string;
+  payoutTxId?: string;
+  newBalanceUSDC: string;
+  amountUSDC: number;
 }
 
 export interface CryptoStatusResponseData {

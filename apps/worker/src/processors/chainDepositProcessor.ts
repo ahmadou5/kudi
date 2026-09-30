@@ -1,19 +1,8 @@
-import { GeneralizedEVMListener, SolanaListener, EVMDepositEvent, SolanaDepositEvent, SelfCustodyProvider } from '@kudi/chains';
-import {
-  SWEEP_RETRY_POLICY,
-  parseDepositAmount,
-  resolveGasPaymentMode,
-  resolveSweepAmount
-} from '@kudi/chains';
+import { GeneralizedEVMListener, SolanaListener, EVMDepositEvent, SolanaDepositEvent } from '@kudi/chains';
+import { parseDepositAmount } from '@kudi/chains';
 import { EVMChainConfig, SolanaChainConfig } from '@kudi/types';
-import { prisma, checkDripEligibility, recordDrip } from '@kudi/database';
+import { prisma } from '@kudi/database';
 import { REDACTED, redactAddress, redactRpcUrl } from '@kudi/config';
-
-// Retry schedule is owned by SWEEP_RETRY_POLICY (single shared definition in
-// @kudi/chains). This processor (ChainDepositProcessor.processSweepRetries)
-// is the SOLE sweep owner per ADR-0001. The legacy API SweepWorkerService
-// has been removed.
-const SWEEP_MAX_ATTEMPTS = SWEEP_RETRY_POLICY.MAX_ATTEMPTS;
 
 interface DepositWalletRow {
   id: string;
@@ -27,35 +16,14 @@ interface DepositWalletRow {
 export class ChainDepositProcessor {
   private evmListener: GeneralizedEVMListener;
   private solanaListener: SolanaListener;
-  private watchedEvmAddresses: string[] = [];
-  private watchedSolanaAddresses: string[] = [];
-  private selfCustody: SelfCustodyProvider;
 
   constructor(monadConfig: EVMChainConfig, solanaConfig?: Partial<SolanaChainConfig>) {
     this.evmListener = new GeneralizedEVMListener([monadConfig]);
     this.solanaListener = new SolanaListener(solanaConfig);
-    this.selfCustody = new SelfCustodyProvider();
   }
 
   public getSolanaConfig() {
     return this.solanaListener.getConfig();
-  }
-
-  /**
-   * Resolve the effective gas payment mode: DB sweep_config wins, env only as
-   * fallback, always a validated union member (never undefined).
-   */
-  private async getStoredGasPaymentMode() {
-    try {
-      const config = await prisma.appConfig.findUnique({ where: { key: 'sweep_config' } });
-      if (config?.value) {
-        return resolveGasPaymentMode(JSON.parse(config.value).gasPaymentMode);
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[ChainDepositProcessor] Could not read sweep_config, using env/default gas mode: ${msg}`);
-    }
-    return resolveGasPaymentMode(undefined);
   }
 
   public registerWatchAddress(address: string) {
@@ -71,9 +39,9 @@ export class ChainDepositProcessor {
     }
   }
 
-  /**
-   * Fetches all registered user deposit addresses directly from Neon DB.
-   */
+  private watchedEvmAddresses: string[] = [];
+  private watchedSolanaAddresses: string[] = [];
+
   private async getActiveAddresses(): Promise<{ evm: string[]; solana: string[] }> {
     const evmSet = new Set<string>(this.watchedEvmAddresses);
     const solanaSet = new Set<string>(this.watchedSolanaAddresses);
@@ -130,12 +98,11 @@ export class ChainDepositProcessor {
       try {
         const events: EVMDepositEvent[] = await this.evmListener.pollChainForDeposits(chain.id, evmAddresses);
         for (const ev of events) {
-          // Confirmation gate: unconfirmed logs are skipped/logged, never credited.
           if (!ev.confirmed) {
             console.log(`⏳ [Chain Processor] Skipping unconfirmed EVM deposit ${ev.txHash.slice(0, 12)}... (block ${ev.blockNumber})`);
             continue;
           }
-            console.log(`✅ [Chain Processor] Confirmed EVM Deposit: ${ev.amountToken} ${chain.tokenSymbol} on ${chain.name} (Tx: ${ev.txHash.slice(0, 12)}...)`);
+          console.log(`✅ [Chain Processor] Confirmed EVM Deposit: ${ev.amountToken} ${chain.tokenSymbol} on ${chain.name} (Tx: ${ev.txHash.slice(0, 12)}...)`);
           await this.processDepositEvent({
             address: ev.userWalletAddress,
             amountUSDC: Number(ev.amountToken),
@@ -162,8 +129,6 @@ export class ChainDepositProcessor {
       const processedSignatures = await this.getRecentProcessedSignatures();
       const solEvents: SolanaDepositEvent[] = await this.solanaListener.pollSolanaForDeposits(solanaAddresses, processedSignatures);
       for (const ev of solEvents) {
-        // Confirmation gate (defense in depth — the listener only emits
-        // finalized events, but credit still requires confirmed === true).
         if (!ev.confirmed) {
           console.log(`⏳ [Chain Processor] Skipping unconfirmed Solana deposit ${ev.signature.slice(0, 12)}...`);
           continue;
@@ -184,237 +149,6 @@ export class ChainDepositProcessor {
     }
   }
 
-
-  private targetTreasuryFor(chain: string): string | undefined {
-    if (chain === 'solana') return process.env.KUDI_TREASURY_SOLANA_ADDRESS;
-    return process.env.KUDI_TREASURY_EVM_ADDRESS || process.env.KUDI_MONAD_TREASURY_ADDRESS || process.env.KUDI_TREASURY_EVM_ADDRESS;
-  }
-
-  private async updateDepositSweep(signature: string, status: string, txHash?: string, error?: string, actualSweptUSDC?: number): Promise<void> {
-    const shouldRetry = status === 'SWEEP_FAILED' || status === 'SWEEP_BLOCKED';
-    await prisma.$executeRaw`
-      UPDATE "Deposit"
-      SET "sweepStatus" = ${status},
-          "sweepTxHash" = COALESCE(${txHash ?? null}, "sweepTxHash"),
-          -- Record actual swept amount in dedicated column; amountUSDC preserves
-          -- the originally detected deposit amount for reconciliation.
-          "sweptAmountUSDC" = CASE WHEN ${status} = 'SWEPT' THEN COALESCE(${actualSweptUSDC ?? null}, "amountUSDC") ELSE "sweptAmountUSDC" END,
-          "sweepError" = ${error ?? null},
-          "sweepAttemptCount" = CASE
-            WHEN ${status} = 'SWEEP_PROCESSING' THEN "sweepAttemptCount" + 1
-            ELSE "sweepAttemptCount"
-          END,
-          "nextSweepAttemptAt" = CASE
-            -- Shared retry schedule: 2^(attempt-1) minutes, capped at 64 (mirrors
-            -- SWEEP_RETRY_POLICY in @kudi/chains; SQL-side equivalent).
-            WHEN ${shouldRetry} THEN NOW() + (LEAST(64, POWER(2, GREATEST("sweepAttemptCount", 1) - 1)) * INTERVAL '1 minute')
-            WHEN ${status} = 'SWEPT' THEN "nextSweepAttemptAt"
-            ELSE NOW()
-          END,
-          "sweptAt" = CASE WHEN ${status} = 'SWEPT' THEN NOW() ELSE "sweptAt" END,
-          "updatedAt" = NOW()
-      WHERE signature = ${signature}
-    `;
-  }
-
-  private async attemptSweep(params: {
-    signature: string;
-    wallet: DepositWalletRow;
-    chain: string;
-    amountUSDC: number;
-    alreadyMarkedProcessing?: boolean;
-  }): Promise<void> {
-    const normalizedChain = params.chain === 'solana' ? 'solana' : 'monad';
-    const targetTreasury = this.targetTreasuryFor(normalizedChain);
-
-    if (!targetTreasury) {
-      const errMsg = `Missing treasury address for ${normalizedChain}`;
-      console.error(`[Chain Processor] ❌ ${normalizedChain.toUpperCase()} sweep BLOCKED: ${errMsg}`);
-      await this.updateDepositSweep(params.signature, 'SWEEP_BLOCKED', undefined, errMsg);
-      return;
-    }
-
-    if (!params.wallet.privyWalletId) {
-      const errMsg = `Wallet ${params.wallet.address} has no privyWalletId stored in DB`;
-      console.error(`[Chain Processor] ❌ ${normalizedChain.toUpperCase()} sweep SKIPPED: ${errMsg.split(params.wallet.address).join(redactAddress(params.wallet.address))}`);
-      await this.updateDepositSweep(params.signature, 'FLOAT_EXPOSURE', undefined, errMsg);
-      return;
-    }
-
-    try {
-      if (!params.alreadyMarkedProcessing) {
-        await this.updateDepositSweep(params.signature, 'SWEEP_PROCESSING');
-      }
-      const gasPaymentMode = await this.getStoredGasPaymentMode();
-      const parsedAmount = parseDepositAmount(params.amountUSDC);
-      if (parsedAmount === null) {
-        throw new Error(`Invalid sweep amount for ${params.signature}: ${String(params.amountUSDC)}`);
-      }
-
-      // Pre-sweep on-chain balance check: sweep min(detected, available - reserve).
-      const tokenAddress = normalizedChain === 'solana'
-        ? (process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU')
-        : (process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3');
-      const available = Number(
-        // Both swept tokens are 6-decimal (USDC SPL, AUSD ERC-20) — pass
-        // explicitly so a misconfigured token address can't silently rescale.
-        await this.selfCustody.getWalletBalance(params.wallet.address, normalizedChain, tokenAddress, 6)
-      );
-      if (!Number.isFinite(available) || available <= 0) {
-        throw new Error(`INSUFFICIENT_FUNDS: on-chain balance ${available} < detected ${parsedAmount} for ${params.wallet.address}`);
-      }
-      const { sweepAmount, shortfallUSDC } = resolveSweepAmount({
-        detectedUSDC: parsedAmount,
-        availableUSDC: available,
-        chain: normalizedChain
-      });
-      if (sweepAmount <= 0) {
-        throw new Error(`INSUFFICIENT_FUNDS: available ${available} covers only reserve for ${params.wallet.address} (detected ${parsedAmount})`);
-      }
-      if (shortfallUSDC > 0) {
-        console.warn(
-          `[Chain Processor] ⚠️ Partial sweep: detected ${parsedAmount} but only ${sweepAmount} available on-chain ` +
-          `(shortfall ${shortfallUSDC}) for ${params.wallet.address} — sweeping actual balance.`
-        );
-      }
-
-      console.log(`[Chain Processor] 🔄 Sweeping ${sweepAmount} USDC from deposit ${params.wallet.address} → treasury (${targetTreasury})...`);
-      // Gas-retry wrapper, drip-guarded: on classifier-GAS failures only, the
-      // hooks enforce eligibility BEFORE any drip (per-wallet 24h limit,
-      // global daily cap, treasury floor, dust floor — ineligible throws
-      // DripBlocked loudly with no drip) and persist the drip AFTER
-      // (CONFIRMED only after waitForConfirmation, else TIMEOUT). TOKEN/OTHER
-      // failures and stale blockhashes never drip. Retry policy above is
-      // untouched — this only adds the drip gate + receipt.
-      const { txHash, drip } = await this.selfCustody.sendCryptoWithGasRetry({
-        treasuryWalletId: params.wallet.privyWalletId,
-        fromAddress: params.wallet.address,
-        // feePayerAddress intentionally omitted: user wallet (signerAddr) always pays its own fees
-        // (topped up via treasury drip when empty). TREASURY_FEE_PAYER is rejected
-        // loudly inside sendCrypto (2nd signer unavailable via Privy).
-        toAddress: targetTreasury,
-        amountUSDC: sweepAmount,
-        chain: normalizedChain,
-        gasPaymentMode,
-        idempotencyKey: params.signature // Use deposit signature as idempotency key to prevent duplicate sweeps
-      }, params.wallet.address, {
-        depositAmountUSDC: parsedAmount,
-        checkDripEligibility: (ctx) => checkDripEligibility(prisma, ctx),
-        recordDrip: (rec) => recordDrip(prisma, rec)
-      });
-      if (drip) {
-        console.log(`[Chain Processor] 💧 Drip persisted path: ${drip.amountNative} native on ${drip.chain} → ${redactAddress(drip.toAddress)} (tx ${drip.txHash.slice(0, 20)}...)`);
-      }
-      const confirmed = await this.selfCustody.waitForConfirmation(txHash, normalizedChain);
-      if (!confirmed) {
-        throw new Error(`Sweep transaction ${txHash} was not confirmed before timeout`);
-      }
-      await this.updateDepositSweep(params.signature, 'SWEPT', txHash, undefined, sweepAmount);
-      console.log(`[Chain Processor] 🏦 ${normalizedChain.toUpperCase()} sweep CONFIRMED for ${params.signature.slice(0, 12)}... | TxHash: ${txHash} | swept ${sweepAmount}`);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      await this.updateDepositSweep(params.signature, 'SWEEP_FAILED', undefined, message);
-      console.error(`[Chain Processor] ❌ ${normalizedChain.toUpperCase()} sweep FAILED for signature ${params.signature.slice(0, 12)}...: ${message}`);
-    }
-  }
-
-  public async recoverStaleProcessingSweeps(maxAgeMinutes = 10): Promise<void> {
-    const rows: Array<{ signature: string }> = await prisma.$queryRaw`
-      UPDATE "Deposit"
-      SET "sweepStatus" = 'SWEEP_FAILED',
-          "sweepError" = CONCAT('Recovered stale SWEEP_PROCESSING after ', ${maxAgeMinutes}, ' minutes; will retry'),
-          "nextSweepAttemptAt" = NOW(),
-          "updatedAt" = NOW()
-      WHERE "sweepStatus" = 'SWEEP_PROCESSING'
-        AND "sweptAt" IS NULL
-        AND "updatedAt" < NOW() - (${maxAgeMinutes} * INTERVAL '1 minute')
-      RETURNING signature
-    `;
-
-    if (rows.length > 0) {
-      console.warn('[Chain Processor] Recovered ' + rows.length + ' stale sweep(s) from SWEEP_PROCESSING.');
-    }
-  }
-  public async processSweepRetries(): Promise<void> {
-    const rows: any[] = await prisma.$transaction(async (tx) => {
-      // LEFT JOIN: deposits whose wallet row is missing must surface here so
-      // they can be dead-lettered below — an inner JOIN would strand them
-      // silently with no status change, no alert, and no retry.
-      // NOTE: no FOR UPDATE here — Postgres forbids locking the nullable side
-      // of an outer join. The atomic claim happens in the UPDATE below, which
-      // only touches "Deposit" rows still in a retryable status and RETURNs
-      // the signatures it actually claimed (losers are dropped).
-      const due: any[] = await tx.$queryRaw`
-        SELECT
-          d.signature, d.chain, d."amountUSDC", d."walletAddress", d."userId",
-          w.id AS "walletId", w.address, w."privyWalletId", w."custodyType"
-        FROM "Deposit" d
-        LEFT JOIN "Wallet" w ON w.address = d."walletAddress"
-        WHERE d."sweepStatus" IN ('SWEEP_PENDING', 'SWEEP_FAILED', 'SWEEP_BLOCKED')
-          AND d."nextSweepAttemptAt" <= NOW()
-          AND d."sweepAttemptCount" < ${SWEEP_MAX_ATTEMPTS}
-        ORDER BY d."nextSweepAttemptAt" ASC, d."createdAt" ASC
-        LIMIT 10
-      `;
-
-      if (due.length === 0) return due;
-
-      const signatures = due.map((row) => row.signature);
-      const claimed: Array<{ signature: string }> = await tx.$queryRaw`
-        UPDATE "Deposit"
-        SET "sweepStatus" = 'SWEEP_PROCESSING',
-            "sweepAttemptCount" = "sweepAttemptCount" + 1,
-            "updatedAt" = NOW()
-        WHERE signature = ANY(${signatures})
-          AND "sweepStatus" IN ('SWEEP_PENDING', 'SWEEP_FAILED', 'SWEEP_BLOCKED')
-        RETURNING signature
-      `;
-
-      const claimedSet = new Set(claimed.map((row) => row.signature));
-      return due.filter((row) => claimedSet.has(row.signature));
-    });
-
-    if (rows.length > 0) {
-      console.log(`[Chain Processor] Retrying ${rows.length} due sweep(s).`);
-    }
-
-    for (const row of rows) {
-      // Dead-letter: no wallet row (or no address) means this deposit can never
-      // sweep. Pin attemptCount at the cap so it is never re-queued, mark it
-      // BLOCKED with an explicit orphan error for manual review/alerting.
-      if (!row.walletId || !row.address) {
-        const errMsg = `ORPHAN_WALLET (dead-letter): no Wallet row for deposit address ${row.walletAddress}; cannot sweep, needs manual review`;
-        console.error(`[Chain Processor] 🚫 ${errMsg}`);
-        await prisma.$executeRaw`
-          UPDATE "Deposit"
-          SET "sweepStatus" = 'SWEEP_BLOCKED',
-              "sweepError" = ${errMsg},
-              "sweepAttemptCount" = ${SWEEP_MAX_ATTEMPTS},
-              "updatedAt" = NOW()
-          WHERE signature = ${row.signature}
-        `;
-        continue;
-      }
-      await this.attemptSweep({
-        signature: row.signature,
-        chain: row.chain,
-        amountUSDC: Number(row.amountUSDC),
-        alreadyMarkedProcessing: true,
-        wallet: {
-          id: row.walletId,
-          userId: row.userId,
-          address: row.address,
-          chain: row.chain,
-          privyWalletId: row.privyWalletId,
-          custodyType: row.custodyType
-        }
-      });
-    }
-  }
-
-  /**
-   * Processes deposit event: checks idempotency, credits LedgerEntry in Neon DB, and sends notification.
-   */
   private async processDepositEvent(params: {
     address: string;
     amountUSDC: number;
@@ -422,12 +156,9 @@ export class ChainDepositProcessor {
     chain: string;
     tokenSymbol: string;
     blockNumber?: number;
-    /** Fail closed: only credit when explicitly true. */
     confirmed?: boolean;
   }): Promise<void> {
     if (!params.signature) return;
-    // Confirmation gate (defense in depth — callers already filter, but an
-    // unconfirmed event must never reach the credit transaction).
     if (params.confirmed !== true) {
       console.log(`⏳ [Chain Processor] Skipping unconfirmed deposit event ${params.signature.slice(0, 12)}... — never credited.`);
       return;
@@ -440,7 +171,6 @@ export class ChainDepositProcessor {
     params = { ...params, amountUSDC: parsedAmount };
 
     try {
-      // 1. Resolve wallet owner in Neon DB before entering the credit transaction.
       const searchAddresses = params.address.startsWith('0x')
         ? [params.address, params.address.toLowerCase()]
         : [params.address];
@@ -528,7 +258,7 @@ export class ChainDepositProcessor {
         `;
 
         await tx.$executeRaw`
-          INSERT INTO "Deposit" (id, "userId", "walletAddress", chain, "tokenSymbol", "amountUSDC", signature, "blockNumber", "creditStatus", "sweepStatus", "sweepAttemptCount", "nextSweepAttemptAt", "creditedAt", "createdAt", "updatedAt")
+          INSERT INTO "Deposit" (id, "userId", "walletAddress", chain, "tokenSymbol", "amountUSDC", signature, "blockNumber", "creditStatus", "createdAt", "updatedAt")
           VALUES (
             gen_random_uuid(),
             ${wallet.userId},
@@ -539,23 +269,12 @@ export class ChainDepositProcessor {
             ${params.signature},
             ${params.blockNumber ?? null},
             'CREDITED',
-            'SWEEP_PENDING',
-            0,
-            NOW(),
             NOW(),
             NOW(),
             NOW()
           )
           ON CONFLICT (signature) DO UPDATE SET
             "creditStatus" = 'CREDITED',
-            "sweepStatus" = CASE
-              WHEN "Deposit"."sweepStatus" IN ('SWEPT', 'SWEEP_PROCESSING') THEN "Deposit"."sweepStatus"
-              ELSE 'SWEEP_PENDING'
-            END,
-            "nextSweepAttemptAt" = CASE
-              WHEN "Deposit"."sweepStatus" = 'SWEPT' THEN "Deposit"."nextSweepAttemptAt"
-              ELSE NOW()
-            END,
             "updatedAt" = NOW()
         `;
 
@@ -581,16 +300,8 @@ export class ChainDepositProcessor {
         return;
       }
 
-      console.log(`[Chain Processor] 🐘 Successfully credited +${params.amountUSDC.toFixed(2)} ${params.tokenSymbol} to user ${wallet.userId} in Neon DB (New Balance: $${newBal.toFixed(2)} USDC; Sweep: PENDING)`);
+      console.log(`[Chain Processor] 🐘 Successfully credited +${params.amountUSDC.toFixed(2)} ${params.tokenSymbol} to user ${wallet.userId} in Neon DB (New Balance: $${newBal.toFixed(2)} USDC)`);
 
-      await this.attemptSweep({
-        signature: params.signature,
-        wallet,
-        chain: params.chain,
-        amountUSDC: params.amountUSDC
-      });
-
-      // 7. Dispatch Expo Push Notification to user's mobile device
       try {
         const user = await prisma.user.findUnique({
           where: { id: wallet.userId },
@@ -620,9 +331,6 @@ export class ChainDepositProcessor {
   }
 }
 
-/**
- * Helper function to dispatch Expo Push Notifications via HTTPS REST API.
- */
 async function sendExpoPushNotification(pushToken: string, title: string, body: string, data?: Record<string, any>): Promise<void> {
   if (!pushToken || typeof pushToken !== 'string') return;
 
