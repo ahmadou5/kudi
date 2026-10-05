@@ -63,6 +63,9 @@ export function resolveGasPaymentMode(stored?: unknown): GasPaymentMode {
   return 'PRIVY_SPONSOR';
 }
 
+/** Fixed USDC fee deducted from sender for onchain spends. */
+export const USDC_FEE = 0.01;
+
 /** Upper bound for a single credited deposit (Float columns kept; rejects absurd values). */
 export const MAX_DEPOSIT_USDC = 10_000_000;
 
@@ -757,8 +760,9 @@ export class SelfCustodyProvider implements CustodyProvider {
     feePayerAddress?: string;
     gasPaymentMode?: 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER';
     idempotencyKey?: string; // Unique key to prevent duplicate submissions (e.g., deposit signature)
+    feeUSDC?: number // Fixed fee in USDC to deduct from sender (added to amount for user to see)
   }): Promise<{ txHash: string }> {
-    const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress, fromAddress, idempotencyKey } = params;
+    const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress, fromAddress, idempotencyKey, feeUSDC } = params;
 
     if (!this.appId || !this.appSecret || !treasuryWalletId) {
       const missing = {
@@ -780,6 +784,9 @@ export class SelfCustodyProvider implements CustodyProvider {
     // Resolve gas payment mode: PRIVY_SPONSOR or USER_PAYS
     const gasPaymentMode = resolveGasPaymentMode(params.gasPaymentMode);
     const sponsorFlag = gasPaymentMode === 'PRIVY_SPONSOR';
+
+    // Use configured fee if not overridden per-request
+    const feeAmountUSDC = feeUSDC ?? USDC_FEE;
 
     // Hoisted helpers — only populated by the Solana branch, but referenced by the
     // outer blockhash-retry handler so they must live at the sendCrypto scope level.
@@ -809,7 +816,7 @@ export class SelfCustodyProvider implements CustodyProvider {
       // Create Solana JSON-RPC client (HTTP only — no WebSocket needed)
       const rpc = createSolanaRpc(this.rpcUrlSolana);
 
-      // Derive source and destination Associated Token Accounts (ATAs)
+      // Derive source Associated Token Account (ATA)
       // ATA = PDA([owner, TOKEN_PROGRAM, mint], ATA_PROGRAM)
       const addrEncoder = getAddressEncoder();
       const SYSTEM_PROGRAM_ADDRESS = solanaAddress('11111111111111111111111111111111' as Address);
@@ -853,6 +860,27 @@ export class SelfCustodyProvider implements CustodyProvider {
         // Fall back to creating ATA if check fails
       }
 
+      // Derive treasury destination ATA (where fee will be sent)
+      const [treasuryAta] = await getProgramDerivedAddress({
+        programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+        seeds: [
+          addrEncoder.encode(signerAddr), // treasury uses same signer for ATA derivation, or could use treasury address
+          addrEncoder.encode(TOKEN_PROGRAM_ADDRESS),
+          addrEncoder.encode(mintPubkey)
+        ]
+      });
+
+      // Check if treasury ATA exists
+      let treasuryAtaExists = false;
+      try {
+        const treasuryAtaInfo = await rpc.getAccountInfo(treasuryAta, { encoding: 'jsonParsed' }).send();
+        if (treasuryAtaInfo.value !== null) {
+          treasuryAtaExists = true;
+        }
+      } catch {
+        // Fall back to creating ATA if check fails
+      }
+
       // IMPORTANT: Fee payer MUST be the same wallet as the signer (signerAddr / user wallet).
       // Using a different address (e.g. treasury) as fee payer would create a 2-signer transaction
       // (user authority + treasury fee payer), but Privy only signs with the single wallet passed
@@ -860,14 +888,28 @@ export class SelfCustodyProvider implements CustodyProvider {
       // Solution: user wallet always pays its own fees (Solana fees are ~0.000005 SOL / ~$0.001).
       const feePayerAddr = signerAddr; // always single-signer: user wallet pays fees
 
-      // SPL Token transferChecked instruction
+      // Calculate amounts in raw units
       const amountRaw = BigInt(Math.floor(amountUSDC * Math.pow(10, USDC_DECIMALS)));
-      const transferIx = getTransferCheckedInstruction({
+      const feeRaw = BigInt(Math.floor(feeAmountUSDC * Math.pow(10, USDC_DECIMALS)));
+      const totalRaw = amountRaw + feeRaw; // total debited from user
+
+      // SPL Token transferChecked instruction to recipient
+      const transferToRecipientIx = getTransferCheckedInstruction({
         source: sourceAta,
         mint: mintPubkey,
         destination: destAta,
         authority: signerAddr,
         amount: amountRaw,
+        decimals: USDC_DECIMALS
+      });
+
+      // SPL Token transferChecked instruction to treasury (fee)
+      const transferToTreasuryIx = getTransferCheckedInstruction({
+        source: sourceAta,
+        mint: mintPubkey,
+        destination: treasuryAta,
+        authority: signerAddr,
+        amount: feeRaw,
         decimals: USDC_DECIMALS
       });
 
@@ -886,6 +928,7 @@ export class SelfCustodyProvider implements CustodyProvider {
       /**
        * Build the unsigned wire-format transaction bytes for Privy.
        * Extracted as a helper so we can rebuild with a fresh blockhash on retry.
+       * Now includes BOTH: (1) user→recipient transfer + (2) user→treasury fee transfer.
        */
       buildSerializedTx = (blockhash: { blockhash: Blockhash; lastValidBlockHeight: bigint }): string => {
         let txMessage;
@@ -907,14 +950,16 @@ export class SelfCustodyProvider implements CustodyProvider {
             (tx) => setTransactionMessageFeePayer(feePayerAddr, tx),
             (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
             (tx) => appendTransactionMessageInstruction(createDestAtaIx, tx),
-            (tx) => appendTransactionMessageInstruction(transferIx, tx)
+            (tx) => appendTransactionMessageInstruction(transferToRecipientIx, tx),
+            (tx) => appendTransactionMessageInstruction(transferToTreasuryIx, tx)
           );
         } else {
           txMessage = pipe(
             createTransactionMessage({ version: 0 as const }),
             (tx) => setTransactionMessageFeePayer(feePayerAddr, tx),
             (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
-            (tx) => appendTransactionMessageInstruction(transferIx, tx)
+            (tx) => appendTransactionMessageInstruction(transferToRecipientIx, tx),
+            (tx) => appendTransactionMessageInstruction(transferToTreasuryIx, tx)
           );
         }
         const compiled = compileTransaction(txMessage);
@@ -939,9 +984,12 @@ export class SelfCustodyProvider implements CustodyProvider {
     } else {
       // Monad EVM: ERC-20 transfer(address,uint256) via eth_sendTransaction
       const contract = usdcContractAddress || this.ausdTokenAddress;
-      const amountWei = BigInt(Math.floor(amountUSDC * 1_000_000)).toString(16).padStart(64, '0');
+      const USDC_DECIMALS = 6; // USDC always has 6 decimals on EVM
+      const amountWei = BigInt(Math.floor(amountUSDC * Math.pow(10, USDC_DECIMALS))).toString(16).padStart(64, '0');
+      const feeWei = BigInt(Math.floor(feeAmountUSDC * Math.pow(10, USDC_DECIMALS))).toString(16).padStart(64, '0');
       const recipientPadded = toAddress.replace('0x', '').padStart(64, '0');
       // ERC-20 transfer(address,uint256) = selector 0xa9059cbb
+      // Send total amount (amount + fee) to recipient; treasury covers the fee
       const data = `0xa9059cbb${recipientPadded}${amountWei}`;
       requestBody = {
         method: 'eth_sendTransaction',

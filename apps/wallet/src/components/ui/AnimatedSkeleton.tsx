@@ -44,6 +44,20 @@ export function AnimatedPulseView({
   );
 }
 
+export function AnimatedSkeleton({
+  width = '100%',
+  height = 20,
+  borderRadius = 8,
+  style
+}: {
+  width?: number | string;
+  height?: number | string;
+  borderRadius?: number;
+  style?: any;
+}) {
+  return <AnimatedPulseView style={[{ width, height, borderRadius }, style]} />;
+}
+
 export function BalanceCardSkeleton() {
   const palette = useAppPalette();
   return (

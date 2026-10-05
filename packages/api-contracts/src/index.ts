@@ -105,7 +105,10 @@ export const verifyKycIdRequestSchema = z.object({
   idType: z.enum(['BVN', 'NIN']),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
-  dob: z.string().min(1)
+  dob: z.string().min(1),
+  accountNumber: z.string().optional(),
+  bankCode: z.string().optional(),
+  address: z.string().optional(),
 });
 export const resolveAccountRequestSchema = z.object({ accountNumber: z.string().min(1), bankCode: z.string().min(1) });
 export const spendToBankRequestSchema = z.object({
@@ -118,7 +121,14 @@ export const spendToBankRequestSchema = z.object({
   narration: z.string().optional()
 });
 export const spendToUserRequestSchema = z.object({ fromUserId: z.string().min(1), toHandle: z.string().min(1), amountUSDC: z.number().positive(), pin: z.string().optional() });
-export const spendOnChainRequestSchema = z.object({ userId: z.string().min(1), pin: z.string().optional(), amountUSDC: z.number().positive(), toAddress: z.string().min(1), chain: z.enum(['solana', 'monad']) });
+export const spendOnChainRequestSchema = z.object({
+    userId: z.string().min(1),
+    pin: z.string().optional(),
+    amountUSDC: z.number().positive(),
+    toAddress: z.string().min(1),
+    chain: z.enum(['solana', 'monad']),
+    feeUSDC: z.number().positive().default(0.01)
+  });
 export const cashoutRequestSchema = z.object({ userId: z.string().min(1), pin: z.string().optional(), amountUSDC: z.number().positive().min(0.1), walletAddress: z.string().min(1), type: z.enum(['CRYPTO', 'NGN_PAYOUT']), bankCode: z.string().optional(), accountNumber: z.string().optional(), accountName: z.string().optional(), payoutProvider: z.enum(['paystack', 'monnify', 'squad']).optional() });
 export const overrideRateRequestSchema = z.object({ newRateNGN: z.number().positive() });
 export const payBillRequestSchema = z.object({ userId: z.string().min(1), billType: z.enum(['AIRTIME', 'ELECTRICITY', 'DATA']), billerName: z.string().min(1), recipientIdentifier: z.string().min(1), amountNGN: z.number().positive() });

@@ -9,12 +9,12 @@ import {
   Pressable
 } from 'react-native';
 import { router } from 'expo-router';
-import { Palette, Bell, User, ShieldCheck, Wallet, Receipt, Gauge, Lock, MessageSquare, ChevronRight, ArrowLeft, LogOut, LucideIcon } from 'lucide-react-native';
+import { Palette, Bell, User, ShieldCheck, Receipt, Gauge, Lock, MessageSquare, ChevronRight, ArrowLeft, LogOut, LucideIcon } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Constants from 'expo-constants';
 import { useAppPalette, isLight } from '../../src/lib/theme';
 import { useAuthStore, AuthState } from '../../src/store/auth.store';
 import { Typography } from '../../src/constants/typography';
+import { AppVersionFooter } from '../../src/components/AppVersionFooter';
 
 type MenuItem = {
   id: string;
@@ -40,32 +40,11 @@ export default function SettingsScreen() {
   const kycTier = rawTier === '2' || rawTier === 'TIER_2' ? 2 : rawTier === '1' || rawTier === 'TIER_1' || user?.kycStatus === 'VERIFIED' ? 1 : 0;
   const kycBadge = kycTier === 2 ? 'Tier 2 Pro' : kycTier === 1 ? 'Tier 1' : 'Unverified';
 
-  const PREFERENCE_ITEMS: MenuItem[] = [
-    {
-      id: 'appearance',
-      title: 'Appearance',
-      subtitle: 'Light, dark, or system theme',
-      href: '/settings/appearance',
-      Icon: Palette,
-      iconColor: '#8B5CF6',
-      iconBg: '#8B5CF618'
-    },
-    {
-      id: 'notifications',
-      title: 'Notification Preferences',
-      subtitle: 'Push alerts and deposit triggers',
-      href: '/settings/notifications',
-      Icon: Bell,
-      iconColor: '#EC4899',
-      iconBg: '#EC489918'
-    },
-  ];
-
   const ACCOUNT_ITEMS: MenuItem[] = [
     {
       id: 'profile',
-      title: 'Profile Details',
-      subtitle: 'Name, email & account identity',
+      title: 'Profile',
+      subtitle: 'Account details & personal identity',
       href: '/profile',
       Icon: User,
       iconColor: '#10B981',
@@ -73,8 +52,8 @@ export default function SettingsScreen() {
     },
     {
       id: 'kyc',
-      title: 'KYC Verification',
-      subtitle: 'Tier level & identity limits',
+      title: 'KYC',
+      subtitle: 'Identity level & verification limits',
       href: '/kyc',
       Icon: ShieldCheck,
       iconColor: '#3B82F6',
@@ -82,29 +61,8 @@ export default function SettingsScreen() {
       badge: kycBadge
     },
     {
-      id: 'virtual-accounts',
-      title: 'Virtual Accounts',
-      subtitle: 'Wema & Moniepoint NGN details',
-      href: '/(tabs)/deposit',
-      Icon: Wallet,
-      iconColor: '#F59E0B',
-      iconBg: '#F59E0B18'
-    },
-  ];
-
-  const ACTIVITY_ITEMS: MenuItem[] = [
-    {
-      id: 'transactions',
-      title: 'Transaction History',
-      subtitle: 'USDC deposit & spend ledger',
-      href: '/(tabs)/history',
-      Icon: Receipt,
-      iconColor: '#6366F1',
-      iconBg: '#6366F118'
-    },
-    {
       id: 'limits',
-      title: 'Spending Limits',
+      title: 'Spending Limit',
       subtitle: 'Daily & per-tx off-ramp caps',
       href: '/settings/limits',
       Icon: Gauge,
@@ -113,10 +71,43 @@ export default function SettingsScreen() {
     },
   ];
 
+  const PREFERENCE_ITEMS: MenuItem[] = [
+    {
+      id: 'appearance',
+      title: 'Theme Preference',
+      subtitle: 'Light, dark, or system appearance',
+      href: '/settings/appearance',
+      Icon: Palette,
+      iconColor: '#8B5CF6',
+      iconBg: '#8B5CF618'
+    },
+    {
+      id: 'notifications',
+      title: 'Notification Preference',
+      subtitle: 'Push alerts & deposit triggers',
+      href: '/settings/notifications',
+      Icon: Bell,
+      iconColor: '#EC4899',
+      iconBg: '#EC489918'
+    },
+  ];
+
+  const ACTIVITY_ITEMS: MenuItem[] = [
+    {
+      id: 'transactions',
+      title: 'Activities',
+      subtitle: 'USDC deposit & spend ledger',
+      href: '/(tabs)/history',
+      Icon: Receipt,
+      iconColor: '#6366F1',
+      iconBg: '#6366F118'
+    },
+  ];
+
   const SECURITY_ITEMS: MenuItem[] = [
     {
       id: 'security',
-      title: 'Security & PIN',
+      title: 'Security',
       subtitle: 'PIN code, biometrics & app lock',
       href: '/settings/security',
       Icon: Lock,
@@ -125,8 +116,8 @@ export default function SettingsScreen() {
     },
     {
       id: 'support',
-      title: 'Help & Support',
-      subtitle: 'WhatsApp & email customer service',
+      title: 'Support',
+      subtitle: 'Customer service & assistance',
       href: '/settings/support',
       Icon: MessageSquare,
       iconColor: '#06B6D4',
@@ -148,8 +139,6 @@ export default function SettingsScreen() {
   const initials = userName
     ? userName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
     : 'KD';
-
-  const appVersion = Constants.expoConfig?.version || '1.0.0';
 
   const renderSectionGroup = (label: string, items: MenuItem[]) => (
     <View style={styles.group}>
@@ -197,7 +186,7 @@ export default function SettingsScreen() {
   );
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg, paddingTop: insets.top }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
       {/* Header */}
       <View style={[styles.headerRow, { borderColor: palette.border }]}>
         <TouchableOpacity
@@ -207,7 +196,7 @@ export default function SettingsScreen() {
         >
           <ArrowLeft size={20} color={palette.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: palette.text }]}>Settings</Text>
+        <Text style={[styles.headerTitle, { color: palette.text, fontFamily: Typography.currencyDisplay.fontFamily }]}>Settings</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -215,38 +204,15 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Profile Card Summary Banner */}
-        <TouchableOpacity
-          style={[styles.userProfileCard, { backgroundColor: palette.card, borderColor: palette.border }]}
-          onPress={() => router.push('/profile')}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.avatarCircle, { backgroundColor: palette.primary }]}>
-            <Text style={[styles.avatarInitials, { color: light ? '#FFFFFF' : '#0F172A' }]}>{initials}</Text>
-          </View>
-          <View style={styles.userInfo}>
-            <Text style={[Typography.bodyBold, { color: palette.text }]}>
-              {userName}
-            </Text>
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 2 }]}>
-              {user?.email || user?.phoneNumber || 'Account Identity'}
-            </Text>
-          </View>
-          <View style={[styles.tierTag, { backgroundColor: kycTier > 0 ? '#10B98120' : '#F59E0B20' }]}>
-            <Text style={[styles.tierTagText, { color: kycTier > 0 ? '#10B981' : '#F59E0B' }]}>
-              {kycBadge}
-            </Text>
-          </View>
-          <ChevronRight size={18} color={palette.textSecondary} />
-        </TouchableOpacity>
+
 
         {/* Settings Sections */}
         <View style={[styles.sectionCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          {renderSectionGroup('Account', ACCOUNT_ITEMS)}
+          <View style={styles.groupSpacer} />
           {renderSectionGroup('Preferences', PREFERENCE_ITEMS)}
           <View style={styles.groupSpacer} />
-          {renderSectionGroup('Account & Identity', ACCOUNT_ITEMS)}
-          <View style={styles.groupSpacer} />
-          {renderSectionGroup('Activity & Ledger', ACTIVITY_ITEMS)}
+          {renderSectionGroup('Activity', ACTIVITY_ITEMS)}
           <View style={styles.groupSpacer} />
           {renderSectionGroup('Security & Support', SECURITY_ITEMS)}
         </View>
@@ -261,12 +227,8 @@ export default function SettingsScreen() {
           <Text style={styles.logoutText}>Log out</Text>
         </TouchableOpacity>
 
-        {/* Footer Version */}
-        <View style={styles.versionFooter}>
-          <Text style={[styles.versionText, { color: palette.textSecondary }]}>
-            Kudi Wallet • v{appVersion}
-          </Text>
-        </View>
+        {/* Footer Version & OTA Updates Button */}
+        <AppVersionFooter />
       </ScrollView>
 
       {/* Logout Confirmation Bottom Sheet Modal */}
@@ -452,14 +414,6 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     fontSize: 16,
     fontWeight: '700'
-  },
-  versionFooter: {
-    alignItems: 'center',
-    marginBottom: 20
-  },
-  versionText: {
-    fontSize: 12,
-    fontWeight: '600'
   },
   modalBackdrop: {
     flex: 1,
