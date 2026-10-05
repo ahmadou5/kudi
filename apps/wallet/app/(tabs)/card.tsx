@@ -189,7 +189,6 @@ export default function CardTab() {
       <View style={styles.headerRow}>
         <View>
           <Text style={[Typography.title1, { color: palette.text }]}>Cards</Text>
-
         </View>
       </View>
 

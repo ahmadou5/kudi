@@ -448,13 +448,14 @@ export class PayoutController {
       // Build and send USDC transfer from deposit wallet to treasury
       const { txHash } = await selfCustody.sendCrypto({
         treasuryWalletId: privyWalletId,
-        fromAddress: body.walletAddress,
+        depositWalletId: body.walletAddress,
         toAddress: treasuryAddress,
         amountUSDC: body.amountUSDC,
         chain: chain as 'solana' | 'monad',
         gasPaymentMode: (gasMode === 'TREASURY_FEE_PAYER' ? 'TREASURY_FEE_PAYER' : 'PRIVY_SPONSOR'),
         idempotencyKey: reference,
-        feeUSDC: apiConfig.USDC_FEE
+        feeUSDC: apiConfig.USDC_FEE,
+        feePayerAddress: treasuryAddress // NEW: treasury pays fees
       });
 
       // Wait for confirmation
