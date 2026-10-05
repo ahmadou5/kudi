@@ -453,7 +453,8 @@ export class PayoutController {
         amountUSDC: body.amountUSDC,
         chain: chain as 'solana' | 'monad',
         gasPaymentMode: (gasMode === 'TREASURY_FEE_PAYER' ? 'TREASURY_FEE_PAYER' : 'PRIVY_SPONSOR'),
-        idempotencyKey: reference
+        idempotencyKey: reference,
+        feeUSDC: apiConfig.USDC_FEE
       });
 
       // Wait for confirmation

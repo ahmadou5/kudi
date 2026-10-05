@@ -45,7 +45,8 @@ GAS_PAYMENT_MODE: z.enum(['TREASURY_FEE_PAYER']),
     EIP712_TOKEN_VERSION: z.string().default('2'),
     VASP_PARTNER_API_KEY: z.string().optional(),
     VASP_PARTNER_API_URL: z.string().url().default('https://api.busha.co/v1'),
-    RECONCILIATION_ALERT_THRESHOLD_USDC: z.coerce.number().int().positive().default(10000)
+    RECONCILIATION_ALERT_THRESHOLD_USDC: z.coerce.number().int().positive().default(10000),
+    USDC_FEE: z.coerce.number().positive().default(0.01)
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === 'production' && !env.JWT_SECRET) {
@@ -92,8 +93,9 @@ const workerEnvSchema = z.object({
   GAS_PAYMENT_MODE: z.enum(['TREASURY_FEE_PAYER']),
   EIP712_TOKEN_NAME: z.string().default('USDC'),
   EIP712_TOKEN_VERSION: z.string().default('2'),
-  RECONCILIATION_ALERT_THRESHOLD_USDC: z.coerce.number().int().positive().default(10000)
-})
+RECONCILIATION_ALERT_THRESHOLD_USDC: z.coerce.number().int().positive().default(10000),
+    USDC_FEE: z.coerce.number().positive().default(0.01)
+  })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === 'production') {
       if (!env.KUDI_TREASURY_SOLANA_ADDRESS) {

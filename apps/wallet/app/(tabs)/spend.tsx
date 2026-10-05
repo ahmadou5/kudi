@@ -26,25 +26,12 @@ import { Step2Amount } from '../../src/components/wallet/Step2Amount';
 import { Step3Review } from '../../src/components/wallet/Step3Review';
 import { Beneficiary } from '../../src/components/wallet/BeneficiariesScroll';
 import { ChainLogo } from '../../src/components/ui/ChainLogo';
+import { NIGERIAN_BANKS } from '../../src/constants/banks';
 
 type SpendType = 'select' | 'offchain' | 'onchain';
 type OffchainSubMode = 'BANK' | 'INTERAPP';
 type OnchainChain = 'solana' | 'monad';
 type FlowStep = 1 | 2 | 3;
-
-const NIGERIAN_BANKS: BankItem[] = [
-  { code: '058', name: 'Guaranty Trust Bank (GTBank)' },
-  { code: '057', name: 'Zenith Bank' },
-  { code: '044', name: 'Access Bank' },
-  { code: '033', name: 'United Bank for Africa (UBA)' },
-  { code: '011', name: 'First Bank of Nigeria' },
-  { code: '035', name: 'Wema Bank / ALAT' },
-  { code: '232', name: 'Sterling Bank' },
-  { code: '50515', name: 'Moniepoint MFB' },
-  { code: '999992', name: 'OPay Digital Services' },
-  { code: '999991', name: 'PalmPay' },
-  { code: '50211', name: 'Kuda Microfinance Bank' }
-];
 
 const INITIAL_BENEFICIARIES: Beneficiary[] = [
   { id: 'b1', name: 'Ahmadou S.', accountNumber: '0123456789', bankCode: '058', bankName: 'Guaranty Trust Bank', type: 'BANK' },

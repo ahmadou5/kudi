@@ -10,7 +10,7 @@ import {
   StatusBar
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Camera, Zap, ZapOff, Image as ImageIcon, Clipboard as ClipboardIcon } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -18,6 +18,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Typography } from '../src/constants/typography';
 import { useAppPalette } from '../src/lib/theme';
 import { AppModal, useAppModal } from '../src/components/ui/AppModal';
+import { useRecipientsStore } from '../src/store/recipients.store';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const VIEWFINDER_SIZE = Math.min(260, SCREEN_WIDTH * 0.75);
@@ -25,7 +26,8 @@ const VIEWFINDER_SIZE = Math.min(260, SCREEN_WIDTH * 0.75);
 export default function QRScannerScreen() {
   const palette = useAppPalette();
   const modal = useAppModal();
-  
+  const { pick } = useLocalSearchParams<{ pick?: string }>();
+  const isPickMode = pick === '1';
   const [permission, requestPermission] = useCameraPermissions();
   const [torchOn, setTorchOn] = useState(false);
   const [scanned, setScanned] = useState(false);
@@ -82,11 +84,16 @@ export default function QRScannerScreen() {
       title: 'QR Code Scanned',
       description: `Source: ${source}\nDetected: ${detectedChain}\n\nAddress:\n${cleanAddress}`,
       type: 'success',
-      primaryText: 'Send Funds Now',
+      primaryText: isPickMode ? 'Use This Address' : 'Send Funds Now',
       onPrimaryPress: () => {
         modal.hide();
+        if (isPickMode) {
+          useRecipientsStore.getState().setScannedAddress(cleanAddress);
+          router.back();
+          return;
+        }
         router.replace({
-          pathname: '/(tabs)/spend',
+          pathname: '/send/onchain',
           params: { address: cleanAddress }
         });
       },

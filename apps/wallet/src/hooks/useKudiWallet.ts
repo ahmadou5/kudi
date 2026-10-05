@@ -131,8 +131,9 @@ export function useKudiWallet() {
     bankCode: string,
     accountNumber: string,
     accountName: string,
-    pin: string
-  ): Promise<void> => {
+    pin: string,
+    narration?: string
+  ): Promise<{ success: boolean; reference?: string; message?: string }> => {
     try {
       const res = await sdk.spendToBank({
         userId,
@@ -141,7 +142,7 @@ export function useKudiWallet() {
         bankCode,
         accountNumber,
         accountName: accountName || 'Verified Recipient',
-        narration: 'Kudi Spend Payout'
+        narration: narration || 'Kudi Spend Payout'
       });
 
       if (res && res.success && res.data) {
@@ -151,12 +152,16 @@ export function useKudiWallet() {
         queryClient.invalidateQueries({ queryKey: ['balance'] });
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
         setActiveTab('history');
+        return { success: true, reference: data.reference };
       } else {
         const errorMsg = res?.error?.message || res?.message || 'Transaction failed';
         setSpendSuccess(`Spend Error: ${errorMsg}`);
+        return { success: false, message: errorMsg };
       }
     } catch (e: any) {
-      setSpendSuccess(`Network error: ${e?.message || 'Transaction could not be completed'}`);
+      const errorMsg = e?.message || 'Transaction could not be completed';
+      setSpendSuccess(`Network error: ${errorMsg}`);
+      return { success: false, message: errorMsg };
     }
   };
 

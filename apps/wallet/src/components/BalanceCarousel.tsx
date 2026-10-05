@@ -10,13 +10,14 @@ import {
   Modal,
   Pressable,
   NativeSyntheticEvent,
-  NativeScrollEvent
+  NativeScrollEvent,
+  Share
 } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import QRCodeSVG from 'react-native-qrcode-svg';
-import { Copy, Check, ShieldCheck, Sparkles, Building2, Globe2, ArrowRight, X, QrCode, Share2 } from 'lucide-react-native';
+import { Copy, Check, ShieldCheck, Sparkles, Building2, Globe2, ArrowRight, X, QrCode, Share2, CheckCircle2, ChevronDown } from 'lucide-react-native';
 import { useAppPalette } from '../lib/theme';
 import { Typography } from '../constants/typography';
 import { useVirtualAccounts, VirtualAccount } from '../hooks/useVirtualAccounts';
@@ -74,6 +75,26 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
   } | null>(null);
 
   const [selectedCryptoChain, setSelectedCryptoChain] = useState<'solana' | 'monad'>('solana');
+  const [networkDropdownOpen, setNetworkDropdownOpen] = useState(false);
+
+  const handleShareCryptoAddress = async () => {
+    try {
+      await Share.share({
+        message: `${currentTokenSymbol} Wallet Address (${currentChainName}): ${currentCryptoAddress}`,
+      });
+    } catch { }
+  };
+
+  const handleShareBankDetails = async () => {
+    if (!activeBottomSheet?.bankData) return;
+    const data = activeBottomSheet.bankData;
+    const text = `Bank Name: ${data.bankName}\n${data.currency === 'EUR' ? 'IBAN' : 'Account Number'}: ${data.accountNumber}\nAccount Name: ${data.accountName}${data.extraDetails ? `\n${data.extraDetails}` : ''}`;
+    try {
+      await Share.share({
+        message: `My Kudi ${data.title}:\n\n${text}`,
+      });
+    } catch { }
+  };
 
   // User KYC tier check
   const rawTier = user?.kycTier;
@@ -301,7 +322,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => router.push('/(tabs)/spend')}
+              onPress={() => router.push({ pathname: '/send/onchain', params: { chain: selectedCryptoChain } })}
               style={[styles.actionBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
               activeOpacity={0.8}
             >
@@ -383,7 +404,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  onPress={() => router.push('/(tabs)/spend')}
+                  onPress={() => router.push('/send/ngn')}
                   style={[styles.actionBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
                   activeOpacity={0.8}
                 >
@@ -673,112 +694,156 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
       {/* GORHOM GESTURE BOTTOM SHEET DEPOSIT MODAL */}
       <GorhomBottomSheet
         visible={!!activeBottomSheet}
-        onClose={() => setActiveBottomSheet(null)}
-        snapPoints={['55%', '88%']}
+        onClose={() => {
+          setActiveBottomSheet(null);
+          setNetworkDropdownOpen(false);
+        }}
+        snapPoints={['72%', '92%']}
       >
         {activeBottomSheet && (
           <View style={{ flex: 1 }}>
             <View style={styles.sheetHeader}>
-              <Text style={[Typography.title2, { color: palette.text }]}>
-                {activeBottomSheet.type === 'crypto' ? 'On-Chain Crypto Deposit' : activeBottomSheet.bankData?.title}
-              </Text>
-              <TouchableOpacity onPress={() => setActiveBottomSheet(null)} style={styles.closeBtn}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {activeBottomSheet.type === 'crypto' ? (
+                  <ChainLogo chain={selectedCryptoChain} size={24} />
+                ) : (
+                  <Text style={{ fontSize: 20 }}>{activeBottomSheet.bankData?.flag}</Text>
+                )}
+                <Text style={[Typography.title2, { color: palette.text, fontSize: 18 }]}>
+                  {activeBottomSheet.type === 'crypto' ? `${currentTokenSymbol}` : activeBottomSheet.bankData?.title}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setActiveBottomSheet(null);
+                  setNetworkDropdownOpen(false);
+                }}
+                style={styles.closeBtn}
+              >
                 <X size={20} color={palette.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            {/* MODE 1: ON-CHAIN CRYPTO BOTTOM SHEET */}
+            {/* MODE 1: ON-CHAIN CRYPTO BOTTOM SHEET (MATCHING REFERENCE SCREENSHOT) */}
             {activeBottomSheet.type === 'crypto' && (
-              <View style={styles.sheetContent}>
-                {/* Network Selector Tabs */}
-                <View style={styles.networkTabRow}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setSelectedCryptoChain('solana');
-                      Haptics.selectionAsync().catch(() => { });
-                    }}
-                    activeOpacity={0.8}
-                    style={[
-                      styles.networkTab,
-                      {
-                        backgroundColor: selectedCryptoChain === 'solana' ? palette.text : palette.bg,
-                        borderColor: palette.border
-                      }
-                    ]}
-                  >
-                    <ChainLogo chain="solana" size={16} />
-                    <Text style={[Typography.footnote, { color: selectedCryptoChain === 'solana' ? palette.bg : palette.text, fontWeight: '700' }]}>
-                      USDC (Solana)
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => {
-                      setSelectedCryptoChain('monad');
-                      Haptics.selectionAsync().catch(() => { });
-                    }}
-                    activeOpacity={0.8}
-                    style={[
-                      styles.networkTab,
-                      {
-                        backgroundColor: selectedCryptoChain === 'monad' ? palette.text : palette.bg,
-                        borderColor: palette.border
-                      }
-                    ]}
-                  >
-                    <ChainLogo chain="monad" size={16} />
-                    <Text style={[Typography.footnote, { color: selectedCryptoChain === 'monad' ? palette.bg : palette.text, fontWeight: '700' }]}>
-                      AUSD (Monad)
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
                 {/* QR Code Container */}
                 <View style={[styles.qrContainer, { backgroundColor: '#FFFFFF', borderColor: palette.border }]}>
                   <QRCodeSVG
                     value={currentCryptoAddress}
-                    size={140}
+                    size={160}
                     color="#000000"
                     backgroundColor="#FFFFFF"
                   />
                 </View>
 
-                <Text style={[Typography.footnote, { color: palette.textSecondary, textAlign: 'center', marginTop: 4 }]}>
-                  Deposit only <Text style={{ fontWeight: '700', color: palette.text }}>{currentTokenSymbol}</Text> via <Text style={{ fontWeight: '700', color: palette.text }}>{currentChainName}</Text>
-                </Text>
-
-                {/* Address Box */}
-                <View style={[styles.addressBox, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-                  <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 2 }]}>
-                    Your Wallet Address ({currentTokenSymbol})
+                {/* Wallet Address Box */}
+                <View style={[styles.inputCardBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                  <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 4 }]}>
+                    Wallet Address
                   </Text>
-                  <Text style={[Typography.currencySub, { color: palette.text, fontSize: 13 }]} numberOfLines={2} selectable>
-                    {currentCryptoAddress}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <Text style={[Typography.body, { color: palette.text, flex: 1, fontSize: 13 }]} numberOfLines={2} selectable>
+                      {currentCryptoAddress}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => copyToClipboard(currentCryptoAddress, 'sheet_crypto_addr')}
+                      style={styles.iconActionBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      {copiedField === 'sheet_crypto_addr' ? (
+                        <Check size={20} color={palette.success} />
+                      ) : (
+                        <Copy size={20} color={palette.text} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Network Selector Dropdown Box */}
+                <View style={{ gap: 4 }}>
+                  <Text style={[Typography.caption, { color: palette.textSecondary, marginLeft: 2 }]}>Network</Text>
+                  <TouchableOpacity
+                    onPress={() => setNetworkDropdownOpen(prev => !prev)}
+                    activeOpacity={0.8}
+                    style={[styles.inputCardBox, { backgroundColor: palette.card, borderColor: palette.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <ChainLogo chain={selectedCryptoChain} size={18} />
+                      <Text style={[Typography.bodyBold, { color: palette.text }]}>
+                        {selectedCryptoChain === 'solana' ? 'Solana (SOL)' : 'Monad (MON)'}
+                      </Text>
+                    </View>
+                    <ChevronDown size={18} color={palette.textSecondary} style={{ transform: [{ rotate: networkDropdownOpen ? '180deg' : '0deg' }] }} />
+                  </TouchableOpacity>
+
+                  {networkDropdownOpen && (
+                    <View style={[styles.dropdownMenu, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSelectedCryptoChain('solana');
+                          setNetworkDropdownOpen(false);
+                          Haptics.selectionAsync().catch(() => {});
+                        }}
+                        style={[styles.dropdownItem, selectedCryptoChain === 'solana' && { backgroundColor: palette.bg }]}
+                      >
+                        <ChainLogo chain="solana" size={18} />
+                        <Text style={[Typography.bodyBold, { color: palette.text, flex: 1 }]}>Solana (SOL)</Text>
+                        {selectedCryptoChain === 'solana' && <Check size={16} color={palette.success} />}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSelectedCryptoChain('monad');
+                          setNetworkDropdownOpen(false);
+                          Haptics.selectionAsync().catch(() => {});
+                        }}
+                        style={[styles.dropdownItem, selectedCryptoChain === 'monad' && { backgroundColor: palette.bg }]}
+                      >
+                        <ChainLogo chain="monad" size={18} />
+                        <Text style={[Typography.bodyBold, { color: palette.text, flex: 1 }]}>Monad (MON)</Text>
+                        {selectedCryptoChain === 'monad' && <Check size={16} color={palette.success} />}
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+
+                {/* Conversion Green Alert Callout Banner */}
+                <View style={[styles.conversionAlertBox, { backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#E8F5E9', borderColor: isDark ? 'rgba(34, 197, 94, 0.3)' : '#C8E6C9' }]}>
+                  <CheckCircle2 size={20} color={isDark ? '#4ADE80' : '#2E7D32'} style={{ marginTop: 1 }} />
+                  <Text style={[Typography.footnote, { color: isDark ? '#86EFAC' : '#1B5E20', flex: 1, lineHeight: 18 }]}>
+                    Your {currentTokenSymbol} deposits will automatically be converted to Naira at the current exchange rate.
                   </Text>
                 </View>
 
-                {/* Copy Address Button */}
-                <TouchableOpacity
-                  onPress={() => copyToClipboard(currentCryptoAddress, 'sheet_crypto_addr')}
-                  style={[styles.sheetPrimaryBtn, { backgroundColor: palette.text }]}
-                  activeOpacity={0.85}
-                >
-                  {copiedField === 'sheet_crypto_addr' ? (
-                    <Check size={18} color={palette.bg} />
-                  ) : (
-                    <Copy size={18} color={palette.bg} />
-                  )}
-                  <Text style={[Typography.bodyBold, { color: palette.bg }]}>
-                    {copiedField === 'sheet_crypto_addr' ? 'Address Copied!' : 'Copy Wallet Address'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                {/* Dual Action Buttons: Copy (Secondary) and Share (Primary) */}
+                <View style={styles.dualActionRow}>
+                  <TouchableOpacity
+                    onPress={() => copyToClipboard(currentCryptoAddress, 'sheet_crypto_addr')}
+                    style={[styles.secondaryActionBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[Typography.bodyBold, { color: palette.text }]}>
+                      {copiedField === 'sheet_crypto_addr' ? 'Copied' : 'Copy'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleShareCryptoAddress}
+                    style={[styles.primaryActionBtn, { backgroundColor: palette.text }]}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[Typography.bodyBold, { color: palette.bg }]}>
+                      Share
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             )}
 
             {/* MODE 2: VIRTUAL BANK ACCOUNT BOTTOM SHEET */}
             {activeBottomSheet.type === 'bank' && activeBottomSheet.bankData && (
-              <View style={styles.sheetContent}>
-                <View style={[styles.bankDetailsBox, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
+                <View style={[styles.bankDetailsBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
                   <View style={styles.sheetDetailRow}>
                     <Text style={[Typography.caption, { color: palette.textSecondary }]}>Bank Name</Text>
                     <Text style={[Typography.bodyBold, { color: palette.text }]}>
@@ -791,7 +856,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                       {activeBottomSheet.bankData.currency === 'EUR' ? 'IBAN Number' : 'Account Number'}
                     </Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={[Typography.currencySub, { color: palette.text, fontSize: 16 }]}>
+                      <Text style={[Typography.currencySub, { color: palette.text, fontSize: 16 }]} selectable>
                         {activeBottomSheet.bankData.accountNumber}
                       </Text>
                       <TouchableOpacity
@@ -823,25 +888,37 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                   </View>
                 </View>
 
-                <Text style={[Typography.footnote, { color: palette.textSecondary, textAlign: 'center', marginVertical: 8 }]}>
-                  Transfers sent to this virtual account credit your balance instantly.
-                </Text>
-
-                <TouchableOpacity
-                  onPress={() => {
-                    const data = activeBottomSheet.bankData!;
-                    const fullText = `Bank: ${data.bankName}\nAccount: ${data.accountNumber}\nName: ${data.accountName}${data.extraDetails ? `\n${data.extraDetails}` : ''}`;
-                    copyToClipboard(fullText, 'sheet_bank_all');
-                  }}
-                  style={[styles.sheetPrimaryBtn, { backgroundColor: palette.text }]}
-                  activeOpacity={0.85}
-                >
-                  <Copy size={18} color={palette.bg} />
-                  <Text style={[Typography.bodyBold, { color: palette.bg }]}>
-                    {copiedField === 'sheet_bank_all' ? 'All Details Copied!' : 'Copy All Bank Details'}
+                {/* Conversion Green Alert Callout Banner */}
+                <View style={[styles.conversionAlertBox, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.12)' : '#EBF5FF', borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : '#BFDBFE' }]}>
+                  <CheckCircle2 size={20} color={isDark ? '#60A5FA' : '#1D4ED8'} style={{ marginTop: 1 }} />
+                  <Text style={[Typography.footnote, { color: isDark ? '#93C5FD' : '#1E40AF', flex: 1, lineHeight: 18 }]}>
+                    {activeBottomSheet.bankData.transferType || 'Transfers sent to this virtual account credit your balance instantly.'}
                   </Text>
-                </TouchableOpacity>
-              </View>
+                </View>
+
+                {/* Dual Action Buttons: Copy (Secondary) and Share (Primary) */}
+                <View style={styles.dualActionRow}>
+                  <TouchableOpacity
+                    onPress={() => copyToClipboard(activeBottomSheet.bankData!.accountNumber, 'sheet_bank_acc')}
+                    style={[styles.secondaryActionBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[Typography.bodyBold, { color: palette.text }]}>
+                      {copiedField === 'sheet_bank_acc' ? 'Copied' : 'Copy Number'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleShareBankDetails}
+                    style={[styles.primaryActionBtn, { backgroundColor: palette.text }]}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[Typography.bodyBold, { color: palette.bg }]}>
+                      Share Details
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             )}
           </View>
         )}
@@ -1091,5 +1168,56 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     marginTop: 4
+  },
+  inputCardBox: {
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1
+  },
+  iconActionBtn: {
+    padding: 4
+  },
+  dropdownMenu: {
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginTop: 4
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12
+  },
+  conversionAlertBox: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 4
+  },
+  dualActionRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+    marginBottom: 16
+  },
+  secondaryActionBtn: {
+    flex: 1,
+    height: 50,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  primaryActionBtn: {
+    flex: 1,
+    height: 50,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center'
   }
 });
