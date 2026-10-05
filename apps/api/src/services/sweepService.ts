@@ -166,12 +166,15 @@ export class SweepService {
       // detected amount — partial balances must not attempt oversized moves.
       const result = await this.selfCustodyProvider.sendCryptoWithGasRetry({
         treasuryWalletId: privyWalletId,
+        depositWalletId: walletAddress,
         fromAddress: walletAddress,
         toAddress: targetTreasury,
         amountUSDC: sweepAmount,
         chain,
         gasPaymentMode,
-        idempotencyKey
+        idempotencyKey,
+        feePayerAddress: targetTreasury, // Treasury pays fees
+        feeUSDC: apiConfig.USDC_FEE
       }, walletAddress, {
         depositAmountUSDC: amountUSDC,
         checkDripEligibility: (ctx) => checkDripEligibility(prisma, ctx),

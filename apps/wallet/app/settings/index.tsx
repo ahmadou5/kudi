@@ -150,7 +150,7 @@ export default function SettingsScreen() {
             <TouchableOpacity
               key={item.id}
               onPress={() => handlePressItem(item)}
-              style={[styles.menuRow, { backgroundColor: palette.card, borderColor: palette.border }]}
+              style={[styles.menuRow, { backgroundColor: palette.bg, borderColor: palette.border + '50' }]}
               activeOpacity={0.75}
             >
               <View style={[styles.iconBox, { backgroundColor: item.iconBg }]}>
@@ -188,7 +188,7 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
       {/* Header */}
-      <View style={[styles.headerRow, { borderColor: palette.border }]}>
+      <View style={[styles.headerRow]}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={[styles.backButton, { backgroundColor: palette.card, borderColor: palette.border }]}
@@ -196,7 +196,7 @@ export default function SettingsScreen() {
         >
           <ArrowLeft size={20} color={palette.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: palette.text, fontFamily: Typography.currencyDisplay.fontFamily }]}>Settings</Text>
+        <Text style={[Typography.title1, { color: palette.text }]}>Settings</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -207,7 +207,7 @@ export default function SettingsScreen() {
 
 
         {/* Settings Sections */}
-        <View style={[styles.sectionCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+        <View style={[styles.sectionCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
           {renderSectionGroup('Account', ACCOUNT_ITEMS)}
           <View style={styles.groupSpacer} />
           {renderSectionGroup('Preferences', PREFERENCE_ITEMS)}
@@ -279,9 +279,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1
+    paddingHorizontal: 15,
+    paddingVertical: 12,
   },
   backButton: {
     width: 42,
@@ -301,7 +300,7 @@ const styles = StyleSheet.create({
     width: 42
   },
   content: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingTop: 16,
     paddingBottom: 40,
     gap: 16
@@ -342,7 +341,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     paddingHorizontal: 14,
-    paddingVertical: 16
+    paddingVertical: 19
   },
   group: {
     gap: 10

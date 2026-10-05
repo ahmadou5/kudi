@@ -195,14 +195,23 @@ export async function processCryptoWithdrawals(): Promise<void> {
     try {
       const treasuryWalletId = treasuryWalletIdFor(job.chain);
       const gasPaymentMode = await getWithdrawalGasPaymentMode();
+      // Get treasury address for the chain
+      const treasuryAddr = job.chain === 'solana' 
+        ? process.env.KUDI_TREASURY_SOLANA_ADDRESS 
+        : process.env.KUDI_TREASURY_EVM_ADDRESS;
+      // Use treasury wallet ID as deposit wallet ID
+      // This enables the feePayerAddress logic when configured
+      const depositWalletId = treasuryWalletId;
       const { txHash } = await selfCustody.sendCrypto({
         treasuryWalletId,
+        depositWalletId,
         toAddress: job.toAddress,
         amountUSDC: job.amountUSDC,
         chain: job.chain,
         gasPaymentMode,
         idempotencyKey: job.reference, // Use withdrawal reference as idempotency key to prevent duplicate broadcasts on retry
-        feeUSDC: Number(process.env.USDC_FEE || 0.01)
+        feeUSDC: Number(process.env.USDC_FEE || 0.01),
+        feePayerAddress: treasuryAddr // NEW: treasury pays fees
       });
 
       await markWithdrawal(job.reference, WithdrawalStatus.BROADCAST, { txHash });
