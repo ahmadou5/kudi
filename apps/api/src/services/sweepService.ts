@@ -23,7 +23,7 @@
 import { SelfCustodyProvider, resolveGasPaymentMode, resolveSweepAmount, type GasPaymentMode } from '@kudi/chains';
 import { LedgerService } from './ledgerService';
 import { prisma, checkDripEligibility, recordDrip } from '@kudi/database';
-import { fetchJsonWithRpcFallback, redactAddress } from '@kudi/config';
+import { fetchJsonWithRpcFallback, redactAddress, apiConfig } from '@kudi/config';
 
 export interface SweepResult {
   success: boolean;

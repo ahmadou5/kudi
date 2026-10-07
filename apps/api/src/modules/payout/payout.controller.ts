@@ -61,6 +61,37 @@ export class PayoutController {
     const amountNGN = dailyLimit.amountNGN;
 
     const reference = generateReference('KUDI_SPEND');
+
+    // On-demand USDC transfer from User's Privy Deposit Wallet to Kudi Treasury
+    const userWallets = this.ledgerService.getUserWallets(userId) || [];
+    const preferredWallet = userWallets.find((w) => w.chain === 'solana') || userWallets[0];
+    const privyWalletId = preferredWallet?.privyWalletId || (preferredWallet?.metadata?.privyWalletId as string | undefined);
+
+    let onChainTxHash: string | undefined;
+    if (privyWalletId && preferredWallet) {
+      const chain = preferredWallet.chain === 'solana' ? 'solana' : 'monad';
+      const treasuryAddress = chain === 'solana' ? apiConfig.KUDI_TREASURY_SOLANA_ADDRESS : apiConfig.KUDI_TREASURY_EVM_ADDRESS;
+      if (treasuryAddress) {
+        try {
+          const selfCustody = new SelfCustodyProvider();
+          const sendRes = await selfCustody.sendCrypto({
+            treasuryWalletId: privyWalletId,
+            depositWalletId: preferredWallet.address,
+            toAddress: treasuryAddress,
+            amountUSDC,
+            chain: chain as 'solana' | 'monad',
+            gasPaymentMode: 'PRIVY_SPONSOR',
+            idempotencyKey: reference,
+            feeUSDC: apiConfig.USDC_FEE
+          });
+          onChainTxHash = sendRes.txHash;
+          console.log(`[PayoutController] 🏦 On-demand wallet transfer to treasury submitted: ${onChainTxHash} (${amountUSDC} USDC)`);
+        } catch (chainErr: unknown) {
+          console.warn(`[PayoutController] ⚠️ On-demand wallet transfer to treasury warning/fallback:`, chainErr instanceof Error ? chainErr.message : chainErr);
+        }
+      }
+    }
+
     let newBalance: number;
     try {
       newBalance = await this.ledgerService.debitBalanceAtomic({
@@ -73,7 +104,8 @@ export class PayoutController {
           subtitle: `${accountName || 'Bank Transfer'} (${accountNumber || ''})`,
           amountNGN,
           exchangeRateNGN: currentRate,
-          recipientBankCode: bankCode
+          recipientBankCode: bankCode,
+          onChainTxHash
         },
         dailyLimit
       });
@@ -117,6 +149,7 @@ export class PayoutController {
         recipientAccountName: accountName,
         payoutProvider: transferRes.provider,
         status: transferRes.status,
+        onChainTxHash,
         timestamp: new Date().toISOString()
       };
 
