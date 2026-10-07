@@ -193,36 +193,148 @@ export async function processCryptoWithdrawals(): Promise<void> {
     const attemptsAfterThisRun = job.attemptCount + 1;
 
     try {
-      const treasuryWalletId = treasuryWalletIdFor(job.chain);
       const gasPaymentMode = await getWithdrawalGasPaymentMode();
-      // Get treasury address for the chain
       const treasuryAddr = job.chain === 'solana' 
         ? process.env.KUDI_TREASURY_SOLANA_ADDRESS 
         : process.env.KUDI_TREASURY_EVM_ADDRESS;
-      // Use treasury wallet ID as deposit wallet ID
-      // This enables the feePayerAddress logic when configured
-      const depositWalletId = treasuryWalletId;
-      const { txHash } = await selfCustody.sendCrypto({
-        treasuryWalletId,
-        depositWalletId,
-        toAddress: job.toAddress,
-        amountUSDC: job.amountUSDC,
-        chain: job.chain,
-        gasPaymentMode,
-        idempotencyKey: job.reference, // Use withdrawal reference as idempotency key to prevent duplicate broadcasts on retry
-        feeUSDC: Number(process.env.USDC_FEE || 0.01),
-        feePayerAddress: treasuryAddr // NEW: treasury pays fees
+      const treasuryWalletId = treasuryWalletIdFor(job.chain);
+
+      // Find user's target-chain wallet
+      const userTargetWallet = await prisma.wallet.findFirst({
+        where: {
+          userId: job.userId,
+          chain: job.chain === 'solana' ? 'solana' : { in: ['monad-testnet', 'monad', 'evm'] }
+        }
       });
 
-      await markWithdrawal(job.reference, WithdrawalStatus.BROADCAST, { txHash });
-      const confirmed = await selfCustody.waitForConfirmation(txHash, job.chain);
+      const userTargetPrivyId = userTargetWallet?.privyWalletId || (userTargetWallet as any)?.metadata?.privyWalletId;
+      const userTargetAddress = userTargetWallet?.address || '';
 
-      if (!confirmed) {
-        throw new Error(`Transaction ${txHash} was not confirmed before timeout`);
+      // Check on-chain balance on target chain wallet
+      let targetChainBalance = 0;
+      if (userTargetAddress) {
+        try {
+          const tokenAddr = job.chain === 'solana'
+            ? process.env.USDC_MINT_ADDRESS
+            : process.env.AUSD_TOKEN_ADDRESS;
+          const balStr = await selfCustody.getWalletBalance(userTargetAddress, job.chain, tokenAddr);
+          targetChainBalance = parseFloat(balStr) || 0;
+        } catch (balErr) {
+          console.warn(`[Worker CryptoWithdrawalProcessor] ⚠️ Could not fetch live balance for ${userTargetAddress.slice(0, 8)}...:`, balErr instanceof Error ? balErr.message : balErr);
+          targetChainBalance = job.amountUSDC; // Fallback to optimistic assumption
+        }
       }
 
-      await markWithdrawal(job.reference, WithdrawalStatus.CONFIRMED, { txHash });
-      console.log(`[Worker CryptoWithdrawalProcessor] Confirmed withdrawal ${job.reference}: ${txHash}`);
+      let primaryTxHash = '';
+
+      if (targetChainBalance >= job.amountUSDC || !userTargetPrivyId) {
+        // CASE A: Single wallet has enough balance on target chain (or falling back to Treasury)
+        const signingWalletId = userTargetPrivyId || treasuryWalletId;
+        const depositWalletAddress = userTargetAddress || treasuryAddr || '';
+
+        console.log(`[Worker CryptoWithdrawalProcessor] 📤 Single-wallet send: ${job.amountUSDC} USDC on ${job.chain} from ${depositWalletAddress.slice(0, 8)}... (${signingWalletId}) → ${job.toAddress.slice(0, 8)}...`);
+
+        const { txHash } = await selfCustody.sendCrypto({
+          treasuryWalletId: signingWalletId,
+          depositWalletId: depositWalletAddress,
+          toAddress: job.toAddress,
+          amountUSDC: job.amountUSDC,
+          chain: job.chain,
+          gasPaymentMode,
+          idempotencyKey: job.reference,
+          feeUSDC: Number(process.env.USDC_FEE || 0.01),
+          feePayerAddress: treasuryAddr
+        });
+        primaryTxHash = txHash;
+      } else {
+        // CASE B: Target wallet balance is less than requested spend amount.
+        // Execute Cross-Chain Netting via Privy:
+        // 1. Send available balance from User's target-chain wallet to Recipient.
+        // 2. Treasury sends remaining shortfall to Recipient on target chain.
+        // 3. User's secondary chain wallet sends shortfall amount to Treasury on secondary chain.
+
+        const userDirectAmount = Math.max(0, Math.floor(targetChainBalance * 100) / 100);
+        const treasuryShortfall = Math.round((job.amountUSDC - userDirectAmount) * 100) / 100;
+
+        console.log(`[Worker CryptoWithdrawalProcessor] 🔀 Multi-chain netting send for ${job.reference}: User Target Wallet has $${userDirectAmount}, Treasury covering $${treasuryShortfall}`);
+
+        // Step 1: User target wallet sends available balance directly to Recipient
+        if (userDirectAmount > 0) {
+          try {
+            const res1 = await selfCustody.sendCrypto({
+              treasuryWalletId: userTargetPrivyId,
+              depositWalletId: userTargetAddress,
+              toAddress: job.toAddress,
+              amountUSDC: userDirectAmount,
+              chain: job.chain,
+              gasPaymentMode,
+              idempotencyKey: `${job.reference}_user_direct`,
+              feeUSDC: Number(process.env.USDC_FEE || 0.01),
+              feePayerAddress: treasuryAddr
+            });
+            console.log(`[Worker CryptoWithdrawalProcessor] ✅ Step 1 User Direct Send Tx: ${res1.txHash}`);
+          } catch (e1) {
+            console.warn(`[Worker CryptoWithdrawalProcessor] ⚠️ Step 1 User Direct Send warning:`, e1 instanceof Error ? e1.message : e1);
+          }
+        }
+
+        // Step 2: Treasury sends shortfall to Recipient on target chain
+        const res2 = await selfCustody.sendCrypto({
+          treasuryWalletId,
+          depositWalletId: treasuryAddr || '',
+          toAddress: job.toAddress,
+          amountUSDC: treasuryShortfall,
+          chain: job.chain,
+          gasPaymentMode,
+          idempotencyKey: `${job.reference}_treasury_cover`,
+          feeUSDC: Number(process.env.USDC_FEE || 0.01),
+          feePayerAddress: treasuryAddr
+        });
+        primaryTxHash = res2.txHash;
+        console.log(`[Worker CryptoWithdrawalProcessor] ✅ Step 2 Treasury Cover Send Tx: ${res2.txHash}`);
+
+        // Step 3: Secondary chain wallet transfers shortfall to Treasury on secondary chain
+        const secondaryChain = job.chain === 'solana' ? 'monad' : 'solana';
+        const userSecondaryWallet = await prisma.wallet.findFirst({
+          where: {
+            userId: job.userId,
+            chain: secondaryChain === 'solana' ? 'solana' : { in: ['monad-testnet', 'monad', 'evm'] }
+          }
+        });
+
+        const userSecondaryPrivyId = userSecondaryWallet?.privyWalletId || (userSecondaryWallet as any)?.metadata?.privyWalletId;
+        const secondaryTreasuryAddr = secondaryChain === 'solana'
+          ? process.env.KUDI_TREASURY_SOLANA_ADDRESS
+          : process.env.KUDI_TREASURY_EVM_ADDRESS;
+
+        if (userSecondaryPrivyId && userSecondaryWallet?.address && secondaryTreasuryAddr) {
+          try {
+            const res3 = await selfCustody.sendCrypto({
+              treasuryWalletId: userSecondaryPrivyId,
+              depositWalletId: userSecondaryWallet.address,
+              toAddress: secondaryTreasuryAddr,
+              amountUSDC: treasuryShortfall,
+              chain: secondaryChain as 'solana' | 'monad',
+              gasPaymentMode,
+              idempotencyKey: `${job.reference}_secondary_netting`,
+              feeUSDC: Number(process.env.USDC_FEE || 0.01)
+            });
+            console.log(`[Worker CryptoWithdrawalProcessor] ✅ Step 3 Secondary Wallet Netting Tx: ${res3.txHash} (${treasuryShortfall} USDC on ${secondaryChain})`);
+          } catch (e3) {
+            console.warn(`[Worker CryptoWithdrawalProcessor] ⚠️ Step 3 Secondary Wallet Netting warning:`, e3 instanceof Error ? e3.message : e3);
+          }
+        }
+      }
+
+      await markWithdrawal(job.reference, WithdrawalStatus.BROADCAST, { txHash: primaryTxHash });
+      const confirmed = await selfCustody.waitForConfirmation(primaryTxHash, job.chain);
+
+      if (!confirmed) {
+        throw new Error(`Transaction ${primaryTxHash} was not confirmed before timeout`);
+      }
+
+      await markWithdrawal(job.reference, WithdrawalStatus.CONFIRMED, { txHash: primaryTxHash });
+      console.log(`[Worker CryptoWithdrawalProcessor] Confirmed withdrawal ${job.reference}: ${primaryTxHash}`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[Worker CryptoWithdrawalProcessor] Withdrawal ${job.reference} failed: ${message}`);
