@@ -130,6 +130,30 @@ async function markWithdrawal(reference: string, status: WithdrawalStatus, updat
 
 async function recordWithdrawalReversal(job: PendingWithdrawalRow, reason: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    const revReference = `rev_${job.reference}`;
+
+    // 1. Idempotency check: if reversal is already recorded, return immediately
+    const existingRev: any[] = await tx.$queryRaw`
+      SELECT id FROM "LedgerEntry"
+      WHERE type = 'DEPOSIT_CREDIT' AND "referenceId" = ${revReference}
+      LIMIT 1
+    `;
+    if (existingRev.length > 0) {
+      console.log(`[Worker CryptoWithdrawalProcessor] Reversal ${revReference} already applied — skipping duplicate credit.`);
+      return;
+    }
+
+    // 2. Matching debit check: ensure a SPEND_DEBIT was actually recorded for this reference
+    const matchingDebit: any[] = await tx.$queryRaw`
+      SELECT id FROM "LedgerEntry"
+      WHERE type = 'SPEND_DEBIT' AND "referenceId" = ${job.reference}
+      LIMIT 1
+    `;
+    if (matchingDebit.length === 0) {
+      console.warn(`[Worker CryptoWithdrawalProcessor] ⚠️ Skipping reversal for ${job.reference}: original SPEND_DEBIT was never recorded in LedgerEntry.`);
+      return;
+    }
+
     const latest: any[] = await tx.$queryRaw`
       SELECT "resultingBalanceUSDC"
       FROM "LedgerEntry"
@@ -168,7 +192,7 @@ async function recordWithdrawalReversal(job: PendingWithdrawalRow, reason: strin
         'DEPOSIT_CREDIT',
         ${job.amountUSDC},
         ${restoredBalance},
-        ${`rev_${job.reference}`},
+        ${revReference},
         ${JSON.stringify({
           reference: job.reference,
           reason,
@@ -236,6 +260,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
 
         const { txHash } = await selfCustody.sendCrypto({
           treasuryWalletId: signingWalletId,
+          fromAddress: depositWalletAddress,
           depositWalletId: depositWalletAddress,
           toAddress: job.toAddress,
           amountUSDC: job.amountUSDC,
@@ -263,6 +288,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
           try {
             const res1 = await selfCustody.sendCrypto({
               treasuryWalletId: userTargetPrivyId,
+              fromAddress: userTargetAddress,
               depositWalletId: userTargetAddress,
               toAddress: job.toAddress,
               amountUSDC: userDirectAmount,
@@ -281,6 +307,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
         // Step 2: Treasury sends shortfall to Recipient on target chain
         const res2 = await selfCustody.sendCrypto({
           treasuryWalletId,
+          fromAddress: treasuryAddr || '',
           depositWalletId: treasuryAddr || '',
           toAddress: job.toAddress,
           amountUSDC: treasuryShortfall,
@@ -311,6 +338,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
           try {
             const res3 = await selfCustody.sendCrypto({
               treasuryWalletId: userSecondaryPrivyId,
+              fromAddress: userSecondaryWallet.address,
               depositWalletId: userSecondaryWallet.address,
               toAddress: secondaryTreasuryAddr,
               amountUSDC: treasuryShortfall,

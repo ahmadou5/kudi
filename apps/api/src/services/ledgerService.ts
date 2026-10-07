@@ -835,19 +835,11 @@ export class LedgerService {
     }
 
     const newBalance = await prisma.$transaction(async (tx) => {
-      const latestRows: any[] = await tx.$queryRaw`
-        SELECT "resultingBalanceUSDC"
-        FROM "LedgerEntry"
-        WHERE "userId" = ${userId}
-        ORDER BY "createdAt" DESC
+      // 1. Idempotency check: if this (type, referenceId) was already processed, return current balance
+      const existingEntry: any[] = await tx.$queryRaw`
+        SELECT id FROM "LedgerEntry"
+        WHERE type = ${type} AND "referenceId" = ${reference}
         LIMIT 1
-      `;
-      const initialBalance = latestRows.length ? Number(latestRows[0].resultingBalanceUSDC) : (this.ledger.get(userId) || 0);
-
-      await tx.$executeRaw`
-        INSERT INTO "BalanceAccount" (id, "userId", asset, "availableUSDC", "reservedUSDC", version, "createdAt", "updatedAt")
-        VALUES (gen_random_uuid(), ${userId}, 'USDC', ${initialBalance}, 0, 0, NOW(), NOW())
-        ON CONFLICT ("userId", asset) DO NOTHING
       `;
 
       const rows: any[] = await tx.$queryRaw`
@@ -856,7 +848,42 @@ export class LedgerService {
         WHERE "userId" = ${userId} AND asset = 'USDC'
         FOR UPDATE
       `;
-      const current = rows.length ? Number(rows[0].availableUSDC) : 0;
+
+      const latestRows: any[] = await tx.$queryRaw`
+        SELECT "resultingBalanceUSDC"
+        FROM "LedgerEntry"
+        WHERE "userId" = ${userId}
+        ORDER BY "createdAt" DESC
+        LIMIT 1
+      `;
+      const initialBalance = latestRows.length ? Number(latestRows[0].resultingBalanceUSDC) : (this.ledger.get(userId) || 0);
+      const current = rows.length ? Number(rows[0].availableUSDC) : initialBalance;
+
+      if (existingEntry.length > 0) {
+        console.log(`[LedgerService] Credit ${type}:${reference} already processed — skipping duplicate credit.`);
+        return current;
+      }
+
+      // 2. Reversal safety check: if this is a reversal, ensure a matching SPEND_DEBIT exists
+      if (type === 'SPEND_REVERSAL' || reference.startsWith('rev_')) {
+        const originalRef = reference.replace(/^rev_/, '');
+        const matchingDebit: any[] = await tx.$queryRaw`
+          SELECT id FROM "LedgerEntry"
+          WHERE type = 'SPEND_DEBIT' AND "referenceId" = ${originalRef}
+          LIMIT 1
+        `;
+        if (matchingDebit.length === 0) {
+          console.warn(`[LedgerService] ⚠️ Refusing reversal credit for ${reference}: original SPEND_DEBIT (${originalRef}) was never recorded.`);
+          return current;
+        }
+      }
+
+      await tx.$executeRaw`
+        INSERT INTO "BalanceAccount" (id, "userId", asset, "availableUSDC", "reservedUSDC", version, "createdAt", "updatedAt")
+        VALUES (gen_random_uuid(), ${userId}, 'USDC', ${initialBalance}, 0, 0, NOW(), NOW())
+        ON CONFLICT ("userId", asset) DO NOTHING
+      `;
+
       const next = current + amountUSDC;
 
       await tx.$executeRaw`
