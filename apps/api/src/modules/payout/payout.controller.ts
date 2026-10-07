@@ -76,6 +76,7 @@ export class PayoutController {
           const selfCustody = new SelfCustodyProvider();
           const sendRes = await selfCustody.sendCrypto({
             treasuryWalletId: privyWalletId,
+            fromAddress: preferredWallet.address,
             depositWalletId: preferredWallet.address,
             toAddress: treasuryAddress,
             amountUSDC,

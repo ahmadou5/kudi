@@ -762,7 +762,7 @@ export class SelfCustodyProvider implements CustodyProvider {
     idempotencyKey?: string; // Unique key to prevent duplicate submissions (e.g., deposit signature)
     feeUSDC?: number // Fixed fee in USDC to deduct from sender (added to amount for user to see)
   }): Promise<{ txHash: string }> {
-    const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress, fromAddress, idempotencyKey, feeUSDC } = params;
+    const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress, fromAddress, depositWalletId, idempotencyKey, feeUSDC } = params;
 
     if (!this.appId || !this.appSecret || !treasuryWalletId) {
       const missing = {
@@ -799,7 +799,7 @@ export class SelfCustodyProvider implements CustodyProvider {
       const mintAddr = usdcMintAddress || this.solanaUsdcMintAddress;
       const USDC_DECIMALS = 6; // USDC always has 6 decimals
 
-      const signerAddrStr = fromAddress || this.solanaTreasuryAddress;
+      const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddress;
 
       if (!signerAddrStr) {
         throw new Error('Solana signing address is not configured. Cannot build Solana transaction.');
