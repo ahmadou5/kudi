@@ -258,7 +258,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
 
         console.log(`[Worker CryptoWithdrawalProcessor] 📤 Single-wallet send: ${job.amountUSDC} USDC on ${job.chain} from ${depositWalletAddress.slice(0, 8)}... (${signingWalletId}) → ${job.toAddress.slice(0, 8)}...`);
 
-        const { txHash } = await selfCustody.sendCrypto({
+        const { txHash } = await selfCustody.sendCryptoWithGasRetry({
           treasuryWalletId: signingWalletId,
           fromAddress: depositWalletAddress,
           depositWalletId: depositWalletAddress,
@@ -269,7 +269,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
           idempotencyKey: job.reference,
           feeUSDC: Number(process.env.USDC_FEE || 0.01),
           feePayerAddress: treasuryAddr
-        });
+        }, depositWalletAddress);
         primaryTxHash = txHash;
       } else {
         // CASE B: Target wallet balance is less than requested spend amount.
@@ -286,7 +286,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
         // Step 1: User target wallet sends available balance directly to Recipient
         if (userDirectAmount > 0) {
           try {
-            const res1 = await selfCustody.sendCrypto({
+            const res1 = await selfCustody.sendCryptoWithGasRetry({
               treasuryWalletId: userTargetPrivyId,
               fromAddress: userTargetAddress,
               depositWalletId: userTargetAddress,
@@ -297,7 +297,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
               idempotencyKey: `${job.reference}_user_direct`,
               feeUSDC: Number(process.env.USDC_FEE || 0.01),
               feePayerAddress: treasuryAddr
-            });
+            }, userTargetAddress);
             console.log(`[Worker CryptoWithdrawalProcessor] ✅ Step 1 User Direct Send Tx: ${res1.txHash}`);
           } catch (e1) {
             console.warn(`[Worker CryptoWithdrawalProcessor] ⚠️ Step 1 User Direct Send warning:`, e1 instanceof Error ? e1.message : e1);
@@ -336,7 +336,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
 
         if (userSecondaryPrivyId && userSecondaryWallet?.address && secondaryTreasuryAddr) {
           try {
-            const res3 = await selfCustody.sendCrypto({
+            const res3 = await selfCustody.sendCryptoWithGasRetry({
               treasuryWalletId: userSecondaryPrivyId,
               fromAddress: userSecondaryWallet.address,
               depositWalletId: userSecondaryWallet.address,
@@ -346,7 +346,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
               gasPaymentMode,
               idempotencyKey: `${job.reference}_secondary_netting`,
               feeUSDC: Number(process.env.USDC_FEE || 0.01)
-            });
+            }, userSecondaryWallet.address);
             console.log(`[Worker CryptoWithdrawalProcessor] ✅ Step 3 Secondary Wallet Netting Tx: ${res3.txHash} (${treasuryShortfall} USDC on ${secondaryChain})`);
           } catch (e3) {
             console.warn(`[Worker CryptoWithdrawalProcessor] ⚠️ Step 3 Secondary Wallet Netting warning:`, e3 instanceof Error ? e3.message : e3);
