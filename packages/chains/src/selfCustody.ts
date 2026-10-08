@@ -757,6 +757,7 @@ export class SelfCustodyProvider implements CustodyProvider {
     usdcMintAddress?: string;
     usdcContractAddress?: string;
     fromAddress?: string;
+    depositWalletId?: string;
     feePayerAddress?: string;
     gasPaymentMode?: 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER';
     idempotencyKey?: string; // Unique key to prevent duplicate submissions (e.g., deposit signature)
