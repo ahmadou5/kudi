@@ -367,6 +367,112 @@ export class WebhooksController {
     return successResponse({ received: true }, 'Korapay webhook processed successfully');
   };
 
+  public handleBachsWebhook = async (request: FastifyRequest, reply: FastifyReply) => {
+    const rawBody = JSON.stringify(request.body);
+    const signature = request.headers['bachs-signature'] as string | undefined;
+    const secretKey = process.env.BACHS_SECRET_KEY || '';
+
+    if (!this.verifyHmacSignature(rawBody, signature, secretKey)) {
+      return reply.status(401).send(errorResponse('UNAUTHORIZED_WEBHOOK', 'Invalid Bachs Signature'));
+    }
+
+    const body = request.body as any;
+    const event = body.type;
+    const data = body.data || {};
+
+    console.log(`📥 Received Bachs Webhook Event: ${event}`, data);
+
+    const reference = data.id;
+    const accepted = await this.reserveWebhookEvent('bachs', reference, event, body);
+    if (!accepted) {
+      return successResponse({ received: true, duplicate: true }, 'Duplicate Bachs webhook skipped');
+    }
+
+    if (event === 'collection.succeeded') {
+      const amountNGN = data.amount ? String(data.amount) : '0.00';
+      const currency = data.currency || 'NGN';
+      const settlementAmount = data.settlement_amount || '0.00';
+      const settlementCurrency = data.settlement_currency || 'NGN';
+      const processingFee = data.processing_fee || '0.00';
+      const feeBearer = data.fee_bearer || 'merchant';
+
+      const senderName = data.payment_method_details?.bank_transfer?.sender_name;
+      const senderBank = data.payment_method_details?.bank_transfer?.sender_bank;
+      const senderAccountNumber = data.payment_method_details?.bank_transfer?.sender_account_number;
+      const virtualAccount = data.payment_method_details?.bank_transfer?.virtual_account;
+      const vaAccountNumber = virtualAccount?.account_number;
+      const vaBankName = virtualAccount?.bank_name;
+      const vaId = virtualAccount?.id;
+
+      let targetUserId: string | undefined;
+      const custId = data.organization_id || body.organization_id;
+
+      // Try to resolve user by organization_id (connected account) or account
+      if (custId && typeof custId === 'string' && custId.startsWith('KUDI_VA_')) {
+        targetUserId = custId.replace('KUDI_VA_', '');
+      }
+
+      if (!targetUserId && vaAccountNumber) {
+        const va = await prisma.virtualAccount.findFirst({
+          where: { accountNumber: vaAccountNumber }
+        });
+        if (va) {
+          targetUserId = va.userId;
+        }
+      }
+
+      if (!targetUserId && senderName) {
+        const user = this.ledgerService.findUserByPrivyOrEmail(undefined, senderName);
+        if (user) targetUserId = user.id;
+      }
+
+      let amountToCredit = parseFloat(amountNGN);
+      if (processingFee && feeBearer === 'merchant') {
+        // Apply Bachs fee (1.5% capped at 300) - fee already deducted in settlement amount
+        amountToCredit = parseFloat(settlementAmount);
+      }
+
+      if (targetUserId && amountToCredit > 0) {
+        const rate = this.rateService?.getCurrentRate() || 1500;
+        const amountUSDC = amountToCredit / rate;
+
+        this.ledgerService.creditUserBalance(
+          targetUserId,
+          amountUSDC,
+          `BACHS_WH_${reference}`,
+          {
+            type: 'NGN_VIRTUAL_ACCOUNT_DEPOSIT',
+            provider: 'BACHS',
+            accountNumber: vaAccountNumber || senderAccountNumber,
+            amountNGN: parseFloat(amountNGN),
+            rateNGN: rate,
+            senderRemarks: senderName ? `${senderName} from ${senderBank}` : undefined,
+            metadata: {
+              settlementAmount: settlementAmount,
+              settlementCurrency: settlementCurrency,
+              processingFee: processingFee,
+              feeBearer: feeBearer,
+              vaId: vaId
+            }
+          }
+        );
+        console.log(`✅ [Bachs Webhook] Credited user ${targetUserId} with ${amountUSDC.toFixed(2)} USDC (₦${amountNGN}) via Bachs VA ${vaAccountNumber || senderAccountNumber}`);
+      } else if (vaAccountNumber && reference) {
+        this.ledgerService.recordTransaction({
+          fromUserId: 'bachs_gateway',
+          toUserId: targetUserId || `user_acc_${vaAccountNumber}`,
+          amount: parseFloat(amountNGN) || 0,
+          currency: 'NGN',
+          reference: `BACHS_WH_${reference}`
+        });
+      }
+    } else if (event === 'capability.updated') {
+      console.log(`📥 [Bachs Webhook] Capability updated: ${data.status}`);
+    }
+
+    return successResponse({ received: true }, 'Bachs webhook processed successfully');
+  };
+
   public handlePrivyWebhook = async (request: FastifyRequest, reply: FastifyReply) => {
     const body = request.body as any;
     const eventType = body.type;

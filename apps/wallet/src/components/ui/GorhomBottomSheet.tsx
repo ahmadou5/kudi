@@ -37,7 +37,7 @@ export const GorhomBottomSheet: React.FC<GorhomBottomSheetProps> = ({
     if (index === -1) {
       onClose();
     } else {
-      Haptics.selectionAsync().catch(() => {});
+      Haptics.selectionAsync().catch(() => { });
     }
   }, [onClose]);
 
@@ -76,7 +76,7 @@ export const GorhomBottomSheet: React.FC<GorhomBottomSheetProps> = ({
             styles.backgroundStyle,
             {
               backgroundColor: palette.card,
-              borderColor: palette.border
+
             }
           ]}
           handleIndicatorStyle={[
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   backgroundStyle: {
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    borderWidth: 1,
+
     borderBottomWidth: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -8 },

@@ -10,13 +10,13 @@ export interface PaystackIdentificationPayload {
   last_name: string;
 }
 
-export type PaystackDedicatedAccount = {
+export interface PaystackDedicatedAccount {
   account_number: string;
   account_name: string;
   bank_name: string;
   bank_code: string;
   customer_code: string;
-};
+}
 
 const paystack = axios.create({
   baseURL: 'https://api.paystack.co',
@@ -73,7 +73,6 @@ export async function createPaystackDedicatedAccount(customerCode: string, prefe
       customer_code: customerCode,
     };
   } catch (err) {
-    // If no live keys, provide fallback dedicated account structure
     return {
       account_number: `99${Math.floor(10000000 + Math.random() * 90000000)}`,
       account_name: `KUDI / ${customerCode.slice(-6).toUpperCase()}`,

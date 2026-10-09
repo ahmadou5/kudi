@@ -529,7 +529,7 @@ export class AdminController {
   };
 
   public getPayoutRails = async (_request: FastifyRequest, _reply: FastifyReply) => {
-    const activeId = this.paymentRegistry.getActiveProviderId(); // 'paystack', 'monnify', 'squad'
+    const activeId = this.paymentRegistry.getActiveProviderId(); // 'paystack', 'monnify', 'squad', 'bachs'
     const rails = [
       {
         id: 'PAYSTACK',
@@ -557,6 +557,15 @@ export class AdminController {
         latencyMs: 510,
         successRate: 98.9,
         supportedRails: ['GTCO Priority Rail', 'NIP Interbank', 'Dedicated Virtual Accounts']
+      },
+      {
+        id: 'BACHS',
+        name: 'Bachs Virtual Accounts',
+        active: activeId === 'bachs',
+        balanceNGN: 15000000,
+        latencyMs: 250,
+        successRate: 99.5,
+        supportedRails: ['Virtual Accounts', 'Bank Transfer', 'Local Payment Methods']
       }
     ];
     return successResponse(rails);
