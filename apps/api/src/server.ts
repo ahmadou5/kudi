@@ -106,7 +106,9 @@ const paymentRegistry = new PaymentProviderRegistry({
   monnifyBaseUrl: apiConfig.MONNIFY_BASE_URL,
   monnifySourceAccountNumber: apiConfig.MONNIFY_SOURCE_ACCOUNT!,
   squadSecretKey: apiConfig.SQUAD_SECRET_KEY!,
-  squadBaseUrl: apiConfig.SQUAD_BASE_URL
+  squadBaseUrl: apiConfig.SQUAD_BASE_URL,
+  bachsSecretKey: apiConfig.BACHS_SECRET_KEY,
+  bachsBaseUrl: apiConfig.BACHS_BASE_URL
 });
 const rateService = new RateService();
 const ledgerService = new LedgerService();

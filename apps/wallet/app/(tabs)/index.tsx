@@ -132,7 +132,7 @@ export default function HomeTab() {
               <ActivityRowSkeleton />
             </>
           ) : formattedTransactions.length > 0 ? (
-            formattedTransactions.slice(0, 5).map((tx) => (
+            formattedTransactions.slice(0, 7).map((tx) => (
               <TransactionCard key={tx.id} item={tx} compact />
             ))
           ) : (

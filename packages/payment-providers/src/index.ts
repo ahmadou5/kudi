@@ -2,10 +2,12 @@ import { PaymentProvider, PaymentProviderId } from '@kudi/types';
 import { PaystackProvider } from './paystack';
 import { MonnifyProvider } from './monnify';
 import { SquadProvider } from './squad';
+import { BachsProvider } from './bachs';
 
 export * from './paystack';
 export * from './monnify';
 export * from './squad';
+export * from './bachs';
 
 export interface PaymentProviderRegistryConfig {
   paystackSecretKey?: string;
@@ -15,21 +17,23 @@ export interface PaymentProviderRegistryConfig {
   monnifySourceAccountNumber?: string;
   squadSecretKey?: string;
   squadBaseUrl?: string;
+  bachsSecretKey?: string;
+  bachsBaseUrl?: string;
 }
 
 export class PaymentProviderRegistry {
   private providers: Map<PaymentProviderId, PaymentProvider> = new Map();
-  private activeProviderId: PaymentProviderId = PaymentProviderId.PAYSTACK;
+  private activeProviderId: PaymentProviderId = PaymentProviderId.BACHS;
   private failoverOrder: PaymentProviderId[] = [
-    PaymentProviderId.PAYSTACK,
     PaymentProviderId.MONNIFY,
-    PaymentProviderId.SQUAD
+    PaymentProviderId.SQUAD,
+    PaymentProviderId.BACHS
   ];
 
   constructor(config: PaymentProviderRegistryConfig = {}) {
-    this.registerProvider(new PaystackProvider(config.paystackSecretKey));
     this.registerProvider(new MonnifyProvider(config.monnifyApiKey, config.monnifySecretKey, config.monnifyBaseUrl, config.monnifySourceAccountNumber));
     this.registerProvider(new SquadProvider(config.squadSecretKey, config.squadBaseUrl));
+    this.registerProvider(new BachsProvider(config.bachsSecretKey, config.bachsBaseUrl));
   }
 
   public registerProvider(provider: PaymentProvider): void {
