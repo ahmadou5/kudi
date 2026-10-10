@@ -226,7 +226,6 @@ async function main() {
   rateService.onRateUpdate((rateState) => {
     io.emit('rate:updated', rateState);
   });
-  rateService.startPolling(30_000);
 
   server.log.info('Sole sweep owner: apps/worker ChainDepositProcessor.processSweepRetries (ADR-0001).');
 
