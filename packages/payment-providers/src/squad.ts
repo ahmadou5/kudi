@@ -101,14 +101,22 @@ export class SquadProvider implements PaymentProvider {
 
   async listSupportedBanks(): Promise<Array<{ code: string; name: string }>> {
     return [
-      { code: '058', name: 'GTBank' },
       { code: '011', name: 'First Bank' },
-      { code: '057', name: 'Zenith Bank' },
       { code: '033', name: 'UBA' },
       { code: '044', name: 'Access Bank' },
+      { code: '057', name: 'Zenith Bank' },
+      { code: '058', name: 'GTBank' },
+      { code: '035', name: 'Wema Bank' },
+      { code: '070', name: 'Fidelity Bank' },
+      { code: '214', name: 'FCMB' },
+      { code: '221', name: 'Stanbic IBTC' },
+      { code: '232', name: 'Sterling Bank' },
+      { code: '050', name: 'Ecobank' },
+      { code: '076', name: 'Polaris Bank' },
       { code: '50515', name: 'Moniepoint MFB' },
+      { code: '50211', name: 'Kuda Bank' },
       { code: '999992', name: 'OPay' },
-      { code: '999991', name: 'PalmPay' }
+      { code: '999991', name: 'PalmPay' },
     ];
   }
 }

@@ -1,5 +1,18 @@
 import { prisma } from '@kudi/database';
 
+export interface FxRateResult {
+  from: string;
+  to: string;
+  rate: number;
+  updatedAt: string;
+  isStale: boolean;
+}
+
+interface FxCacheEntry {
+  rate: number;
+  fetchedAt: number;
+}
+
 export interface RateState {
   currentRateNGN: number;
   rawP2PRateNGN: number;
@@ -21,6 +34,9 @@ export class RateService {
 
   private pollingTimer: NodeJS.Timeout | null = null;
   private rateUpdateListeners: Array<(state: RateState) => void> = [];
+  // In-memory FX cache: key = "EUR:USD", value = { rate, fetchedAt }
+  private fxCache = new Map<string, FxCacheEntry>();
+  private readonly FX_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
   public getRateState(): RateState {
     return this.state;
@@ -127,6 +143,116 @@ export class RateService {
 
     this.state.isStale = true;
     return this.state.currentRateNGN;
+  }
+
+  /**
+   * Fetch a live FX rate for any currency pair (e.g. EUR→USD, GBP→USD, NGN→USD).
+   * Results are cached for FX_CACHE_TTL_MS to avoid hammering providers.
+   */
+  public async getFxRate(from: string, to: string): Promise<FxRateResult> {
+    const normalFrom = from.toUpperCase();
+    const normalTo = to.toUpperCase();
+
+    // Identity
+    if (normalFrom === normalTo) {
+      return { from: normalFrom, to: normalTo, rate: 1, updatedAt: new Date().toISOString(), isStale: false };
+    }
+
+    // Special case: use our internal engine for NGN↔USD (most accurate for the platform)
+    if ((normalFrom === 'NGN' && normalTo === 'USD') || (normalFrom === 'USD' && normalTo === 'NGN')) {
+      const ngnPerUsd = this.getCurrentRate();
+      const rate = normalFrom === 'NGN' ? 1 / ngnPerUsd : ngnPerUsd;
+      return {
+        from: normalFrom,
+        to: normalTo,
+        rate,
+        updatedAt: this.state.lastUpdated,
+        isStale: this.state.isStale,
+      };
+    }
+
+    const cacheKey = `${normalFrom}:${normalTo}`;
+    const cached = this.fxCache.get(cacheKey);
+    if (cached && Date.now() - cached.fetchedAt < this.FX_CACHE_TTL_MS) {
+      return {
+        from: normalFrom,
+        to: normalTo,
+        rate: cached.rate,
+        updatedAt: new Date(cached.fetchedAt).toISOString(),
+        isStale: false,
+      };
+    }
+
+    const providers: Array<{ name: string; fetch: () => Promise<number> }> = [
+      {
+        name: 'OpenER-API',
+        fetch: async () => {
+          const res = await fetch(`https://open.er-api.com/v6/latest/${normalFrom}`, {
+            headers: { 'User-Agent': 'KudiRateEngine/1.0' },
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = (await res.json()) as any;
+          const rate = data?.rates?.[normalTo];
+          if (rate && !isNaN(rate) && rate > 0) return Number(rate);
+          throw new Error(`No ${normalTo} rate in OpenER-API response`);
+        },
+      },
+      {
+        name: 'ExchangeRate-API',
+        fetch: async () => {
+          const res = await fetch(`https://api.exchangerate-api.com/v4/latest/${normalFrom}`, {
+            headers: { 'User-Agent': 'KudiRateEngine/1.0' },
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = (await res.json()) as any;
+          const rate = data?.rates?.[normalTo];
+          if (rate && !isNaN(rate) && rate > 0) return Number(rate);
+          throw new Error(`No ${normalTo} rate in ExchangeRate-API response`);
+        },
+      },
+      {
+        name: 'Frankfurter',
+        fetch: async () => {
+          const res = await fetch(`https://api.frankfurter.app/latest?from=${normalFrom}&to=${normalTo}`, {
+            headers: { 'User-Agent': 'KudiRateEngine/1.0' },
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = (await res.json()) as any;
+          const rate = data?.rates?.[normalTo];
+          if (rate && !isNaN(rate) && rate > 0) return Number(rate);
+          throw new Error(`No ${normalTo} rate in Frankfurter response`);
+        },
+      },
+    ];
+
+    for (const provider of providers) {
+      try {
+        const rate = await provider.fetch();
+        this.fxCache.set(cacheKey, { rate, fetchedAt: Date.now() });
+        return {
+          from: normalFrom,
+          to: normalTo,
+          rate,
+          updatedAt: new Date().toISOString(),
+          isStale: false,
+        };
+      } catch (_err) {
+        // Try next provider
+      }
+    }
+
+    // All providers failed — return stale cache if we have one
+    if (cached) {
+      return {
+        from: normalFrom,
+        to: normalTo,
+        rate: cached.rate,
+        updatedAt: new Date(cached.fetchedAt).toISOString(),
+        isStale: true,
+      };
+    }
+
+    throw new Error(`Unable to fetch FX rate for ${normalFrom}→${normalTo} from any provider`);
   }
 
   public startPolling(intervalMs = 30_000) {

@@ -194,6 +194,12 @@ export class KudiSDK {
     return this.parseJson(res);
   }
 
+  async getFxRate(from: string, to = 'USD') {
+    const params = new URLSearchParams({ from, to });
+    const res = await fetch(`${this.baseUrl}${apiRoutes.rates.fx}?${params.toString()}`);
+    return this.parseJson<{ from: string; to: string; rate: number; updatedAt: string; isStale: boolean }>(res);
+  }
+
   async getSupportedBanks() {
     const res = await fetch(`${this.baseUrl}${apiRoutes.payout.banks}`, {
       headers: this.getHeaders()

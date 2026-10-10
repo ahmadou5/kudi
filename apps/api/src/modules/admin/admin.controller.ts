@@ -118,6 +118,19 @@ export class AdminController {
     return successResponse(this.rateService.getRateState());
   };
 
+  public getFxRate = async (request: FastifyRequest, reply: FastifyReply) => {
+    const { from = 'USD', to = 'USD' } = request.query as { from?: string; to?: string };
+    if (!from || !to) {
+      return reply.status(400).send(errorResponse('INVALID_PARAMS', '`from` and `to` query params are required', 400));
+    }
+    try {
+      const result = await this.rateService.getFxRate(from, to);
+      return successResponse(result);
+    } catch (err: any) {
+      return reply.status(502).send(errorResponse('FX_UNAVAILABLE', err?.message || 'FX rate unavailable', 502));
+    }
+  };
+
   public overrideRate = async (request: FastifyRequest, reply: FastifyReply) => {
     const { newRateNGN } = request.body as { newRateNGN: number };
     if (!newRateNGN || newRateNGN <= 0) {

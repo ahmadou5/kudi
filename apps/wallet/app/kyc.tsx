@@ -34,6 +34,7 @@ import { AppModal, useAppModal } from '../src/components/ui/AppModal';
 import { DobDatePickerModal } from '../src/components/ui/DobDatePickerModal';
 import { BankPickerModal, BankLogo, BankItem } from '../src/components/wallet/BankPickerModal';
 import { NIGERIAN_BANKS } from '../src/constants/banks';
+import { useBanks } from '../src/hooks/useBanks';
 import { FlowProgressDots } from '../src/components/wallet/WalletFlowProgress';
 import { AnimatedSkeleton } from '../src/components/ui/AnimatedSkeleton';
 
@@ -86,6 +87,9 @@ export default function KYCScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Dynamic bank list (fetched from active payment provider, falls back to static)
+  const { banks, loading: banksLoading } = useBanks();
+
   // NIN Upgrade modal state
   const [nin, setNin] = useState('');
   const [ninSubmitting, setNinSubmitting] = useState(false);
@@ -115,8 +119,8 @@ export default function KYCScreen() {
 
   // Selected bank item
   const selectedBank = useMemo(
-    () => NIGERIAN_BANKS.find((b) => b.code === bankCode) || NIGERIAN_BANKS[0],
-    [bankCode]
+    () => banks.find((b) => b.code === bankCode) || banks[0] || NIGERIAN_BANKS[0],
+    [bankCode, banks]
   );
 
   // Auto-polling when pending
@@ -730,7 +734,7 @@ export default function KYCScreen() {
               onPress={() => setBankPickerOpen(true)}
               style={[styles.bankButton, { backgroundColor: palette.bg, borderColor: palette.border }]}
             >
-              <BankLogo name={selectedBank?.name || 'Bank'} bankCode={selectedBank?.code} size={36} />
+              <BankLogo name={selectedBank?.name || 'Bank'} bankCode={selectedBank?.code} slug={selectedBank?.slug} size={36} />
               <View style={styles.bankButtonCopy}>
                 <Text style={[styles.bankButtonValue, { color: palette.text }]}>
                   {selectedBank?.name || 'Choose your bank'}
@@ -867,7 +871,8 @@ export default function KYCScreen() {
         visible={bankPickerOpen}
         onClose={() => setBankPickerOpen(false)}
         selectedBankCode={bankCode}
-        banks={NIGERIAN_BANKS}
+        banks={banks}
+        banksLoading={banksLoading}
         onSelect={(bank) => setBankCode(bank.code)}
       />
 

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppPalette } from '../../src/lib/theme';
 import { useAuthStore, AuthState } from '../../src/store/auth.store';
 import { FloatingTabBar } from '../../src/components/FloatingTabBar';
+import { ProfileOnboardingModal } from '../../src/components/ProfileOnboardingModal';
 
 export default function TabsLayout() {
   const palette = useAppPalette();
@@ -22,6 +23,7 @@ export default function TabsLayout() {
 
   return (
     <View style={[styles.container, { backgroundColor: palette.bg, paddingTop: insets.top }]}>
+      <ProfileOnboardingModal />
       <Tabs
         screenOptions={{
           headerShown: false,

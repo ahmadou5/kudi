@@ -42,7 +42,8 @@ export const apiRoutes = {
     receipt: (reference = ':reference') => `/api/v1/payout/receipt/${reference}`
   },
   rates: {
-    current: '/api/v1/rates/current'
+    current: '/api/v1/rates/current',
+    fx: '/api/v1/rates/fx'
   },
   admin: {
     users: '/api/v1/admin/users',
@@ -96,7 +97,15 @@ export const sendPrivyOtpRequestSchema = z.object({ email: z.string().email() })
 export const verifyPrivyOtpRequestSchema = z.object({ email: z.string().email(), code: z.string().min(4) });
 export const refreshTokenRequestSchema = z.object({ refreshToken: z.string().min(1) });
 export const registerUserRequestSchema = z.object({ phoneNumber: z.string().optional(), email: z.string().email().optional() });
-export const updateUserProfileRequestSchema = z.object({ fullName: z.string().optional(), username: z.string().optional(), avatarUrl: z.string().url().optional() });
+export const updateUserProfileRequestSchema = z.object({
+  fullName: z.string().optional(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  username: z.string().optional(),
+  dob: z.string().optional(),
+  avatarUrl: z.string().url().optional(),
+  profileCompleted: z.boolean().optional()
+});
 export const setPinRequestSchema = z.object({ userId: z.string().min(1), pin: z.string().min(4) });
 export const verifyPinRequestSchema = setPinRequestSchema;
 export const verifyKycIdRequestSchema = z.object({
@@ -127,7 +136,7 @@ export const spendOnChainRequestSchema = z.object({
     amountUSDC: z.number().positive(),
     toAddress: z.string().min(1),
     chain: z.enum(['solana', 'monad']),
-    feeUSDC: z.number().positive().default(0.01)
+    feeUSDC: z.number().positive().default(0.01).optional()
   });
 export const cashoutRequestSchema = z.object({ userId: z.string().min(1), pin: z.string().optional(), amountUSDC: z.number().positive().min(0.1), walletAddress: z.string().min(1), type: z.enum(['CRYPTO', 'NGN_PAYOUT']), bankCode: z.string().optional(), accountNumber: z.string().optional(), accountName: z.string().optional(), payoutProvider: z.enum(['paystack', 'monnify', 'squad']).optional() });
 export const overrideRateRequestSchema = z.object({ newRateNGN: z.number().positive() });
