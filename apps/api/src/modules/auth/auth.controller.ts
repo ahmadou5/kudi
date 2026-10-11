@@ -1,5 +1,6 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { CustodyManager } from '@kudi/chains';
+import { SelfCustodyProvider } from '@kudi/provider-privy';
 import { prisma } from '@kudi/database';
 import { LedgerService } from '../../services/ledgerService';
 import { successResponse, errorResponse } from '../../utils/response';

@@ -41,6 +41,62 @@ This document lists all environment variables required or supported across the M
 
 ---
 
+## 4. ⛓️ Three-Chain Sponsorship Configuration
+
+| Variable | Description | Required in Production | Default Value (Dev) |
+|---|---|---|---|
+| `PRIVY_SOLANA_GAS_WALLET_ID` | Privy server wallet ID that signs+sends Solana sponsored transactions (CAIP-2) | **Yes** (when using Solana sponsorship) | — |
+| `PRIVY_SOLANA_GAS_WALLET_PUBKEY` | Public key of the Privy Solana gas wallet (for CAIP-2 signing) | **Yes** (when using Solana sponsorship) | — |
+| `PRIVY_STELLAR_GAS_WALLET_ID` | Privy server wallet ID that signs+fee-bumps Stellar sponsored transactions | **Yes** (when using Stellar sponsorship) | — |
+| `PRIVY_STELLAR_GAS_WALLET_PUBKEY` | Public key of the Privy Stellar gas wallet (for fee bump transactions) | **Yes** (when using Stellar sponsorship) | — |
+| `PRIVY_EVM_GAS_WALLET_ID` | Privy server wallet ID that signs EVM sponsored transactions (via Alchemy gas manager) | **Yes** (when using EVM sponsorship) | — |
+| `PRIVY_EVM_SETTLEMENT_LIQUIDITY_WALLET_ID` | Privy server wallet ID for EVM settlement liquidity (Multicall3 patterns) | **Yes** (when using EVM sponsorship) | — |
+| `PRIVY_EVM_FEES_WALLET_ID` | Privy server wallet ID for EVM fee management | **Yes** (when using EVM sponsorship) | — |
+| `ALCHEMY_API_KEY` | Alchemy API key for EVM gas manager (WalletPrepareCalls/SendPreparedCalls) | **Yes** (when using EVM sponsorship) | — |
+| `ALCHEMY_GAS_POLICY_ID` | Alchemy gas policy ID for sponsored transaction execution | **Yes** (when using EVM sponsorship) | --- |
+
+---
+
+## 4B. 🔐 Pila Privy Key Quorum (RPC Authentication)
+
+| Variable | Description | Required in Production | Default Value (Dev) |
+|---|---|---|---|
+| `PRIVY_APP_ID` | Privy Application ID | **Yes** | `cmtmzjobd00t30dl1qgujdr3q` |
+| `PRIVY_APP_SECRET` | Privy App Secret (Server Wallet signing API) | **Yes** | *Privy Secret* |
+| `PRIVY_VERIFICATION_KEY_PEM` | ECDSA verification key PEM for Privy RPC authorization | **Yes** in prod; warn if missing in dev | — |
+| `PRIVY_WALLET_OWNER_KEY_QUORUM_ID` | Wallet owner key quorum ID for Privy key management | **Yes** in prod; warn if missing in dev | — |
+| `PRIVY_AUTHORIZATION_PRIVATE_KEY_B64` | Base64-encoded authorization private key for Privy RPC calls | **Yes** in prod; warn if missing in dev | — |
+| `PRIVY_AUTHORIZATION_KEY_ID` | Authorization key ID for Privy RPC calls | **Yes** in prod; warn if missing in dev | ---
+
+---
+
+## 4. ⛓️ Three-Chain Sponsorship Configuration
+
+| Variable | Description | Required in Production | Default Value (Dev) |
+|---|---|---|---|
+| `PRIVY_SOLANA_GAS_WALLET_ID` | Privy server wallet ID that signs+sends Solana sponsored transactions (CAIP-2) | **Yes** (when using Solana sponsorship) | — |
+| `PRIVY_SOLANA_GAS_WALLET_PUBKEY` | Public key of the Privy Solana gas wallet (for CAIP-2 signing) | **Yes** (when using Solana sponsorship) | — |
+| `PRIVY_STELLAR_GAS_WALLET_ID` | Privy server wallet ID that signs+fee-bumps Stellar sponsored transactions | **Yes** (when using Stellar sponsorship) | — |
+| `PRIVY_STELLAR_GAS_WALLET_PUBKEY` | Public key of the Privy Stellar gas wallet (for fee bump transactions) | **Yes** (when using Stellar sponsorship) | — |
+| `PRIVY_EVM_GAS_WALLET_ID` | Privy server wallet ID that signs EVM sponsored transactions (via Alchemy gas manager) | **Yes** (when using EVM sponsorship) | — |
+| `PRIVY_EVM_SETTLEMENT_LIQUIDITY_WALLET_ID` | Privy server wallet ID for EVM settlement liquidity (Multicall3 patterns) | **Yes** (when using EVM sponsorship) | — |
+| `PRIVY_EVM_FEES_WALLET_ID` | Privy server wallet ID for EVM fee management | **Yes** (when using EVM sponsorship) | — |
+| `ALCHEMY_API_KEY` | Alchemy API key for EVM gas manager (WalletPrepareCalls/SendPreparedCalls) | **Yes** (when using EVM sponsorship) | — |
+| `ALCHEMY_GAS_POLICY_ID` | Alchemy gas policy ID for sponsored transaction execution | **Yes** (when using EVM sponsorship) | — |
+
+## 4B. 🔐 Pila Privy Key Quorum (RPC Authentication)
+
+| Variable | Description | Required in Production | Default Value (Dev) |
+|---|---|---|---|
+| `PRIVY_APP_ID` | Privy Application ID | **Yes** | `cmtmzjobd00t30dl1qgujdr3q` |
+| `PRIVY_APP_SECRET` | Privy App Secret (Server Wallet signing API) | **Yes** | *Privy Secret* |
+| `PRIVY_VERIFICATION_KEY_PEM` | ECDSA verification key PEM for Privy RPC authorization | **Yes** in prod; warn if missing in dev | — |
+| `PRIVY_WALLET_OWNER_KEY_QUORUM_ID` | Wallet owner key quorum ID for Privy key management | **Yes** in prod; warn if missing in dev | — |
+| `PRIVY_AUTHORIZATION_PRIVATE_KEY_B64` | Base64-encoded authorization private key for Privy RPC calls | **Yes** in prod; warn if missing in dev | — |
+| `PRIVY_AUTHORIZATION_KEY_ID` | Authorization key ID for Privy RPC calls | **Yes** in prod; warn if missing in dev | — |
+
+---
+
 ## 4. ⛓️ Blockchain, Tokens & Treasury Addresses
 
 ### Monad Testnet (EVM)

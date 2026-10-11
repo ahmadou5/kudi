@@ -9,8 +9,9 @@ import { errorResponse, successResponse } from '../../utils/response';
 import { verifyPin, generateReference } from '../../utils/hash';
 import { getAuthenticatedUser } from '../../utils/authGuards';
 import { buildDailyLimitCheck, formatDailyLimitMessage, parseDailyLimitError } from '../../utils/dailyLimits';
-import { SolanaListener } from '@kudi/chains';
-import { SelfCustodyProvider, resolveGasPaymentMode } from '@kudi/chains';
+import { SolanaListener } from '@kudi/provider-solana';
+import { SelfCustodyProvider } from '@kudi/provider-privy';
+import { resolveGasPaymentMode } from '@kudi/provider-crypto';
 import { prisma } from '@kudi/database';
 import { apiConfig } from '@kudi/config';
 
@@ -87,8 +88,8 @@ export class PayoutController {
           });
           onChainTxHash = sendRes.txHash;
           console.log(`[PayoutController] 🏦 On-demand wallet transfer to treasury submitted: ${onChainTxHash} (${amountUSDC} USDC)`);
-        } catch (chainErr: unknown) {
-          console.warn(`[PayoutController] ⚠️ On-demand wallet transfer to treasury warning/fallback:`, chainErr instanceof Error ? chainErr.message : chainErr);
+        } catch (err: unknown) {
+          console.warn(`[PayoutController] ⚠️ On-demand wallet transfer to treasury warning/fallback:`, err instanceof Error ? err.message : err);
         }
       }
     }
@@ -368,6 +369,158 @@ export class PayoutController {
       newBalanceUSDC: (await this.ledgerService.getBalanceAsync(userId)).toFixed(2),
       message: 'Your crypto send is being broadcast to the network. Check status using the reference.'
     }, 'Crypto send initiated');
+  };
+
+  public sponsorOnChainTransfer = async (request: FastifyRequest, reply: FastifyReply) => {
+    const authUser = getAuthenticatedUser(request);
+    const { userId, walletId, asset, toAddress, amount, chain } = request.body as {
+      userId?: string;
+      walletId: string;
+      asset: string;
+      toAddress: string;
+      amount: number | string;
+      chain: 'solana' | 'monad' | 'stellar';
+    };
+
+    const numAmount = typeof amount === 'number' ? amount : parseFloat(String(amount || 0)) || 0;
+
+    // 1. PIN verification
+    const pin = (request.body as any)?.pin as string | undefined;
+
+    // 1. PIN verification
+    const userIdFromAuth = authUser?.userId as string;
+    if (!userIdFromAuth) {
+      return reply.status(401).send(errorResponse('UNAUTHORIZED', 'Authentication is required', 401));
+    }
+    if (userIdFromAuth !== userId) {
+      return reply.status(403).send(errorResponse('FORBIDDEN', 'User ID does not match authenticated user', 403));
+    }
+    const user = this.ledgerService.getUser(userIdFromAuth);
+    if (!verifyPin(pin, user?.pinHash)) {
+      return reply.status(401).send(errorResponse('INVALID_PIN', 'Incorrect transaction PIN entered', 401));
+    }
+
+    // 2. Address format validation — before any funds move
+    if (!validateCryptoAddress(toAddress, chain)) {
+      return reply.status(400).send(
+        errorResponse('INVALID_ADDRESS', `The address "${toAddress}" is not a valid ${chain} address.`, 400)
+      );
+    }
+
+    // 3. Minimum send guard
+    if (numAmount < 1.0) {
+      return reply.status(400).send(
+        errorResponse('BELOW_MINIMUM', 'Minimum crypto send is 1.00 USDC.', 400)
+      );
+    }
+
+    // 4. Self-send guard — block sending to own deposit address
+    const userWallets = this.ledgerService.getUserWallets(userIdFromAuth) || [];
+    const isSelfSend = userWallets.some((w) => w.address.toLowerCase() === toAddress.toLowerCase());
+    if (isSelfSend) {
+      return reply.status(400).send(
+        errorResponse('SELF_SEND_BLOCKED', 'You cannot send crypto to your own Kudi deposit address.', 400)
+      );
+    }
+
+    // 5. Sponsored on-chain transfer using the appropriate provider
+    let txHash: string | undefined;
+    let status: 'processing' | 'completed' | 'failed' = 'processing';
+
+    try {
+      if (chain === 'solana') {
+        const solanaProvider = (request.server as any).providers.solana;
+        const sendRes = await solanaProvider.sendCrypto({
+          gasPaymentMode: 'PRIVY_SPONSOR',
+          treasuryWalletId: walletId,
+          fromAddress: userWallets[0]?.address || '',
+          toAddress,
+          amountUSDC: numAmount,
+          chain: 'solana',
+          idempotencyKey: generateReference('KUDI_SPONSOR'),
+          feeUSDC: apiConfig.USDC_FEE,
+        });
+        txHash = sendRes.txHash;
+        status = 'completed';
+      } else if (chain === 'monad') {
+        const alchemyProvider = (request.server as any).providers.alchemy as any;
+        const prepareRes = await alchemyProvider.prepareSponsoredTransfer({
+          gasPaymentMode: 'PRIVY_SPONSOR',
+          toAddress,
+          amount: numAmount.toString(),
+          chainId: 10143, // monad chain ID
+          tokenAddress: apiConfig.USDC_MINT_ADDRESS,
+        });
+        // Sign via Privy
+        const privySignRes = await (request.server as any).providers.privy.signTransaction({
+          type: prepareRes.requestType,
+          request: prepareRes.signatureRequest,
+        } as any);
+        const sendRes = await alchemyProvider.sendPreparedCalls({
+          signatureRequests: [{ signatureRequest: privySignRes }],
+        } as any);
+        if (sendRes.txHash) {
+          txHash = sendRes.txHash;
+          status = 'completed';
+        }
+      } else if (chain === 'stellar') {
+        const stellarProvider = (request.server as any).providers.stellar as any;
+        const baseTx = stellarProvider.buildBaseTransaction(toAddress, numAmount.toString());
+        const signedXdr = await stellarProvider.signBaseTransaction({
+          network: 'public',
+          baseOperations: baseTx.baseOperations,
+        } as any);
+        const feeBumpRes = await stellarProvider.signFeeBumpTransaction(signedXdr.xdr);
+        const submitRes = await stellarProvider.submitFeeBumpTransaction(feeBumpRes.xdr);
+        txHash = submitRes.hash;
+        status = 'completed';
+      }
+    } catch (err: unknown) {
+      console.warn(`[PayoutController] ⚠️ Sponsored transfer error:`, err instanceof Error ? err.message : err);
+      status = 'failed';
+      txHash = undefined;
+    }
+
+    // 6. Record transfer in DB with TransferMetadata for idempotency
+    const reference = generateReference('KUDI_SPONSOR_TRANSFER');
+    try {
+      await prisma.transfer.create({
+        data: {
+          userId: userIdFromAuth,
+          walletId,
+          asset,
+          toAddress,
+          amount: numAmount,
+          status,
+          txHash,
+        },
+      });
+await prisma.transferMetadata.create({
+        data: {
+          userId: userIdFromAuth,
+          signingProvider: user?.privyUserId ? 'privy' : 'metaMask',
+          walletId,
+          asset,
+          toAddress,
+          amount: numAmount,
+          type: 'SPONSORED_TRANSFER',
+          fee: apiConfig.USDC_FEE ?? 0.001,
+          txHash: txHash ? txHash : undefined,
+          status: status as string,
+        } as any,
+      });
+    } catch (dbErr: unknown) {
+      console.warn('[PayoutController] ⚠️ DB record creation warning:', dbErr instanceof Error ? dbErr.message : String(dbErr));
+      // Continue even if DB recording fails - the tx may still have been sent
+    }
+
+    return successResponse({
+      txHash,
+      status,
+      amount: numAmount,
+      asset,
+      chain,
+    }, 'Sponsored on-chain transfer initiated');
   };
 
   public getCryptoWithdrawalStatus = async (request: FastifyRequest, reply: FastifyReply) => {

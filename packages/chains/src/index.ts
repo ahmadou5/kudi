@@ -1,64 +1,58 @@
-import { CustodyProvider, CustodyTrack } from '@kudi/types';
-import { SelfCustodyProvider } from './selfCustody';
-import { PartnerCustodyProvider } from './partnerCustody';
+// Backward compatibility re-exports for @kudi/chains
+// All logic has been moved to granular provider packages:
+// - @kudi/provider-crypto: address validation, decimal normalization
+// - @kudi/provider-solana: Solana SPL transfer logic
+// - @kudi/provider-alchemy: EVM gas manager
+// - @kudi/provider-privy: Privy SDK integration
+// - @kudi/provider-stellar: Stellar transfer logic
 
-export * from './selfCustody';
-export * from './partnerCustody';
-export * from './evmListener';
-export * from './solanaListener';
-export * from '@kudi/chains-core';
+export * from '@kudi/provider-crypto';
+export * from '@kudi/provider-solana';
+export * from '@kudi/provider-alchemy';
+export * from '@kudi/provider-privy';
+export * from '@kudi/provider-stellar';
 
-export interface CustodyManagerConfig {
-  privyAppId?: string;
-  privyAppSecret?: string;
-  defaultRpcUrl?: string;
-  solanaRpcUrl?: string;
-  partnerApiKey?: string;
-  partnerApiUrl?: string;
-  solanaUsdcMintAddress?: string;
-  solanaTreasuryAddress?: string;
-  solanaCaip2?: string;
-  ausdTokenAddress?: string;
-  monadChainId?: number;
-}
+// Legacy types from @kudi/types (re-exported for convenience)
+export { CustodyProvider, CustodyTrack, DepositWallet } from '@kudi/types';
 
-export class CustodyManager {
-  private activeTrack: CustodyTrack = CustodyTrack.TRACK_A_SELF_CUSTODY;
-  private selfCustodyProvider: SelfCustodyProvider;
-  private partnerCustodyProvider: PartnerCustodyProvider | null = null;
+// Legacy custody provider implementations
+// SelfCustodyProvider and PartnerCustodyProvider logic moved to @kudi/provider-privy
+// These are re-exported for backward compatibility
+export { SelfCustodyProvider } from '@kudi/provider-privy';
+export { PartnerCustodyProvider } from '@kudi/provider-privy';
 
-  constructor(config: CustodyManagerConfig = {}) {
-    this.selfCustodyProvider = new SelfCustodyProvider(
-      config.privyAppId,
-      config.privyAppSecret,
-      config.defaultRpcUrl,
-      config.solanaRpcUrl,
-      config.solanaUsdcMintAddress,
-      config.solanaTreasuryAddress,
-      config.solanaCaip2,
-      config.ausdTokenAddress,
-      config.monadChainId
-    );
-    if (config.partnerApiKey) {
-      this.partnerCustodyProvider = new PartnerCustodyProvider(config.partnerApiKey, config.partnerApiUrl);
-    }
-  }
+// Chain listeners - moved to provider packages
+export { SolanaListener } from '@kudi/provider-solana';
+export { EVMListener } from '@kudi/provider-alchemy';
+export { parseDepositAmount } from '@kudi/provider-crypto';
 
-  public getActiveProvider(): CustodyProvider {
-    if (this.activeTrack === CustodyTrack.TRACK_A_SELF_CUSTODY) {
-      return this.selfCustodyProvider;
-    }
-    if (!this.partnerCustodyProvider) {
-      throw new Error('[CustodyManager] Partner custody provider not configured (missing partnerApiKey)');
-    }
-    return this.partnerCustodyProvider;
-  }
+// Chain config types
+export { ChainType, EVMChainConfig, SolanaChainConfig, ChainConfig } from '@kudi/types';
 
-  public getActiveTrack(): CustodyTrack {
-    return this.activeTrack;
-  }
+// Address validation
+export { validateSolanaAddress, validateEVMAddress, validateCryptoAddress } from '@kudi/provider-crypto';
 
-  public setTrack(track: CustodyTrack): void {
-    this.activeTrack = track;
-  }
-}
+// Legacy sweep helpers - moved to @kudi/provider-crypto
+export {
+  USDC_FEE,
+  MAX_DEPOSIT_USDC,
+  SWEEP_RETRY_POLICY,
+  computeSweepRetryDelay,
+  UNBACKED_SWEEP_STATUSES,
+  resolveSweepAmount,
+  DripTuning,
+  getDripTuning,
+  classifySweepFailure,
+  GasDripReceipt,
+  SWEEP_RESERVE_USDC,
+  parseDepositAmount
+} from '@kudi/provider-crypto';
+
+// Transaction service - moved to @kudi/service-transaction
+export { TransactionService } from '@kudi/service-transaction';
+
+// Wallet service - moved to @kudi/service-wallet
+export { WalletService } from '@kudi/service-wallet';
+
+// Transfer types - moved to @kudi/service-transaction
+export type { TransferMetadata, PerformTransferResult, UpdateTransferResultInput, UpdateTransferResultOutput } from '@kudi/service-transaction';

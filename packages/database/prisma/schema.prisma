@@ -43,6 +43,8 @@ model User {
   withdrawals     Withdrawal[]
   balanceAccounts BalanceAccount[]
   deposits        Deposit[]
+  transfers       Transfer[]
+  transferMetadata TransferMetadata[]
   spendLimitEntries SpendLimitEntry[]
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
@@ -357,5 +359,45 @@ model GasDrip {
 
   @@index([walletAddress, createdAt])
   @@index([chain, createdAt])
+}
+
+model Transfer {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletId      String
+  asset         String
+  toAddress     String
+  amount        Float
+  status        String   @default("processing")
+  provider      String   @default("privy")
+  txHash        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([walletId, createdAt])
+  @@index([status, createdAt])
+}
+
+model TransferMetadata {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  signingProvider   String
+  walletId          String
+  asset             String
+  toAddress         String
+  amount            Float
+  duration          Float
+  type              String?
+  fee               Float
+  txHash            String?
+  status            String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userId, walletId, asset, toAddress, amount, status])
+  @@index([createdAt])
 }
 

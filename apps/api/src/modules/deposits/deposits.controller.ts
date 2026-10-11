@@ -1,7 +1,7 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { DepositService } from '../../services/depositService';
 import { SweepService } from '../../services/sweepService';
-import { SolanaListener } from '@kudi/chains';
+import { SolanaListener } from '@kudi/provider-solana';
 import { apiConfig } from '@kudi/config';
 
 export class DepositsController {

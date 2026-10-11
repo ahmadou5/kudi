@@ -2,6 +2,13 @@ import Fastify from 'fastify';
 import dotenv from 'dotenv';
 import { CustodyManager } from '@kudi/chains';
 import { PaymentProviderRegistry } from '@kudi/payment-providers';
+import { ProviderPrivy } from '@kudi/provider-privy';
+import { ProviderAlchemy } from '@kudi/provider-alchemy';
+import { ProviderSolana } from '@kudi/provider-solana';
+import { ProviderStellar } from '@kudi/provider-stellar';
+import { ProviderCrypto } from '@kudi/provider-crypto';
+import { ServiceWallet } from '@kudi/service-wallet';
+import { ServiceTransaction } from '@kudi/service-transaction';
 import { apiConfig, validateChainRuntimeConfig } from '@kudi/config';
 import corsPlugin from './plugins/cors';
 import helmetPlugin from './plugins/helmet';
@@ -99,6 +106,40 @@ const custodyManager = new CustodyManager({
   ausdTokenAddress: apiConfig.AUSD_TOKEN_ADDRESS,
   monadChainId: apiConfig.MONAD_CHAIN_ID
 });
+
+const providerPrivy = new ProviderPrivy({
+  appId: apiConfig.PRIVY_APP_ID,
+  appSecret: apiConfig.PRIVY_APP_SECRET
+});
+
+const providerAlchemy = new ProviderAlchemy({
+  apiKey: apiConfig.ALCHEMY_API_KEY,
+  gasPolicyId: apiConfig.ALCHEMY_GAS_POLICY_ID
+});
+
+const providerSolana = new ProviderSolana({
+  rpcUrl: apiConfig.SOLANA_RPC_URL
+});
+
+const providerStellar = new ProviderStellar();
+
+const providerCrypto = new ProviderCrypto();
+
+const serviceWallet = new ServiceWallet();
+
+const serviceTransaction = new ServiceTransaction();
+
+// Decorate server with providers for API route access
+server.decorate('providers', {
+  privy: providerPrivy,
+  alchemy: providerAlchemy,
+  solana: providerSolana,
+  stellar: providerStellar,
+  crypto: providerCrypto,
+  wallet: serviceWallet,
+  transaction: serviceTransaction
+});
+
 const paymentRegistry = new PaymentProviderRegistry({
   paystackSecretKey: apiConfig.PAYSTACK_SECRET_KEY!,
   monnifyApiKey: apiConfig.MONNIFY_API_KEY!,

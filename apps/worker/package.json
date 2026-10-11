@@ -10,6 +10,7 @@
     "dev": "tsx watch src/index.ts",
     "build:runtime": "pnpm --workspace-concurrency=1 --filter @kudi/worker^... run build:runtime && pnpm run build",
     "start": "node dist/index.js",
+    "start:river": "tsx src/river/index.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
@@ -17,6 +18,7 @@
     "@kudi/database": "workspace:*",
     "@kudi/payment-providers": "workspace:*",
     "@kudi/types": "workspace:*",
+    "bullmq": "^5.0.0",
     "dotenv": "^16.4.5",
     "@kudi/config": "workspace:*"
   },

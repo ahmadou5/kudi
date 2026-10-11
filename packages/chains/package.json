@@ -19,11 +19,11 @@
   },
   "dependencies": {
     "@kudi/types": "workspace:*",
-    "@solana-program/token": "^0.16.1",
-    "@solana/kit": "^8.3.0",
-    "@solana/signers": "^8.3.0",
-    "ethers": "^6.11.1",
-    "@kudi/chains-core": "workspace:*"
+    "@kudi/provider-crypto": "workspace:*",
+    "@kudi/provider-solana": "workspace:*",
+    "@kudi/provider-alchemy": "workspace:*",
+    "@kudi/provider-privy": "workspace:*",
+    "@kudi/provider-stellar": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.11.19",

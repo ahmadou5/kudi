@@ -37,6 +37,7 @@ export const apiRoutes = {
     spend: '/api/v1/payout/spend',
     spendUser: '/api/v1/payout/spend-user',
     spendOnChain: '/api/v1/payout/spend-onchain',
+    sponsorOnChainTransfer: '/api/v1/payout/sponsor-onchain-transfer',
     cashout: '/api/v1/payout/cashout',
     cryptoStatus: (reference = ':reference') => `/api/v1/payout/crypto-status/${reference}`,
     receipt: (reference = ':reference') => `/api/v1/payout/receipt/${reference}`
@@ -71,110 +72,64 @@ export type ApiResponse<T = any> = Omit<z.infer<typeof apiResponseSchema>, 'data
   error?: any;
 };
 
-export const authenticatePrivyRequestSchema = z.object({
-  privyToken: z.string().optional(),
-  privyUserId: z.string().optional(),
-  email: z.string().email().optional(),
-  phoneNumber: z.string().optional(),
-  name: z.string().optional()
-}).refine((value) => Boolean(value.privyUserId || value.email || value.phoneNumber), {
-  message: 'privyUserId, email, or phoneNumber is required'
+// ==========================================
+// Transfer Types (pila pattern - moved from SDK to api-contracts)
+// ==========================================
+
+export const transferMetadataSchema = z.object({
+  signingProvider: z.string().default('privy'),
+  walletId: z.string(),
+  asset: z.string(),
+  toAddress: z.string(),
+  chain: z.string(),
+  duration: z.number().optional(),
+  type: z.string().optional(),
+  fee: z.string().optional()
 });
 
-export const loginRequestSchema = z.object({
-  email: z.string().email().optional(),
-  identifier: z.string().optional(),
-  password: z.string().min(1)
-}).refine((val) => Boolean(val.email || val.identifier), {
-  message: 'Email or identifier is required'
+export type TransferMetadata = z.infer<typeof transferMetadataSchema>;
+
+export const performTransferResultSchema = z.object({
+  success: z.boolean(),
+  txHash: z.string().optional(),
+  status: z.enum(['completed', 'failed']),
+  duration: z.number(),
+  metadata: transferMetadataSchema
 });
 
-export const updateUserRoleRequestSchema = z.object({
-  role: z.enum(['ADMIN', 'OPERATOR', 'USER'])
+export type PerformTransferResult = z.infer<typeof performTransferResultSchema>;
+
+export const updateTransferResultInputSchema = z.object({
+  txID: z.string(),
+  status: z.enum(['completed', 'failed']),
+  txHash: z.string().optional(),
+  createdAt: z.date().optional(),
+  failureReason: z.string().optional()
 });
 
-export const sendPrivyOtpRequestSchema = z.object({ email: z.string().email() });
-export const verifyPrivyOtpRequestSchema = z.object({ email: z.string().email(), code: z.string().min(4) });
-export const refreshTokenRequestSchema = z.object({ refreshToken: z.string().min(1) });
-export const registerUserRequestSchema = z.object({ phoneNumber: z.string().optional(), email: z.string().email().optional() });
-export const updateUserProfileRequestSchema = z.object({
-  fullName: z.string().optional(),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  username: z.string().optional(),
-  dob: z.string().optional(),
-  avatarUrl: z.string().url().optional(),
-  profileCompleted: z.boolean().optional()
-});
-export const setPinRequestSchema = z.object({ userId: z.string().min(1), pin: z.string().min(4) });
-export const verifyPinRequestSchema = setPinRequestSchema;
-export const verifyKycIdRequestSchema = z.object({
-  userId: z.string().min(1),
-  idNumber: z.string().min(1),
-  idType: z.enum(['BVN', 'NIN']),
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  dob: z.string().min(1),
-  accountNumber: z.string().optional(),
-  bankCode: z.string().optional(),
-  address: z.string().optional(),
-});
-export const resolveAccountRequestSchema = z.object({ accountNumber: z.string().min(1), bankCode: z.string().min(1) });
-export const spendToBankRequestSchema = z.object({
-  userId: z.string().min(1),
-  pin: z.string().optional(),
-  amountUSDC: z.number().positive(),
-  bankCode: z.string().min(1),
-  accountNumber: z.string().min(1),
-  accountName: z.string().min(1),
-  narration: z.string().optional()
-});
-export const spendToUserRequestSchema = z.object({ fromUserId: z.string().min(1), toHandle: z.string().min(1), amountUSDC: z.number().positive(), pin: z.string().optional() });
-export const spendOnChainRequestSchema = z.object({
-    userId: z.string().min(1),
-    pin: z.string().optional(),
-    amountUSDC: z.number().positive(),
-    toAddress: z.string().min(1),
-    chain: z.enum(['solana', 'monad']),
-    feeUSDC: z.number().positive().default(0.01).optional()
-  });
-export const cashoutRequestSchema = z.object({ userId: z.string().min(1), pin: z.string().optional(), amountUSDC: z.number().positive().min(0.1), walletAddress: z.string().min(1), type: z.enum(['CRYPTO', 'NGN_PAYOUT']), bankCode: z.string().optional(), accountNumber: z.string().optional(), accountName: z.string().optional(), payoutProvider: z.enum(['paystack', 'monnify', 'squad']).optional() });
-export const overrideRateRequestSchema = z.object({ newRateNGN: z.number().positive() });
-export const payBillRequestSchema = z.object({ userId: z.string().min(1), billType: z.enum(['AIRTIME', 'ELECTRICITY', 'DATA']), billerName: z.string().min(1), recipientIdentifier: z.string().min(1), amountNGN: z.number().positive() });
-export const setActivePaymentProviderRequestSchema = z.object({ providerId: z.nativeEnum(PaymentProviderId) });
-export const maintenanceConfigSchema = z.object({
-  enabled: z.boolean(),
-  message: z.string().default(''),
-  estimatedMinutes: z.number().nullable().optional(),
-  updatedAt: z.string().optional()
-});
-export const setMaintenanceConfigRequestSchema = z.object({
-  enabled: z.boolean(),
-  message: z.string().optional(),
-  estimatedMinutes: z.number().nullable().optional()
+export type UpdateTransferResultInput = z.infer<typeof updateTransferResultInputSchema>;
+
+export const updateTransferResultOutputSchema = z.object({
+  success: z.boolean(),
+  metadata: transferMetadataSchema,
+  duration: z.number()
 });
 
-export type AuthenticatePrivyRequest = z.infer<typeof authenticatePrivyRequestSchema>;
-export type SendPrivyOtpRequest = z.infer<typeof sendPrivyOtpRequestSchema>;
-export type VerifyPrivyOtpRequest = z.infer<typeof verifyPrivyOtpRequestSchema>;
-export type RefreshTokenRequest = z.infer<typeof refreshTokenRequestSchema>;
-export type RegisterUserRequest = z.infer<typeof registerUserRequestSchema>;
-export type UpdateUserProfileRequest = z.infer<typeof updateUserProfileRequestSchema>;
-export type SetPinRequest = z.infer<typeof setPinRequestSchema>;
-export type VerifyPinRequest = z.infer<typeof verifyPinRequestSchema>;
-export type VerifyKycIdRequest = z.infer<typeof verifyKycIdRequestSchema>;
-export type ResolveAccountRequest = z.infer<typeof resolveAccountRequestSchema>;
-export type SpendToBankRequest = z.infer<typeof spendToBankRequestSchema>;
-export type SpendToUserRequest = z.infer<typeof spendToUserRequestSchema>;
-export type SpendOnChainRequest = z.infer<typeof spendOnChainRequestSchema>;
-export type CashoutRequest = z.infer<typeof cashoutRequestSchema>;
-export type OverrideRateRequest = z.infer<typeof overrideRateRequestSchema>;
-export type PayBillRequest = z.infer<typeof payBillRequestSchema>;
-export type SetActivePaymentProviderRequest = z.infer<typeof setActivePaymentProviderRequestSchema>;
-export type MaintenanceConfig = z.infer<typeof maintenanceConfigSchema>;
-export type SetMaintenanceConfigRequest = z.infer<typeof setMaintenanceConfigRequestSchema>;
-export type LoginRequest = z.infer<typeof loginRequestSchema>;
-export type UpdateUserRoleRequest = z.infer<typeof updateUserRoleRequestSchema>;
+export type UpdateTransferResultOutput = z.infer<typeof updateTransferResultOutputSchema>;
+
+// ==========================================
+// Crypto Address Validation Schemas
+// ==========================================
+
+export const evmAddressSchema = z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'Invalid EVM address');
+export type EvmAddress = z.infer<typeof evmAddressSchema>;
+
+export const solanaAddressSchema = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, 'Invalid Solana address');
+export type SolanaAddress = z.infer<typeof solanaAddressSchema>;
+
+// ==========================================
+// API Response Data Interfaces
+// ==========================================
 
 export interface AuthResponseData {
   user: {
@@ -239,4 +194,129 @@ export interface CryptoStatusResponseData {
   txHash?: string;
 }
 
+// ==========================================
+// Import/Export Types
+// ==========================================
+
+export type AuthenticatePrivyRequest = {
+  privyToken: string;
+  privyUserId: string;
+  email?: string;
+  phoneNumber?: string;
+  name?: string;
+};
+
+export type SendPrivyOtpRequest = {
+  email: string;
+};
+
+export type VerifyPrivyOtpRequest = {
+  email: string;
+  code: string;
+};
+
+export type RefreshTokenRequest = {
+  refreshToken: string;
+};
+
+export type RegisterUserRequest = {
+  phoneNumber?: string;
+  email?: string;
+};
+
+export type UpdateUserProfileRequest = {
+  fullName?: string;
+  firstName?: string;
+  lastName?: string;
+  username?: string;
+  dob?: string;
+  avatarUrl?: string;
+  profileCompleted?: boolean;
+};
+
+export type SetPinRequest = {
+  userId: string;
+  pin: string;
+};
+
+export type VerifyPinRequest = SetPinRequest;
+
+export type VerifyKycIdRequest = {
+  userId: string;
+  idNumber: string;
+  idType: 'BVN' | 'NIN';
+  firstName: string;
+  lastName: string;
+  dob: string;
+  accountNumber?: string;
+  bankCode?: string;
+  address?: string;
+};
+
+export type SpendToBankRequest = {
+  userId: string;
+  pin?: string;
+  amountUSDC: number;
+  bankCode: string;
+  accountNumber: string;
+  accountName?: string;
+  narration?: string;
+};
+
+export type SpendToUserRequest = {
+  fromUserId: string;
+  toHandle: string;
+  amountUSDC: number;
+  pin?: string;
+};
+
+export type SpendOnChainRequest = {
+  userId: string;
+  pin?: string;
+  amountUSDC: number;
+  toAddress: string;
+  chain: 'solana' | 'monad';
+  feeUSDC?: number;
+};
+
+export type CashoutRequest = {
+  userId: string;
+  pin?: string;
+  amountUSDC: number;
+  walletAddress: string;
+  type: 'CRYPTO' | 'NGN_PAYOUT';
+  bankCode?: string;
+  accountNumber?: string;
+  accountName?: string;
+  payoutProvider?: 'paystack' | 'monnify' | 'squad';
+};
+
+export type OverrideRateRequest = {
+  newRateNGN: number;
+};
+
+export type PayBillRequest = {
+  userId: string;
+  billType: 'AIRTIME' | 'ELECTRICITY' | 'DATA';
+  billerName: string;
+  recipientIdentifier: string;
+  amountNGN: number;
+};
+
+export type SetActivePaymentProviderRequest = {
+  providerId: PaymentProviderId;
+};
+
+export type MaintenanceConfig = {
+  enabled: boolean;
+  message?: string;
+  estimatedMinutes?: number | null;
+  updatedAt?: string;
+};
+
+export type SetMaintenanceConfigRequest = {
+  enabled: boolean;
+  message?: string;
+  estimatedMinutes?: number | null;
+};
 
