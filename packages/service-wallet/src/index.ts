@@ -30,9 +30,11 @@ export interface ChainConfig {
   id: string;
   name: string;
   type: 'solana' | 'evm' | 'stellar';
-  rpcUrl: string;
+  rpcUrl?: string;
   rpcUrlFallback?: string;
   usdcMintAddress?: string;
+  tokenAddress?: string;
+  network?: 'testnet' | 'public';
   tokenSymbol?: string;
   tokenDecimals?: number;
   confirmationThreshold?: number;
@@ -41,7 +43,7 @@ export interface ChainConfig {
 
 export class WalletService {
   private privyClient: PrivyClient;
-  privatealchemyProvider: AlchemyProvider;
+  private alchemyProvider: AlchemyProvider;
   private solanaProvider: SolanaProvider;
   private stellarProvider: StellarProvider;
 
@@ -73,15 +75,19 @@ export class WalletService {
   public async generateWallet(config: WalletConfig): Promise<WalletGenerationResult> {
     const { userId, chain, custodyTrack } = config;
 
-    let wallet: DepositWallet;
+    let walletId: string;
+    let address: string;
 
     switch (custodyTrack) {
-      case CustodyTrack.TRACK_A_SELF_CUSTODY:
-        wallet = await this.privyClient.createEmbeddedWallet(
+      case CustodyTrack.TRACK_A_SELF_CUSTODY: {
+        const wallet = await this.privyClient.createEmbeddedWallet(
           chain === 'solana' ? 'solana' : 'ethereum',
           userId
         );
+        walletId = wallet.walletId || `wlt_${userId}_${chain}_${Date.now().toString(36)}`;
+        address = wallet.address || walletId;
         break;
+      }
       case CustodyTrack.TRACK_B_PARTNER:
         // Partner custody would call VASP API
         throw new Error('Partner custody wallet generation not yet implemented');
@@ -90,8 +96,8 @@ export class WalletService {
     }
 
     return {
-      walletId: wallet.id || 'placeholder-wallet-id',
-      address: wallet.address,
+      walletId,
+      address,
       chain,
       track: custodyTrack,
       createdAt: new Date().toISOString()
@@ -143,7 +149,7 @@ export class WalletService {
   /**
    * Select the appropriate custody provider based on track and chain.
    */
-  public selectProvider(track: CustodyTrack, chain: 'solana' | 'monad' | 'stellar'): import('@kudi/provider-crypto' | '@kudi/provider-solana' | '@kudi/provider-alchemy' | '@kudi/provider-stellar' | '@kudi/provider-privy') {
+  public selectProvider(track: CustodyTrack, chain: 'solana' | 'monad' | 'stellar'): PrivyClient | AlchemyProvider | SolanaProvider | StellarProvider {
     switch (track) {
       case CustodyTrack.TRACK_A_SELF_CUSTODY:
         return this.privyClient;

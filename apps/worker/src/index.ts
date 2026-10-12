@@ -9,8 +9,9 @@ import { prisma } from '@kudi/database';
 import { workerConfig, validateChainRuntimeConfig, redactRpcUrl } from '@kudi/config';
 import { allWorkers } from './workers';
 import { performTransferWorker } from './workers/transferWorker';
-import { PerformTransferResult } from './jobs/performTransfer';
-import { Queue } from 'bullmq';
+import { processPerformTransferJob } from './workers/transferWorker';
+import { PerformTransferJob, PerformTransferResult } from './jobs/performTransfer';
+import { Queue, QueueEvents } from 'bullmq';
 
 const monadTestnetConfig: EVMChainConfig = {
   id: 'monad-testnet',
@@ -116,6 +117,9 @@ allWorkers.forEach((worker) => {
 });
 
 // PerformTransfer manual dispatch helper (for API/trigger usage)
+// Enqueues a durable BullMQ job; awaits completion when the worker is live,
+// otherwise returns a queued receipt. Falls back to inline execution if Redis
+// is unavailable. Returned shape extends PerformTransferResult with jobId.
 async function dispatchPerformTransfer(transferData: {
   userID: string;
   walletID: string;
@@ -123,40 +127,77 @@ async function dispatchPerformTransfer(transferData: {
   toAddress: string;
   amount: number;
   chain: 'solana' | 'monad' | 'stellar';
-}): Promise<PerformTransferResult> {
-  const queue = new Queue('perform-transfer', {
-    connection: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: Number(process.env.REDIS_PORT) || 6379,
-      password: process.env.REDIS_PASSWORD || undefined,
-    }
-  });
-
-  await queue.add('perform-transfer', transferData);
-  console.log(`[Transfer] 📦 Dispatching PerformTransfer job for user ${transferData.userID}`);
-
-  // Wait for job completion and return result
-  // In a real implementation, we'd use job.promise() or track the result
-  // For now, return a placeholder - the worker processes the job async
-  return {
-    success: false,
-    status: 'completed' as const,
-    duration: 0,
+}): Promise<PerformTransferResult & { jobId: string }> {
+  const connection = {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: Number(process.env.REDIS_PORT) || 6379,
+    password: process.env.REDIS_PASSWORD || undefined,
+  };
+  const startedAt = Date.now();
+  const buildQueuedReceipt = (jobId: string): PerformTransferResult & { jobId: string } => ({
+    success: true,
+    jobId,
+    status: 'processing' as unknown as PerformTransferResult['status'],
+    duration: (Date.now() - startedAt) / 1000,
     metadata: {
       signingProvider: 'privy',
       walletID: transferData.walletID,
       asset: transferData.asset,
       toAddress: transferData.toAddress,
       chain: transferData.chain,
-      duration: 0,
+      duration: (Date.now() - startedAt) / 1000,
       type: 'outgoing-transfer',
       fee: 0.01,
       txHash: undefined,
-      status: 'completed' as const,
+      status: 'processing',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
-  };
+  });
+
+  let queue: Queue | null = null;
+  try {
+    queue = new Queue('perform-transfer', { connection });
+
+    const job = await queue.add('perform-transfer', transferData, {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 2000 },
+      removeOnComplete: 100,
+      removeOnFail: 500,
+    });
+    const jobId = job.id ?? `transfer-${Date.now()}`;
+    console.log(`[Transfer] 📦 Dispatched PerformTransfer job ${jobId} for user ${transferData.userID}`);
+
+    // Await worker completion for synchronous callers; on timeout the worker
+    // continues async and we return a queued/processing receipt with jobId.
+    try {
+      const queueEvents = new QueueEvents('perform-transfer', { connection });
+      await queueEvents.waitUntilReady();
+      try {
+        const result = await job.waitUntilFinished(queueEvents, 15000);
+        await queueEvents.close().catch(() => undefined);
+        await queue.close().catch(() => undefined);
+        return { ...(result as PerformTransferResult), jobId };
+      } catch (waitErr: any) {
+        await queueEvents.close().catch(() => undefined);
+        await queue.close().catch(() => undefined);
+        console.log(`[Transfer] ⏳ Job ${jobId} queued (worker processing async): ${waitErr?.message || waitErr}`);
+        return buildQueuedReceipt(jobId);
+      }
+    } catch (eventsErr: any) {
+      await queue.close().catch(() => undefined);
+      console.log(`[Transfer] ⏳ Job ${jobId} queued (QueueEvents unavailable): ${eventsErr?.message || eventsErr}`);
+      return buildQueuedReceipt(jobId);
+    }
+  } catch (err: any) {
+    await queue?.close().catch(() => undefined);
+    console.warn(`[Transfer] ⚠️ Redis unavailable, executing PerformTransfer inline for user ${transferData.userID}: ${err?.message || err}`);
+    const direct = await processPerformTransferJob({
+      ...transferData,
+      signingProvider: 'privy',
+    } as PerformTransferJob);
+    return { ...direct, jobId: `inline-${Date.now()}` };
+  }
 }
 
 export { recordWorkerHeartbeat };

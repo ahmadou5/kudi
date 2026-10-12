@@ -19,7 +19,10 @@
   },
   "dependencies": {
     "@kudi/types": "workspace:*",
-    "@kudi/service-wallet": "workspace:*"
+    "@kudi/service-wallet": "workspace:*",
+    "@kudi/provider-alchemy": "workspace:*",
+    "@kudi/provider-solana": "workspace:*",
+    "@kudi/provider-stellar": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.11.19",

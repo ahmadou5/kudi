@@ -1,7 +1,7 @@
-// Backward compatibility re-exports for @kudi/chains
-// All logic has been moved to granular provider packages:
+// Backward compatibility re-exports for @kudi/chains.
+// Granular provider packages (real implementations):
 // - @kudi/provider-crypto: address validation, decimal normalization
-// - @kudi/provider-solana: Solana SPL transfer logic
+// - @kudi/provider-solana: Solana SPL transfer building/sending
 // - @kudi/provider-alchemy: EVM gas manager
 // - @kudi/provider-privy: Privy SDK integration
 // - @kudi/provider-stellar: Stellar transfer logic
@@ -12,47 +12,53 @@ export * from '@kudi/provider-alchemy';
 export * from '@kudi/provider-privy';
 export * from '@kudi/provider-stellar';
 
-// Legacy types from @kudi/types (re-exported for convenience)
-export { CustodyProvider, CustodyTrack, DepositWallet } from '@kudi/types';
+// Legacy types from @kudi/types (re-exported for convenience).
+// CustodyTrack is an enum (runtime value); the rest are interfaces (type-only).
+export { CustodyTrack } from '@kudi/types';
+export type { CustodyProvider, DepositWallet } from '@kudi/types';
 
-// Legacy custody provider implementations
-// SelfCustodyProvider and PartnerCustodyProvider logic moved to @kudi/provider-privy
-// These are re-exported for backward compatibility
-export { SelfCustodyProvider } from '@kudi/provider-privy';
-export { PartnerCustodyProvider } from '@kudi/provider-privy';
+// Legacy custody provider implementations (live in this package)
+export { SelfCustodyProvider } from './selfCustody';
+export { PartnerCustodyProvider } from './partnerCustody';
+export { CustodyManager } from './custodyManager';
+export type { CustodyManagerConfig } from './custodyManager';
 
-// Chain listeners - moved to provider packages
-export { SolanaListener } from '@kudi/provider-solana';
-export { EVMListener } from '@kudi/provider-alchemy';
-export { parseDepositAmount } from '@kudi/provider-crypto';
+// Chain listeners (live in this package)
+export { SolanaListener } from './solanaListener';
+export type { SolanaDepositEvent } from './solanaListener';
+export { GeneralizedEVMListener, EVMListener } from './evmListener';
+export type { EVMDepositEvent } from './evmListener';
 
-// Chain config types
-export { ChainType, EVMChainConfig, SolanaChainConfig, ChainConfig } from '@kudi/types';
+// Chain config types (type-only: erased at build, no runtime dependency)
+export type { ChainType, EVMChainConfig, SolanaChainConfig, ChainConfig } from '@kudi/types';
 
-// Address validation
+// Address validation (also available via export * above; explicit for docs)
 export { validateSolanaAddress, validateEVMAddress, validateCryptoAddress } from '@kudi/provider-crypto';
 
-// Legacy sweep helpers - moved to @kudi/provider-crypto
+// Legacy sweep helpers (live in this package's selfCustody module)
 export {
   USDC_FEE,
   MAX_DEPOSIT_USDC,
   SWEEP_RETRY_POLICY,
   computeSweepRetryDelay,
   UNBACKED_SWEEP_STATUSES,
+  computeUnbackedExposure,
   resolveSweepAmount,
+  resolveGasPaymentMode,
+  isGasPaymentMode,
   DripTuning,
   getDripTuning,
   classifySweepFailure,
   GasDripReceipt,
   SWEEP_RESERVE_USDC,
   parseDepositAmount
-} from '@kudi/provider-crypto';
+} from './selfCustody';
 
-// Transaction service - moved to @kudi/service-transaction
+// Transaction service - lives in @kudi/service-transaction
 export { TransactionService } from '@kudi/service-transaction';
 
-// Wallet service - moved to @kudi/service-wallet
+// Wallet service - lives in @kudi/service-wallet
 export { WalletService } from '@kudi/service-wallet';
 
-// Transfer types - moved to @kudi/service-transaction
+// Transfer types - live in @kudi/service-transaction
 export type { TransferMetadata, PerformTransferResult, UpdateTransferResultInput, UpdateTransferResultOutput } from '@kudi/service-transaction';

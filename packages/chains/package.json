@@ -23,7 +23,12 @@
     "@kudi/provider-solana": "workspace:*",
     "@kudi/provider-alchemy": "workspace:*",
     "@kudi/provider-privy": "workspace:*",
-    "@kudi/provider-stellar": "workspace:*"
+    "@kudi/provider-stellar": "workspace:*",
+    "@kudi/service-transaction": "workspace:*",
+    "@kudi/service-wallet": "workspace:*",
+    "@solana/kit": "^8.3.0",
+    "@solana/signers": "^8.3.0",
+    "@solana-program/token": "^0.16.1"
   },
   "devDependencies": {
     "@types/node": "^20.11.19",

@@ -4,7 +4,7 @@ import { PaymentProviderRegistry } from '@kudi/payment-providers';
 import { apiConfig } from '@kudi/config';
 import { prisma } from '../../lib/prisma';
 import { MaintenanceService } from '../../services/maintenanceService';
-import { computeUnbackedExposure, UNBACKED_SWEEP_STATUSES } from '@kudi/provider-crypto';
+import { computeUnbackedExposure, UNBACKED_SWEEP_STATUSES } from '@kudi/chains';
 
 export class HealthController {
   constructor(

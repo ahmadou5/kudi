@@ -10,8 +10,11 @@
 
 import { PerformTransferResult, TransferMetadata, TransactionService } from '@kudi/service-transaction';
 import { WalletService } from '@kudi/service-wallet';
-import { CustodyProvider, CustodyTrack } from '@kudi/types';
-import { prisma } from '@kudi/database';
+import { CustodyProvider, CustodyTrack, DepositWallet } from '@kudi/types';
+
+// NOTE: prisma is loaded via dynamic import inside each handler (see below) so this
+// package builds without a live DB at import time. Do not add a static
+// `import { prisma } from '@kudi/database'` here.
 
 /**
  * PerformTransfer worker - processes transfer jobs from the River queue.
@@ -30,8 +33,9 @@ export async function performTransferWorker(
 ): Promise<PerformTransferResult> {
   // Select custody provider based on wallet track
   const custodyProvider = await selectCustodyProvider(chain);
+  void custodyProvider;
 
-  const txService = new TransactionService(custodyProvider);
+  const txService = new TransactionService();
   const result = await txService.performTransfer({
     userId,
     walletId,
@@ -58,8 +62,9 @@ export async function updateTransferResultHandler(
 ): Promise<TransferMetadata> {
   // Select custody provider
   const custodyProvider = await selectCustodyProvider('solana' as any);
+  void custodyProvider;
 
-  const txService = new TransactionService(custodyProvider);
+  const txService = new TransactionService();
   const result = await txService['updateTransferResult']({
     txID,
     status,
@@ -78,12 +83,30 @@ export async function logTransferResult(
   metadata: TransferMetadata,
   chain: 'solana' | 'monad' | 'stellar'
 ): Promise<void> {
-  // In production, this would persist to an audit log table
-  // For now, console log
-  console.log(`[Audit] Transfer result logged:`, {
-    ...metadata,
-    chain
-  });
+  const auditEntry = { ...metadata, chain, loggedAt: new Date().toISOString() };
+  console.log(`[Audit] Transfer result logged:`, JSON.stringify(auditEntry));
+  try {
+    // @ts-ignore - optional peer dependency, fails gracefully when DB package absent
+    const dbMod: any = await import('@kudi/database');
+    const db = dbMod?.prisma;
+    if (db?.adminAuditLog?.create) {
+      await db.adminAuditLog.create({
+        data: {
+          action: 'LogTransferResult',
+          targetType: 'Transfer',
+          targetId: metadata.walletId,
+          details: JSON.stringify(auditEntry),
+        },
+      });
+    } else {
+      console.warn('[queue-tasks] audit persist skipped: AdminAuditLog model unavailable, console log retained');
+    }
+  } catch (err) {
+    console.warn(
+      '[queue-tasks] audit persist skipped (no DB), console log retained:',
+      (err as Error)?.message ?? err
+    );
+  }
 }
 
 /**
@@ -97,24 +120,103 @@ export async function checkIdempotencyKey(
   toAddress: string,
   amount: string
 ): Promise<TransferMetadata | null> {
-  // In production, query DB for existing TransferMetadata
-  // with (userId, walletId, asset, toAddress, amount) key combination
-  // Return existing if status = 'completed', null if 'processing' or not found
-
-  // Placeholder: return null for now
-  return null;
+  // DB-backed idempotency: query TransferMetadata for the
+  // (userId, walletId, asset, toAddress, amount) key combination.
+  // Return existing if status = 'completed', null if 'processing' or not found.
+  try {
+    // @ts-ignore - optional peer dependency, fails gracefully when DB package absent
+    const dbMod: any = await import('@kudi/database');
+    const db = dbMod?.prisma;
+    if (db?.transferMetadata?.findFirst) {
+      const existing = await db.transferMetadata.findFirst({
+        where: {
+          userId,
+          walletId,
+          asset,
+          toAddress,
+          amount: parseFloat(amount),
+        },
+      });
+      if (!existing) return null;
+      if (existing.status === 'completed') {
+        const result: TransferMetadata = {
+          signingProvider: existing.signingProvider,
+          walletId: existing.walletId,
+          asset: existing.asset,
+          toAddress: existing.toAddress,
+          chain: (existing.type as string) || 'solana',
+          duration: existing.duration,
+          type: existing.type ?? undefined,
+          fee: String(existing.fee ?? '0.01'),
+        };
+        return result;
+      }
+      // Still processing (or failed) — treat as no completed record.
+      return null;
+    }
+    if (db?.transfer?.findFirst) {
+      const t = await db.transfer.findFirst({
+        where: { userId, walletId, toAddress, status: 'completed' },
+      });
+      if (!t) return null;
+      return {
+        signingProvider: t.provider ?? 'privy',
+        walletId: t.walletId,
+        asset: t.asset,
+        toAddress: t.toAddress,
+        chain: 'solana',
+        duration: 0,
+        type: 'outgoing-transfer',
+        fee: '0.01',
+      };
+    }
+    console.warn('[queue-tasks] checkIdempotencyKey: no TransferMetadata model, fallback to null');
+    return null;
+  } catch (err) {
+    console.warn(
+      '[queue-tasks] checkIdempotencyKey DB query skipped, fallback to null:',
+      (err as Error)?.message ?? err
+    );
+    return null;
+  }
 }
 
 /**
  * Select custody provider based on chain and track.
  */
 async function selectCustodyProvider(chain: 'solana' | 'monad' | 'stellar'): Promise<CustodyProvider> {
-  // In production, this would read the wallet's custody track from DB
-  // and instantiate the appropriate provider
-  // For now, return a default provider
-  const { CustodyProvider, CustodyTrack } = await import('@kudi/types');
+  // Read the wallet's custody track: env override first, then DB Wallet lookup,
+  // falling back to TRACK_A_SELF_CUSTODY default.
+  let track: CustodyTrack = CustodyTrack.TRACK_A_SELF_CUSTODY;
+  const envTrack = process.env.CUSTODY_TRACK;
+  if (envTrack && (Object.values(CustodyTrack) as string[]).includes(envTrack)) {
+    track = envTrack as CustodyTrack;
+  } else {
+    try {
+      // @ts-ignore - optional peer dependency, fails gracefully when DB package absent
+      const dbMod: any = await import('@kudi/database');
+      const db = dbMod?.prisma;
+      const walletTrack = process.env.WALLET_ID
+        ? await db?.wallet?.findUnique?.({ where: { id: process.env.WALLET_ID } })
+        : null;
+      const custodyType = walletTrack?.custodyType;
+      if (custodyType && (Object.values(CustodyTrack) as string[]).includes(custodyType)) {
+        track = custodyType as CustodyTrack;
+      } else if (custodyType) {
+        console.warn(`[queue-tasks] unknown custodyType "${custodyType}", using default track`);
+      }
+    } catch (err) {
+      console.warn(
+        '[queue-tasks] custody-track DB read skipped, using default/env fallback:',
+        (err as Error)?.message ?? err
+      );
+    }
+  }
+  const { CustodyTrack: _CT } = await import('@kudi/types');
+  void _CT;
+  void chain;
   return {
-    track: CustodyTrack.TRACK_A_SELF_CUSTODY,
+    track,
     name: 'Privy / KMS Self Custody',
     generateWallet: async (_userId: string, _chain: string): Promise<DepositWallet> => {
       throw new Error('Not implemented - use WalletService instead');

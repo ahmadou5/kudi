@@ -1,6 +1,11 @@
-import { SolanaListener } from '@kudi/provider-solana';
-import { GeneralizedEVMListener } from '@kudi/provider-alchemy';
-import { parseDepositAmount } from '@kudi/provider-crypto';
+import {
+  SolanaListener,
+  GeneralizedEVMListener,
+  parseDepositAmount,
+  type EVMDepositEvent,
+  type SolanaDepositEvent
+} from '@kudi/chains';
+import { prisma } from '@kudi/database';
 import { EVMChainConfig, SolanaChainConfig } from '@kudi/types';
 import { REDACTED, redactAddress, redactRpcUrl } from '@kudi/config';
 

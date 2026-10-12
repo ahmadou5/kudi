@@ -19,8 +19,7 @@
   },
   "dependencies": {
     "@kudi/types": "workspace:*",
-    "@kudi/provider-crypto": "workspace:*",
-    "ethers": "^6.11.1"
+    "@kudi/provider-crypto": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.11.19",

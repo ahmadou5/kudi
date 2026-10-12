@@ -9,11 +9,10 @@ import { errorResponse, successResponse } from '../../utils/response';
 import { verifyPin, generateReference } from '../../utils/hash';
 import { getAuthenticatedUser } from '../../utils/authGuards';
 import { buildDailyLimitCheck, formatDailyLimitMessage, parseDailyLimitError } from '../../utils/dailyLimits';
-import { SolanaListener } from '@kudi/provider-solana';
-import { SelfCustodyProvider } from '@kudi/provider-privy';
-import { resolveGasPaymentMode } from '@kudi/provider-crypto';
+import { SolanaListener, SelfCustodyProvider, resolveGasPaymentMode } from '@kudi/chains';
 import { prisma } from '@kudi/database';
 import { apiConfig } from '@kudi/config';
+import { ethers } from 'ethers';
 
 export class PayoutController {
   constructor(
@@ -386,8 +385,10 @@ export class PayoutController {
 
     // 1. PIN verification
     const pin = (request.body as any)?.pin as string | undefined;
+    if (!pin) {
+      return reply.status(401).send(errorResponse('INVALID_PIN', 'Transaction PIN is required', 401));
+    }
 
-    // 1. PIN verification
     const userIdFromAuth = authUser?.userId as string;
     if (!userIdFromAuth) {
       return reply.status(401).send(errorResponse('UNAUTHORIZED', 'Authentication is required', 401));
@@ -396,7 +397,7 @@ export class PayoutController {
       return reply.status(403).send(errorResponse('FORBIDDEN', 'User ID does not match authenticated user', 403));
     }
     const user = this.ledgerService.getUser(userIdFromAuth);
-    if (!verifyPin(pin, user?.pinHash)) {
+    if (!user || !verifyPin(pin, user.pinHash)) {
       return reply.status(401).send(errorResponse('INVALID_PIN', 'Incorrect transaction PIN entered', 401));
     }
 
@@ -611,13 +612,33 @@ await prisma.transferMetadata.create({
       rpcUrlFallback: apiConfig.SOLANA_RPC_URL_FALLBACK,
       usdcMintAddress: apiConfig.USDC_MINT_ADDRESS
     });
-    const tokenAddress = chain === 'solana'
-      ? apiConfig.USDC_MINT_ADDRESS
-      : apiConfig.AUSD_TOKEN_ADDRESS;
-    const onChainBalance = await listener.getSolanaUSDCBalance(body.walletAddress);
-    
-    // Note: For Monad, we'd need EVM balance check - using placeholder for now
-    const availableUSDC = chain === 'solana' ? onChainBalance : Number.MAX_SAFE_INTEGER;
+    let availableUSDC: number;
+    if (chain === 'solana') {
+      availableUSDC = await listener.getSolanaUSDCBalance(body.walletAddress);
+    } else {
+      // Monad/EVM: real ERC-20 AUSD balance check via ethers.
+      const ERC20_BALANCE_ABI = [
+        'function balanceOf(address account) view returns (uint256)',
+        'function decimals() view returns (uint8)'
+      ];
+      try {
+        const provider = new ethers.JsonRpcProvider(apiConfig.MONAD_RPC_URL);
+        const token = new ethers.Contract(apiConfig.AUSD_TOKEN_ADDRESS, ERC20_BALANCE_ABI, provider);
+        const [rawBalance, decimals] = await Promise.all([
+          token.balanceOf(body.walletAddress),
+          token.decimals().catch(() => 6)
+        ]);
+        availableUSDC = Number(ethers.formatUnits(rawBalance, decimals));
+      } catch (evmErr: any) {
+        console.warn('[PayoutController] EVM AUSD balance check failed:', evmErr?.message || evmErr);
+        // Conservative guard: fail closed in production; otherwise proceed
+        // through the normal insufficient-balance guard with a zero balance.
+        if (apiConfig.NODE_ENV === 'production') {
+          return reply.status(503).send(errorResponse('BALANCE_CHECK_UNAVAILABLE', 'On-chain balance verification unavailable, try again later', 503));
+        }
+        availableUSDC = 0;
+      }
+    }
     if (availableUSDC < body.amountUSDC) {
       return reply.status(400).send(errorResponse('INSUFFICIENT_BALANCE', `On-chain balance insufficient. Available: ${availableUSDC} USDC`, 400));
     }

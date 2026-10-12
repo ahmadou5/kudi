@@ -51,6 +51,25 @@ const apiEnvSchema = z
     // Gas payment mode
     GAS_PAYMENT_MODE: z.enum(['PRIVY_SPONSOR', 'TREASURY_FEE_PAYER', 'USER_PAYS']),
 
+    // Treasury addresses (required by API/worker startup validation)
+    KUDI_TREASURY_SOLANA_ADDRESS: z.string().optional(),
+    KUDI_TREASURY_EVM_ADDRESS: z.string().optional(),
+
+    // Alchemy gas manager (EVM sponsorship)
+    ALCHEMY_API_KEY: z.string().optional(),
+    ALCHEMY_GAS_POLICY_ID: z.string().optional(),
+
+    // Fiat payout providers (NGN off-ramp)
+    PAYSTACK_SECRET_KEY: z.string().optional(),
+    MONNIFY_API_KEY: z.string().optional(),
+    MONNIFY_SECRET_KEY: z.string().optional(),
+    MONNIFY_BASE_URL: z.string().url().default('https://api.monnify.com'),
+    MONNIFY_SOURCE_ACCOUNT: z.string().optional(),
+    SQUAD_SECRET_KEY: z.string().optional(),
+    SQUAD_BASE_URL: z.string().url().default('https://api-d.squadco.com'),
+    BACHS_SECRET_KEY: z.string().optional(),
+    BACHS_BASE_URL: z.string().url().default('https://sandbox-api.bachs.io'),
+
     // Token config
     EIP712_TOKEN_NAME: z.string().default('USDC'),
     EIP712_TOKEN_VERSION: z.string().default('2'),
@@ -144,6 +163,10 @@ const workerEnvSchema = z.object({
   PRIVY_EVM_GAS_WALLET_ID: z.string(),
   PRIVY_EVM_SETTLEMENT_LIQUIDITY_WALLET_ID: z.string(),
   PRIVY_EVM_FEES_WALLET_ID: z.string(),
+  KUDI_TREASURY_SOLANA_ADDRESS: z.string().optional(),
+  KUDI_TREASURY_EVM_ADDRESS: z.string().optional(),
+  KUDI_SOLANA_TREASURY_WALLET_ID: z.string().optional(),
+  KUDI_EVM_TREASURY_WALLET_ID: z.string().optional(),
   PRIVY_APP_ID: z.string(),
   PRIVY_APP_SECRET: z.string(),
   PRIVY_VERIFICATION_KEY_PEM: z.string(),
@@ -268,7 +291,8 @@ function base58ToBytes(value: string): Uint8Array | undefined {
       bytes.push(carry & 0xff);
       carry >>= 8;
     }
-    let leadingZeros = 0;
+  }
+  let leadingZeros = 0;
     for (const char of value) {
       if (char !== '1') break;
       leadingZeros++;

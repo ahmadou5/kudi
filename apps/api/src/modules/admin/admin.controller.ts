@@ -1,7 +1,5 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { CustodyManager, getDripTuning, resolveGasPaymentMode } from '@kudi/chains';
-import { SelfCustodyProvider } from '@kudi/provider-privy';
-import { SelfCustodyProvider } from '@kudi/provider-privy';
+import { CustodyManager, getDripTuning, resolveGasPaymentMode, SelfCustodyProvider } from '@kudi/chains';
 import { PaymentProviderRegistry } from '@kudi/payment-providers';
 import { PaymentProviderId } from '@kudi/types';
 import { RateService } from '../../services/rateService';

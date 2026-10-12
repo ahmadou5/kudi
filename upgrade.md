@@ -319,3 +319,80 @@ After this upgrade, metropolis will have:
    - Every required var in `.env.example` with descriptions
    - pila's hard-error pattern: startup fails closed if any required secret is missing
    - Development warnings for optional pila key quorum vars, production hard-fail
+
+## Implementation Verification (2026-10-12 — team-lead tested)
+
+All "In production" stub comments audited (24 hits) and completed by 4 subagents:
+
+- **Agent A (alchemy+solana)**: `sendPreparedCalls` now POSTs JSON-RPC `wallet_executePreparedCalls` to Alchemy with apiKey/walletId/gasPolicyId, parses `transactionHash`, throws in production when creds missing, deterministic fallback + warn otherwise. Solana `buildTransferTransaction` now checks dest ATA existence via RPC (primary + fallback) and conditionally includes CreateIdempotent; fixed curried pipe form. Solana `sendTransaction` now POSTs `solana_signAndSendTransaction` to Privy wallets RPC with CAIP-2, parses hash, warn+fallback otherwise.
+- **Agent B (stellar+privy)**: Stellar `buildBaseTransaction` resolves USDC issuer (param > config > STELLAR_USDC_ISSUER > network default), records networkPassphrase; `privyWalletsRpc` helper does real `POST /v1/wallets/{id}/rpc` with Basic auth; sign/submit methods call `stellar_sign` / `stellar_signFeeBump` / `stellar_submitTransaction` with deterministic input-derived fallback. Privy `rpcAuthOpts()` reads `PRIVY_AUTHORIZATION_PRIVATE_KEY_B64`, `PRIVY_WALLET_OWNER_KEY_QUORUM_ID`, `PRIVY_VERIFICATION_KEY_PEM`; warns in dev, throws in production when missing.
+- **Agent C (service+queue)**: `service-transaction` idempotency via dynamic `prisma.transferMetadata.findFirst` / `transfer.findFirst`, `transfer.upsert` processing status, `logTransferResult` structured log + `adminAuditLog.create`, `updateTransferResult` max-duration merge + upsert. `queue-tasks` uses dynamic prisma only (no static import), audit persist + idempotency query + custody-track DB read. `service-wallet` placeholder id replaced with deterministic `wlt_{user}_{chain}_{ts36}`.
+- **Agent D (api+worker)**: `dispatchPerformTransfer` enqueues BullMQ job (attempts:3, exponential backoff), awaits via QueueEvents 15s, returns jobId receipt on timeout, inline `processPerformTransferJob` fallback when Redis down. API payout EVM balance now uses `ethers.JsonRpcProvider` + ERC20 `balanceOf`/`decimals`, 503 fail-closed in production, conservative 0-balance guard in dev.
+
+Team-lead tests: grep for `[Ii]n production|placeholder|For now` returns 0 in provider-solana/privy/stellar/service-transaction/service-wallet/queue-tasks/worker; 2 remaining hits in provider-alchemy are intentional production-guard docs (“Throws in production when no creds”). Reads confirmed real fetch/RPC/DB code in `provider-alchemy/src/index.ts:94-168`, `provider-solana/src/index.ts:150-277`, `provider-privy/src/index.ts:90-122`, `provider-stellar/src/index.ts:80-277`, `service-transaction/src/index.ts:91-157`, `queue-tasks/src/index.ts:82-129`, `apps/worker/src/index.ts:119-201`, `apps/api/src/modules/payout/payout.controller.ts:619-640`.
+
+## Repo-wide Test / Lint Cross-Check (2026-10-12 — team-lead run)
+
+User-reported errors FIXED: `packages/provider-alchemy/src/index.ts` shows 0 errors —
+`validateEVMAddress` resolves via built `@kudi/provider-crypto` dist, and the broken
+ethers-v5 import (`ethers.BigNumber`/`ethers.utils`, but ethers@6.17 installed) was removed
+in favor of dependency-free BigInt ABI encoding; `ethers` dropped from the package deps.
+Verified via `pnpm --filter @kudi/provider-alchemy exec tsc --noEmit` (no hits for that file)
+and successful `tsup` build incl. DTS.
+
+- `pnpm run build`: 11/16 tasks ok; 1 genuine failure `@kudi/sdk#build` —
+  `Module '"@kudi/api-contracts"' has no exported member 'ResolveAccountRequest'`
+  (sdk + api-contracts untouched by this session → pre-existing, proven by file list).
+- `pnpm lint` (turbo `tsc --noEmit` per package): 10/12 ok; sole failure is the same
+  pre-existing `@kudi/sdk` issue. `@kudi/config` (brace fix), `@kudi/provider-crypto`,
+  `@kudi/api-contracts` all pass.
+- `pnpm architecture:check` (`scripts/check-boundaries.mjs`): PASSED.
+- `pnpm smoke:test`: 1 failure — “@kudi/chains must depend on @kudi/chains-core”.
+  Pre-existing: neither `packages/chains/package.json` nor `chains-core` was touched
+  (only deletion of the unused `chains/src/privy/` stub dir).
+- `pnpm test` (e2e-runner): 9/11 pass. Two failures, both pre-existing (untouched files):
+  `payment-providers (Failover Registry)`, and `API Sweep & Treasury` subtest 6 —
+  root cause `Cannot find package '@solana/signers' imported from chains/dist`
+  (`chains/package.json` lacks `@solana/*` deps while `selfCustody.ts` imports them).
+- Incidental fix found while verifying: `packages/config/src/index.ts` had a pre-existing
+  syntax error (missing `}` closing the outer `for` in `base58ToBytes`, committed in
+  7b17eb9, file byte-identical to HEAD) that blocked ALL root typechecking — restored the
+  brace to match the pre-7b17eb9 structure, plus added the 4 `KUDI_TREASURY_*` keys the
+  workerEnvSchema superRefine already referenced.
+- Reverted an over-broad root-tsconfig `paths` mapping after proving via
+  stash-compare that it regressed `@kudi/api-contracts#lint` (TS6059 rootDir);
+  repo workflow is build-then-lint via `dist`, so packages were built instead.
+
+## server.ts + Follow-On Fixes (2026-10-12 — team-lead run)
+
+`apps/api/src/server.ts` went from 21 errors → 0. Causes and fixes:
+- Wrong class names from the Phase-1 wiring (`ProviderPrivy/Alchemy/Solana/Stellar/Crypto`,
+  `ServiceWallet/Transaction`) → real exports (`PrivyClient`, `AlchemyProvider`,
+  `SolanaProvider`, `StellarProvider`, crypto helper object, `WalletService`,
+  `TransactionService`) with matching constructor args (incl. `usdcMintAddress`,
+  stellar gas-wallet config).
+- `apiConfig` missing `KUDI_TREASURY_*`, `ALCHEMY_*`, and payout keys
+  (`PAYSTACK`/`MONNIFY`/`SQUAD`/`BACHS_*`, dropped at HEAD in 7b17eb9) → restored as
+  optional env schema fields; production guards unchanged.
+- Missing workspace links → declared the 7 provider/service deps in
+  `apps/api/package.json` + `pnpm install`.
+- Same mis-import pattern fixed in `auth` (dropped unused), `admin` (deduped),
+  `deposits`, `health`, `payout` controllers and worker `chainDepositProcessor`
+  (plus missing `prisma` import there) — all now import live symbols from
+  `@kudi/chains`, whose barrel was rewritten to re-export only verified locations
+  (local selfCustody/partner/listeners, `export type` for type-only names).
+- Created the missing `CustodyManager` (`chains/src/custodyManager.ts`,
+  `getActiveTrack()`/`getActiveProvider()`, Track A default) that server.ts and
+  three controllers already referenced.
+- Fixed subagent-introduced breakage: `service-wallet` typo field
+  (`privatealchemyProvider`), `DepositWallet.id` misuse, `ChainConfig`
+  (`tokenAddress`/`network`, optional `rpcUrl` for stellar), invalid union-string
+  dynamic import type; `provider-stellar` unused `@stellar/stellar-sdk` import;
+  `service-transaction` unused `uuid`/`validateAddress` imports + missing
+  provider deps in its manifest; `provider-solana` kit-v8 `address` alias.
+- `pnpm lint`: 10/12 pass (only pre-existing `@kudi/sdk` contract mismatch).
+  `architecture:check`: PASS. E2E stays 9/11: sweep subtest 6 is a genuine
+  product-direction conflict (test demands treasury-only `resolveGasPaymentMode`
+  that throws on `PRIVY_SPONSOR`, which the pila sponsorship feature requires —
+  changing it either way breaks the other side, so left as-found failing);
+  payment-providers failure is in an untouched package.

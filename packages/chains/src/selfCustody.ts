@@ -782,6 +782,7 @@ export class SelfCustodyProvider implements CustodyProvider {
     depositWalletId?: string;
     idempotencyKey?: string; // Unique key to prevent duplicate submissions (e.g., deposit signature)
     feeUSDC?: number // Fixed fee in USDC to deduct from sender (added to amount for user to see)
+    feePayerAddress?: string; // Treasury address covering fees in TREASURY_FEE_PAYER mode
     gasPaymentMode?: 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER' | 'USER_PAYS';
   }): Promise<{ txHash: string }> {
     const { treasuryWalletId, toAddress, amountUSDC, chain, usdcMintAddress, usdcContractAddress, fromAddress, depositWalletId, idempotencyKey, feeUSDC } = params;
