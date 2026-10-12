@@ -502,6 +502,9 @@ importers:
 
   packages/chains:
     dependencies:
+      '@kudi/chains-core':
+        specifier: workspace:*
+        version: link:../chains-core
       '@kudi/provider-alchemy':
         specifier: workspace:*
         version: link:../provider-alchemy

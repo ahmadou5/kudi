@@ -32,8 +32,9 @@ export type { EVMDepositEvent } from './evmListener';
 // Chain config types (type-only: erased at build, no runtime dependency)
 export type { ChainType, EVMChainConfig, SolanaChainConfig, ChainConfig } from '@kudi/types';
 
-// Address validation (also available via export * above; explicit for docs)
-export { validateSolanaAddress, validateEVMAddress, validateCryptoAddress } from '@kudi/provider-crypto';
+// Address validation from the pure helpers package (architectural home:
+// @kudi/chains-core carries no RPC/runtime SDKs — see smoke-architecture check)
+export { validateSolanaAddress, validateEVMAddress, validateCryptoAddress } from '@kudi/chains-core';
 
 // Legacy sweep helpers (live in this package's selfCustody module)
 export {

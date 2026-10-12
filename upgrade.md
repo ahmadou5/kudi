@@ -391,7 +391,11 @@ and successful `tsup` build incl. DTS.
   `service-transaction` unused `uuid`/`validateAddress` imports + missing
   provider deps in its manifest; `provider-solana` kit-v8 `address` alias.
 - `pnpm lint`: 10/12 pass (only pre-existing `@kudi/sdk` contract mismatch).
-  `architecture:check`: PASS. E2E stays 9/11: sweep subtest 6 is a genuine
+  `architecture:check`: PASS. `pnpm smoke:test`: PASS (fixed properly, not silenced —
+  deleted the dead byte-identical duplicate `chains/src/addressValidator.ts`,
+  repointed the barrel's validator re-export at the pure `@kudi/chains-core`,
+  and declared the real dependency in `chains/package.json`).
+  E2E stays 9/11: sweep subtest 6 is a genuine
   product-direction conflict (test demands treasury-only `resolveGasPaymentMode`
   that throws on `PRIVY_SPONSOR`, which the pila sponsorship feature requires —
   changing it either way breaks the other side, so left as-found failing);

@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@kudi/types": "workspace:*",
+    "@kudi/chains-core": "workspace:*",
     "@kudi/provider-crypto": "workspace:*",
     "@kudi/provider-solana": "workspace:*",
     "@kudi/provider-alchemy": "workspace:*",
