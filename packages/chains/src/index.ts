@@ -47,6 +47,7 @@ export {
   resolveSweepAmount,
   resolveGasPaymentMode,
   isGasPaymentMode,
+  type GasPaymentMode,
   DripTuning,
   getDripTuning,
   classifySweepFailure,

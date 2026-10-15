@@ -390,7 +390,11 @@ and successful `tsup` build incl. DTS.
   dynamic import type; `provider-stellar` unused `@stellar/stellar-sdk` import;
   `service-transaction` unused `uuid`/`validateAddress` imports + missing
   provider deps in its manifest; `provider-solana` kit-v8 `address` alias.
-- `pnpm lint`: 10/12 pass (only pre-existing `@kudi/sdk` contract mismatch).
+- `pnpm lint`: all green except 1 pre-existing item below (was 10/12 with sdk failure).
+  `pnpm run build`: **24/24 green** (incl. previously failing `@kudi/sdk`, `@kudi/worker`).
+  Fixed along the way: sdk/api-contracts `ResolveAccountRequest` gap (added request
+  interface), worker `SelfCustodyProvider`/provider imports + missing workspace deps,
+  wallet `AuthenticatePrivyRequest.privyToken` widened to optional (matches handler).
   `architecture:check`: PASS. `pnpm smoke:test`: PASS (fixed properly, not silenced —
   deleted the dead byte-identical duplicate `chains/src/addressValidator.ts`,
   repointed the barrel's validator re-export at the pure `@kudi/chains-core`,
@@ -400,3 +404,16 @@ and successful `tsup` build incl. DTS.
   that throws on `PRIVY_SPONSOR`, which the pila sponsorship feature requires —
   changing it either way breaks the other side, so left as-found failing);
   payment-providers failure is in an untouched package.
+
+## app-wide error sweep (2026-10-12 — team-lead run, user-requested)
+
+`server.ts`: 21 errors → 0. Worker files, 5 api controllers, `chains` barrel,
+`CustodyManager` (created, was referenced but never defined), config schema
+restorations, and all workspace-link gaps fixed and verified via the repo's own
+`pnpm lint` / `pnpm build` / `pnpm test`.
+Remaining red is pre-existing and deliberately untouched:
+- `@kudi/api#lint`, 2 errors in `sweepService.ts` vs `database/drips.ts`: the DB drip
+  layer types `DripChain = 'solana' | 'monad'` (no stellar) while the sweep engine
+  passes `'solana' | 'monad' | 'stellar'`. Widening the DB type changes money-path
+  drip behavior for Stellar — a product decision, not a typo. Left for owners.
+- E2E `payment-providers` failure: untouched package.

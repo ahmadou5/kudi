@@ -164,6 +164,11 @@ export interface VirtualAccountsResponseData {
   accounts: any[];
 }
 
+export interface ResolveAccountRequest {
+  accountNumber: string;
+  bankCode: string;
+}
+
 export interface ResolveAccountResponseData {
   accountName: string;
   accountNumber: string;
@@ -199,7 +204,7 @@ export interface CryptoStatusResponseData {
 // ==========================================
 
 export type AuthenticatePrivyRequest = {
-  privyToken: string;
+  privyToken?: string;
   privyUserId: string;
   email?: string;
   phoneNumber?: string;

@@ -1,5 +1,6 @@
 import 'dotenv/config';
-import { Queue, Worker } from 'bullmq';
+import { Queue, Worker, type Job } from 'bullmq';
+import { ChainType, type EVMChainConfig } from '@kudi/types';
 import { prisma } from '@kudi/database';
 import { recordWorkerHeartbeat } from '../index';
 import { pollRateEngine } from '../processors/ratePollerProcessor';
@@ -9,19 +10,18 @@ import { ChainDepositProcessor } from '../processors/chainDepositProcessor';
 import { WebhookProcessor } from '../processors/webhookProcessor';
 import { PerformTransferJob, PerformTransferResult, TransferMetadata } from '../jobs/performTransfer';
 import { processPerformTransferJob } from './transferWorker';
-import { SelfCustodyProvider } from '@kudi/provider-privy';
-
-const selfCustody = new SelfCustodyProvider();
 
 // Config without 'type' field - ChainDepositProcessor uses the config for
 // RPC URLs, addresses, and other settings. The chain type is inferred
 // from the config structure (EVM vs Solana).
-const monadConfig = {
+const monadConfig: EVMChainConfig = {
   id: 'monad-testnet',
   name: 'Monad Metropolis Testnet',
-  chainId: Number(process.env.MONAD_CHAIN_ID),
-  rpcUrl: process.env.MONAD_RPC_URL,
-  tokenContractAddress: process.env.AUSD_TOKEN_ADDRESS,
+  chainId: Number(process.env.MONAD_CHAIN_ID) || 10143,
+  type: ChainType.EVM,
+  rpcUrl: process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz',
+  tokenContractAddress:
+    process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3',
   tokenSymbol: 'AUSD',
   tokenDecimals: 6,
   confirmationThreshold: 1,
@@ -43,10 +43,10 @@ const webhookProcessor = new WebhookProcessor();
 
 // --- PerformTransfer Worker ---
 
-export const performTransferWorker = new Worker(
+export const performTransferWorker = new Worker<PerformTransferJob>(
   'perform-transfer',
-  async (job) => {
-    const result = await processPerformTransferJob(job);
+  async (job: Job<PerformTransferJob>) => {
+    const result = await processPerformTransferJob(job.data);
     return result;
   },
   {
@@ -90,7 +90,7 @@ ratePollerWorker.on('completed', () => {
   console.log('[Worker] rate-poller completed');
 });
 
-ratePollerWorker.on('failed', (err) => {
+ratePollerWorker.on('failed', (_job, err: Error) => {
   console.error('[Worker] rate-poller failed:', err.message);
 });
 
@@ -115,7 +115,7 @@ chainDepositPollerWorker.on('completed', () => {
   console.log('[Worker] chain-deposit-poller completed');
 });
 
-chainDepositPollerWorker.on('failed', (err) => {
+chainDepositPollerWorker.on('failed', (_job, err: Error) => {
   console.error('[Worker] chain-deposit-poller failed:', err.message);
 });
 
@@ -140,7 +140,7 @@ cryptoWithdrawalWorker.on('completed', () => {
   console.log('[Worker] crypto-withdrawal completed');
 });
 
-cryptoWithdrawalWorker.on('failed', (err) => {
+cryptoWithdrawalWorker.on('failed', (_job, err: Error) => {
   console.error('[Worker] crypto-withdrawal failed:', err.message);
 });
 
@@ -168,7 +168,7 @@ staleWithdrawalRecoveryWorker.on('completed', () => {
   console.log('[Worker] stale-withdrawal-recovery completed');
 });
 
-staleWithdrawalRecoveryWorker.on('failed', (err) => {
+staleWithdrawalRecoveryWorker.on('failed', (_job, err: Error) => {
   console.error('[Worker] stale-withdrawal-recovery failed:', err.message);
 });
 
@@ -196,7 +196,7 @@ reconciliationWorker.on('completed', () => {
   console.log('[Worker] reconciliation completed');
 });
 
-reconciliationWorker.on('failed', (err) => {
+reconciliationWorker.on('failed', (_job, err: Error) => {
   console.error('[Worker] reconciliation failed:', err.message);
 });
 
@@ -246,7 +246,7 @@ heartbeatWorker.on('completed', () => {
   console.log('[Worker] heartbeat completed');
 });
 
-heartbeatWorker.on('failed', (err) => {
+heartbeatWorker.on('failed', (_job, err: Error) => {
   console.error('[Worker] heartbeat failed:', err.message);
 });
 

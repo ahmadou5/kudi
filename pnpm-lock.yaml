@@ -445,6 +445,15 @@ importers:
       '@kudi/payment-providers':
         specifier: workspace:*
         version: link:../../packages/payment-providers
+      '@kudi/provider-alchemy':
+        specifier: workspace:*
+        version: link:../../packages/provider-alchemy
+      '@kudi/provider-solana':
+        specifier: workspace:*
+        version: link:../../packages/provider-solana
+      '@kudi/provider-stellar':
+        specifier: workspace:*
+        version: link:../../packages/provider-stellar
       '@kudi/types':
         specifier: workspace:*
         version: link:../../packages/types

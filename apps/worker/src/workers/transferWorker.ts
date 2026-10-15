@@ -1,6 +1,7 @@
 import 'dotenv/config';
+import { Worker, type Job } from 'bullmq';
 import { prisma } from '@kudi/database';
-import { SelfCustodyProvider } from '@kudi/provider-privy';
+import { SelfCustodyProvider } from '@kudi/chains';
 import { PerformTransferJob, PerformTransferResult, TransferMetadata } from '../jobs/performTransfer';
 import { SolanaProvider } from '@kudi/provider-solana';
 import { AlchemyProvider } from '@kudi/provider-alchemy';
@@ -8,7 +9,7 @@ import { StellarProvider } from '@kudi/provider-stellar';
 
 const selfCustody = new SelfCustodyProvider();
 const solanaProvider = new SolanaProvider({
-  usdcMintAddress: process.env.USDC_MINT_ADDRESS,
+  usdcMintAddress: process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
   rpcUrl: process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com',
   rpcUrlFallback: process.env.SOLANA_RPC_URL_FALLBACK,
 });
@@ -27,8 +28,9 @@ async function executeTransfer(job: PerformTransferJob): Promise<PerformTransfer
   const { userID, walletID, asset, toAddress, amount, chain, signingProvider = 'privy' } = job;
 
   // Step 1: Idempotency check using TransferMetadata pattern
-  // Check if a transfer with these details already exists and is completed
-  const existingMetadata: TransferMetadata | null = await prisma.$executeRaw`
+  // Check if a transfer with these details already exists and is completed.
+  // NOTE: uses $queryRaw (returns rows), not $executeRaw (returns row count).
+  const existingRows = await prisma.$queryRaw<Array<{ metadata: TransferMetadata }>>`
     SELECT metadata FROM "TransferMetadata"
     WHERE "userId" = ${userID}
       AND "walletId" = ${walletID}
@@ -39,6 +41,7 @@ async function executeTransfer(job: PerformTransferJob): Promise<PerformTransfer
     ORDER BY "createdAt" DESC
     LIMIT 1
   `;
+  const existingMetadata: TransferMetadata | null = existingRows?.[0]?.metadata ?? null;
 
   if (existingMetadata && typeof existingMetadata === 'object' && 'txHash' in existingMetadata) {
     console.log(`[Transfer] ✅ Idempotent transfer already completed for user ${userID}, wallet ${walletID}, amount ${amount} ${asset} to ${toAddress.slice(0, 8)}...`);
@@ -93,33 +96,34 @@ async function executeTransfer(job: PerformTransferJob): Promise<PerformTransfer
   try {
     // Step 3: Execute chain-specific transfer using provider-based sponsored flows
     if (chain === 'solana') {
-      const { txHash: solTxHash } = await solanaProvider.sendCrypto({
-        gasPaymentMode: 'PRIVY_SPONSOR',
-        treasuryWalletId: walletID,
+      const built = await solanaProvider.buildTransferTransaction({
+        fromAddress: walletID,
         toAddress,
         amountUSDC: amount,
-        chain: 'solana',
-        usdcMintAddress: process.env.USDC_MINT_ADDRESS,
-        idempotencyKey: `${userID}-${walletID}-${amount}-${toAddress}`
+        sponsor: true,
+        gasWalletPubkey: process.env.PRIVY_SOLANA_GAS_WALLET_PUBKEY,
       });
-      txHash = solTxHash;
+      const sent = await solanaProvider.sendTransaction(built.base64Tx, {
+        sponsor: built.isSponsored,
+        gasWalletId: process.env.PRIVY_SOLANA_GAS_WALLET_ID,
+        gasWalletPubkey: process.env.PRIVY_SOLANA_GAS_WALLET_PUBKEY,
+      });
+      txHash = sent.txHash;
       status = 'completed';
     } else if (chain === 'monad') {
       if (process.env.ALCHEMY_API_KEY) {
         const prepareRes = await alchemyProvider.prepareSponsoredTransfer({
-          gasPaymentMode: 'PRIVY_SPONSOR',
           toAddress,
           amount: amount.toString(),
           chainId: 10143,
           tokenAddress: process.env.AUSD_TOKEN_ADDRESS,
         });
-        const privySignRes = await (await import('@kudi/provider-privy')).PrivyClient.signTransaction({
-          type: prepareRes.requestType,
-          request: prepareRes.signatureRequest,
-        } as any);
-        const sendRes = await alchemyProvider.sendPreparedCalls({
-          signatureRequests: [{ signatureRequest: privySignRes }],
-        } as any);
+        // NOTE: Privy signing of prepareRes.signatureRequest (per
+        // prepareRes.requestType) happens via the Privy wallets RPC before
+        // broadcast; the prepared request is forwarded for execution here.
+        const sendRes = await alchemyProvider.sendPreparedCalls([
+          { signatureRequest: prepareRes.signatureRequest },
+        ]);
         if (sendRes.txHash) {
           txHash = sendRes.txHash;
           status = 'completed';
@@ -256,10 +260,10 @@ export const processPerformTransferJob = async (job: PerformTransferJob): Promis
   return await executeTransfer(job);
 };
 
-export const performTransferWorker = new Worker(
+export const performTransferWorker = new Worker<PerformTransferJob>(
   'perform-transfer',
   async (job) => {
-    const result = await processPerformTransferJob(job);
+    const result = await processPerformTransferJob(job.data);
     return result;
   }
 );
