@@ -405,6 +405,27 @@ and successful `tsup` build incl. DTS.
   changing it either way breaks the other side, so left as-found failing);
   payment-providers failure is in an untouched package.
 
+## CI typecheck rescue + final green board (2026-10-12 — team-lead run, user-requested)
+
+CI job `pnpm typecheck` failed at `@kudi/provider-crypto#lint` with dozens of
+`apps/admin` errors (`@/…` aliases, `--jsx` flag). Root cause: the 8 new packages
+had no local `tsconfig.json`, so their `tsc --noEmit` fell through to the root
+tsconfig (no `include` → whole monorepo incl. Next.js apps). Fixed by adding the
+standard scoped tsconfig (`extends root, outDir dist, rootDir src, include src`)
+to all 8 — NOT by global `paths` mapping (proven earlier to regress
+api-contracts). Also fixed `turbo.json` (`lint dependsOn ^build`, was `^lint`)
+so cold runners build `dist` before typechecking — the actual cause of the
+`@kudi/receipts` “Cannot find module '@kudi/types'” CI failure (package exists,
+declared, linked; `dist` just didn't exist yet at the typecheck step).
+Follow-ons fixed in the same pass: sdk/api-contracts `ResolveAccountRequest`
+gap, worker `SelfCustodyProvider`/provider imports + missing workspace deps,
+wallet `AuthenticatePrivyRequest.privyToken` widened to optional (matches the
+API handler, which never required it), and `DripChain` widened to include
+`'stellar'` with an explicit note that Stellar drip policy is still runtime-
+rejected — zero behavior change, types now describe what callers already send.
+Final board: `pnpm lint` **44/44** ✅, `pnpm run build` **24/24** ✅,
+`architecture:check` ✅, `smoke:test` ✅, e2e 9/11 (2 pre-existing, see below).
+
 ## app-wide error sweep (2026-10-12 — team-lead run, user-requested)
 
 `server.ts`: 21 errors → 0. Worker files, 5 api controllers, `chains` barrel,

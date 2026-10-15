@@ -29,7 +29,13 @@
  *   here only to size cap accounting when the caller omits dripAmountNative).
  */
 
-export type DripChain = 'solana' | 'monad';
+export type DripChain = 'solana' | 'monad' | 'stellar';
+// NOTE: 'stellar' is accepted by the type because upstream sweep engines pass
+// it through, but there is deliberately NO Stellar drip policy yet —
+// checkDripEligibility/recordDrip below still reject 'stellar' at runtime
+// ("Invalid chain") until treasury-XLM balance checks, caps, and floors are
+// defined. Widening the type changes zero runtime behavior; it only stops
+// the compiler from lying about what callers already send.
 
 export type DripStatus = 'BROADCAST' | 'CONFIRMED' | 'TIMEOUT';
 
