@@ -109,6 +109,11 @@ export const Typography = {
     fontSize: 32,
     fontVariant: ['tabular-nums' as const],
   },
+  currencyMain: {
+    fontFamily: FONT_FAMILY.mono,
+    fontSize: 24,
+    fontVariant: ['tabular-nums' as const],
+  },
   currencySub: {
     fontFamily: FONT_FAMILY.mono,
     fontSize: 15,

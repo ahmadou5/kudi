@@ -7,6 +7,9 @@ const emptyStringToUndefined = (value: unknown) =>
 
 const optionalUrl = z.preprocess(emptyStringToUndefined, z.string().url().optional());
 
+const evmAddressSchema = z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'Invalid EVM address');
+const solanaAddressSchema = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, 'Invalid Solana address');
+
 const apiEnvSchema = z
   .object({
     NODE_ENV: nodeEnvSchema,
@@ -17,6 +20,46 @@ const apiEnvSchema = z
     REDIS_URL: z.string().optional(),
     ENABLE_REDIS: z.enum(['true', 'false']).default('false'),
     SENTRY_DSN: optionalUrl,
+
+    // Core chain config
+    SOLANA_RPC_URL: z.string().url().default('https://api.devnet.solana.com'),
+    SOLANA_RPC_URL_FALLBACK: optionalUrl,
+    MONAD_RPC_URL: z.string().url().default('https://testnet-rpc.monad.xyz'),
+    MONAD_RPC_URL_FALLBACK: optionalUrl,
+    USDC_MINT_ADDRESS: solanaAddressSchema,
+    AUSD_TOKEN_ADDRESS: evmAddressSchema,
+    MONAD_CHAIN_ID: z.coerce.number().int().positive().default(10143),
+    SOLANA_CAIP2: z.string().default('solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1'),
+
+    // Three-chain sponsorship configuration (pila pattern)
+    PRIVY_SOLANA_GAS_WALLET_ID: z.string(),
+    PRIVY_SOLANA_GAS_WALLET_PUBKEY: solanaAddressSchema,
+    PRIVY_STELLAR_GAS_WALLET_ID: z.string(),
+    PRIVY_STELLAR_GAS_WALLET_PUBKEY: solanaAddressSchema,
+    PRIVY_EVM_GAS_WALLET_ID: z.string(),
+    PRIVY_EVM_SETTLEMENT_LIQUIDITY_WALLET_ID: z.string(),
+    PRIVY_EVM_FEES_WALLET_ID: z.string(),
+
+    // Privy key quorum (pila pattern - no production fallbacks)
+    PRIVY_APP_ID: z.string(),
+    PRIVY_APP_SECRET: z.string(),
+    PRIVY_VERIFICATION_KEY_PEM: z.string(),
+    PRIVY_WALLET_OWNER_KEY_QUORUM_ID: z.string(),
+    PRIVY_AUTHORIZATION_PRIVATE_KEY_B64: z.string(),
+    PRIVY_AUTHORIZATION_KEY_ID: z.string(),
+
+    // Gas payment mode
+    GAS_PAYMENT_MODE: z.enum(['PRIVY_SPONSOR', 'TREASURY_FEE_PAYER', 'USER_PAYS']),
+
+    // Treasury addresses (required by API/worker startup validation)
+    KUDI_TREASURY_SOLANA_ADDRESS: z.string().optional(),
+    KUDI_TREASURY_EVM_ADDRESS: z.string().optional(),
+
+    // Alchemy gas manager (EVM sponsorship)
+    ALCHEMY_API_KEY: z.string().optional(),
+    ALCHEMY_GAS_POLICY_ID: z.string().optional(),
+
+    // Fiat payout providers (NGN off-ramp)
     PAYSTACK_SECRET_KEY: z.string().optional(),
     MONNIFY_API_KEY: z.string().optional(),
     MONNIFY_SECRET_KEY: z.string().optional(),
@@ -26,52 +69,79 @@ const apiEnvSchema = z
     SQUAD_BASE_URL: z.string().url().default('https://api-d.squadco.com'),
     BACHS_SECRET_KEY: z.string().optional(),
     BACHS_BASE_URL: z.string().url().default('https://sandbox-api.bachs.io'),
-    DOJAH_API_KEY: z.string().optional(),
-    DOJAH_APP_ID: z.string().optional(),
-    PRIVY_APP_ID: z.string().optional(),
-    PRIVY_APP_SECRET: z.string().optional(),
-    SOLANA_RPC_URL: z.string().url().default('https://api.devnet.solana.com'),
-    SOLANA_RPC_URL_FALLBACK: optionalUrl,
-    MONAD_RPC_URL: z.string().url().default('https://testnet-rpc.monad.xyz'),
-    MONAD_RPC_URL_FALLBACK: optionalUrl,
-    USDC_MINT_ADDRESS: z.string().default('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'),
-    AUSD_TOKEN_ADDRESS: z.string().default('0x534b2f3A21130d7a60830c2Df862319e593943A3'),
-    MONAD_CHAIN_ID: z.coerce.number().int().positive().default(10143),
-    KUDI_TREASURY_SOLANA_ADDRESS: z.string().optional(),
-    KUDI_TREASURY_EVM_ADDRESS: z.string().optional(),
-    KUDI_SOLANA_TREASURY_WALLET_ID: z.string().optional(),
-    KUDI_EVM_TREASURY_WALLET_ID: z.string().optional(),
-    SOLANA_CAIP2: z.string().default('solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1'),
-GAS_PAYMENT_MODE: z.enum(['TREASURY_FEE_PAYER']),
+
+    // Token config
     EIP712_TOKEN_NAME: z.string().default('USDC'),
     EIP712_TOKEN_VERSION: z.string().default('2'),
+
+    // VASP partner
     VASP_PARTNER_API_KEY: z.string().optional(),
     VASP_PARTNER_API_URL: z.string().url().default('https://api.busha.co/v1'),
+
+    // Monitoring
     RECONCILIATION_ALERT_THRESHOLD_USDC: z.coerce.number().int().positive().default(10000),
     USDC_FEE: z.coerce.number().positive().default(0.01)
   })
   .superRefine((env, ctx) => {
-    if (env.NODE_ENV === 'production' && !env.JWT_SECRET) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['JWT_SECRET'], message: 'JWT_SECRET is required in production' });
-    }
-    if (env.NODE_ENV === 'production' && !env.ADMIN_API_KEY) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['ADMIN_API_KEY'], message: 'ADMIN_API_KEY is required in production' });
-    }
-    if (env.NODE_ENV === 'production' && !env.PRIVY_APP_ID) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PRIVY_APP_ID'], message: 'PRIVY_APP_ID is required in production' });
-    }
-    if (env.NODE_ENV === 'production' && !env.PRIVY_APP_SECRET) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PRIVY_APP_SECRET'], message: 'PRIVY_APP_SECRET is required in production' });
-    }
-    if (env.NODE_ENV === 'production' && !env.KUDI_TREASURY_SOLANA_ADDRESS) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['KUDI_TREASURY_SOLANA_ADDRESS'], message: 'KUDI_TREASURY_SOLANA_ADDRESS is required in production' });
-    }
-    if (env.NODE_ENV === 'production' && env.GAS_PAYMENT_MODE === 'TREASURY_FEE_PAYER') {
-      if (!env.KUDI_SOLANA_TREASURY_WALLET_ID) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['KUDI_SOLANA_TREASURY_WALLET_ID'], message: 'KUDI_SOLANA_TREASURY_WALLET_ID is required when GAS_PAYMENT_MODE=TREASURY_FEE_PAYER' });
+    // Production: every required var must be present - no fallbacks (pila hard-errors if missing)
+    if (env.NODE_ENV === 'production') {
+      // Core
+      if (!env.JWT_SECRET) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['JWT_SECRET'], message: 'JWT_SECRET is required in production' });
       }
-      if (!env.KUDI_EVM_TREASURY_WALLET_ID) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['KUDI_EVM_TREASURY_WALLET_ID'], message: 'KUDI_EVM_TREASURY_WALLET_ID is required when GAS_PAYMENT_MODE=TREASURY_FEE_PAYER' });
+      if (!env.ADMIN_API_KEY) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['ADMIN_API_KEY'], message: 'ADMIN_API_KEY is required in production' });
+      }
+      if (!env.PRIVY_APP_ID) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PRIVY_APP_ID'], message: 'PRIVY_APP_ID is required in production' });
+      }
+      if (!env.PRIVY_APP_SECRET) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PRIVY_APP_SECRET'], message: 'PRIVY_APP_SECRET is required in production' });
+      }
+      if (!env.PRIVY_VERIFICATION_KEY_PEM) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PRIVY_VERIFICATION_KEY_PEM'], message: 'PRIVY_VERIFICATION_KEY_PEM is required in production' });
+      }
+      if (!env.PRIVY_WALLET_OWNER_KEY_QUORUM_ID) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PRIVY_WALLET_OWNER_KEY_QUORUM_ID'], message: 'PRIVY_WALLET_OWNER_KEY_QUORUM_ID is required in production' });
+      }
+      if (!env.PRIVY_AUTHORIZATION_PRIVATE_KEY_B64) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PRIVY_AUTHORIZATION_PRIVATE_KEY_B64'], message: 'PRIVY_AUTHORIZATION_PRIVATE_KEY_B64 is required in production' });
+      }
+      if (!env.PRIVY_AUTHORIZATION_KEY_ID) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PRIVY_AUTHORIZATION_KEY_ID'], message: 'PRIVY_AUTHORIZATION_KEY_ID is required in production' });
+      }
+      if (!env.PRIVY_SOLANA_GAS_WALLET_ID) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PRIVY_SOLANA_GAS_WALLET_ID'], message: 'PRIVY_SOLANA_GAS_WALLET_ID is required in production' });
+      }
+      if (!env.PRIVY_SOLANA_GAS_WALLET_PUBKEY) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PRIVY_SOLANA_GAS_WALLET_PUBKEY'], message: 'PRIVY_SOLANA_GAS_WALLET_PUBKEY is required in production' });
+      }
+      if (!env.PRIVY_STELLAR_GAS_WALLET_ID) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PRIVY_STELLAR_GAS_WALLET_ID'], message: 'PRIVY_STELLAR_GAS_WALLET_ID is required in production' });
+      }
+      if (!env.PRIVY_STELLAR_GAS_WALLET_PUBKEY) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PRIVY_STELLAR_GAS_WALLET_PUBKEY'], message: 'PRIVY_STELLAR_GAS_WALLET_PUBKEY is required in production' });
+      }
+      if (!env.PRIVY_EVM_GAS_WALLET_ID) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PRIVY_EVM_GAS_WALLET_ID'], message: 'PRIVY_EVM_GAS_WALLET_ID is required in production' });
+      }
+      if (!env.PRIVY_EVM_SETTLEMENT_LIQUIDITY_WALLET_ID) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PRIVY_EVM_SETTLEMENT_LIQUIDITY_WALLET_ID'], message: 'PRIVY_EVM_SETTLEMENT_LIQUIDITY_WALLET_ID is required in production' });
+      }
+      if (!env.PRIVY_EVM_FEES_WALLET_ID) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PRIVY_EVM_FEES_WALLET_ID'], message: 'PRIVY_EVM_FEES_WALLET_ID is required in production' });
+      }
+      if (!env.SOLANA_RPC_URL) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['SOLANA_RPC_URL'], message: 'SOLANA_RPC_URL is required in production' });
+      }
+      if (!env.MONAD_RPC_URL) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['MONAD_RPC_URL'], message: 'MONAD_RPC_URL is required in production' });
+      }
+      if (!env.USDC_MINT_ADDRESS) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['USDC_MINT_ADDRESS'], message: 'USDC_MINT_ADDRESS is required in production' });
+      }
+      if (!env.AUSD_TOKEN_ADDRESS) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AUSD_TOKEN_ADDRESS'], message: 'AUSD_TOKEN_ADDRESS is required in production' });
       }
     }
   });
@@ -81,23 +151,34 @@ const workerEnvSchema = z.object({
   HOSTNAME: z.string().optional(),
   MONAD_RPC_URL: z.string().url().default('https://testnet-rpc.monad.xyz'),
   MONAD_RPC_URL_FALLBACK: optionalUrl,
-  AUSD_TOKEN_ADDRESS: z.string().default('0x534b2f3A21130d7a60830c2Df862319e593943A3'),
+  USDC_MINT_ADDRESS: solanaAddressSchema,
+  AUSD_TOKEN_ADDRESS: evmAddressSchema,
   MONAD_CHAIN_ID: z.coerce.number().int().positive().default(10143),
   SOLANA_RPC_URL: z.string().url().default('https://api.devnet.solana.com'),
   SOLANA_RPC_URL_FALLBACK: optionalUrl,
-  USDC_MINT_ADDRESS: z.string().default('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'),
+  PRIVY_SOLANA_GAS_WALLET_ID: z.string(),
+  PRIVY_SOLANA_GAS_WALLET_PUBKEY: solanaAddressSchema,
+  PRIVY_STELLAR_GAS_WALLET_ID: z.string(),
+  PRIVY_STELLAR_GAS_WALLET_PUBKEY: solanaAddressSchema,
+  PRIVY_EVM_GAS_WALLET_ID: z.string(),
+  PRIVY_EVM_SETTLEMENT_LIQUIDITY_WALLET_ID: z.string(),
+  PRIVY_EVM_FEES_WALLET_ID: z.string(),
   KUDI_TREASURY_SOLANA_ADDRESS: z.string().optional(),
   KUDI_TREASURY_EVM_ADDRESS: z.string().optional(),
   KUDI_SOLANA_TREASURY_WALLET_ID: z.string().optional(),
   KUDI_EVM_TREASURY_WALLET_ID: z.string().optional(),
-  PRIVY_APP_ID: z.string().optional(),
-  PRIVY_APP_SECRET: z.string().optional(),
-GAS_PAYMENT_MODE: z.enum(['PRIVY_SPONSOR', 'TREASURY_FEE_PAYER']),
+  PRIVY_APP_ID: z.string(),
+  PRIVY_APP_SECRET: z.string(),
+  PRIVY_VERIFICATION_KEY_PEM: z.string(),
+  PRIVY_WALLET_OWNER_KEY_QUORUM_ID: z.string(),
+  PRIVY_AUTHORIZATION_PRIVATE_KEY_B64: z.string(),
+  PRIVY_AUTHORIZATION_KEY_ID: z.string(),
+  GAS_PAYMENT_MODE: z.enum(['PRIVY_SPONSOR', 'TREASURY_FEE_PAYER', 'USER_PAYS']),
   EIP712_TOKEN_NAME: z.string().default('USDC'),
   EIP712_TOKEN_VERSION: z.string().default('2'),
-RECONCILIATION_ALERT_THRESHOLD_USDC: z.coerce.number().int().positive().default(10000),
-    USDC_FEE: z.coerce.number().positive().default(0.01)
-  })
+  RECONCILIATION_ALERT_THRESHOLD_USDC: z.coerce.number().int().positive().default(10000),
+  USDC_FEE: z.coerce.number().positive().default(0.01)
+})
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === 'production') {
       if (!env.KUDI_TREASURY_SOLANA_ADDRESS) {
@@ -212,16 +293,16 @@ function base58ToBytes(value: string): Uint8Array | undefined {
     }
   }
   let leadingZeros = 0;
-  for (const char of value) {
-    if (char !== '1') break;
-    leadingZeros++;
+    for (const char of value) {
+      if (char !== '1') break;
+      leadingZeros++;
+    }
+    const decoded = new Uint8Array(leadingZeros + bytes.length);
+    for (let i = 0; i < bytes.length; i++) {
+      decoded[decoded.length - 1 - i] = bytes[i];
+    }
+    return decoded;
   }
-  const decoded = new Uint8Array(leadingZeros + bytes.length);
-  for (let i = 0; i < bytes.length; i++) {
-    decoded[decoded.length - 1 - i] = bytes[i];
-  }
-  return decoded;
-}
 
 /** True for a real Solana pubkey: base58 decoding to exactly 32 bytes. */
 export function isValidSolanaAddress(value: string | undefined): value is string {
@@ -253,6 +334,10 @@ export interface ChainRuntimeConfigInput {
   solanaCaip2?: string;
   privyAppId?: string;
   privyAppSecret?: string;
+  privyVerificationKeyPEM?: string;
+  privyWalletOwnerKeyQuorumID?: string;
+  privyAuthorizationPrivateKeyB64?: string;
+  privyAuthorizationKeyID?: string;
 }
 
 /**
@@ -308,6 +393,17 @@ export function validateChainRuntimeConfig(input: ChainRuntimeConfigInput, servi
   if (input.nodeEnv !== 'production' && (!input.privyAppId || !input.privyAppSecret)) {
     console.warn(
       `[Config] ${serviceName} starting without PRIVY_APP_ID/PRIVY_APP_SECRET — Privy signing paths will fail at runtime.`
+    );
+  }
+  // Pila pattern: optional key quorum vars — warn if missing outside production,
+  // but don't hard-fail (backward-compatible).
+  if (
+    input.nodeEnv !== 'production' &&
+    (!input.privyVerificationKeyPEM || !input.privyWalletOwnerKeyQuorumID || !input.privyAuthorizationPrivateKeyB64 || !input.privyAuthorizationKeyID)
+  ) {
+    console.warn(
+      '[Config] Starting without pila Privy key quorum variables (PRIVY_VERIFICATION_KEY_PEM, PRIVY_WALLET_OWNER_KEY_QUORUM_ID, PRIVY_AUTHORIZATION_PRIVATE_KEY_B64, PRIVY_AUTHORIZATION_KEY_ID). ' +
+        'Run-time authorization context may be limited. Set these for pila‑style RPC auth.'
     );
   }
 }

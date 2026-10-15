@@ -121,9 +121,30 @@ importers:
       '@kudi/payment-providers':
         specifier: workspace:*
         version: link:../../packages/payment-providers
+      '@kudi/provider-alchemy':
+        specifier: workspace:*
+        version: link:../../packages/provider-alchemy
+      '@kudi/provider-crypto':
+        specifier: workspace:*
+        version: link:../../packages/provider-crypto
+      '@kudi/provider-privy':
+        specifier: workspace:*
+        version: link:../../packages/provider-privy
+      '@kudi/provider-solana':
+        specifier: workspace:*
+        version: link:../../packages/provider-solana
+      '@kudi/provider-stellar':
+        specifier: workspace:*
+        version: link:../../packages/provider-stellar
       '@kudi/receipts':
         specifier: workspace:*
         version: link:../../packages/receipts
+      '@kudi/service-transaction':
+        specifier: workspace:*
+        version: link:../../packages/service-transaction
+      '@kudi/service-wallet':
+        specifier: workspace:*
+        version: link:../../packages/service-wallet
       '@kudi/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -139,6 +160,9 @@ importers:
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
+      ethers:
+        specifier: ^6.11.1
+        version: 6.17.0
       expo-server-sdk:
         specifier: ^3.7.0
         version: 3.15.0
@@ -193,7 +217,7 @@ importers:
         version: link:../../packages/types
       '@privy-io/expo':
         specifier: ^0.72.0
-        version: 0.72.0(@privy-io/expo-native-extensions@0.0.12)(@types/react@18.2.79)(expo-apple-authentication@57.0.2)(expo-application@57.0.3)(expo-clipboard@57.0.2)(expo-crypto@57.0.3)(expo-linking@57.0.12)(expo-secure-store@57.0.4)(expo-web-browser@57.0.3)(react-native-passkeys@0.4.2)(react-native-safe-area-context@5.7.0)(react-native-svg@15.15.4)(react-native-webview@14.0.1)(react-native@0.86.3)(react@19.2.3)(typescript@6.0.3)(viem@2.56.0)
+        version: 0.72.0(@privy-io/expo-native-extensions@0.0.12)(@types/react@18.2.79)(expo-apple-authentication@57.0.2)(expo-application@57.0.3)(expo-clipboard@57.0.2)(expo-crypto@57.0.3)(expo-linking@57.0.12)(expo-secure-store@57.0.4)(expo-web-browser@57.0.3)(react-native-passkeys@0.4.2)(react-native-qrcode-styled@0.4.0)(react-native-safe-area-context@5.7.0)(react-native-svg@15.15.4)(react-native-webview@14.0.1)(react-native@0.86.3)(react@19.2.3)(typescript@6.0.3)(viem@2.56.0)
       '@privy-io/expo-native-extensions':
         specifier: ^0.0.12
         version: 0.0.12(expo@57.0.27)(react-native@0.86.3)(react@19.2.3)
@@ -311,6 +335,9 @@ importers:
       react-native-get-random-values:
         specifier: ^1.11.0
         version: 1.11.0(react-native@0.86.3)
+      react-native-qrcode-styled:
+        specifier: ^0.4.0
+        version: 0.4.0(react-native-svg@15.15.4)(react-native@0.86.3)(react@19.2.3)
       react-native-qrcode-svg:
         specifier: ^6.3.22
         version: 6.3.22(react-native-svg@15.15.4)(react-native@0.86.3)(react@19.2.3)
@@ -418,9 +445,21 @@ importers:
       '@kudi/payment-providers':
         specifier: workspace:*
         version: link:../../packages/payment-providers
+      '@kudi/provider-alchemy':
+        specifier: workspace:*
+        version: link:../../packages/provider-alchemy
+      '@kudi/provider-solana':
+        specifier: workspace:*
+        version: link:../../packages/provider-solana
+      '@kudi/provider-stellar':
+        specifier: workspace:*
+        version: link:../../packages/provider-stellar
       '@kudi/types':
         specifier: workspace:*
         version: link:../../packages/types
+      bullmq:
+        specifier: ^5.0.0
+        version: 5.81.5
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
@@ -475,6 +514,27 @@ importers:
       '@kudi/chains-core':
         specifier: workspace:*
         version: link:../chains-core
+      '@kudi/provider-alchemy':
+        specifier: workspace:*
+        version: link:../provider-alchemy
+      '@kudi/provider-crypto':
+        specifier: workspace:*
+        version: link:../provider-crypto
+      '@kudi/provider-privy':
+        specifier: workspace:*
+        version: link:../provider-privy
+      '@kudi/provider-solana':
+        specifier: workspace:*
+        version: link:../provider-solana
+      '@kudi/provider-stellar':
+        specifier: workspace:*
+        version: link:../provider-stellar
+      '@kudi/service-transaction':
+        specifier: workspace:*
+        version: link:../service-transaction
+      '@kudi/service-wallet':
+        specifier: workspace:*
+        version: link:../service-wallet
       '@kudi/types':
         specifier: workspace:*
         version: link:../types
@@ -487,9 +547,6 @@ importers:
       '@solana/signers':
         specifier: ^8.3.0
         version: 8.3.0(typescript@5.9.3)
-      ethers:
-        specifier: ^6.11.1
-        version: 6.17.0
     devDependencies:
       '@types/node':
         specifier: ^20.11.19
@@ -577,6 +634,132 @@ importers:
         specifier: ^5.3.3
         version: 5.9.3
 
+  packages/provider-alchemy:
+    dependencies:
+      '@kudi/provider-crypto':
+        specifier: workspace:*
+        version: link:../provider-crypto
+      '@kudi/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.19
+        version: 20.19.43
+      tsup:
+        specifier: ^8.0.2
+        version: 8.5.1(typescript@5.9.3)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
+  packages/provider-crypto:
+    dependencies:
+      '@kudi/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.19
+        version: 20.19.43
+      tsup:
+        specifier: ^8.0.2
+        version: 8.5.1(typescript@5.9.3)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
+  packages/provider-privy:
+    dependencies:
+      '@kudi/provider-crypto':
+        specifier: workspace:*
+        version: link:../provider-crypto
+      '@kudi/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.19
+        version: 20.19.43
+      tsup:
+        specifier: ^8.0.2
+        version: 8.5.1(typescript@5.9.3)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
+  packages/provider-solana:
+    dependencies:
+      '@kudi/provider-crypto':
+        specifier: workspace:*
+        version: link:../provider-crypto
+      '@kudi/types':
+        specifier: workspace:*
+        version: link:../types
+      '@solana-program/token':
+        specifier: ^0.16.1
+        version: 0.16.1(@solana/kit@8.3.0)
+      '@solana/kit':
+        specifier: ^8.3.0
+        version: 8.3.0(typescript@5.9.3)
+      '@solana/signers':
+        specifier: ^8.3.0
+        version: 8.3.0(typescript@5.9.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.19
+        version: 20.19.43
+      tsup:
+        specifier: ^8.0.2
+        version: 8.5.1(typescript@5.9.3)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
+  packages/provider-stellar:
+    dependencies:
+      '@kudi/provider-crypto':
+        specifier: workspace:*
+        version: link:../provider-crypto
+      '@kudi/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.19
+        version: 20.19.43
+      tsup:
+        specifier: ^8.0.2
+        version: 8.5.1(typescript@5.9.3)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
+  packages/queue-tasks:
+    dependencies:
+      '@kudi/provider-crypto':
+        specifier: workspace:*
+        version: link:../provider-crypto
+      '@kudi/service-transaction':
+        specifier: workspace:*
+        version: link:../service-transaction
+      '@kudi/service-wallet':
+        specifier: workspace:*
+        version: link:../service-wallet
+      '@kudi/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.19
+        version: 20.19.43
+      tsup:
+        specifier: ^8.0.2
+        version: 8.5.1(typescript@5.9.3)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
   packages/receipts:
     dependencies:
       '@kudi/types':
@@ -598,6 +781,65 @@ importers:
       '@kudi/api-contracts':
         specifier: workspace:*
         version: link:../api-contracts
+      '@kudi/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.19
+        version: 20.19.43
+      tsup:
+        specifier: ^8.0.2
+        version: 8.5.1(typescript@5.9.3)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
+  packages/service-transaction:
+    dependencies:
+      '@kudi/provider-alchemy':
+        specifier: workspace:*
+        version: link:../provider-alchemy
+      '@kudi/provider-solana':
+        specifier: workspace:*
+        version: link:../provider-solana
+      '@kudi/provider-stellar':
+        specifier: workspace:*
+        version: link:../provider-stellar
+      '@kudi/service-wallet':
+        specifier: workspace:*
+        version: link:../service-wallet
+      '@kudi/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.19
+        version: 20.19.43
+      tsup:
+        specifier: ^8.0.2
+        version: 8.5.1(typescript@5.9.3)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
+  packages/service-wallet:
+    dependencies:
+      '@kudi/provider-alchemy':
+        specifier: workspace:*
+        version: link:../provider-alchemy
+      '@kudi/provider-crypto':
+        specifier: workspace:*
+        version: link:../provider-crypto
+      '@kudi/provider-privy':
+        specifier: workspace:*
+        version: link:../provider-privy
+      '@kudi/provider-solana':
+        specifier: workspace:*
+        version: link:../provider-solana
+      '@kudi/provider-stellar':
+        specifier: workspace:*
+        version: link:../provider-stellar
       '@kudi/types':
         specifier: workspace:*
         version: link:../types
@@ -2674,6 +2916,10 @@ packages:
       react-native: 0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1)(@types/react@18.2.79)(react@19.2.3)
     dev: false
 
+  /@ioredis/commands@1.10.0:
+    resolution: {integrity: sha512-UmeW7z4LfctwoQ5wkhVzgq8tXkreED2xZGpX+Bg+zA+WJFZCT6c062AfCK/Dfk81xZnnwdhJCUMkitihRaoC2Q==}
+    dev: false
+
   /@ioredis/commands@2.0.0:
     resolution: {integrity: sha512-vrx0AE/T0h7cRZwfo1M39Cr+ZhZrkf0V8mQN75wucKCxCLD9l/VX6no3gFvrLqD1IlG/1LtzWovqEw3t0Vr9zg==}
     dev: false
@@ -2738,6 +2984,54 @@ packages:
     resolution: {integrity: sha512-9I2Zn6+NJLfaGoz9jN3lpwDgAYvfGeNYdbAIjJOqzs4Tpc+VU3Jqq4IofSUBKajiDS8k9fZIg18/z13mpk1bsA==}
     engines: {node: '>=8'}
     dev: false
+
+  /@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.4:
+    resolution: {integrity: sha512-LCkGo6JDfaBhgST7UpPWgNgLINpcpabaHfyz5OBx75nUYxBsaEPxjnyNjWpeb/xBup/682QnBfRBy2/LvPutZQ==}
+    cpu: [arm64]
+    os: [darwin]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@msgpackr-extract/msgpackr-extract-darwin-x64@3.0.4:
+    resolution: {integrity: sha512-zExlW9zUJKZH/tOtVMttwjKa4Xm/3KcNjnE3dPN92uCktwavMxpgCA3MoJK/DOnTWsQgo224OaST27/mPNAf+w==}
+    cpu: [x64]
+    os: [darwin]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@msgpackr-extract/msgpackr-extract-linux-arm64@3.0.4:
+    resolution: {integrity: sha512-dgX0P/9wGPJeHFBG+ZmhgE6bmtMt7NP5CRBGyyktpopdk/mW4POnrpQsSLtKI1dwpc+pPLuXHDh6vvskyQE/sw==}
+    cpu: [arm64]
+    os: [linux]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@msgpackr-extract/msgpackr-extract-linux-arm@3.0.4:
+    resolution: {integrity: sha512-Tg3yX65f5GbtXLkrYEHE5oibZG9epyYWas7FogTTEJeDEF9JlXJzKgXaNhT3UXlTOeA+AfZpYZYZ0uPj7Cfquw==}
+    cpu: [arm]
+    os: [linux]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@msgpackr-extract/msgpackr-extract-linux-x64@3.0.4:
+    resolution: {integrity: sha512-8TNXMEjJc3QEy7R/x1INhgiU+XakDAFUzBhaz7+Rbrs8NH5UQeHQxxmzsSBJGyV6I1jW79undiQm8tOI+D+8FQ==}
+    cpu: [x64]
+    os: [linux]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@msgpackr-extract/msgpackr-extract-win32-x64@3.0.4:
+    resolution: {integrity: sha512-CmCXPQrkbwExx3j946/PtHWHbYJiCRBRDl4BlkRQcJB/YOwQxJRTpoo7aTsortjgoJ1x7opzTSxn7C+ASSLVjQ==}
+    cpu: [x64]
+    os: [win32]
+    requiresBuild: true
+    dev: false
+    optional: true
 
   /@napi-rs/lzma-linux-x64-gnu@1.5.1:
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
@@ -2982,7 +3276,7 @@ packages:
       react-native: 0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1)(@types/react@18.2.79)(react@19.2.3)
     dev: false
 
-  /@privy-io/expo@0.72.0(@privy-io/expo-native-extensions@0.0.12)(@types/react@18.2.79)(expo-apple-authentication@57.0.2)(expo-application@57.0.3)(expo-clipboard@57.0.2)(expo-crypto@57.0.3)(expo-linking@57.0.12)(expo-secure-store@57.0.4)(expo-web-browser@57.0.3)(react-native-passkeys@0.4.2)(react-native-safe-area-context@5.7.0)(react-native-svg@15.15.4)(react-native-webview@14.0.1)(react-native@0.86.3)(react@19.2.3)(typescript@6.0.3)(viem@2.56.0):
+  /@privy-io/expo@0.72.0(@privy-io/expo-native-extensions@0.0.12)(@types/react@18.2.79)(expo-apple-authentication@57.0.2)(expo-application@57.0.3)(expo-clipboard@57.0.2)(expo-crypto@57.0.3)(expo-linking@57.0.12)(expo-secure-store@57.0.4)(expo-web-browser@57.0.3)(react-native-passkeys@0.4.2)(react-native-qrcode-styled@0.4.0)(react-native-safe-area-context@5.7.0)(react-native-svg@15.15.4)(react-native-webview@14.0.1)(react-native@0.86.3)(react@19.2.3)(typescript@6.0.3)(viem@2.56.0):
     resolution: {integrity: sha512-Kj5X4RyYutYsGMaAgWIT5ojkt4RJLurvQbOcpMBAUVU28XCqqFdZj/XK8dph8hJAwdykkl1Ob0ENiNalyHEUpw==}
     peerDependencies:
       '@privy-io/expo-native-extensions': 0.0.12
@@ -3042,6 +3336,7 @@ packages:
       react-fast-compare: 3.2.2
       react-native: 0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1)(@types/react@18.2.79)(react@19.2.3)
       react-native-passkeys: 0.4.2(expo@57.0.27)(react-native@0.86.3)(react@19.2.3)
+      react-native-qrcode-styled: 0.4.0(react-native-svg@15.15.4)(react-native@0.86.3)(react@19.2.3)
       react-native-safe-area-context: 5.7.0(react-native@0.86.3)(react@19.2.3)
       react-native-svg: 15.15.4(react-native@0.86.3)(react@19.2.3)
       react-native-webview: 14.0.1(react-native@0.86.3)(react@19.2.3)
@@ -5554,6 +5849,25 @@ packages:
     resolution: {integrity: sha512-HpGFw18DgFWlncDfjTa2rcQ4W88O1mC8e8yZ2AvQY5KDaktSTwo+KRf6nHK6FRI5FyRyb/5T6+TSxfP7QyGsmQ==}
     dev: false
 
+  /bullmq@5.81.5:
+    resolution: {integrity: sha512-pW7pFc/X+9AEIx91TWTdIpZ1icfbJnA0unsyzD7VICjCUw8a3qedSjej5dxxn6LjfM1kr2jvalOCGbCmoA5Kxg==}
+    engines: {node: '>=12.22.0'}
+    peerDependencies:
+      redis: '>=5.0.0'
+    peerDependenciesMeta:
+      redis:
+        optional: true
+    dependencies:
+      cron-parser: 4.9.0
+      ioredis: 5.11.1
+      msgpackr: 2.0.5
+      node-abort-controller: 3.1.1
+      semver: 7.8.5
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - supports-color
+    dev: false
+
   /bundle-require@5.1.0(esbuild@0.27.7):
     resolution: {integrity: sha512-3WrrOuZiyaaZPWiEt4G3+IffISVC9HYlWueJEBWED4ZH4aIAC2PnkdnuRrR94M+w6yGWn4AglWtJtBI8YqvgoA==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
@@ -5936,6 +6250,14 @@ packages:
       ripemd160: 2.0.3
       safe-buffer: 5.2.1
       sha.js: 2.4.12
+    dev: false
+
+  /cron-parser@4.9.0:
+    resolution: {integrity: sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q==}
+    engines: {node: '>=12.0.0'}
+    deprecated: v4 is no longer maintained, upgrade to v5
+    dependencies:
+      luxon: 3.7.2
     dev: false
 
   /cross-fetch@3.2.0:
@@ -7086,6 +7408,10 @@ packages:
     resolution: {integrity: sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ==}
     dev: false
 
+  /fast-text-encoding@1.0.6:
+    resolution: {integrity: sha512-VhXlQgj9ioXCqGstD37E/HBeqEGV/qOD/kmbVG8h5xKBYvM1L3lR1Zn4555cQ8GkYbJa8aJSipLPndE1k6zK2w==}
+    dev: false
+
   /fast-uri@3.1.7:
     resolution: {integrity: sha512-dOvZVzjdZdz7phd9v6jCbwxrBW3fK6n8Rc0CtdmM4bumzMnxywBYhuph6J819RRw/ku+rLbelwfMunktuzVVHg==}
     dev: false
@@ -7582,6 +7908,21 @@ packages:
       loose-envify: 1.4.0
     dev: false
 
+  /ioredis@5.11.1:
+    resolution: {integrity: sha512-ehuGcf94bQXhfagULNXrJdfnWO38v070jxSx/qE87Kjzmu2fU7ro5EFAb+OPituLqgfyuQaym5DlrNydW2sJ9A==}
+    engines: {node: '>=12.22.0'}
+    dependencies:
+      '@ioredis/commands': 1.10.0
+      cluster-key-slot: 1.1.1
+      debug: 4.4.3
+      denque: 2.1.0
+      redis-errors: 1.2.0
+      redis-parser: 3.0.0
+      standard-as-callback: 2.1.0
+    transitivePeerDependencies:
+      - supports-color
+    dev: false
+
   /ioredis@6.0.0:
     resolution: {integrity: sha512-f+Dtubxfpf6KYFq7WVXJoOLn0bk4TJrMrN9SzeE+jrWrCWj7XX3fA6vkryafhADX+GMymRxgDJDOI33COkJc0w==}
     engines: {node: '>=20.0.0'}
@@ -8076,6 +8417,11 @@ packages:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0
     dependencies:
       react: 18.2.0
+    dev: false
+
+  /luxon@3.7.2:
+    resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
+    engines: {node: '>=12'}
     dev: false
 
   /magic-string@0.30.21:
@@ -8887,6 +9233,28 @@ packages:
   /ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
+  /msgpackr-extract@3.0.4:
+    resolution: {integrity: sha512-4kmO/MdyUIkLIvTPr8VHLil4AtoKIoniWPIEk5+CDy0xnWC84azhSFmuJ7PxZdsYtiP5kEeQsORAVIeMgxT+Hw==}
+    hasBin: true
+    requiresBuild: true
+    dependencies:
+      node-gyp-build-optional-packages: 5.2.2
+    optionalDependencies:
+      '@msgpackr-extract/msgpackr-extract-darwin-arm64': 3.0.4
+      '@msgpackr-extract/msgpackr-extract-darwin-x64': 3.0.4
+      '@msgpackr-extract/msgpackr-extract-linux-arm': 3.0.4
+      '@msgpackr-extract/msgpackr-extract-linux-arm64': 3.0.4
+      '@msgpackr-extract/msgpackr-extract-linux-x64': 3.0.4
+      '@msgpackr-extract/msgpackr-extract-win32-x64': 3.0.4
+    dev: false
+    optional: true
+
+  /msgpackr@2.0.5:
+    resolution: {integrity: sha512-cef05H/dSYpLpqp3sj/qyZh5vhUYCalnaLO7j1yOmpsR0y/XwLVtK7r5gn+U/F7CTEfMowcGhlUQJDLcLf7jcA==}
+    optionalDependencies:
+      msgpackr-extract: 3.0.4
+    dev: false
+
   /multitars@1.0.2:
     resolution: {integrity: sha512-6GwVw5eLi9sThdtlS4PKwC7yRLaf45pYhIEzKBHdKxi+YOXGKFX8acIniH+Uh/+k9mS2lQOupTccjoe5r0/1IQ==}
     dev: false
@@ -8962,6 +9330,10 @@ packages:
       - babel-plugin-macros
     dev: false
 
+  /node-abort-controller@3.1.1:
+    resolution: {integrity: sha512-AGK2yQKIjRuqnc6VkX2Xj5d+QW8xZ87pa1UK6yA6ouUyuxfHuMP6umE5QK7UmTeOAymo+Zx1Fxiuw9rVx8taHQ==}
+    dev: false
+
   /node-fetch@2.7.0:
     resolution: {integrity: sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==}
     engines: {node: 4.x || >=6.0.0}
@@ -8978,6 +9350,15 @@ packages:
     resolution: {integrity: sha512-LarFH0+6VfriEhqMMcLX2F7SwSXeWwnEAJEsYm5QKWchiVYVvJyV9v7UDvUv+w5HO23ZpQTXDv/GxdDdMyOuoQ==}
     engines: {node: '>= 6.13.0'}
     dev: false
+
+  /node-gyp-build-optional-packages@5.2.2:
+    resolution: {integrity: sha512-s+w+rBWnpTMwSFbaE0UXsRlg7hU4FjekKU4eyAih5T8nJuNZT1nNsskXpxmeqSK9UzkBl6UgRlnKc8hz8IEqOw==}
+    hasBin: true
+    requiresBuild: true
+    dependencies:
+      detect-libc: 2.1.2
+    dev: false
+    optional: true
 
   /node-int64@0.4.0:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
@@ -9719,6 +10100,22 @@ packages:
       react-native: 0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1)(@types/react@18.2.79)(react@19.2.3)
     dev: false
 
+  /react-native-qrcode-styled@0.4.0(react-native-svg@15.15.4)(react-native@0.86.3)(react@19.2.3):
+    resolution: {integrity: sha512-j5C5LFOr9KdAqm1snQX8UQH9RFRSH4FY1/7Ts/UvtR/5A9rmb61ZzIIW5d0RteY1D+DWVfnXDMhLmTJXXRgKpg==}
+    engines: {node: '>= 16.0.0'}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
+      react-native-svg: '*'
+    dependencies:
+      fast-text-encoding: 1.0.6
+      qrcode: 1.5.4
+      react: 19.2.3
+      react-fast-compare: 3.2.2
+      react-native: 0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1)(@types/react@18.2.79)(react@19.2.3)
+      react-native-svg: 15.15.4(react-native@0.86.3)(react@19.2.3)
+    dev: false
+
   /react-native-qrcode-svg@6.3.22(react-native-svg@15.15.4)(react-native@0.86.3)(react@19.2.3):
     resolution: {integrity: sha512-1r4qTn6axLVuCuDqK4hu0pviOKWkvvAJIk0hKQVkpU6/O9FfbQpA/CsNJz/lBlGKFc0k/SRLGkD0pPTUKn9vtg==}
     peerDependencies:
@@ -10031,6 +10428,13 @@ packages:
   /redis-errors@1.2.0:
     resolution: {integrity: sha512-1qny3OExCf0UvUV/5wpYKf2YwPcOqXzkwKKSmKHiE6ZMQs5heeE/c8eXK+PNllPvmjgAbfnsbpkGZWy8cBpn9w==}
     engines: {node: '>=4'}
+    dev: false
+
+  /redis-parser@3.0.0:
+    resolution: {integrity: sha512-DJnGAeenTdpMEH6uAJRK/uiyEIH9WVsUmoLwzudwGJUwZPp80PDBWPHXSAGNPwNvIXAbe7MSUB1zQFugFml66A==}
+    engines: {node: '>=4'}
+    dependencies:
+      redis-errors: 1.2.0
     dev: false
 
   /regenerate-unicode-properties@10.2.2:

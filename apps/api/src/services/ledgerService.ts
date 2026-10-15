@@ -8,8 +8,12 @@ export interface UserRecord {
   phoneNumber?: string;
   email?: string;
   fullName?: string;
+  firstName?: string;
+  lastName?: string;
   username?: string;
+  dob?: string;
   avatarUrl?: string;
+  profileCompleted?: boolean;
   role?: string;
   passwordHash?: string;
   status?: string;
@@ -535,11 +539,18 @@ export class LedgerService {
     void this.syncUserToDb(user);
   }
 
-  public updateUserProfile(userId: string, data: { fullName?: string; username?: string; avatarUrl?: string }): UserRecord {
+  public updateUserProfile(userId: string, data: { fullName?: string; firstName?: string; lastName?: string; username?: string; dob?: string; avatarUrl?: string; profileCompleted?: boolean }): UserRecord {
     const user = this.users.get(userId) || { id: userId, kycStatus: KYCStatus.NOT_STARTED, kycTier: KYCTier.UNVERIFIED };
     if (data.fullName !== undefined) user.fullName = data.fullName;
+    if (data.firstName !== undefined) user.firstName = data.firstName;
+    if (data.lastName !== undefined) user.lastName = data.lastName;
     if (data.username !== undefined) user.username = data.username;
+    if (data.dob !== undefined) user.dob = data.dob;
     if (data.avatarUrl !== undefined) user.avatarUrl = data.avatarUrl;
+    if (data.profileCompleted !== undefined) user.profileCompleted = data.profileCompleted;
+    if (!user.fullName && user.firstName && user.lastName) {
+      user.fullName = `${user.firstName} ${user.lastName}`;
+    }
     this.users.set(userId, user);
     void this.syncUserToDb(user);
     return user;

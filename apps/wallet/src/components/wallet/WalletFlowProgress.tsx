@@ -5,6 +5,7 @@ type FlowProgressDotsProps = {
   currentStep: number;
   totalSteps: number;
   onStepPress?: (step: number) => void;
+  color?: string;
 };
 
 /**
@@ -14,7 +15,7 @@ type FlowProgressDotsProps = {
  * - Completed step: narrower pill (width 8, opacity 0.65)
  * - Future step: narrowest pill (width 8, opacity 0.25)
  */
-export function FlowProgressDots({ currentStep, totalSteps, onStepPress }: FlowProgressDotsProps) {
+export function FlowProgressDots({ currentStep, totalSteps, onStepPress, color = '#FFFFFF' }: FlowProgressDotsProps) {
   const widths = useRef(
     Array.from({ length: totalSteps }, (_, i) =>
       new Animated.Value(i + 1 === currentStep ? 24 : 8)
@@ -73,7 +74,8 @@ export function FlowProgressDots({ currentStep, totalSteps, onStepPress }: FlowP
                 styles.pill,
                 {
                   width: widths[i],
-                  opacity: opacities[i]
+                  opacity: opacities[i],
+                  backgroundColor: color
                 }
               ]}
             />
@@ -92,7 +94,6 @@ const styles = StyleSheet.create({
   },
   pill: {
     height: 6,
-    borderRadius: 999,
-    backgroundColor: '#FFFFFF'
+    borderRadius: 999
   }
 });

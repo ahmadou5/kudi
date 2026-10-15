@@ -8,11 +8,15 @@ export interface User {
   privyUserId?: string;
   email?: string;
   fullName?: string;
+  firstName?: string;
+  lastName?: string;
   username?: string;
+  dob?: string;
   avatarUrl?: string;
   phoneNumber?: string;
   kycTier?: string;
   kycStatus?: string;
+  profileCompleted?: boolean;
 }
 
 export interface WalletInfo {
@@ -41,7 +45,15 @@ export interface AuthState {
     phoneNumber?: string;
     name?: string;
   }) => Promise<{ success: boolean; error?: string }>;
-  updateProfile: (data: { fullName?: string; username?: string; avatarUrl?: string }) => Promise<{ success: boolean; error?: string }>;
+  updateProfile: (data: {
+    fullName?: string;
+    firstName?: string;
+    lastName?: string;
+    username?: string;
+    dob?: string;
+    avatarUrl?: string;
+    profileCompleted?: boolean;
+  }) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   deleteAccount: () => Promise<{ success: boolean; error?: string }>;
   unlock: () => void;
@@ -261,20 +273,34 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ isUnlocked: true });
   },
 
-  updateProfile: async (data: { fullName?: string; username?: string; avatarUrl?: string }) => {
+  updateProfile: async (data: {
+    fullName?: string;
+    firstName?: string;
+    lastName?: string;
+    username?: string;
+    dob?: string;
+    avatarUrl?: string;
+    profileCompleted?: boolean;
+  }) => {
     const currentUser = get().user;
     if (!currentUser) return { success: false, error: 'User not logged in' };
 
+    const calculatedFullName = data.fullName || (data.firstName && data.lastName ? `${data.firstName.trim()} ${data.lastName.trim()}` : currentUser.fullName);
+
     const updatedUser: User = {
       ...currentUser,
-      ...data
+      ...data,
+      fullName: calculatedFullName
     };
 
     set({ user: updatedUser });
     await setSecureItem('kudi_user', JSON.stringify(updatedUser));
 
     try {
-      await sdk.updateUserProfile(currentUser.id, data);
+      await sdk.updateUserProfile(currentUser.id, {
+        ...data,
+        fullName: calculatedFullName
+      });
     } catch (e) {
       console.warn('Failed to sync profile update with server:', e);
     }

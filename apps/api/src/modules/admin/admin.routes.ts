@@ -17,6 +17,8 @@ const fundMutationRateLimit = {
 export async function adminRoutes(server: FastifyInstance, controller: AdminController) {
   server.get(apiRoutes.rates.current, controller.getCurrentRates);
   server.get('/api/rates/current', controller.getCurrentRates);
+  server.get(apiRoutes.rates.fx, controller.getFxRate);
+  server.get('/api/rates/fx', controller.getFxRate);
   server.get('/api/v1/admin/dashboard', { preHandler: requireAdmin }, controller.getDashboard);
   server.get('/api/admin/dashboard', { preHandler: requireAdmin }, controller.getDashboard);
   server.get('/api/v1/admin/users', { preHandler: requireAdmin }, controller.getUsers);

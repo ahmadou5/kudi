@@ -14,6 +14,8 @@ export async function payoutRoutes(server: FastifyInstance, controller: PayoutCo
   server.post('/api/payout/spend-user', { preHandler: requireAuth }, controller.spendToUser);
   server.post(apiRoutes.payout.spendOnChain, { preHandler: requireAuth }, controller.spendOnChain);
   server.post('/api/payout/spend-onchain', { preHandler: requireAuth }, controller.spendOnChain);
+  server.post(apiRoutes.payout.sponsorOnChainTransfer, { preHandler: requireAuth }, controller.sponsorOnChainTransfer);
+  server.post('/api/payout/sponsor', { preHandler: requireAuth }, controller.sponsorOnChainTransfer);
   server.post(apiRoutes.payout.cashout, { preHandler: requireAuth }, controller.cashout);
   server.post('/api/payout/cashout', { preHandler: requireAuth }, controller.cashout);
   server.get(apiRoutes.payout.cryptoStatus(), { preHandler: requireAuth }, controller.getCryptoWithdrawalStatus);

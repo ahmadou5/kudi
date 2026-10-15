@@ -253,13 +253,17 @@ export class AuthController {
 
   public updateUserProfile = async (request: FastifyRequest, reply: FastifyReply) => {
     const { userId } = request.params as { userId: string };
-    const { fullName, username, avatarUrl } = (request.body || {}) as {
+    const { fullName, firstName, lastName, username, dob, avatarUrl, profileCompleted } = (request.body || {}) as {
       fullName?: string;
+      firstName?: string;
+      lastName?: string;
       username?: string;
+      dob?: string;
       avatarUrl?: string;
+      profileCompleted?: boolean;
     };
 
-    const updatedUser = this.ledgerService.updateUserProfile(userId, { fullName, username, avatarUrl });
+    const updatedUser = this.ledgerService.updateUserProfile(userId, { fullName, firstName, lastName, username, dob, avatarUrl, profileCompleted });
     return successResponse({ user: updatedUser }, 'User profile updated successfully');
   };
 

@@ -2,6 +2,19 @@ import Fastify from 'fastify';
 import dotenv from 'dotenv';
 import { CustodyManager } from '@kudi/chains';
 import { PaymentProviderRegistry } from '@kudi/payment-providers';
+import { PrivyClient } from '@kudi/provider-privy';
+import { AlchemyProvider } from '@kudi/provider-alchemy';
+import { SolanaProvider } from '@kudi/provider-solana';
+import { StellarProvider } from '@kudi/provider-stellar';
+import {
+  validateEVMAddress,
+  validateSolanaAddress,
+  validateCryptoAddress,
+  normalizeDecimalAmount,
+  formatUSDC
+} from '@kudi/provider-crypto';
+import { WalletService } from '@kudi/service-wallet';
+import { TransactionService } from '@kudi/service-transaction';
 import { apiConfig, validateChainRuntimeConfig } from '@kudi/config';
 import corsPlugin from './plugins/cors';
 import helmetPlugin from './plugins/helmet';
@@ -99,6 +112,52 @@ const custodyManager = new CustodyManager({
   ausdTokenAddress: apiConfig.AUSD_TOKEN_ADDRESS,
   monadChainId: apiConfig.MONAD_CHAIN_ID
 });
+
+const providerPrivy = new PrivyClient({
+  appID: apiConfig.PRIVY_APP_ID,
+  appSecret: apiConfig.PRIVY_APP_SECRET
+});
+
+const providerAlchemy = new AlchemyProvider({
+  apiKey: apiConfig.ALCHEMY_API_KEY || '',
+  gasPolicyId: apiConfig.ALCHEMY_GAS_POLICY_ID || ''
+});
+
+const providerSolana = new SolanaProvider({
+  usdcMintAddress: apiConfig.USDC_MINT_ADDRESS,
+  rpcUrl: apiConfig.SOLANA_RPC_URL,
+  rpcUrlFallback: apiConfig.SOLANA_RPC_URL_FALLBACK
+});
+
+const providerStellar = new StellarProvider({
+  gasWalletId: apiConfig.PRIVY_STELLAR_GAS_WALLET_ID,
+  gasWalletPubkey: apiConfig.PRIVY_STELLAR_GAS_WALLET_PUBKEY,
+  network: 'testnet'
+});
+
+const providerCrypto = {
+  validateEVMAddress,
+  validateSolanaAddress,
+  validateCryptoAddress,
+  normalizeDecimalAmount,
+  formatUSDC
+};
+
+const serviceWallet = new WalletService();
+
+const serviceTransaction = new TransactionService();
+
+// Decorate server with providers for API route access
+server.decorate('providers', {
+  privy: providerPrivy,
+  alchemy: providerAlchemy,
+  solana: providerSolana,
+  stellar: providerStellar,
+  crypto: providerCrypto,
+  wallet: serviceWallet,
+  transaction: serviceTransaction
+});
+
 const paymentRegistry = new PaymentProviderRegistry({
   paystackSecretKey: apiConfig.PAYSTACK_SECRET_KEY!,
   monnifyApiKey: apiConfig.MONNIFY_API_KEY!,

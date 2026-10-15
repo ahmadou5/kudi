@@ -6,6 +6,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { Search, CheckCircle2 } from 'lucide-react-native';
@@ -68,41 +69,76 @@ export function BankAvatar({ name, size = 40 }: { name: string; size?: number })
   );
 }
 
-const BANK_SLUGS: Record<string, string> = {
-  '058': 'gtbank',
-  '057': 'zenith-bank',
-  '044': 'access-bank',
-  '033': 'united-bank-for-africa',
+/**
+ * Fallback slug map for banks that don't carry a `slug` field directly.
+ * Prefer using the `slug` property on the BankItem itself.
+ */
+/** Exported for use in useBanks hook and other consumers. */
+export const BANK_SLUGS_MAP: Record<string, string> = {
   '011': 'first-bank-of-nigeria',
+  '023': 'citibank-nigeria',
+  '032': 'union-bank-of-nigeria',
+  '033': 'united-bank-for-africa',
   '035': 'wema-bank',
+  '044': 'access-bank',
+  '050': 'ecobank-nigeria',
+  '057': 'zenith-bank',
+  '058': 'gtbank',
+  '063': 'access-bank',
+  '068': 'standard-chartered-bank-nigeria',
+  '070': 'fidelity-bank',
+  '076': 'polaris-bank',
+  '082': 'keystone-bank',
+  '100': 'suntrust-bank-nigeria',
+  '101': 'providus-bank',
+  '214': 'first-city-monument-bank',
+  '215': 'unity-bank',
+  '221': 'stanbic-ibtc-bank',
   '232': 'sterling-bank',
-  '50515': 'moniepoint-mfb-ng',
-  '999992': 'opay',
-  '999991': 'palmpay',
+  '301': 'jaiz-bank',
+  '302': 'taj-bank',
+  '304': 'lotus-bank',
+  '305': 'optimus-bank',
+  '307': 'globus-bank',
+  '315': 'premium-trust-bank',
+  '318': 'titan-trust-bank',
+  '50126': 'carbon',
+  '50162': 'fairmoney',
   '50211': 'kuda-bank',
+  '50304': 'vfd-microfinance-bank',
+  '50515': 'moniepoint-mfb-ng',
+  '90616': 'paga',
+  '120001': '9-payment-service-bank',
+  '999991': 'palmpay',
+  '999992': 'opay',
 };
 
-export function getBankLogoUrl(bankCode?: string, bankName?: string): string {
+const LOGO_BASE = 'https://cdn.jsdelivr.net/gh/supermx1/nigerian-banks-api@main/logos';
+
+export function getBankLogoUrl(bankCode?: string, bankName?: string, slug?: string | null): string {
+  // 1. Prefer the explicit slug on the item
+  if (slug) return `${LOGO_BASE}/${slug}.png`;
+  // 2. Fall back to our hardcoded map
   const code = bankCode?.trim();
-  const baseUrl = 'https://cdn.jsdelivr.net/gh/supermx1/nigerian-banks-api@main/logos';
-  if (code && BANK_SLUGS[code]) {
-    return `${baseUrl}/${BANK_SLUGS[code]}.png`;
-  }
+  if (code && BANK_SLUGS_MAP[code]) return `${LOGO_BASE}/${BANK_SLUGS_MAP[code]}.png`;
+  // 3. Last resort: derive from name
   const cleanName = bankName?.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-');
-  return `${baseUrl}/${cleanName || 'default'}.png`;
+  return `${LOGO_BASE}/${cleanName || 'default'}.png`;
 }
 
 export function BankLogo({
   name,
   bankCode,
+  slug,
   size = 40,
 }: {
   name: string;
   bankCode?: string | null;
+  slug?: string | null;
   size?: number;
 }) {
   const palette = useAppPalette();
-  const url = getBankLogoUrl(bankCode || undefined, name);
+  const url = getBankLogoUrl(bankCode || undefined, name, slug);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -173,7 +209,7 @@ export function BankPickerModal({
             <View>
               <Text style={[styles.modalTitle, { color: palette.text }]}>Choose a bank</Text>
               <Text style={[styles.modalSubtitle, { color: palette.textSecondary }]}>
-                Select the recipient bank account
+                {banks.length} banks available
               </Text>
             </View>
             <Pressable onPress={onClose} style={[styles.modalClose, { backgroundColor: palette.bg }]}>
@@ -181,13 +217,18 @@ export function BankPickerModal({
             </Pressable>
           </View>
 
+          {/* Functional search input */}
           <View style={[styles.searchBox, { backgroundColor: palette.bg, borderColor: palette.border }]}>
             <Search size={16} color={palette.textSecondary} />
-            <Pressable style={{ flex: 1 }}>
-              <Text style={{ color: palette.textSecondary, fontSize: Typography.sm }}>
-                {search || 'Search bank name or code…'}
-              </Text>
-            </Pressable>
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search bank name or code…"
+              placeholderTextColor={palette.textSecondary}
+              style={[styles.searchInput, { color: palette.text }]}
+              autoCorrect={false}
+              returnKeyType="search"
+            />
           </View>
 
           {banksLoading ? (
@@ -224,13 +265,23 @@ export function BankPickerModal({
                       },
                     ]}
                   >
-                    <BankLogo name={item.name} bankCode={item.code} size={40} />
-                    <Text
-                      style={[styles.bankRowName, { color: palette.text, flex: 1, marginLeft: 12 }]}
-                      numberOfLines={1}
-                    >
-                      {item.name}
-                    </Text>
+                    <BankLogo
+                      name={item.name}
+                      bankCode={item.code}
+                      slug={item.slug}
+                      size={40}
+                    />
+                    <View style={styles.bankRowCopy}>
+                      <Text
+                        style={[styles.bankRowName, { color: palette.text }]}
+                        numberOfLines={1}
+                      >
+                        {item.name}
+                      </Text>
+                      <Text style={[styles.bankRowCode, { color: palette.textSecondary }]}>
+                        {item.code}
+                      </Text>
+                    </View>
                     {active ? (
                       <View style={[styles.checkboxCheck, { backgroundColor: palette.primary }]}>
                         <CheckCircle2 size={16} color="#fff" />
@@ -259,8 +310,8 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     paddingBottom: 40,
     gap: Spacing.md,
-    height: '80%',
-    maxHeight: '80%',
+    height: '82%',
+    maxHeight: '82%',
   },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center' },
   modalTitle: { fontSize: Typography.lg, fontFamily: Typography.family.bold },
@@ -273,8 +324,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 10,
     gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: Typography.sm,
+    padding: 0,
+    height: 28,
   },
   bankLoading: { paddingVertical: Spacing.xl, alignItems: 'center', justifyContent: 'center' },
   bankList: { flex: 1, minHeight: 160 },
@@ -287,8 +344,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     marginBottom: 8,
+    gap: 12,
   },
+  bankRowCopy: { flex: 1, gap: 2 },
   bankRowName: { fontSize: Typography.sm, fontFamily: Typography.family.bold },
+  bankRowCode: { fontSize: 11 },
   checkboxCheck: {
     width: 22,
     height: 22,

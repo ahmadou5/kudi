@@ -1,7 +1,12 @@
-import { GeneralizedEVMListener, SolanaListener, EVMDepositEvent, SolanaDepositEvent } from '@kudi/chains';
-import { parseDepositAmount } from '@kudi/chains';
-import { EVMChainConfig, SolanaChainConfig } from '@kudi/types';
+import {
+  SolanaListener,
+  GeneralizedEVMListener,
+  parseDepositAmount,
+  type EVMDepositEvent,
+  type SolanaDepositEvent
+} from '@kudi/chains';
 import { prisma } from '@kudi/database';
+import { EVMChainConfig, SolanaChainConfig } from '@kudi/types';
 import { REDACTED, redactAddress, redactRpcUrl } from '@kudi/config';
 
 interface DepositWalletRow {

@@ -1,64 +1,66 @@
-import { CustodyProvider, CustodyTrack } from '@kudi/types';
-import { SelfCustodyProvider } from './selfCustody';
-import { PartnerCustodyProvider } from './partnerCustody';
+// Backward compatibility re-exports for @kudi/chains.
+// Granular provider packages (real implementations):
+// - @kudi/provider-crypto: address validation, decimal normalization
+// - @kudi/provider-solana: Solana SPL transfer building/sending
+// - @kudi/provider-alchemy: EVM gas manager
+// - @kudi/provider-privy: Privy SDK integration
+// - @kudi/provider-stellar: Stellar transfer logic
 
-export * from './selfCustody';
-export * from './partnerCustody';
-export * from './evmListener';
-export * from './solanaListener';
-export * from '@kudi/chains-core';
+export * from '@kudi/provider-crypto';
+export * from '@kudi/provider-solana';
+export * from '@kudi/provider-alchemy';
+export * from '@kudi/provider-privy';
+export * from '@kudi/provider-stellar';
 
-export interface CustodyManagerConfig {
-  privyAppId?: string;
-  privyAppSecret?: string;
-  defaultRpcUrl?: string;
-  solanaRpcUrl?: string;
-  partnerApiKey?: string;
-  partnerApiUrl?: string;
-  solanaUsdcMintAddress?: string;
-  solanaTreasuryAddress?: string;
-  solanaCaip2?: string;
-  ausdTokenAddress?: string;
-  monadChainId?: number;
-}
+// Legacy types from @kudi/types (re-exported for convenience).
+// CustodyTrack is an enum (runtime value); the rest are interfaces (type-only).
+export { CustodyTrack } from '@kudi/types';
+export type { CustodyProvider, DepositWallet } from '@kudi/types';
 
-export class CustodyManager {
-  private activeTrack: CustodyTrack = CustodyTrack.TRACK_A_SELF_CUSTODY;
-  private selfCustodyProvider: SelfCustodyProvider;
-  private partnerCustodyProvider: PartnerCustodyProvider | null = null;
+// Legacy custody provider implementations (live in this package)
+export { SelfCustodyProvider } from './selfCustody';
+export { PartnerCustodyProvider } from './partnerCustody';
+export { CustodyManager } from './custodyManager';
+export type { CustodyManagerConfig } from './custodyManager';
 
-  constructor(config: CustodyManagerConfig = {}) {
-    this.selfCustodyProvider = new SelfCustodyProvider(
-      config.privyAppId,
-      config.privyAppSecret,
-      config.defaultRpcUrl,
-      config.solanaRpcUrl,
-      config.solanaUsdcMintAddress,
-      config.solanaTreasuryAddress,
-      config.solanaCaip2,
-      config.ausdTokenAddress,
-      config.monadChainId
-    );
-    if (config.partnerApiKey) {
-      this.partnerCustodyProvider = new PartnerCustodyProvider(config.partnerApiKey, config.partnerApiUrl);
-    }
-  }
+// Chain listeners (live in this package)
+export { SolanaListener } from './solanaListener';
+export type { SolanaDepositEvent } from './solanaListener';
+export { GeneralizedEVMListener, EVMListener } from './evmListener';
+export type { EVMDepositEvent } from './evmListener';
 
-  public getActiveProvider(): CustodyProvider {
-    if (this.activeTrack === CustodyTrack.TRACK_A_SELF_CUSTODY) {
-      return this.selfCustodyProvider;
-    }
-    if (!this.partnerCustodyProvider) {
-      throw new Error('[CustodyManager] Partner custody provider not configured (missing partnerApiKey)');
-    }
-    return this.partnerCustodyProvider;
-  }
+// Chain config types (type-only: erased at build, no runtime dependency)
+export type { ChainType, EVMChainConfig, SolanaChainConfig, ChainConfig } from '@kudi/types';
 
-  public getActiveTrack(): CustodyTrack {
-    return this.activeTrack;
-  }
+// Address validation from the pure helpers package (architectural home:
+// @kudi/chains-core carries no RPC/runtime SDKs — see smoke-architecture check)
+export { validateSolanaAddress, validateEVMAddress, validateCryptoAddress } from '@kudi/chains-core';
 
-  public setTrack(track: CustodyTrack): void {
-    this.activeTrack = track;
-  }
-}
+// Legacy sweep helpers (live in this package's selfCustody module)
+export {
+  USDC_FEE,
+  MAX_DEPOSIT_USDC,
+  SWEEP_RETRY_POLICY,
+  computeSweepRetryDelay,
+  UNBACKED_SWEEP_STATUSES,
+  computeUnbackedExposure,
+  resolveSweepAmount,
+  resolveGasPaymentMode,
+  isGasPaymentMode,
+  type GasPaymentMode,
+  DripTuning,
+  getDripTuning,
+  classifySweepFailure,
+  GasDripReceipt,
+  SWEEP_RESERVE_USDC,
+  parseDepositAmount
+} from './selfCustody';
+
+// Transaction service - lives in @kudi/service-transaction
+export { TransactionService } from '@kudi/service-transaction';
+
+// Wallet service - lives in @kudi/service-wallet
+export { WalletService } from '@kudi/service-wallet';
+
+// Transfer types - live in @kudi/service-transaction
+export type { TransferMetadata, PerformTransferResult, UpdateTransferResultInput, UpdateTransferResultOutput } from '@kudi/service-transaction';

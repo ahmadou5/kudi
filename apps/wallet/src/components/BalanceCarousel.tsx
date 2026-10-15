@@ -26,6 +26,7 @@ import { useAuthStore } from '../store/auth.store';
 import { ChainLogo } from './ui/ChainLogo';
 import { GorhomBottomSheet } from './ui/GorhomBottomSheet';
 import { BalanceCardSkeleton } from './ui/AnimatedSkeleton';
+import { sdk } from '../lib/sdk';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CONTAINER_PADDING = 14;
@@ -77,6 +78,35 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
 
   const [selectedCryptoChain, setSelectedCryptoChain] = useState<'solana' | 'monad'>('solana');
   const [networkDropdownOpen, setNetworkDropdownOpen] = useState(false);
+
+  // Live FX rate for bank sheet
+  const [liveRate, setLiveRate] = useState<{ rate: number; updatedAt: Date } | null>(null);
+  const [liveRateLoading, setLiveRateLoading] = useState(false);
+  const livePulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(livePulseAnim, { toValue: 0.2, duration: 900, useNativeDriver: true }),
+        Animated.timing(livePulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  useEffect(() => {
+    const currency = activeBottomSheet?.type === 'bank' && activeBottomSheet.bankData?.currency;
+    if (!currency) { setLiveRate(null); return; }
+    if (currency === 'USD') { setLiveRate({ rate: 1, updatedAt: new Date() }); return; }
+    setLiveRateLoading(true);
+    sdk.getFxRate(currency, 'USD')
+      .then(res => {
+        if (res?.data?.rate) {
+          setLiveRate({ rate: res.data.rate, updatedAt: new Date(res.data.updatedAt) });
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLiveRateLoading(false));
+  }, [activeBottomSheet?.bankData?.currency]);
 
   const handleShareCryptoAddress = async () => {
     try {
@@ -944,8 +974,8 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                 <View style={[styles.bankDetailsBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
                   <View style={styles.sheetDetailRow}>
                     <View>
-                      <Text style={[Typography.caption, { color: palette.textSecondary }]}>Account Name</Text>
-                      <Text style={[Typography.bodyBold, { color: palette.text }]}>
+                      <Text style={[Typography.display, { color: palette.textSecondary, fontSize: 16 }]}>Account name</Text>
+                      <Text style={[Typography.display, { color: palette.text, fontSize: 18, lineHeight: 15 }]}>
                         {activeBottomSheet.bankData.accountName}
                       </Text>
                     </View>
@@ -953,20 +983,20 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                       onPress={() => copyToClipboard(activeBottomSheet.bankData!.accountName, 'sheet_bank_name')}
                     >
                       {copiedField === 'sheet_bank_name' ? (
-                        <Check size={16} color={palette.success} />
+                        <Check size={20} color={palette.success} />
                       ) : (
-                        <Copy size={16} color={palette.textSecondary} />
+                        <Copy size={20} color={palette.textSecondary} />
                       )}
                     </TouchableOpacity>
 
                   </View>
                   <View style={styles.sheetDetailRow}>
                     <View>
-                      <Text style={[Typography.caption, { color: palette.textSecondary }]}>
+                      <Text style={[Typography.display, { color: palette.textSecondary, fontSize: 16 }]}>
                         {activeBottomSheet.bankData.currency === 'EUR' ? 'IBAN Number' : 'Account Number'}
                       </Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={[Typography.currencySub, { color: palette.text, fontSize: 16 }]} selectable>
+                        <Text style={[Typography.currencySub, { color: palette.text, fontSize: 18, lineHeight: 15 }]} selectable>
                           {activeBottomSheet.bankData.accountNumber}
                         </Text>
 
@@ -976,40 +1006,99 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                       onPress={() => copyToClipboard(activeBottomSheet.bankData!.accountNumber, 'sheet_bank_acc')}
                     >
                       {copiedField === 'sheet_bank_acc' ? (
-                        <Check size={16} color={palette.success} />
+                        <Check size={20} color={palette.success} />
                       ) : (
-                        <Copy size={16} color={palette.textSecondary} />
+                        <Copy size={20} color={palette.textSecondary} />
                       )}
                     </TouchableOpacity>
 
                   </View>
                   <View style={styles.sheetDetailRow}>
-                    <Text style={[Typography.caption, { color: palette.textSecondary }]}>Bank Name koh</Text>
-                    <Text style={[Typography.bodyBold, { color: palette.text }]}>
-                      {activeBottomSheet.bankData.bankName}
-                    </Text>
+                    <View>
+                      <Text style={[Typography.display, { color: palette.textSecondary, fontSize: 16 }]}>Bank</Text>
+                      <Text style={[Typography.display, { color: palette.text, fontSize: 18, lineHeight: 17 }]}>
+                        {activeBottomSheet.bankData.bankName}
+                      </Text>
+                    </View>
+
                   </View>
 
 
 
                   {activeBottomSheet.bankData.extraDetails && (
                     <View style={styles.sheetDetailRow}>
-                      <Text style={[Typography.caption, { color: palette.textSecondary }]}>Code / Routing</Text>
-                      <Text style={[Typography.bodyBold, { color: palette.text }]}>
-                        {activeBottomSheet.bankData.extraDetails}
-                      </Text>
+                      <View>
+                        <Text style={[Typography.display, { color: palette.textSecondary, fontSize: 16 }]}>Code / Routing</Text>
+                        <Text style={[Typography.display, { color: palette.text, fontSize: 18, lineHeight: 15 }]}>
+                          {activeBottomSheet.bankData.extraDetails}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => copyToClipboard(activeBottomSheet.bankData!.extraDetails as string, 'sheet_bank_extra')}
+                      >
+                        {copiedField === 'sheet_bank_extra' ? (
+                          <Check size={20} color={palette.success} />
+                        ) : (
+                          <Copy size={20} color={palette.textSecondary} />
+                        )}
+                      </TouchableOpacity>
                     </View>
                   )}
 
 
                 </View>
 
-                {/* Conversion Green Alert Callout Banner */}
-                <View style={[styles.conversionAlertBox, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.12)' : '#EBF5FF', borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : '#BFDBFE' }]}>
-                  <CheckCircle2 size={20} color={isDark ? '#60A5FA' : '#1D4ED8'} style={{ marginTop: 1 }} />
-                  <Text style={[Typography.footnote, { color: isDark ? '#93C5FD' : '#1E40AF', flex: 1, lineHeight: 18 }]}>
-                    {activeBottomSheet.bankData.transferType || 'Transfers sent to this virtual account credit your balance instantly.'}
-                  </Text>
+                {/* Live Rate Ticker */}
+                <View style={[
+                  styles.conversionAlertBox,
+                  {
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                    borderColor: palette.border,
+                    flexDirection: 'column',
+                    gap: 6,
+                    paddingVertical: 14,
+                  }
+                ]}>
+                  {/* Header row */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                      <Animated.View style={{
+                        width: 7, height: 7, borderRadius: 4,
+                        backgroundColor: liveRateLoading ? palette.textSecondary : '#22C55E',
+                        opacity: livePulseAnim
+                      }} />
+                      <Text style={[Typography.caption, { color: palette.textSecondary, fontSize: 11, letterSpacing: 0.5 }]}>
+                        LIVE RATE
+                      </Text>
+                    </View>
+                    {liveRate && (
+                      <Text style={[Typography.caption, { color: palette.textSecondary, fontSize: 10 }]}>
+                        {liveRate.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    )}
+                  </View>
+
+                  {/* Rate display */}
+                  {liveRateLoading ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{ width: 80, height: 22, borderRadius: 4, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)' }} />
+                      <View style={{ width: 50, height: 14, borderRadius: 4, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }} />
+                    </View>
+                  ) : liveRate ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+                      <Text style={[Typography.currencyMain, { color: palette.text, fontSize: 24, lineHeight: 28 }]}>
+                        {`1 ${activeBottomSheet.bankData.currency}`}
+                      </Text>
+                      <Text style={[Typography.caption, { color: palette.textSecondary, fontSize: 13 }]}>
+                        =
+                      </Text>
+                      <Text style={[Typography.currencyMain, { color: '#22C55E', fontSize: 22, lineHeight: 26 }]}>
+                        {`$${liveRate.rate.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={[Typography.footnote, { color: palette.textSecondary }]}>Rate unavailable</Text>
+                  )}
                 </View>
 
                 {/* Dual Action Buttons: Copy (Secondary) and Share (Primary) */}
