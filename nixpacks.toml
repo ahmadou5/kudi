@@ -1,19 +1,15 @@
-providers = ['node']
+# NOTE: This root nixpacks.toml is intentionally minimal.
+# Each service is deployed independently via its own apps/*/railway.toml.
+# Railway services MUST have their Root Directory set to apps/<service-name>
+# in the Railway dashboard under Settings > Source > Root Directory.
+#
+# Services and their root directories:
+#   api    → apps/api
+#   worker → apps/worker
+#   admin  → apps/admin
+#   web    → apps/web
 
-[variables]
-NIXPACKS_PKG_ENGINE = 'pnpm'
-NIXPACKS_INSTALL_CMD = 'pnpm install'
-NIXPACKS_BUILD_CMD = 'pnpm build'
+providers = ['node']
 
 [phases.setup]
 nixPkgs = ['nodejs_20', 'nodePackages.pnpm']
-
-[phases.install]
-dependsOn = ['setup']
-cmds = ['pnpm install --frozen-lockfile']
-
-[phases.build]
-cmds = ['pnpm build']
-
-[start]
-cmd = 'pnpm start'

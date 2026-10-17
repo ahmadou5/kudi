@@ -1,14 +1,14 @@
 [build]
 builder = "NIXPACKS"
-installCommand = "pnpm install"
-buildCommand = "pnpm --filter @kudi/api build && pnpm --filter @kudi/database db:push"
-watchPatterns = ["/apps/api/**"]
+installCommand = "pnpm install --frozen-lockfile"
+buildCommand = "pnpm exec turbo run build --filter=@kudi/api..."
+watchPatterns = ["/apps/api/**", "/packages/**"]
 buildEnvironment = "V3"
 
 [deploy]
 runtime = "V2"
 numReplicas = 1
-startCommand = "pnpm --filter @kudi/api start"
+startCommand = "node apps/api/dist/server.js"
 healthcheckPath = "/api/v1/health"
 sleepApplication = false
 useLegacyStacker = false
