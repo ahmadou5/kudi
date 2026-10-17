@@ -1,14 +1,14 @@
 [build]
 builder = "NIXPACKS"
-installCommand = "pnpm install"
-buildCommand = "pnpm --filter @kudi/worker build"
-watchPatterns = ["/apps/worker/**"]
+installCommand = "pnpm install --frozen-lockfile"
+buildCommand = "pnpm exec turbo run build --filter=@kudi/worker..."
+watchPatterns = ["/apps/worker/**", "/packages/**"]
 buildEnvironment = "V3"
 
 [deploy]
 runtime = "V2"
 numReplicas = 1
-startCommand = "pnpm --filter @kudi/worker start"
+startCommand = "node apps/worker/dist/index.js"
 sleepApplication = false
 useLegacyStacker = false
 ipv6EgressEnabled = false
