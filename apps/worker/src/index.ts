@@ -7,11 +7,9 @@ import { recordReconciliationSnapshot } from './processors/reconciliationProcess
 import { EVMChainConfig, ChainType, SolanaChainConfig } from '@kudi/types';
 import { prisma } from '@kudi/database';
 import { workerConfig, validateChainRuntimeConfig, redactRpcUrl } from '@kudi/config';
-import { allWorkers } from './workers';
-import { performTransferWorker } from './workers/transferWorker';
-import { processPerformTransferJob } from './workers/transferWorker';
-import { PerformTransferJob, PerformTransferResult } from './jobs/performTransfer';
-import { Queue, QueueEvents } from 'bullmq';
+import { createAllWorkers } from './workers';
+import { Queue, QueueEvents, Worker } from 'bullmq';
+import { PerformTransferResult } from './jobs/performTransfer';
 
 const monadTestnetConfig: EVMChainConfig = {
   id: 'monad-testnet',
@@ -116,7 +114,7 @@ console.log('⚡ Rate poller worker active');
 
 // Start all bullmq workers
 console.log('🚀 Starting bullmq workers...');
-allWorkers.forEach((worker) => {
+allWorkers.forEach((worker: Worker) => {
   worker.run();
   console.log(`  Started worker: ${worker.name}`);
 });
