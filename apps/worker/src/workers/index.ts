@@ -1,263 +1,206 @@
 import 'dotenv/config';
-import { Queue, Worker, type Job } from 'bullmq';
+import { Worker, type Job } from 'bullmq';
 import { ChainType, type EVMChainConfig } from '@kudi/types';
-import { prisma } from '@kudi/database';
-import { recordWorkerHeartbeat } from '../index';
 import { pollRateEngine } from '../processors/ratePollerProcessor';
 import { processCryptoWithdrawals, recoverStaleProcessingWithdrawals } from '../processors/cryptoWithdrawalProcessor';
 import { recordReconciliationSnapshot } from '../processors/reconciliationProcessor';
 import { ChainDepositProcessor } from '../processors/chainDepositProcessor';
 import { WebhookProcessor } from '../processors/webhookProcessor';
-import { PerformTransferJob, PerformTransferResult, TransferMetadata } from '../jobs/performTransfer';
+import { PerformTransferJob } from '../jobs/performTransfer';
 import { processPerformTransferJob } from './transferWorker';
 
 // ---------------------------------------------------------------------------
-// Shared Redis connection — parsed from REDIS_URL (full connection string) so
-// it works on Railway / Upstash / Redis Cloud without individual host/port/pass
-// vars. Falls back to localhost:6379 for local dev without a REDIS_URL set.
+// Shared Redis connection factory — parsed from REDIS_URL so it works on
+// Railway / Upstash / Redis Cloud without individual REDIS_HOST/PORT/PASS vars.
 // ---------------------------------------------------------------------------
-function buildRedisConnection() {
+export function buildRedisConnection() {
   const redisUrl = process.env.REDIS_URL;
-  if (redisUrl) {
-    try {
-      const url = new URL(redisUrl);
-      return {
-        host: url.hostname,
-        port: Number(url.port) || 6379,
-        password: url.password || undefined,
-        username: url.username || undefined,
-        tls: url.protocol === 'rediss:' ? {} : undefined,
-      };
-    } catch {
-      console.error('[Worker] Failed to parse REDIS_URL — falling back to localhost');
-    }
+
+  if (!redisUrl) {
+    // Log clearly so Railway logs show the real cause
+    console.error(
+      '[Worker] ❌ REDIS_URL is not set. BullMQ workers cannot start without a Redis connection.\n' +
+      '         Set REDIS_URL in Railway → worker service → Variables tab.'
+    );
+    // Return undefined — callers must guard against this
+    return undefined;
   }
-  // Explicit individual vars as secondary fallback
-  return {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: Number(process.env.REDIS_PORT) || 6379,
-    password: process.env.REDIS_PASSWORD || undefined,
-  };
+
+  try {
+    const url = new URL(redisUrl);
+    return {
+      host: url.hostname,
+      port: Number(url.port) || 6379,
+      password: url.password || undefined,
+      username: url.username && url.username !== 'default' ? url.username : undefined,
+      tls: url.protocol === 'rediss:' ? {} : undefined,
+    };
+  } catch (err) {
+    console.error('[Worker] ❌ Failed to parse REDIS_URL:', redisUrl, err);
+    return undefined;
+  }
 }
 
-const redisConnection = buildRedisConnection();
-console.log(`[Worker] Redis connection: ${redisConnection.host}:${redisConnection.port}`);
+// ---------------------------------------------------------------------------
+// Worker factory — called ONCE after dotenv has loaded, not at import time.
+// Returns all BullMQ Worker instances. Exits process if Redis is unavailable.
+// ---------------------------------------------------------------------------
+export function createAllWorkers(
+  heartbeatFn: () => Promise<void>
+): Worker[] {
+  const connection = buildRedisConnection();
 
-// Config without 'type' field - ChainDepositProcessor uses the config for
-// RPC URLs, addresses, and other settings. The chain type is inferred
-// from the config structure (EVM vs Solana).
-const monadConfig: EVMChainConfig = {
-  id: 'monad-testnet',
-  name: 'Monad Metropolis Testnet',
-  chainId: Number(process.env.MONAD_CHAIN_ID) || 10143,
-  type: ChainType.EVM,
-  rpcUrl: process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz',
-  tokenContractAddress:
-    process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3',
-  tokenSymbol: 'AUSD',
-  tokenDecimals: 6,
-  confirmationThreshold: 1,
-  enabled: true
-};
-
-const solanaConfig = {
-  id: 'solana-devnet',
-  name: 'Solana SPL-Token RPC',
-  rpcUrl: process.env.SOLANA_RPC_URL,
-  rpcUrlFallback: process.env.SOLANA_RPC_URL_FALLBACK,
-  usdcMintAddress: process.env.USDC_MINT_ADDRESS,
-  confirmationThreshold: 1,
-  enabled: true
-};
-
-const depositProcessor = new ChainDepositProcessor(monadConfig, solanaConfig);
-const webhookProcessor = new WebhookProcessor();
-
-// --- PerformTransfer Worker ---
-
-export const performTransferWorker = new Worker<PerformTransferJob>(
-  'perform-transfer',
-  async (job: Job<PerformTransferJob>) => {
-    const result = await processPerformTransferJob(job.data);
-    return result;
-  },
-  {
-    connection: redisConnection,
-    concurrency: 10,
-    // Apply idempotency at the worker level: skip if job with same data already processed
-    // BullMQ automatically handles this via job keys if specified, but we also check in the job handler
+  if (!connection) {
+    console.error('[Worker] ❌ Cannot create BullMQ workers without a Redis connection. Exiting.');
+    process.exit(1);
   }
-);
 
-performTransferWorker.on('completed', (job) => {
-  console.log(`[Worker] perform-transfer job ${job.id} completed`);
-});
+  console.log(`[Worker] ✅ Redis connection: ${connection.host}:${connection.port}`);
 
-performTransferWorker.on('failed', (job, err) => {
-  console.error(`[Worker] perform-transfer job ${job?.id} failed:`, err.message);
-});
+  // Chain configs — resolved here so env is definitely loaded
+  const monadConfig: EVMChainConfig = {
+    id: 'monad-testnet',
+    name: 'Monad Metropolis Testnet',
+    chainId: Number(process.env.MONAD_CHAIN_ID) || 10143,
+    type: ChainType.EVM,
+    rpcUrl: process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz',
+    tokenContractAddress: process.env.AUSD_TOKEN_ADDRESS || '0x534b2f3A21130d7a60830c2Df862319e593943A3',
+    tokenSymbol: 'AUSD',
+    tokenDecimals: 6,
+    confirmationThreshold: 1,
+    enabled: true,
+  };
 
-// --- Rate Poller Worker (replaces setInterval) ---
+  const solanaConfig = {
+    id: 'solana-devnet',
+    name: 'Solana SPL-Token RPC',
+    rpcUrl: process.env.SOLANA_RPC_URL,
+    rpcUrlFallback: process.env.SOLANA_RPC_URL_FALLBACK,
+    usdcMintAddress: process.env.USDC_MINT_ADDRESS,
+    confirmationThreshold: 1,
+    enabled: true,
+  };
 
-export const ratePollerWorker = new Worker(
-  'rate-poller',
-  async () => {
-    await pollRateEngine();
-  },
-  {
-    connection: redisConnection,
-    concurrency: 1,
-  }
-);
+  const depositProcessor = new ChainDepositProcessor(monadConfig, solanaConfig);
+  const webhookProcessor = new WebhookProcessor();
 
-ratePollerWorker.on('completed', () => {
-  console.log('[Worker] rate-poller completed');
-});
+  // --- PerformTransfer Worker ---
+  const performTransferWorker = new Worker<PerformTransferJob>(
+    'perform-transfer',
+    async (job: Job<PerformTransferJob>) => processPerformTransferJob(job.data),
+    { connection, concurrency: 10 }
+  );
+  performTransferWorker.on('completed', (job) =>
+    console.log(`[Worker] perform-transfer job ${job.id} completed`)
+  );
+  performTransferWorker.on('failed', (job, err) =>
+    console.error(`[Worker] perform-transfer job ${job?.id} failed:`, err.message)
+  );
 
-ratePollerWorker.on('failed', (_job, err: Error) => {
-  console.error('[Worker] rate-poller failed:', err.message);
-});
+  // --- Rate Poller Worker ---
+  const ratePollerWorker = new Worker(
+    'rate-poller',
+    async () => { await pollRateEngine(); },
+    { connection, concurrency: 1 }
+  );
+  ratePollerWorker.on('completed', () => console.log('[Worker] rate-poller completed'));
+  ratePollerWorker.on('failed', (_job, err: Error) =>
+    console.error('[Worker] rate-poller failed:', err.message)
+  );
 
-// --- Chain Deposit Poller Worker (replaces setInterval) ---
+  // --- Chain Deposit Poller Worker ---
+  const chainDepositPollerWorker = new Worker(
+    'chain-deposit-poller',
+    async () => { await depositProcessor.pollAllChains(); },
+    { connection, concurrency: 1 }
+  );
+  chainDepositPollerWorker.on('completed', () =>
+    console.log('[Worker] chain-deposit-poller completed')
+  );
+  chainDepositPollerWorker.on('failed', (_job, err: Error) =>
+    console.error('[Worker] chain-deposit-poller failed:', err.message)
+  );
 
-export const chainDepositPollerWorker = new Worker(
-  'chain-deposit-poller',
-  async () => {
-    await depositProcessor.pollAllChains();
-  },
-  {
-    connection: redisConnection,
-    concurrency: 1,
-  }
-);
+  // --- Crypto Withdrawal Processor Worker ---
+  const cryptoWithdrawalWorker = new Worker(
+    'crypto-withdrawal',
+    async () => { await processCryptoWithdrawals(); },
+    { connection, concurrency: 5 }
+  );
+  cryptoWithdrawalWorker.on('completed', () =>
+    console.log('[Worker] crypto-withdrawal completed')
+  );
+  cryptoWithdrawalWorker.on('failed', (_job, err: Error) =>
+    console.error('[Worker] crypto-withdrawal failed:', err.message)
+  );
 
-chainDepositPollerWorker.on('completed', () => {
-  console.log('[Worker] chain-deposit-poller completed');
-});
+  // --- Stale Withdrawal Recovery Worker ---
+  const staleWithdrawalRecoveryWorker = new Worker(
+    'stale-withdrawal-recovery',
+    async () => {
+      const recovered = await recoverStaleProcessingWithdrawals(5);
+      if (recovered > 0) console.log(`[Worker] Recovered ${recovered} stale withdrawal(s).`);
+    },
+    { connection, concurrency: 1 }
+  );
+  staleWithdrawalRecoveryWorker.on('completed', () =>
+    console.log('[Worker] stale-withdrawal-recovery completed')
+  );
+  staleWithdrawalRecoveryWorker.on('failed', (_job, err: Error) =>
+    console.error('[Worker] stale-withdrawal-recovery failed:', err.message)
+  );
 
-chainDepositPollerWorker.on('failed', (_job, err: Error) => {
-  console.error('[Worker] chain-deposit-poller failed:', err.message);
-});
+  // --- Reconciliation Snapshot Worker ---
+  const reconciliationWorker = new Worker(
+    'reconciliation',
+    async () => {
+      const metrics = await recordReconciliationSnapshot();
+      if (metrics) {
+        console.log(
+          `[Reconciliation] 📊 Liability: $${metrics.totalLiabilityUSDC.toFixed(2)} | ` +
+          `Available: $${metrics.totalAvailableUSDC.toFixed(2)}`
+        );
+      }
+    },
+    { connection, concurrency: 1 }
+  );
+  reconciliationWorker.on('completed', () => console.log('[Worker] reconciliation completed'));
+  reconciliationWorker.on('failed', (_job, err: Error) =>
+    console.error('[Worker] reconciliation failed:', err.message)
+  );
 
-// --- Crypto Withdrawal Processor Worker (replaces setInterval) ---
+  // --- Webhook Processor Worker ---
+  const webhookWorker = new Worker(
+    'webhook',
+    async (job) => { await webhookProcessor.processJob(job.data); },
+    { connection, concurrency: 10 }
+  );
+  webhookWorker.on('completed', (job) =>
+    console.log(`[Worker] webhook job ${job.id} completed`)
+  );
+  webhookWorker.on('failed', (job, err) =>
+    console.error(`[Worker] webhook job ${job?.id} failed:`, err.message)
+  );
 
-export const cryptoWithdrawalWorker = new Worker(
-  'crypto-withdrawal',
-  async () => {
-    await processCryptoWithdrawals();
-  },
-  {
-    connection: redisConnection,
-    concurrency: 5,
-  }
-);
+  // --- Heartbeat Worker ---
+  const heartbeatWorker = new Worker(
+    'worker-heartbeat',
+    async () => { await heartbeatFn(); },
+    { connection, concurrency: 1 }
+  );
+  heartbeatWorker.on('completed', () => console.log('[Worker] heartbeat completed'));
+  heartbeatWorker.on('failed', (_job, err: Error) =>
+    console.error('[Worker] heartbeat failed:', err.message)
+  );
 
-cryptoWithdrawalWorker.on('completed', () => {
-  console.log('[Worker] crypto-withdrawal completed');
-});
-
-cryptoWithdrawalWorker.on('failed', (_job, err: Error) => {
-  console.error('[Worker] crypto-withdrawal failed:', err.message);
-});
-
-// --- Stale Withdrawal Recovery Worker (replaces setInterval) ---
-
-export const staleWithdrawalRecoveryWorker = new Worker(
-  'stale-withdrawal-recovery',
-  async () => {
-    const recovered = await recoverStaleProcessingWithdrawals(5);
-    if (recovered > 0) {
-      console.log(`[Worker] Recovered ${recovered} stale withdrawal(s).`);
-    }
-  },
-  {
-    connection: redisConnection,
-    concurrency: 1,
-  }
-);
-
-staleWithdrawalRecoveryWorker.on('completed', () => {
-  console.log('[Worker] stale-withdrawal-recovery completed');
-});
-
-staleWithdrawalRecoveryWorker.on('failed', (_job, err: Error) => {
-  console.error('[Worker] stale-withdrawal-recovery failed:', err.message);
-});
-
-// --- Reconciliation Snapshot Worker (replaces setInterval) ---
-
-export const reconciliationWorker = new Worker(
-  'reconciliation',
-  async () => {
-    const metrics = await recordReconciliationSnapshot();
-    if (metrics) {
-      console.log(`[Reconciliation] 📊 Liability: $${metrics.totalLiabilityUSDC.toFixed(2)} | Available: $${metrics.totalAvailableUSDC.toFixed(2)}`);
-    }
-  },
-  {
-    connection: redisConnection,
-    concurrency: 1,
-  }
-);
-
-reconciliationWorker.on('completed', () => {
-  console.log('[Worker] reconciliation completed');
-});
-
-reconciliationWorker.on('failed', (_job, err: Error) => {
-  console.error('[Worker] reconciliation failed:', err.message);
-});
-
-// --- Webhook Processor Worker ---
-
-export const webhookWorker = new Worker(
-  'webhook',
-  async (job) => {
-    await webhookProcessor.processJob(job.data);
-  },
-  {
-    connection: redisConnection,
-    concurrency: 10,
-  }
-);
-
-webhookWorker.on('completed', (job) => {
-  console.log(`[Worker] webhook job ${job.id} completed`);
-});
-
-webhookWorker.on('failed', (job, err) => {
-  console.error(`[Worker] webhook job ${job?.id} failed:`, err.message);
-});
-
-// --- Worker Heartbeat Worker ---
-
-export const heartbeatWorker = new Worker(
-  'worker-heartbeat',
-  async () => {
-    await recordWorkerHeartbeat();
-  },
-  {
-    connection: redisConnection,
-    concurrency: 1,
-  }
-);
-
-heartbeatWorker.on('completed', () => {
-  console.log('[Worker] heartbeat completed');
-});
-
-heartbeatWorker.on('failed', (_job, err: Error) => {
-  console.error('[Worker] heartbeat failed:', err.message);
-});
-
-// Export all workers for registration
-export const allWorkers = [
-  performTransferWorker,
-  ratePollerWorker,
-  chainDepositPollerWorker,
-  cryptoWithdrawalWorker,
-  staleWithdrawalRecoveryWorker,
-  reconciliationWorker,
-  webhookWorker,
-  heartbeatWorker,
-];
+  return [
+    performTransferWorker,
+    ratePollerWorker,
+    chainDepositPollerWorker,
+    cryptoWithdrawalWorker,
+    staleWithdrawalRecoveryWorker,
+    reconciliationWorker,
+    webhookWorker,
+    heartbeatWorker,
+  ];
+}
