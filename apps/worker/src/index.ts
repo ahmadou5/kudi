@@ -128,11 +128,28 @@ async function dispatchPerformTransfer(transferData: {
   amount: number;
   chain: 'solana' | 'monad' | 'stellar';
 }): Promise<PerformTransferResult & { jobId: string }> {
-  const connection = {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: Number(process.env.REDIS_PORT) || 6379,
-    password: process.env.REDIS_PASSWORD || undefined,
-  };
+  const redisUrl = process.env.REDIS_URL;
+  let connection: { host: string; port: number; password?: string; username?: string; tls?: object };
+  if (redisUrl) {
+    try {
+      const url = new URL(redisUrl);
+      connection = {
+        host: url.hostname,
+        port: Number(url.port) || 6379,
+        password: url.password || undefined,
+        username: url.username || undefined,
+        tls: url.protocol === 'rediss:' ? {} : undefined,
+      };
+    } catch {
+      connection = { host: 'localhost', port: 6379 };
+    }
+  } else {
+    connection = {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: Number(process.env.REDIS_PORT) || 6379,
+      password: process.env.REDIS_PASSWORD || undefined,
+    };
+  }
   const startedAt = Date.now();
   const buildQueuedReceipt = (jobId: string): PerformTransferResult & { jobId: string } => ({
     success: true,
