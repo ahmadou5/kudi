@@ -11,6 +11,38 @@ import { WebhookProcessor } from '../processors/webhookProcessor';
 import { PerformTransferJob, PerformTransferResult, TransferMetadata } from '../jobs/performTransfer';
 import { processPerformTransferJob } from './transferWorker';
 
+// ---------------------------------------------------------------------------
+// Shared Redis connection — parsed from REDIS_URL (full connection string) so
+// it works on Railway / Upstash / Redis Cloud without individual host/port/pass
+// vars. Falls back to localhost:6379 for local dev without a REDIS_URL set.
+// ---------------------------------------------------------------------------
+function buildRedisConnection() {
+  const redisUrl = process.env.REDIS_URL;
+  if (redisUrl) {
+    try {
+      const url = new URL(redisUrl);
+      return {
+        host: url.hostname,
+        port: Number(url.port) || 6379,
+        password: url.password || undefined,
+        username: url.username || undefined,
+        tls: url.protocol === 'rediss:' ? {} : undefined,
+      };
+    } catch {
+      console.error('[Worker] Failed to parse REDIS_URL — falling back to localhost');
+    }
+  }
+  // Explicit individual vars as secondary fallback
+  return {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: Number(process.env.REDIS_PORT) || 6379,
+    password: process.env.REDIS_PASSWORD || undefined,
+  };
+}
+
+const redisConnection = buildRedisConnection();
+console.log(`[Worker] Redis connection: ${redisConnection.host}:${redisConnection.port}`);
+
 // Config without 'type' field - ChainDepositProcessor uses the config for
 // RPC URLs, addresses, and other settings. The chain type is inferred
 // from the config structure (EVM vs Solana).
@@ -50,11 +82,7 @@ export const performTransferWorker = new Worker<PerformTransferJob>(
     return result;
   },
   {
-    connection: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: Number(process.env.REDIS_PORT) || 6379,
-      password: process.env.REDIS_PASSWORD || undefined,
-    },
+    connection: redisConnection,
     concurrency: 10,
     // Apply idempotency at the worker level: skip if job with same data already processed
     // BullMQ automatically handles this via job keys if specified, but we also check in the job handler
@@ -77,11 +105,7 @@ export const ratePollerWorker = new Worker(
     await pollRateEngine();
   },
   {
-    connection: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: Number(process.env.REDIS_PORT) || 6379,
-      password: process.env.REDIS_PASSWORD || undefined,
-    },
+    connection: redisConnection,
     concurrency: 1,
   }
 );
@@ -102,11 +126,7 @@ export const chainDepositPollerWorker = new Worker(
     await depositProcessor.pollAllChains();
   },
   {
-    connection: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: Number(process.env.REDIS_PORT) || 6379,
-      password: process.env.REDIS_PASSWORD || undefined,
-    },
+    connection: redisConnection,
     concurrency: 1,
   }
 );
@@ -127,11 +147,7 @@ export const cryptoWithdrawalWorker = new Worker(
     await processCryptoWithdrawals();
   },
   {
-    connection: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: Number(process.env.REDIS_PORT) || 6379,
-      password: process.env.REDIS_PASSWORD || undefined,
-    },
+    connection: redisConnection,
     concurrency: 5,
   }
 );
@@ -155,11 +171,7 @@ export const staleWithdrawalRecoveryWorker = new Worker(
     }
   },
   {
-    connection: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: Number(process.env.REDIS_PORT) || 6379,
-      password: process.env.REDIS_PASSWORD || undefined,
-    },
+    connection: redisConnection,
     concurrency: 1,
   }
 );
@@ -183,11 +195,7 @@ export const reconciliationWorker = new Worker(
     }
   },
   {
-    connection: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: Number(process.env.REDIS_PORT) || 6379,
-      password: process.env.REDIS_PASSWORD || undefined,
-    },
+    connection: redisConnection,
     concurrency: 1,
   }
 );
@@ -208,11 +216,7 @@ export const webhookWorker = new Worker(
     await webhookProcessor.processJob(job.data);
   },
   {
-    connection: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: Number(process.env.REDIS_PORT) || 6379,
-      password: process.env.REDIS_PASSWORD || undefined,
-    },
+    connection: redisConnection,
     concurrency: 10,
   }
 );
@@ -233,11 +237,7 @@ export const heartbeatWorker = new Worker(
     await recordWorkerHeartbeat();
   },
   {
-    connection: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: Number(process.env.REDIS_PORT) || 6379,
-      password: process.env.REDIS_PASSWORD || undefined,
-    },
+    connection: redisConnection,
     concurrency: 1,
   }
 );
