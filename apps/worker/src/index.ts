@@ -9,7 +9,8 @@ import { prisma } from '@kudi/database';
 import { workerConfig, validateChainRuntimeConfig, redactRpcUrl } from '@kudi/config';
 import { createAllWorkers } from './workers';
 import { Queue, QueueEvents, Worker } from 'bullmq';
-import { PerformTransferResult } from './jobs/performTransfer';
+import { PerformTransferResult, PerformTransferJob } from './jobs/performTransfer';
+import { processPerformTransferJob } from './workers/transferWorker';
 
 const monadTestnetConfig: EVMChainConfig = {
   id: 'monad-testnet',
