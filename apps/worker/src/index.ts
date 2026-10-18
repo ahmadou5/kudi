@@ -74,6 +74,11 @@ async function recordWorkerHeartbeat(): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Initialise all BullMQ workers after the heartbeat function is defined.
+// ---------------------------------------------------------------------------
+const allWorkers = createAllWorkers(recordWorkerHeartbeat);
+
 const depositProcessor = new ChainDepositProcessor(monadTestnetConfig, solanaConfig);
 const webhookProcessor = new WebhookProcessor();
 
