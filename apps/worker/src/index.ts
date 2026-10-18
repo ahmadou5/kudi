@@ -7,11 +7,10 @@ import { recordReconciliationSnapshot } from './processors/reconciliationProcess
 import { EVMChainConfig, ChainType, SolanaChainConfig } from '@kudi/types';
 import { prisma } from '@kudi/database';
 import { workerConfig, validateChainRuntimeConfig, redactRpcUrl } from '@kudi/config';
-import { allWorkers } from './workers';
-import { performTransferWorker } from './workers/transferWorker';
+import { createAllWorkers } from './workers';
+import { Queue, QueueEvents, Worker } from 'bullmq';
+import { PerformTransferResult, PerformTransferJob } from './jobs/performTransfer';
 import { processPerformTransferJob } from './workers/transferWorker';
-import { PerformTransferJob, PerformTransferResult } from './jobs/performTransfer';
-import { Queue, QueueEvents } from 'bullmq';
 
 const monadTestnetConfig: EVMChainConfig = {
   id: 'monad-testnet',
@@ -74,6 +73,11 @@ async function recordWorkerHeartbeat(): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Initialise all BullMQ workers after the heartbeat function is defined.
+// ---------------------------------------------------------------------------
+const allWorkers = createAllWorkers(recordWorkerHeartbeat);
+
 const depositProcessor = new ChainDepositProcessor(monadTestnetConfig, solanaConfig);
 const webhookProcessor = new WebhookProcessor();
 
@@ -111,7 +115,7 @@ console.log('⚡ Rate poller worker active');
 
 // Start all bullmq workers
 console.log('🚀 Starting bullmq workers...');
-allWorkers.forEach((worker) => {
+allWorkers.forEach((worker: Worker) => {
   worker.run();
   console.log(`  Started worker: ${worker.name}`);
 });
