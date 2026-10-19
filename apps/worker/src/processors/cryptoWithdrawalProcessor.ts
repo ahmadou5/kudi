@@ -278,7 +278,9 @@ export async function processCryptoWithdrawals(): Promise<void> {
         // 2. Treasury sends remaining shortfall to Recipient on target chain.
         // 3. User's secondary chain wallet sends shortfall amount to Treasury on secondary chain.
 
-        const userDirectAmount = Math.max(0, Math.floor(targetChainBalance * 100) / 100);
+        const feeAmountUSDC = Number(process.env.USDC_FEE || 0.01);
+        // User sends userDirectAmount + fee, so available balance must cover both
+        const userDirectAmount = Math.max(0, Math.floor((targetChainBalance - feeAmountUSDC) * 100) / 100);
         const treasuryShortfall = Math.round((job.amountUSDC - userDirectAmount) * 100) / 100;
 
         console.log(`[Worker CryptoWithdrawalProcessor] 🔀 Multi-chain netting send for ${job.reference}: User Target Wallet has $${userDirectAmount}, Treasury covering $${treasuryShortfall}`);
