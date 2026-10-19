@@ -115,7 +115,7 @@ export default function EditProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg, paddingTop: insets.top }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
       {/* Top Header */}
       <View style={[styles.header, { borderColor: palette.border }]}>
         <TouchableOpacity
@@ -142,94 +142,94 @@ export default function EditProfileScreen() {
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        {/* Avatar Card */}
-        <View style={[styles.avatarCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <TouchableOpacity onPress={handlePickAvatar} style={styles.avatarWrapper} activeOpacity={0.8}>
-            <View style={[styles.avatarCircle, { backgroundColor: light ? '#E2E8F0' : '#1E293B', borderColor: '#34D399' }]}>
-              {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} style={styles.avatarImg} />
-              ) : (
-                <Text style={[Typography.title1, { color: palette.text, fontSize: 32 }]}>{initials}</Text>
-              )}
+          {/* Avatar Card */}
+          <View style={[styles.avatarCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <TouchableOpacity onPress={handlePickAvatar} style={styles.avatarWrapper} activeOpacity={0.8}>
+              <View style={[styles.avatarCircle, { backgroundColor: light ? '#E2E8F0' : '#1E293B', borderColor: '#34D399' }]}>
+                {avatarUrl ? (
+                  <Image source={{ uri: avatarUrl }} style={styles.avatarImg} />
+                ) : (
+                  <Text style={[Typography.title1, { color: palette.text, fontSize: 32 }]}>{initials}</Text>
+                )}
+              </View>
+              <View style={[styles.cameraBadge, { backgroundColor: '#3B82F6', borderColor: palette.card }]}>
+                <Camera size={14} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handlePickAvatar} activeOpacity={0.7}>
+              <Text style={[Typography.bodyBold, { color: '#3B82F6', marginTop: 10 }]}>Change Profile Photo</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Inputs Group */}
+          <View style={[styles.inputGroup, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            {/* Full Name */}
+            <View style={styles.inputField}>
+              <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>FULL NAME</Text>
+              <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+                <User size={18} color={palette.textSecondary} />
+                <TextInput
+                  style={[Typography.body, styles.textInput, { color: palette.text }]}
+                  value={fullName}
+                  onChangeText={setFullName}
+                  placeholder="e.g. Ahmadou Sow"
+                  placeholderTextColor={palette.textSecondary}
+                  autoCapitalize="words"
+                />
+              </View>
             </View>
-            <View style={[styles.cameraBadge, { backgroundColor: '#3B82F6', borderColor: palette.card }]}>
-              <Camera size={14} color="#FFFFFF" />
+
+            {/* Username */}
+            <View style={styles.inputField}>
+              <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>USERNAME</Text>
+              <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+                <AtSign size={18} color={palette.textSecondary} />
+                <TextInput
+                  style={[Typography.body, styles.textInput, { color: palette.text }]}
+                  value={username}
+                  onChangeText={setUsername}
+                  placeholder="e.g. @ahmadou"
+                  placeholderTextColor={palette.textSecondary}
+                  autoCapitalize="none"
+                />
+              </View>
             </View>
+
+            {/* Email (Readonly) */}
+            <View style={styles.inputField}>
+              <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>EMAIL ADDRESS</Text>
+              <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border, opacity: 0.7 }]}>
+                <Mail size={18} color={palette.textSecondary} />
+                <Text style={[Typography.body, { color: palette.textSecondary, flex: 1 }]}>{userEmail}</Text>
+                <Lock size={14} color={palette.textSecondary} />
+              </View>
+            </View>
+
+            {/* Phone (Readonly) */}
+            <View style={styles.inputField}>
+              <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>PHONE NUMBER</Text>
+              <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border, opacity: 0.7 }]}>
+                <Phone size={18} color={palette.textSecondary} />
+                <Text style={[Typography.body, { color: palette.textSecondary, flex: 1 }]}>{userPhone}</Text>
+                <Lock size={14} color={palette.textSecondary} />
+              </View>
+            </View>
+          </View>
+
+          {/* Save Button */}
+          <TouchableOpacity
+            onPress={handleSave}
+            disabled={isSaving}
+            style={[styles.saveBtn, { backgroundColor: '#3B82F6' }]}
+            activeOpacity={0.8}
+          >
+            {isSaving ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={[Typography.bodyBold, { color: '#FFFFFF', fontSize: 16 }]}>Save Profile</Text>
+            )}
           </TouchableOpacity>
-          <TouchableOpacity onPress={handlePickAvatar} activeOpacity={0.7}>
-            <Text style={[Typography.bodyBold, { color: '#3B82F6', marginTop: 10 }]}>Change Profile Photo</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Inputs Group */}
-        <View style={[styles.inputGroup, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          {/* Full Name */}
-          <View style={styles.inputField}>
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>FULL NAME</Text>
-            <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-              <User size={18} color={palette.textSecondary} />
-              <TextInput
-                style={[Typography.body, styles.textInput, { color: palette.text }]}
-                value={fullName}
-                onChangeText={setFullName}
-                placeholder="e.g. Ahmadou Sow"
-                placeholderTextColor={palette.textSecondary}
-                autoCapitalize="words"
-              />
-            </View>
-          </View>
-
-          {/* Username */}
-          <View style={styles.inputField}>
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>USERNAME</Text>
-            <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-              <AtSign size={18} color={palette.textSecondary} />
-              <TextInput
-                style={[Typography.body, styles.textInput, { color: palette.text }]}
-                value={username}
-                onChangeText={setUsername}
-                placeholder="e.g. @ahmadou"
-                placeholderTextColor={palette.textSecondary}
-                autoCapitalize="none"
-              />
-            </View>
-          </View>
-
-          {/* Email (Readonly) */}
-          <View style={styles.inputField}>
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>EMAIL ADDRESS</Text>
-            <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border, opacity: 0.7 }]}>
-              <Mail size={18} color={palette.textSecondary} />
-              <Text style={[Typography.body, { color: palette.textSecondary, flex: 1 }]}>{userEmail}</Text>
-              <Lock size={14} color={palette.textSecondary} />
-            </View>
-          </View>
-
-          {/* Phone (Readonly) */}
-          <View style={styles.inputField}>
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>PHONE NUMBER</Text>
-            <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border, opacity: 0.7 }]}>
-              <Phone size={18} color={palette.textSecondary} />
-              <Text style={[Typography.body, { color: palette.textSecondary, flex: 1 }]}>{userPhone}</Text>
-              <Lock size={14} color={palette.textSecondary} />
-            </View>
-          </View>
-        </View>
-
-        {/* Save Button */}
-        <TouchableOpacity
-          onPress={handleSave}
-          disabled={isSaving}
-          style={[styles.saveBtn, { backgroundColor: '#3B82F6' }]}
-          activeOpacity={0.8}
-        >
-          {isSaving ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={[Typography.bodyBold, { color: '#FFFFFF', fontSize: 16 }]}>Save Profile</Text>
-          )}
-        </TouchableOpacity>
-        <AppModal config={modal.config} onClose={modal.hide} />
+          <AppModal config={modal.config} onClose={modal.hide} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

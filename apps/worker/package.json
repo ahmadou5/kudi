@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@kudi/chains": "workspace:*",
+    "@kudi/config": "workspace:*",
     "@kudi/database": "workspace:*",
     "@kudi/payment-providers": "workspace:*",
     "@kudi/provider-alchemy": "workspace:*",
@@ -23,11 +24,11 @@
     "@kudi/types": "workspace:*",
     "bullmq": "^5.0.0",
     "dotenv": "^16.4.5",
-    "@kudi/config": "workspace:*"
+    "redis": "^6.3.0"
   },
   "devDependencies": {
-    "tsx": "^4.7.1",
     "tsup": "^8.0.2",
+    "tsx": "^4.7.1",
     "typescript": "^5.3.3"
   }
 }

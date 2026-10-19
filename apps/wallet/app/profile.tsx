@@ -95,7 +95,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg, paddingTop: insets.top }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
       {/* Header */}
       <View style={[styles.header, { borderColor: palette.border }]}>
         <TouchableOpacity
@@ -105,7 +105,7 @@ export default function ProfileScreen() {
         >
           <ArrowLeft size={20} color={palette.text} />
         </TouchableOpacity>
-        <Text style={[Typography.title2, { color: palette.text }]}>Profile & Account</Text>
+        <Text style={[Typography.title2, { color: palette.text }]}>Profile</Text>
         <TouchableOpacity
           onPress={() => router.push('/settings/edit-profile' as any)}
           style={[styles.circularBackBtn, { backgroundColor: palette.card, borderColor: palette.border }]}

@@ -52,7 +52,7 @@ export default function SpendingLimitsScreen() {
   const currentTierInfo = tiers.find(t => t.level === tier) || tiers[0];
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg, paddingTop: insets.top }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
       {/* Header */}
       <View style={[styles.header, { borderColor: palette.border }]}>
         <TouchableOpacity

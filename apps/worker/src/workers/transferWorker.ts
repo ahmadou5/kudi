@@ -259,11 +259,3 @@ async function executeTransfer(job: PerformTransferJob): Promise<PerformTransfer
 export const processPerformTransferJob = async (job: PerformTransferJob): Promise<PerformTransferResult> => {
   return await executeTransfer(job);
 };
-
-export const performTransferWorker = new Worker<PerformTransferJob>(
-  'perform-transfer',
-  async (job) => {
-    const result = await processPerformTransferJob(job.data);
-    return result;
-  }
-);

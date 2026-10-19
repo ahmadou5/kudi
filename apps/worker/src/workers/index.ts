@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { Worker, type Job } from 'bullmq';
+import type { ConnectionOptions } from 'bullmq';
 import { ChainType, type EVMChainConfig } from '@kudi/types';
 import { pollRateEngine } from '../processors/ratePollerProcessor';
 import { processCryptoWithdrawals, recoverStaleProcessingWithdrawals } from '../processors/cryptoWithdrawalProcessor';
@@ -13,30 +14,31 @@ import { processPerformTransferJob } from './transferWorker';
 // Shared Redis connection factory — parsed from REDIS_URL so it works on
 // Railway / Upstash / Redis Cloud without individual REDIS_HOST/PORT/PASS vars.
 // ---------------------------------------------------------------------------
-export function buildRedisConnection() {
+export function buildRedisConnection(): ConnectionOptions | undefined {
   const redisUrl = process.env.REDIS_URL;
 
   if (!redisUrl) {
-    // Log clearly so Railway logs show the real cause
     console.error(
       '[Worker] ❌ REDIS_URL is not set. BullMQ workers cannot start without a Redis connection.\n' +
       '         Set REDIS_URL in Railway → worker service → Variables tab.'
     );
-    // Return undefined — callers must guard against this
     return undefined;
   }
 
   try {
-    const url = new URL(redisUrl);
+    const parsed = new URL(redisUrl);
+    console.log(`[Worker] ✅ Redis URL validated → ${parsed.hostname}:${parsed.port}`);
+
+    const isTLS = parsed.protocol === 'rediss:';
     return {
-      host: url.hostname,
-      port: Number(url.port) || 6379,
-      password: url.password || undefined,
-      username: url.username && url.username !== 'default' ? url.username : undefined,
-      tls: url.protocol === 'rediss:' ? {} : undefined,
+      host: parsed.hostname,
+      port: parsed.port ? Number(parsed.port) : (isTLS ? 6380 : 6379),
+      password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
+      username: parsed.username ? decodeURIComponent(parsed.username) : undefined,
+      tls: isTLS ? {} : undefined,
     };
-  } catch (err) {
-    console.error('[Worker] ❌ Failed to parse REDIS_URL:', redisUrl, err);
+  } catch {
+    console.error('[Worker] ❌ REDIS_URL is not a valid URL:', redisUrl);
     return undefined;
   }
 }
@@ -51,11 +53,12 @@ export function createAllWorkers(
   const connection = buildRedisConnection();
 
   if (!connection) {
-    console.error('[Worker] ❌ Cannot create BullMQ workers without a Redis connection. Exiting.');
-    process.exit(1);
+    console.error('[Worker] ❌ Cannot create BullMQ workers without a Redis connection. Skipping worker creation.');
+    // Instead of exiting the whole process, return an empty array so the app can continue (e.g., for tests).
+    return [];
   }
 
-  console.log(`[Worker] ✅ Redis connection: ${connection.host}:${connection.port}`);
+  console.log('[Worker] ✅ Redis connection configured');
 
   // Chain configs — resolved here so env is definitely loaded
   const monadConfig: EVMChainConfig = {
