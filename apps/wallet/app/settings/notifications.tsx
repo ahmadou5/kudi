@@ -107,7 +107,7 @@ export default function NotificationsScreen() {
   const isGranted = permissionStatus === Notifications.PermissionStatus.GRANTED;
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg, paddingTop: insets.top }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
       <View style={[styles.header, { borderColor: palette.border }]}>
         <TouchableOpacity
           onPress={() => router.back()}

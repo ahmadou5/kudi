@@ -113,10 +113,9 @@ console.log('⚡ Rate poller worker active');
  * commented reference but will be removed in a future release.
  */
 
-// Start all bullmq workers
+// Start all bullmq workers (they auto-start on construction; just log them)
 console.log('🚀 Starting bullmq workers...');
 allWorkers.forEach((worker: Worker) => {
-  worker.run();
   console.log(`  Started worker: ${worker.name}`);
 });
 
