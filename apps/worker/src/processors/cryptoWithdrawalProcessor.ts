@@ -258,19 +258,41 @@ export async function processCryptoWithdrawals(): Promise<void> {
 
         console.log(`[Worker CryptoWithdrawalProcessor] 📤 Single-wallet send: ${job.amountUSDC} USDC on ${job.chain} from ${depositWalletAddress.slice(0, 8)}... (${signingWalletId}) → ${job.toAddress.slice(0, 8)}...`);
 
-        const { txHash } = await selfCustody.sendCryptoWithGasRetry({
-          treasuryWalletId: signingWalletId,
-          fromAddress: depositWalletAddress,
-          depositWalletId: depositWalletAddress,
-          toAddress: job.toAddress,
-          amountUSDC: job.amountUSDC,
-          chain: job.chain,
-          gasPaymentMode,
-          idempotencyKey: job.reference,
-          feeUSDC: Number(process.env.USDC_FEE || 0.01),
-          feePayerAddress: treasuryAddr
-        }, depositWalletAddress);
-        primaryTxHash = txHash;
+        try {
+          const { txHash } = await selfCustody.sendCryptoWithGasRetry({
+            treasuryWalletId: signingWalletId,
+            fromAddress: depositWalletAddress,
+            depositWalletId: depositWalletAddress,
+            toAddress: job.toAddress,
+            amountUSDC: job.amountUSDC,
+            chain: job.chain,
+            gasPaymentMode,
+            idempotencyKey: job.reference,
+            feeUSDC: Number(process.env.USDC_FEE || 0.01),
+            feePayerAddress: treasuryAddr
+          }, depositWalletAddress);
+          primaryTxHash = txHash;
+        } catch (err: any) {
+          // If user wallet has no token account, fall back to treasury
+          if (err?.message?.includes('Source USDC token account not found') && userTargetPrivyId && treasuryWalletId) {
+            console.warn(`[Worker CryptoWithdrawalProcessor] ⚠️ User wallet has no USDC token account, falling back to treasury...`);
+            const { txHash } = await selfCustody.sendCryptoWithGasRetry({
+              treasuryWalletId,
+              fromAddress: treasuryAddr || '',
+              depositWalletId: treasuryAddr || '',
+              toAddress: job.toAddress,
+              amountUSDC: job.amountUSDC,
+              chain: job.chain,
+              gasPaymentMode,
+              idempotencyKey: job.reference,
+              feeUSDC: Number(process.env.USDC_FEE || 0.01),
+              feePayerAddress: treasuryAddr
+            }, treasuryAddr || '');
+            primaryTxHash = txHash;
+          } else {
+            throw err;
+          }
+        }
       } else {
         // CASE B: Target wallet balance is less than requested spend amount.
         // Execute Cross-Chain Netting via Privy:
