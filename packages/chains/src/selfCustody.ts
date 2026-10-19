@@ -858,6 +858,12 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
       // Create Solana JSON-RPC client (HTTP only — no WebSocket needed)
       const rpc = createSolanaRpc(this.rpcUrlSolana);
 
+      // Provide fetchFreshBlockhash for blockhash retry logic (used later in this method)
+      fetchFreshBlockhash = async () => {
+        const { value: bh } = await rpc.getLatestBlockhash({ commitment: 'processed' }).send();
+        return { blockhash: bh.blockhash, lastValidBlockHeight: bh.lastValidBlockHeight };
+      };
+
       // Derive source Associated Token Account (ATA)
       // ATA = PDA([owner, TOKEN_PROGRAM, mint], ATA_PROGRAM)
       const addrEncoder = getAddressEncoder();
