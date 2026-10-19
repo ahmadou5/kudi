@@ -9,6 +9,7 @@ import { prisma } from '@kudi/database';
 import { workerConfig, validateChainRuntimeConfig, redactRpcUrl } from '@kudi/config';
 import { createAllWorkers } from './workers';
 import { Queue, QueueEvents, Worker } from 'bullmq';
+import { buildRedisConnection } from './workers';
 import { PerformTransferResult, PerformTransferJob } from './jobs/performTransfer';
 import { processPerformTransferJob } from './workers/transferWorker';
 
@@ -117,6 +118,47 @@ console.log('⚡ Rate poller worker active');
 console.log('🚀 Starting bullmq workers...');
 allWorkers.forEach((worker: Worker) => {
   console.log(`  Started worker: ${worker.name}`);
+});
+
+// ---------------------------------------------------------------------------
+// Seed all repeatable (polling) jobs into their BullMQ queues.
+// Uses upsertJobScheduler so restarts are idempotent — no duplicate jobs.
+// ---------------------------------------------------------------------------
+async function scheduleRecurringJobs(): Promise<void> {
+  const connection = buildRedisConnection();
+  if (!connection) {
+    console.warn('[Scheduler] ⚠️ No Redis connection — skipping recurring job scheduling.');
+    return;
+  }
+
+  const schedules: Array<{ queue: string; every: number; label: string }> = [
+    { queue: 'chain-deposit-poller', every: 15_000,  label: 'Chain deposit poll (15s)' },
+    { queue: 'rate-poller',          every: 30_000,  label: 'Rate engine poll (30s)' },
+    { queue: 'crypto-withdrawal',    every: 20_000,  label: 'Crypto withdrawal sweep (20s)' },
+    { queue: 'stale-withdrawal-recovery', every: 60_000, label: 'Stale withdrawal recovery (60s)' },
+    { queue: 'reconciliation',       every: 300_000, label: 'Reconciliation snapshot (5m)' },
+    { queue: 'worker-heartbeat',     every: 30_000,  label: 'Worker heartbeat (30s)' },
+  ];
+
+  for (const { queue: queueName, every, label } of schedules) {
+    const q = new Queue(queueName, { connection });
+    try {
+      await q.upsertJobScheduler(
+        `${queueName}-recurring`,
+        { every },
+        { name: queueName, data: {}, opts: { removeOnComplete: 10, removeOnFail: 50 } }
+      );
+      console.log(`[Scheduler] ✅ Scheduled: ${label}`);
+    } catch (err: unknown) {
+      console.error(`[Scheduler] ❌ Failed to schedule ${queueName}:`, err instanceof Error ? err.message : err);
+    } finally {
+      await q.close();
+    }
+  }
+}
+
+scheduleRecurringJobs().catch((err) => {
+  console.error('[Scheduler] Fatal error seeding recurring jobs:', err instanceof Error ? err.message : err);
 });
 
 // PerformTransfer manual dispatch helper (for API/trigger usage)
