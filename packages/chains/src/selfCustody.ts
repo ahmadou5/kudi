@@ -859,8 +859,9 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
       const rpc = createSolanaRpc(this.rpcUrlSolana);
 
       // Provide fetchFreshBlockhash for blockhash retry logic (used later in this method)
+      // Use 'confirmed' commitment for better Privy RPC compatibility (processed can be too new)
       fetchFreshBlockhash = async () => {
-        const { value: bh } = await rpc.getLatestBlockhash({ commitment: 'processed' }).send();
+        const { value: bh } = await rpc.getLatestBlockhash({ commitment: 'confirmed' }).send();
         return { blockhash: bh.blockhash, lastValidBlockHeight: bh.lastValidBlockHeight };
       };
 
@@ -909,10 +910,12 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
       }
 
       // Derive treasury destination ATA (where fee will be sent)
+      // Use treasury address as owner, not signer (user wallet)
+      const treasuryAddr = solanaAddress(this.solanaTreasuryAddress as Address);
       const [treasuryAta] = await getProgramDerivedAddress({
         programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
         seeds: [
-          addrEncoder.encode(signerAddr), // treasury uses same signer for ATA derivation, or could use treasury address
+          addrEncoder.encode(treasuryAddr),
           addrEncoder.encode(TOKEN_PROGRAM_ADDRESS),
           addrEncoder.encode(mintPubkey)
         ]
