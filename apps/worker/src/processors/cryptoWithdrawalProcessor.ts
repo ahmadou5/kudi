@@ -216,6 +216,8 @@ export async function processCryptoWithdrawals(): Promise<void> {
   for (const job of jobs) {
     const attemptsAfterThisRun = job.attemptCount + 1;
 
+    let primaryTxHash = '';
+
     try {
       const gasPaymentMode = await getWithdrawalGasPaymentMode();
       const treasuryAddr = job.chain === 'solana' 
@@ -249,8 +251,6 @@ export async function processCryptoWithdrawals(): Promise<void> {
         }
       }
 
-      let primaryTxHash = '';
-
       if (targetChainBalance >= job.amountUSDC || !userTargetPrivyId) {
         // CASE A: Single wallet has enough balance on target chain (or falling back to Treasury)
         const signingWalletId = userTargetPrivyId || treasuryWalletId;
@@ -258,19 +258,41 @@ export async function processCryptoWithdrawals(): Promise<void> {
 
         console.log(`[Worker CryptoWithdrawalProcessor] 📤 Single-wallet send: ${job.amountUSDC} USDC on ${job.chain} from ${depositWalletAddress.slice(0, 8)}... (${signingWalletId}) → ${job.toAddress.slice(0, 8)}...`);
 
-        const { txHash } = await selfCustody.sendCryptoWithGasRetry({
-          treasuryWalletId: signingWalletId,
-          fromAddress: depositWalletAddress,
-          depositWalletId: depositWalletAddress,
-          toAddress: job.toAddress,
-          amountUSDC: job.amountUSDC,
-          chain: job.chain,
-          gasPaymentMode,
-          idempotencyKey: job.reference,
-          feeUSDC: Number(process.env.USDC_FEE || 0.01),
-          feePayerAddress: treasuryAddr
-        }, depositWalletAddress);
-        primaryTxHash = txHash;
+        try {
+          const { txHash } = await selfCustody.sendCryptoWithGasRetry({
+            treasuryWalletId: signingWalletId,
+            fromAddress: depositWalletAddress,
+            depositWalletId: depositWalletAddress,
+            toAddress: job.toAddress,
+            amountUSDC: job.amountUSDC,
+            chain: job.chain,
+            gasPaymentMode,
+            idempotencyKey: job.reference,
+            feeUSDC: Number(process.env.USDC_FEE || 0.01),
+            feePayerAddress: treasuryAddr
+          }, depositWalletAddress);
+          primaryTxHash = txHash;
+        } catch (err: any) {
+          // If user wallet has no token account, fall back to treasury
+          if (err?.message?.includes('Source USDC token account not found') && userTargetPrivyId && treasuryWalletId) {
+            console.warn(`[Worker CryptoWithdrawalProcessor] ⚠️ User wallet has no USDC token account, falling back to treasury...`);
+            const { txHash } = await selfCustody.sendCryptoWithGasRetry({
+              treasuryWalletId,
+              fromAddress: treasuryAddr || '',
+              depositWalletId: treasuryAddr || '',
+              toAddress: job.toAddress,
+              amountUSDC: job.amountUSDC,
+              chain: job.chain,
+              gasPaymentMode,
+              idempotencyKey: job.reference,
+              feeUSDC: Number(process.env.USDC_FEE || 0.01),
+              feePayerAddress: treasuryAddr
+            }, treasuryAddr || '');
+            primaryTxHash = txHash;
+          } else {
+            throw err;
+          }
+        }
       } else {
         // CASE B: Target wallet balance is less than requested spend amount.
         // Execute Cross-Chain Netting via Privy:
@@ -373,6 +395,23 @@ export async function processCryptoWithdrawals(): Promise<void> {
         const delay = attemptsAfterThisRun === 1 ? 15 : 45;
         await markWithdrawal(job.reference, WithdrawalStatus.PENDING, { failureReason: message, nextAttemptSeconds: delay });
         continue;
+      }
+
+      // Final on-chain verification before marking failed & reversing
+      // The tx may have succeeded on-chain even if waitForConfirmation timed out
+      let onChainConfirmed = false;
+      if (primaryTxHash) {
+        try {
+          const verification = await selfCustody.verifyDepositTransaction(primaryTxHash, job.chain);
+          onChainConfirmed = verification.confirmed;
+          if (onChainConfirmed) {
+            console.log(`[Worker CryptoWithdrawalProcessor] ⚠️ Tx ${primaryTxHash} confirmed on-chain despite timeout — marking CONFIRMED`);
+            await markWithdrawal(job.reference, WithdrawalStatus.CONFIRMED, { txHash: primaryTxHash });
+            continue;
+          }
+        } catch (verifyErr) {
+          console.warn(`[Worker CryptoWithdrawalProcessor] Final verification failed:`, verifyErr instanceof Error ? verifyErr.message : verifyErr);
+        }
       }
 
       await markWithdrawal(job.reference, WithdrawalStatus.FAILED, { failureReason: message });

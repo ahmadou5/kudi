@@ -708,7 +708,7 @@ export class SelfCustodyProvider implements CustodyProvider {
           body: JSON.stringify({
             jsonrpc: '2.0',
             method: 'getTransaction',
-            params: [txHash, { encoding: 'jsonParsed', commitment: 'finalized' }],
+            params: [txHash, { encoding: 'jsonParsed', commitment: 'confirmed' }],
             id: 1
           })
         });
@@ -731,6 +731,7 @@ export class SelfCustodyProvider implements CustodyProvider {
             if (diff > 0) parsedAmount = diff.toFixed(2);
           }
 
+          console.log(`[SelfCustody] 🔍 Verified tx ${txHash.slice(0, 20)}...: confirmed=${confirmed}, err=${meta?.err}, slot=${blockNumber}`);
           return {
             confirmed,
             amount: parsedAmount,
@@ -738,6 +739,8 @@ export class SelfCustodyProvider implements CustodyProvider {
             tokenAddress: meta?.postTokenBalances[0]?.mint || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
             blockNumber
           };
+        } else {
+          console.log(`[SelfCustody] 🔍 Tx ${txHash.slice(0, 20)}... not found yet (commitment=confirmed)`);
         }
       } catch (err) {
         console.warn('Solana RPC Tx verification query failed:', err);
@@ -880,13 +883,23 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
       });
 
       let sourceAta = derivedSourceAta;
+      let sourceAtaExists = false;
       try {
         const tokenAccountsRes = await rpc.getTokenAccountsByOwner(signerAddr, { mint: mintPubkey }, { encoding: 'jsonParsed' }).send();
         if (tokenAccountsRes.value?.[0]?.pubkey) {
           sourceAta = solanaAddress(tokenAccountsRes.value[0].pubkey as Address);
+          // Verify the account actually exists on-chain
+          const sourceAtaInfo = await rpc.getAccountInfo(sourceAta, { encoding: 'jsonParsed' }).send();
+          if (sourceAtaInfo.value !== null) {
+            sourceAtaExists = true;
+          }
         }
       } catch (err: unknown) {
         // Fall back to derived ATA if RPC lookup fails
+      }
+
+      if (!sourceAtaExists) {
+        throw new Error(`[SelfCustody] Source USDC token account not found for ${signerAddrStr}. Wallet has no USDC token account.`);
       }
 
       const [destAta] = await getProgramDerivedAddress({
@@ -1994,7 +2007,7 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
   async waitForConfirmation(
     txHash: string,
     chain: 'solana' | 'monad' | 'stellar',
-    timeoutMs = 90_000
+    timeoutMs = chain === 'solana' ? 180_000 : 90_000
   ): Promise<boolean> {
     const pollIntervalMs = 4_000;
     const deadline = Date.now() + timeoutMs;
@@ -2011,12 +2024,18 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
       return true;
     }
 
+    console.log(`[SelfCustody] ⏳ Waiting for confirmation on ${chain}: ${txHash.slice(0, 20)}... (timeout: ${timeoutMs/1000}s)`);
+
     while (Date.now() < deadline) {
       try {
         const result = await this.verifyDepositTransaction(txHash, chain);
         if (result.confirmed) {
           console.log(`[SelfCustody] ✅ Confirmed on ${chain}: ${txHash.slice(0, 20)}...`);
           return true;
+        }
+        // Not confirmed yet, log and continue polling
+        if (result.amount !== '0.00' || result.sender) {
+          console.log(`[SelfCustody] ⏳ Tx ${txHash.slice(0, 20)}... found but not confirmed yet (err: ${result.blockNumber ? 'pending' : 'not found'})`);
         }
       } catch (err) {
         // Transient RPC error — keep polling
