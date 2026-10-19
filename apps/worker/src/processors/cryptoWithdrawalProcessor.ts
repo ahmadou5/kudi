@@ -397,6 +397,23 @@ export async function processCryptoWithdrawals(): Promise<void> {
         continue;
       }
 
+      // Final on-chain verification before marking failed & reversing
+      // The tx may have succeeded on-chain even if waitForConfirmation timed out
+      let onChainConfirmed = false;
+      if (primaryTxHash) {
+        try {
+          const verification = await selfCustody.verifyDepositTransaction(primaryTxHash, job.chain);
+          onChainConfirmed = verification.confirmed;
+          if (onChainConfirmed) {
+            console.log(`[Worker CryptoWithdrawalProcessor] ⚠️ Tx ${primaryTxHash} confirmed on-chain despite timeout — marking CONFIRMED`);
+            await markWithdrawal(job.reference, WithdrawalStatus.CONFIRMED, { txHash: primaryTxHash });
+            continue;
+          }
+        } catch (verifyErr) {
+          console.warn(`[Worker CryptoWithdrawalProcessor] Final verification failed:`, verifyErr instanceof Error ? verifyErr.message : verifyErr);
+        }
+      }
+
       await markWithdrawal(job.reference, WithdrawalStatus.FAILED, { failureReason: message });
       await recordWithdrawalReversal(job, message);
     }
