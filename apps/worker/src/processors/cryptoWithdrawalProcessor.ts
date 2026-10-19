@@ -216,6 +216,8 @@ export async function processCryptoWithdrawals(): Promise<void> {
   for (const job of jobs) {
     const attemptsAfterThisRun = job.attemptCount + 1;
 
+    let primaryTxHash = '';
+
     try {
       const gasPaymentMode = await getWithdrawalGasPaymentMode();
       const treasuryAddr = job.chain === 'solana' 
@@ -248,8 +250,6 @@ export async function processCryptoWithdrawals(): Promise<void> {
           targetChainBalance = job.amountUSDC; // Fallback to optimistic assumption
         }
       }
-
-      let primaryTxHash = '';
 
       if (targetChainBalance >= job.amountUSDC || !userTargetPrivyId) {
         // CASE A: Single wallet has enough balance on target chain (or falling back to Treasury)
