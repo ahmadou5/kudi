@@ -37,12 +37,12 @@ export async function recordReconciliationSnapshot(): Promise<ReconciliationMetr
 
     const depositRows: NumericRow[] = await prisma.$queryRaw`
       SELECT
-        COALESCE(SUM(CASE WHEN "sweepStatus" = 'SWEEP_PENDING' THEN "amountUSDC" ELSE 0 END), 0) AS "pendingSweepUSDC",
-        COALESCE(SUM(CASE WHEN "sweepStatus" = 'SWEEP_PROCESSING' THEN "amountUSDC" ELSE 0 END), 0) AS "processingSweepUSDC",
-        COALESCE(SUM(CASE WHEN "sweepStatus" = 'SWEPT' THEN COALESCE("sweptAmountUSDC", "amountUSDC") ELSE 0 END), 0) AS "sweptUSDC",
-        COALESCE(SUM(CASE WHEN "sweepStatus" = 'SWEEP_FAILED' THEN "amountUSDC" ELSE 0 END), 0) AS "sweepFailedUSDC",
-        COALESCE(SUM(CASE WHEN "sweepStatus" = 'FLOAT_EXPOSURE' THEN "amountUSDC" ELSE 0 END), 0) AS "floatExposureUSDC",
-        COALESCE(SUM(CASE WHEN "sweepStatus" = 'SWEEP_UNSUPPORTED' THEN "amountUSDC" ELSE 0 END), 0) AS "unsupportedSweepUSDC"
+        COALESCE(SUM(CASE WHEN "cashOutStatus" IS NULL THEN "amountUSDC" ELSE 0 END), 0)                          AS "pendingSweepUSDC",
+        COALESCE(SUM(CASE WHEN "cashOutStatus" = 'PENDING' THEN "amountUSDC" ELSE 0 END), 0)                     AS "processingSweepUSDC",
+        COALESCE(SUM(CASE WHEN "cashOutStatus" = 'CONFIRMED' THEN "amountUSDC" ELSE 0 END), 0)                   AS "sweptUSDC",
+        COALESCE(SUM(CASE WHEN "cashOutStatus" = 'FAILED' THEN "amountUSDC" ELSE 0 END), 0)                      AS "sweepFailedUSDC",
+        0::NUMERIC                                                                                                 AS "floatExposureUSDC",
+        0::NUMERIC                                                                                                 AS "unsupportedSweepUSDC"
       FROM "Deposit"
     `;
 
