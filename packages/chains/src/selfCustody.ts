@@ -701,50 +701,61 @@ export class SelfCustodyProvider implements CustodyProvider {
       }
     } else if (!isEvm) {
       // Solana JSON-RPC getTransaction query
-      try {
-        const res = await fetch(this.solanaRpcUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: 'getTransaction',
-            params: [txHash, { encoding: 'jsonParsed', commitment: 'confirmed' }],
-            id: 1
-          })
-        });
-
-        const data = await res.json();
-        if (data.result) {
-          const tx = data.result;
-          const meta = tx.meta;
-          const confirmed = meta && meta.err === null;
-          const blockNumber = tx.slot;
-          const keys = tx.transaction?.message?.accountKeys || [];
-          const sender = keys[0]?.pubkey || keys[0] || 'SolanaSender';
-
-          // Extract token balance difference if present (default zero — never synthesize)
-          let parsedAmount = '0.00';
-          if (meta?.preTokenBalances?.length && meta?.postTokenBalances?.length) {
-            const pre = meta.preTokenBalances[0]?.uiTokenAmount?.uiAmount || 0;
-            const post = meta.postTokenBalances[0]?.uiTokenAmount?.uiAmount || 0;
-            const diff = Math.abs(post - pre);
-            if (diff > 0) parsedAmount = diff.toFixed(2);
-          }
-
-          console.log(`[SelfCustody] 🔍 Verified tx ${txHash.slice(0, 20)}...: confirmed=${confirmed}, err=${meta?.err}, slot=${blockNumber}`);
-          return {
-            confirmed,
-            amount: parsedAmount,
-            sender,
-            tokenAddress: meta?.postTokenBalances[0]?.mint || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
-            blockNumber
-          };
-        } else {
-          console.log(`[SelfCustody] 🔍 Tx ${txHash.slice(0, 20)}... not found yet (commitment=confirmed)`);
-        }
-      } catch (err) {
-        console.warn('Solana RPC Tx verification query failed:', err);
+      // Try primary RPC first, then fallback RPC, with multiple commitment levels
+      const rpcUrls = [this.solanaRpcUrl];
+      if (process.env.SOLANA_RPC_URL_FALLBACK) {
+        rpcUrls.push(process.env.SOLANA_RPC_URL_FALLBACK);
       }
+      const commitments: Array<'processed' | 'confirmed' | 'finalized'> = ['confirmed', 'finalized'];
+
+      for (const rpcUrl of rpcUrls) {
+        for (const commitment of commitments) {
+          try {
+            const res = await fetch(rpcUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                jsonrpc: '2.0',
+                method: 'getTransaction',
+                params: [txHash, { encoding: 'jsonParsed', commitment }],
+                id: 1
+              })
+            });
+
+            const data = await res.json();
+            if (data.result) {
+              const tx = data.result;
+              const meta = tx.meta;
+              const confirmed = meta && meta.err === null;
+              const blockNumber = tx.slot;
+              const keys = tx.transaction?.message?.accountKeys || [];
+              const sender = keys[0]?.pubkey || keys[0] || 'SolanaSender';
+
+              // Extract token balance difference if present (default zero — never synthesize)
+              let parsedAmount = '0.00';
+              if (meta?.preTokenBalances?.length && meta?.postTokenBalances?.length) {
+                const pre = meta.preTokenBalances[0]?.uiTokenAmount?.uiAmount || 0;
+                const post = meta.postTokenBalances[0]?.uiTokenAmount?.uiAmount || 0;
+                const diff = Math.abs(post - pre);
+                if (diff > 0) parsedAmount = diff.toFixed(2);
+              }
+
+              console.log(`[SelfCustody] 🔍 Verified tx ${txHash.slice(0, 20)}... on ${rpcUrl} (${commitment}): confirmed=${confirmed}, err=${meta?.err}, slot=${blockNumber}`);
+              return {
+                confirmed,
+                amount: parsedAmount,
+                sender,
+                tokenAddress: meta?.postTokenBalances[0]?.mint || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+                blockNumber
+              };
+            }
+          } catch (err) {
+            console.warn(`[SelfCustody] Verification failed on ${rpcUrl} (${commitment}):`, err instanceof Error ? err.message : err);
+          }
+        }
+      }
+
+      console.log(`[SelfCustody] 🔍 Tx ${txHash.slice(0, 20)}... not found on any RPC after retries`);
     }
 
     // Fail closed on any RPC/parse failure: confirmed:false with a zero amount.
