@@ -18,7 +18,7 @@ import Animated, {
     useReducedMotion,
     Easing
 } from 'react-native-reanimated';
-import { Home, CreditCard, Clock, LucideIcon } from 'lucide-react-native';
+import { Home, CreditCard, Clock, LucideIcon, Settings } from 'lucide-react-native';
 // npx expo install expo-glass-effect — official Expo wrapper around iOS 26's Liquid Glass
 // (UIVisualEffectView). GlassView renders the real native glass on iOS 26+ and quietly
 // falls back to a plain View everywhere else (older iOS, Android, web) — no Platform
@@ -37,10 +37,11 @@ export interface TabItemConfig {
  * Default tab configuration for the 3 main routes: Home, Card, History.
  * Easily modify icons, labels, or add/remove routes here!
  */
+//To do { name: 'card', label: 'Card', Icon: CreditCard },
 export const DEFAULT_TABS: TabItemConfig[] = [
     { name: 'index', label: 'Home', Icon: Home },
-    { name: 'card', label: 'Card', Icon: CreditCard },
     { name: 'history', label: 'History', Icon: Clock },
+    { name: 'settings', label: 'Settings', Icon: Settings },
 ];
 
 // Tint laid over the real glass on iOS 26+ — kept light so the native blur still does the

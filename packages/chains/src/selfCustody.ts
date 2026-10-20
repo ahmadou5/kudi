@@ -1869,7 +1869,7 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
    * confirmation TIMEOUT is returned (not thrown) so the caller can persist a
    * TIMEOUT drip record instead of losing it inside an exception.
    */
-  async dripNativeGas(params: { toAddress: string; chain: 'solana' | 'monad' | 'stellar' }): Promise<{
+  async dripNativeGas(params: { toAddress: string; chain: 'solana' | 'monad' | 'stellar'; force?: boolean }): Promise<{
     dripped: boolean;
     txHash?: string;
     amountNative?: number;
@@ -1878,14 +1878,14 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
     drip?: GasDripReceipt;
     confirmed?: boolean;
   }> {
-    const { toAddress, chain } = params;
+    const { toAddress, chain, force } = params;
     const isSolana = chain === 'solana';
     const tuning = getDripTuning();
     const minBalance = isSolana ? tuning.solMinBalance : tuning.monMinBalance;
     const dripAmount = isSolana ? tuning.solDripAmount : tuning.monDripAmount;
 
     const current = Number(await this.getWalletBalance(toAddress, chain));
-    if (Number.isFinite(current) && current >= minBalance) {
+    if (!force && Number.isFinite(current) && current >= minBalance) {
       return { dripped: false };
     }
 
@@ -2037,15 +2037,26 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
       let dripEligible = false;
       let dripReason = '';
 
-      // Check if balance is below minimum threshold
-      if (Number.isFinite(currentBalance) && currentBalance < minBalance) {
+      // Privy explicitly said the signer can't cover the tx — trust it over our
+      // balance read. Privy simulates on its own node which can lag the public
+      // RPC, and its gas estimation may need more than our minBalance threshold.
+      const isBalanceError = /insufficient balance|insufficient funds/i.test(originalMsg);
+
+      if (isBalanceError) {
+        // Broadcast failed with a balance error → always drip regardless of
+        // what our RPC reports. The wallet clearly can't cover the tx from
+        // Privy's perspective.
+        dripEligible = true;
+        dripReason = `Broadcast balance error (reported balance: ${currentBalance}), dripping regardless`;
+      } else if (Number.isFinite(currentBalance) && currentBalance < minBalance) {
         dripEligible = true;
         dripReason = `Native balance ${currentBalance} below minimum ${minBalance}`;
       } else if (currentBalance >= minBalance) {
-        // Wallet already has sufficient balance - drip not needed, but sponsorship still failed
-        // This could be a non-balance issue; still attempt drip for robustness
-        dripEligible = currentBalance === 0; // Only drip if balance was zero
-        dripReason = currentBalance === 0 ? 'Balance was zero, attempting drip' : 'Balance sufficient but sponsorship failed';
+        // Balance above minimum but non-balance sponsorship failure — still
+        // attempt drip for robustness (the wallet may be just barely above
+        // minBalance but below actual gas needs).
+        dripEligible = true;
+        dripReason = `Balance ${currentBalance} ≥ min ${minBalance} but sponsorship failed, attempting drip`;
       }
 
       // Step 5: Apply drip anti-farming checks via hooks if provided
@@ -2075,20 +2086,26 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
         throw new Error(`${originalMsg} [drip not eligible: ${dripReason}]`);
       }
 
-      // Step 7: Execute drip from treasury
+      // Step 7: Execute drip from treasury.
+      // force=true on balance errors: our RPC may report balance ≥ min while
+      // Privy's node (which actually broadcasts) sees less — force the drip
+      // through instead of letting dripNativeGas skip it.
       console.log(
-        `[SelfCustody] ⛽ Dripping ${dripAmount} ${isSolana ? 'SOL' : 'MON'} to ${signerAddress.slice(0, 8)}...`
+        `[SelfCustody] ⛽ Dripping ${dripAmount} ${isSolana ? 'SOL' : 'MON'} to ${signerAddress.slice(0, 8)}...${isBalanceError ? ' (forced — balance error)' : ''}`
       );
       let dripResult: Awaited<ReturnType<SelfCustodyProvider['dripNativeGas']>>;
       try {
-        dripResult = await this.dripNativeGas({ toAddress: signerAddress, chain: params.chain });
+        dripResult = await this.dripNativeGas({ toAddress: signerAddress, chain: params.chain, force: isBalanceError });
       } catch (dripErr: any) {
         throw new Error(`${originalMsg} [gas drip also failed: ${dripErr?.message || dripErr}]`);
       }
 
       const dripReceipt = dripResult.drip;
       if (!dripReceipt) {
-        throw new Error('[SelfCustody] Drip did not produce a receipt');
+        // Drip was skipped (non-force path with sufficient balance). We can't
+        // confirm a drip that never happened — proceed straight to retry with
+        // backoff; the balance-visibility polling below absorbs node lag.
+        console.warn(`[SelfCustody] ⚠️ Drip skipped (balance already sufficient per RPC) — proceeding to broadcast retry`);
       }
 
       // Step 8: Persist drip record via hooks
@@ -2111,14 +2128,16 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
 
       // Step 9: WAIT for drip to be confirmed on-chain before retrying
       // The funds must be available in the signer's account before we can use them for gas
-      console.log(
-        `[SelfCustody] ⏳ Waiting for drip to be confirmed on ${params.chain} before retry...`
-      );
-      const dripConfirmed = await this.waitForConfirmation(dripReceipt.txHash, params.chain);
-      if (!dripConfirmed) {
-        throw new Error(`${originalMsg} [drip broadcast but not confirmed before timeout: ${dripReceipt.txHash}]`);
+      if (dripReceipt) {
+        console.log(
+          `[SelfCustody] ⏳ Waiting for drip to be confirmed on ${params.chain} before retry...`
+        );
+        const dripConfirmed = await this.waitForConfirmation(dripReceipt.txHash, params.chain);
+        if (!dripConfirmed) {
+          throw new Error(`${originalMsg} [drip broadcast but not confirmed before timeout: ${dripReceipt.txHash}]`);
+        }
+        console.log(`[SelfCustody] ✅ Drip confirmed, funds available for gas`);
       }
-      console.log(`[SelfCustody] ✅ Drip confirmed, funds available for gas`);
 
       // Step 10: Poll until the signer's balance is VISIBLE via RPC.
       // Privy simulates on its own node which can lag the public RPC by many
@@ -2134,7 +2153,8 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
       }
       console.log(`[SelfCustody] 💰 Signer balance after drip: ${visibleBalance} ${isSolana ? 'SOL' : 'MON'}`);
       if (!Number.isFinite(visibleBalance) || visibleBalance <= 0) {
-        throw new Error(`${originalMsg} [drip confirmed but signer balance still invisible after 60s: ${dripReceipt.txHash}]`);
+        const dripRef = dripReceipt?.txHash || 'no-drip';
+        throw new Error(`${originalMsg} [signer balance still invisible after 60s: ${dripRef}]`);
       }
 
       // Step 11: Retry the unsponsored broadcast with backoff.
