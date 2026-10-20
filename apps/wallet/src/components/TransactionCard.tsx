@@ -43,6 +43,10 @@ interface TransactionCardProps {
   item: TransactionData;
   onPress?: () => void;
   compact?: boolean;
+  /** Accordion control — id of the currently expanded card (from parent) */
+  expandedId?: string | null;
+  /** Accordion control — called when this card is tapped to expand/collapse */
+  onToggle?: (id: string | null) => void;
 }
 
 function detectProvider(item: TransactionData): BrandProvider {
@@ -75,10 +79,24 @@ function detectChain(item: TransactionData): 'monad' | 'solana' | null {
   return null;
 }
 
-export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress, compact = false }) => {
+export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress, compact = false, expandedId, onToggle }) => {
   const palette = useAppPalette();
   const isDark = palette.text === '#FFFFFF';
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [localExpanded, setLocalExpanded] = useState(false);
+
+  // Controlled (accordion) mode when parent supplies expandedId + onToggle;
+  // otherwise fall back to local state so non-compact usage is unaffected.
+  const cardId = item.id ?? item.ref ?? item.txHash ?? item.title;
+  const isControlled = onToggle !== undefined;
+  const isExpanded = isControlled ? expandedId === cardId : localExpanded;
+
+  const toggleExpanded = () => {
+    if (isControlled) {
+      onToggle(isExpanded ? null : cardId);
+    } else {
+      setLocalExpanded((prev) => !prev);
+    }
+  };
 
   const isDeposit = item.isDeposit ?? item.amount.startsWith('+');
   const provider = detectProvider(item);
@@ -172,7 +190,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
 
     return (
       <TouchableOpacity
-        onPress={() => setIsExpanded(!isExpanded)}
+        onPress={toggleExpanded}
         activeOpacity={0.75}
         style={[
           styles.card,

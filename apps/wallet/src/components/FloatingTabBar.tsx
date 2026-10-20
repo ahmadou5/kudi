@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import * as Haptics from 'expo-haptics';
 import {
     StyleSheet,
     View,
@@ -81,6 +82,9 @@ export function FloatingTabBar({
     // Per-tab animated scale for press feedback — instant on touch-down (§1)
     const scales = useRef<Animated.Value[]>(tabs.map(() => new Animated.Value(1))).current;
 
+    // Per-tab icon shimmer opacity — pulses 1 → 0.65 → 1 on selection to confirm the switch (§13)
+    const shimmers = useRef<Animated.Value[]>(tabs.map(() => new Animated.Value(1))).current;
+
     if (!state || !navigation) return null;
 
     const currentRouteName = state.routes[state.index]?.name;
@@ -103,22 +107,49 @@ export function FloatingTabBar({
     // Outer shadow glow colour
     const shadowColor = isDark ? '#000' : '#1E293B';
 
-    const handlePressIn = (idx: number) => {
+    // pressIn: squeeze (critically-damped — no overshoot, instant §1) + haptic on same frame (§13)
+    // Only fire haptic when navigating (not already focused — no event = no feedback, §13 utility).
+    const handlePressIn = (idx: number, isFocused: boolean) => {
+        // Visual squeeze — critically-damped spring (bounciness 0) for instant, crisp response
         Animated.spring(scales[idx], {
-            toValue: 0.87,
+            toValue: 0.86,
             useNativeDriver: true,
-            speed: 60,
+            speed: 80,
             bounciness: 0
         }).start();
+
+        // Haptic fires here — same frame as visual, causal event is touch-down (§13)
+        if (!isFocused) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
     };
 
+    // pressOut: spring back with a gentle bounce — physically appropriate on release (§4)
     const handlePressOut = (idx: number) => {
         Animated.spring(scales[idx], {
             toValue: 1,
             useNativeDriver: true,
-            speed: 40,
-            bounciness: 6
+            speed: 42,
+            bounciness: 5
         }).start();
+    };
+
+    // Icon shimmer: opacity pulse 1 → 0.65 → 1, confirms tab selection with a crisp flash (§13)
+    // Critically-damped (no overshoot on a fade) — ~180ms total, imperceptible but satisfying.
+    const triggerShimmer = (idx: number) => {
+        shimmers[idx].setValue(1);
+        Animated.sequence([
+            Animated.timing(shimmers[idx], {
+                toValue: 0.65,
+                duration: 70,
+                useNativeDriver: true
+            }),
+            Animated.timing(shimmers[idx], {
+                toValue: 1,
+                duration: 110,
+                useNativeDriver: true
+            })
+        ]).start();
     };
 
     return (
@@ -174,9 +205,11 @@ export function FloatingTabBar({
                                     canPreventDefault: true
                                 });
                                 if (!isFocused && !event.defaultPrevented) {
+                                    triggerShimmer(idx);
                                     navigation.navigate(tab.name);
                                 }
                             } else {
+                                triggerShimmer(idx);
                                 navigation.navigate(tab.name);
                             }
                         };
@@ -190,7 +223,7 @@ export function FloatingTabBar({
                             >
                                 <TouchableOpacity
                                     onPress={onPress}
-                                    onPressIn={() => handlePressIn(idx)}
+                                    onPressIn={() => handlePressIn(idx, isFocused)}
                                     onPressOut={() => handlePressOut(idx)}
                                     activeOpacity={1}
                                     style={[
@@ -201,16 +234,19 @@ export function FloatingTabBar({
                                     accessibilityLabel={tab.label}
                                     accessibilityState={{ selected: isFocused }}
                                 >
-                                    {/* Active icon: closed shapes get a light color wash, but every outline
-                      — including internal detail lines — stays fully drawn (duotone, not
-                      a solid silhouette) */}
-                                    <TabIcon
-                                        size={iconSize}
-                                        color={iconColor}
-                                        fill={isFocused ? activeColor : 'transparent'}
-                                        fillOpacity={isFocused ? ACTIVE_ICON_FILL_OPACITY : 1}
-                                        strokeWidth={isFocused ? 1.8 : 1.6}
-                                    />
+                                    {/* Shimmer wrapper — opacity pulse on tab selection (§13) */}
+                                    <Animated.View style={{ opacity: shimmers[idx] }}>
+                                        {/* Active icon: closed shapes get a light color wash, but every outline
+                          — including internal detail lines — stays fully drawn (duotone, not
+                          a solid silhouette) */}
+                                        <TabIcon
+                                            size={iconSize}
+                                            color={iconColor}
+                                            fill={isFocused ? activeColor : 'transparent'}
+                                            fillOpacity={isFocused ? ACTIVE_ICON_FILL_OPACITY : 1}
+                                            strokeWidth={isFocused ? 1.8 : 1.6}
+                                        />
+                                    </Animated.View>
 
                                     {showLabels && (
                                         <Text

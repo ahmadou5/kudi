@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -22,6 +22,7 @@ import { useLoader } from '../../src/store/loader.store';
 export default function HomeTab() {
   const palette = useAppPalette();
   const { showLoader, hideLoader } = useLoader();
+  const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
   const {
     balanceUSDC,
     rateNGN,
@@ -133,7 +134,13 @@ export default function HomeTab() {
             </>
           ) : formattedTransactions.length > 0 ? (
             formattedTransactions.slice(0, 7).map((tx) => (
-              <TransactionCard key={tx.id} item={tx} compact />
+              <TransactionCard
+                key={tx.id}
+                item={tx}
+                compact
+                expandedId={expandedTxId}
+                onToggle={setExpandedTxId}
+              />
             ))
           ) : (
             <View style={[styles.emptyBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
