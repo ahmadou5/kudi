@@ -43,9 +43,12 @@ export function buildRedisConnection(): ConnectionOptions | undefined {
   }
 }
 
+
+
 // ---------------------------------------------------------------------------
 // Worker factory — called ONCE after dotenv has loaded, not at import time.
-// Returns all BullMQ Worker instances. Exits process if Redis is unavailable.
+// Returns all BullMQ Worker instances. Exits process if Redis is unavailable.can you run it for me
+
 // ---------------------------------------------------------------------------
 export function createAllWorkers(
   heartbeatFn: () => Promise<void>
