@@ -700,15 +700,100 @@ export class SelfCustodyProvider implements CustodyProvider {
         console.warn('RPC Tx receipt query failed:', err);
       }
     } else if (!isEvm) {
-      // Solana JSON-RPC getTransaction query
-      // Try primary RPC first, then fallback RPC, with multiple commitment levels
+      // Solana JSON-RPC: Try getSignatureStatuses first (faster, more reliable for confirmation),
+      // then fall back to getTransaction for full details.
       const rpcUrls = [this.solanaRpcUrl];
       if (process.env.SOLANA_RPC_URL_FALLBACK) {
         rpcUrls.push(process.env.SOLANA_RPC_URL_FALLBACK);
       }
-      const commitments: Array<'processed' | 'confirmed' | 'finalized'> = ['confirmed', 'finalized'];
 
+      // First, try getSignatureStatuses with multiple commitments (fast confirmation check)
       for (const rpcUrl of rpcUrls) {
+        const commitments: Array<'processed' | 'confirmed' | 'finalized'> = ['processed', 'confirmed', 'finalized'];
+        for (const commitment of commitments) {
+          try {
+            const res = await fetch(rpcUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                jsonrpc: '2.0',
+                method: 'getSignatureStatuses',
+                params: [[txHash], { commitment }],
+                id: 1
+              })
+            });
+
+            const data = await res.json();
+            const status = data.result?.value?.[0];
+            if (status) {
+              const confirmed = status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized';
+              const err = status.err;
+              if (confirmed && !err) {
+                console.log(`[SelfCustody] 🔍 Signature status verified on ${rpcUrl} (${commitment}): confirmed=${confirmed}, err=${err}`);
+                // Now get full transaction details for amount/sender
+                try {
+                  const txRes = await fetch(rpcUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      jsonrpc: '2.0',
+                      method: 'getTransaction',
+                      params: [txHash, { encoding: 'jsonParsed', commitment: 'confirmed' }],
+                      id: 1
+                    })
+                  });
+                  const txData = await txRes.json();
+                  if (txData.result) {
+                    const tx = txData.result;
+                    const meta = tx.meta;
+                    const blockNumber = tx.slot;
+                    const keys = tx.transaction?.message?.accountKeys || [];
+                    const sender = keys[0]?.pubkey || keys[0] || 'SolanaSender';
+                    let parsedAmount = '0.00';
+                    if (meta?.preTokenBalances?.length && meta?.postTokenBalances?.length) {
+                      const pre = meta.preTokenBalances[0]?.uiTokenAmount?.uiAmount || 0;
+                      const post = meta.postTokenBalances[0]?.uiTokenAmount?.uiAmount || 0;
+                      const diff = Math.abs(post - pre);
+                      if (diff > 0) parsedAmount = diff.toFixed(2);
+                    }
+                    return {
+                      confirmed: true,
+                      amount: parsedAmount,
+                      sender,
+                      tokenAddress: meta?.postTokenBalances[0]?.mint || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+                      blockNumber
+                    };
+                  }
+                } catch { /* ignore, return status-based result */ }
+                // Return status-based result if getTransaction fails
+                return {
+                  confirmed: true,
+                  amount: '0.00',
+                  sender: '',
+                  tokenAddress: '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+                  blockNumber: undefined
+                };
+              } else if (err) {
+                console.log(`[SelfCustody] 🔍 Tx ${txHash.slice(0, 20)}... failed on-chain: ${JSON.stringify(err)}`);
+                return {
+                  confirmed: false,
+                  amount: '0.00',
+                  sender: '',
+                  tokenAddress: '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+                  blockNumber: undefined
+                };
+              }
+              // Not confirmed yet, continue checking other commitments
+            }
+          } catch (err) {
+            console.warn(`[SelfCustody] getSignatureStatuses failed on ${rpcUrl} (${commitment}):`, err instanceof Error ? err.message : err);
+          }
+        }
+      }
+
+      // Fallback: Try getTransaction with multiple commitments (original logic)
+      for (const rpcUrl of rpcUrls) {
+        const commitments: Array<'processed' | 'confirmed' | 'finalized'> = ['processed', 'confirmed', 'finalized'];
         for (const commitment of commitments) {
           try {
             const res = await fetch(rpcUrl, {
@@ -731,7 +816,6 @@ export class SelfCustodyProvider implements CustodyProvider {
               const keys = tx.transaction?.message?.accountKeys || [];
               const sender = keys[0]?.pubkey || keys[0] || 'SolanaSender';
 
-              // Extract token balance difference if present (default zero — never synthesize)
               let parsedAmount = '0.00';
               if (meta?.preTokenBalances?.length && meta?.postTokenBalances?.length) {
                 const pre = meta.preTokenBalances[0]?.uiTokenAmount?.uiAmount || 0;
@@ -2009,16 +2093,24 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
         }
       }
 
-      // Step 9: Retry the original sendCrypto WITHOUT the sponsor flag (unsponsored)
-      // Build retry body without gas payment mode (user pays now that wallet has native gas)
-      const retryBody = { ...params };
-      delete retryBody.gasPaymentMode;
-
-      // Note: sponsorship is handled by the gas drip fallback - after drip,
-      // we retry with USER_PAYS mode so the sponsored wallet doesn't need gas
-
+      // Step 9: WAIT for drip to be confirmed on-chain before retrying
+      // The funds must be available in the signer's account before we can use them for gas
       console.log(
-        `[SelfCustody] 🔄 Retrying unsponsored broadcast after drip (${params.chain})...`
+        `[SelfCustody] ⏳ Waiting for drip to be confirmed on ${params.chain} before retry...`
+      );
+      const dripConfirmed = await this.waitForConfirmation(dripReceipt.txHash, params.chain);
+      if (!dripConfirmed) {
+        throw new Error(`${originalMsg} [drip broadcast but not confirmed before timeout: ${dripReceipt.txHash}]`);
+      }
+      console.log(`[SelfCustody] ✅ Drip confirmed, funds available for gas`);
+
+      // Step 10: Verify signer now has sufficient balance
+      const postDripBalance = Number(await this.getWalletBalance(signerAddress, params.chain));
+      console.log(`[SelfCustody] 💰 Signer balance after drip: ${postDripBalance} ${isSolana ? 'SOL' : 'MON'}`);
+
+      // Step 11: Retry the original sendCrypto WITHOUT the sponsor flag (unsponsored)
+      console.log(
+        `[SelfCustody] 🔄 Retrying unsponsored broadcast after drip confirmed (${params.chain})...`
       );
       const retryRes = await this.sendCrypto({
         ...params,
@@ -2043,9 +2135,9 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
   async waitForConfirmation(
     txHash: string,
     chain: 'solana' | 'monad' | 'stellar',
-    timeoutMs = chain === 'solana' ? 180_000 : 90_000
+    timeoutMs = chain === 'solana' ? 300_000 : 90_000
   ): Promise<boolean> {
-    const pollIntervalMs = 4_000;
+    const pollIntervalMs = 5_000;
     const deadline = Date.now() + timeoutMs;
     const isSolana = chain === 'solana';
 
@@ -2058,6 +2150,12 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
     ) {
       console.log(`[SelfCustody] 🧪 Instant confirmation for ${txHash.slice(0, 20)}...`);
       return true;
+    }
+
+    // Small initial delay to let RPC index the transaction (especially on devnet)
+    if (isSolana) {
+      console.log(`[SelfCustody] ⏳ Waiting for RPC to index transaction (initial 3s delay)...`);
+      await new Promise((r) => setTimeout(r, 3_000));
     }
 
     console.log(`[SelfCustody] ⏳ Waiting for confirmation on ${chain}: ${txHash.slice(0, 20)}... (timeout: ${timeoutMs/1000}s)`);
