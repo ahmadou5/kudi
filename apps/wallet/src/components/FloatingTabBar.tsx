@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import {
     StyleSheet,
@@ -85,6 +85,38 @@ export function FloatingTabBar({
     // Per-tab icon shimmer opacity — pulses 1 → 0.65 → 1 on selection to confirm the switch (§13)
     const shimmers = useRef<Animated.Value[]>(tabs.map(() => new Animated.Value(1))).current;
 
+    // Active pill fill progress: 0 = hidden, 1 = fully shown.
+    // Uses opacity + scale so the native driver can drive it without any issues.
+    const fills = useRef<Animated.Value[]>(tabs.map(() => new Animated.Value(0))).current;
+    const prevTabIndexRef = useRef<number>(-1);
+
+    useEffect(() => {
+        if (!state) return;
+        const newIdx = state.index;
+        if (newIdx === prevTabIndexRef.current) return;
+        const oldIdx = prevTabIndexRef.current;
+        prevTabIndexRef.current = newIdx;
+
+        // Snap old tab fill away instantly
+        if (oldIdx >= 0 && oldIdx < fills.length) {
+            fills[oldIdx].setValue(0);
+        }
+
+        if (oldIdx === -1) {
+            // First mount — active tab appears instantly
+            fills[newIdx].setValue(1);
+        } else {
+            // Tab switch — animate fill in with a spring
+            fills[newIdx].setValue(0);
+            Animated.spring(fills[newIdx], {
+                toValue: 1,
+                useNativeDriver: true,
+                speed: 18,
+                bounciness: 6
+            }).start();
+        }
+    }, [state?.index]);
+
     if (!state || !navigation) return null;
 
     const currentRouteName = state.routes[state.index]?.name;
@@ -100,8 +132,8 @@ export function FloatingTabBar({
 
     // Active accent — vivid white on dark, deep navy on light
     const activeColor = isDark ? '#FFFFFF' : '#0F172A';
-    // Active pill background — subtle frosted highlight
-    const activePillBg = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(15,23,42,0.09)';
+    // Active pill background — visible frosted highlight
+    const activePillBg = isDark ? 'rgba(255,255,255,0.22)' : 'rgba(15,23,42,0.13)';
     // Border: bright top edge = light catching glass (§12)
     const borderColor = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.09)';
     // Outer shadow glow colour
@@ -119,7 +151,8 @@ export function FloatingTabBar({
         }).start();
 
         // Haptic fires here — same frame as visual, causal event is touch-down (§13)
-        if (!isFocused) {
+        // iOS only: expo-haptics requires a native dev build; silently skip on Android/web.
+        if (!isFocused && Platform.OS === 'ios') {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
     };
@@ -226,14 +259,32 @@ export function FloatingTabBar({
                                     onPressIn={() => handlePressIn(idx, isFocused)}
                                     onPressOut={() => handlePressOut(idx)}
                                     activeOpacity={1}
-                                    style={[
-                                        styles.tabItem,
-                                        isFocused && { backgroundColor: activePillBg }
-                                    ]}
+                                    style={styles.tabItem}
                                     accessibilityRole="button"
                                     accessibilityLabel={tab.label}
                                     accessibilityState={{ selected: isFocused }}
                                 >
+                                    {/* Active pill fill — fades + scales in with spring so native
+                                     *  driver can drive it cleanly on both iOS and Android. */}
+                                    <Animated.View
+                                        style={[
+                                            StyleSheet.absoluteFill,
+                                            {
+                                                backgroundColor: activePillBg,
+                                                borderRadius: 30,
+                                                opacity: fills[idx],
+                                                transform: [
+                                                    {
+                                                        scale: (fills[idx] as Animated.Value).interpolate({
+                                                            inputRange: [0, 1],
+                                                            outputRange: [0.7, 1]
+                                                        })
+                                                    }
+                                                ]
+                                            }
+                                        ]}
+                                    />
+
                                     {/* Shimmer wrapper — opacity pulse on tab selection (§13) */}
                                     <Animated.View style={{ opacity: shimmers[idx] }}>
                                         {/* Active icon: closed shapes get a light color wash, but every outline
