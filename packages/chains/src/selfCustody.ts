@@ -992,43 +992,63 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
       }
       // ─────────────────────────────────────────────────────────────────────────────────
 
-      /**
-       * Build the unsigned wire-format transaction bytes for Privy.
-       * Extracted as a helper so we can rebuild with a fresh blockhash on retry.
-       * Now includes BOTH: (1) user→recipient transfer + (2) user→treasury fee transfer.
-       */
-      buildSerializedTx = (blockhash: { blockhash: Blockhash; lastValidBlockHeight: bigint }): string => {
-        let txMessage;
-        if (!destAtaExists) {
-          const createDestAtaIx = {
-            programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
-            accounts: [
-              { address: feePayerAddr, role: 3 as const },           // Writable Signer (Payer = user)
-              { address: destAta,      role: 1 as const },           // Writable (ATA to create)
-              { address: recipientAddr, role: 0 as const },          // Readonly (Owner = treasury)
-              { address: mintPubkey,   role: 0 as const },           // Readonly (Mint)
-              { address: SYSTEM_PROGRAM_ADDRESS, role: 0 as const }, // Readonly (System Program)
-              { address: TOKEN_PROGRAM_ADDRESS,  role: 0 as const }  // Readonly (SPL Token Program)
-            ],
-            data: new Uint8Array([1]) // 1 = CreateIdempotent
-          };
-          txMessage = pipe(
+/**
+        * Build the unsigned wire-format transaction bytes for Privy.
+        * Extracted as a helper so we can rebuild with a fresh blockhash on retry.
+        * Now includes BOTH: (1) user→recipient transfer + (2) user→treasury fee transfer.
+        */
+       buildSerializedTx = (blockhash: { blockhash: Blockhash; lastValidBlockHeight: bigint }): string => {
+         let txMessage;
+         const instructions = [];
+
+         // Create destination ATA (recipient) if needed
+         if (!destAtaExists) {
+           const createDestAtaIx = {
+             programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+             accounts: [
+               { address: feePayerAddr, role: 3 as const },           // Writable Signer (Payer = user)
+               { address: destAta,      role: 1 as const },           // Writable (ATA to create)
+               { address: recipientAddr, role: 0 as const },          // Readonly (Owner = recipient)
+               { address: mintPubkey,   role: 0 as const },           // Readonly (Mint)
+               { address: SYSTEM_PROGRAM_ADDRESS, role: 0 as const }, // Readonly (System Program)
+               { address: TOKEN_PROGRAM_ADDRESS,  role: 0 as const }  // Readonly (SPL Token Program)
+             ],
+             data: new Uint8Array([1]) // 1 = CreateIdempotent
+           };
+           instructions.push(createDestAtaIx);
+         }
+
+         // Create treasury ATA if needed
+         if (!treasuryAtaExists) {
+           const createTreasuryAtaIx = {
+             programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+             accounts: [
+               { address: feePayerAddr, role: 3 as const },           // Writable Signer (Payer = user)
+               { address: treasuryAta,  role: 1 as const },           // Writable (ATA to create)
+               { address: treasuryAddr, role: 0 as const },           // Readonly (Owner = treasury)
+               { address: mintPubkey,   role: 0 as const },           // Readonly (Mint)
+               { address: SYSTEM_PROGRAM_ADDRESS, role: 0 as const }, // Readonly (System Program)
+               { address: TOKEN_PROGRAM_ADDRESS,  role: 0 as const }  // Readonly (SPL Token Program)
+             ],
+             data: new Uint8Array([1]) // 1 = CreateIdempotent
+           };
+           instructions.push(createTreasuryAtaIx);
+         }
+
+         // Add transfer instructions
+         instructions.push(transferToRecipientIx);
+         instructions.push(transferToTreasuryIx);
+
+// Build transaction message
+          let txMsg = pipe(
             createTransactionMessage({ version: 0 as const }),
             (tx) => setTransactionMessageFeePayer(feePayerAddr, tx),
-            (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
-            (tx) => appendTransactionMessageInstruction(createDestAtaIx, tx),
-            (tx) => appendTransactionMessageInstruction(transferToRecipientIx, tx),
-            (tx) => appendTransactionMessageInstruction(transferToTreasuryIx, tx)
-          );
-        } else {
-          txMessage = pipe(
-            createTransactionMessage({ version: 0 as const }),
-            (tx) => setTransactionMessageFeePayer(feePayerAddr, tx),
-            (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
-            (tx) => appendTransactionMessageInstruction(transferToRecipientIx, tx),
-            (tx) => appendTransactionMessageInstruction(transferToTreasuryIx, tx)
-          );
-        }
+            (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx)
+          ) as any;
+          for (const ix of instructions) {
+            txMsg = appendTransactionMessageInstruction(ix, txMsg) as any;
+          }
+          txMessage = txMsg;
         const compiled = compileTransaction(txMessage);
         const msgBytes = compiled.messageBytes as unknown as Uint8Array;
         const numSigs = Object.keys(compiled.signatures).length || 1;
@@ -1038,8 +1058,13 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
         return Buffer.from(wireBytes).toString('base64');
       };
 
-      if (!destAtaExists) {
-        console.log(`[SelfCustody] ℹ️ Destination ATA for treasury does not exist yet — including CreateIdempotent ATA instruction (user wallet pays).`);
+      if (!destAtaExists || !treasuryAtaExists) {
+        if (!destAtaExists) {
+          console.log(`[SelfCustody] ℹ️ Recipient ATA does not exist — including CreateIdempotent ATA instruction (user wallet pays).`);
+        }
+        if (!treasuryAtaExists) {
+          console.log(`[SelfCustody] ℹ️ Treasury ATA does not exist — including CreateIdempotent ATA instruction (user wallet pays).`);
+        }
       }
 
       // Build request body with sponsorship config

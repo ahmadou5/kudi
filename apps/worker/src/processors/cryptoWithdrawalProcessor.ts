@@ -238,6 +238,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
 
       // Check on-chain balance on target chain wallet
       let targetChainBalance = 0;
+      let balanceFetchFailed = false;
       if (userTargetAddress) {
         try {
           const tokenAddr = job.chain === 'solana'
@@ -247,11 +248,15 @@ export async function processCryptoWithdrawals(): Promise<void> {
           targetChainBalance = parseFloat(balStr) || 0;
         } catch (balErr) {
           console.warn(`[Worker CryptoWithdrawalProcessor] ⚠️ Could not fetch live balance for ${userTargetAddress.slice(0, 8)}...:`, balErr instanceof Error ? balErr.message : balErr);
-          targetChainBalance = job.amountUSDC; // Fallback to optimistic assumption
+          targetChainBalance = 0; // Conservative: assume 0 if fetch fails
+          balanceFetchFailed = true;
         }
       }
 
-      if (targetChainBalance >= job.amountUSDC || !userTargetPrivyId) {
+      // If balance fetch failed, force netting path (Case B) so we don't optimistically assume funds
+      const hasEnoughBalance = targetChainBalance >= job.amountUSDC && !balanceFetchFailed;
+
+      if (hasEnoughBalance || !userTargetPrivyId) {
         // CASE A: Single wallet has enough balance on target chain (or falling back to Treasury)
         const signingWalletId = userTargetPrivyId || treasuryWalletId;
         const depositWalletAddress = userTargetAddress || treasuryAddr || '';
@@ -273,9 +278,10 @@ export async function processCryptoWithdrawals(): Promise<void> {
           }, depositWalletAddress);
           primaryTxHash = txHash;
         } catch (err: any) {
-          // If user wallet has no token account, fall back to treasury
-          if (err?.message?.includes('Source USDC token account not found') && userTargetPrivyId && treasuryWalletId) {
-            console.warn(`[Worker CryptoWithdrawalProcessor] ⚠️ User wallet has no USDC token account, falling back to treasury...`);
+          // If user wallet has no token account or invalid token account, fall back to treasury
+          const errorMsg = err?.message || String(err);
+          if ((errorMsg.includes('Source USDC token account not found') || errorMsg.includes('InvalidAccountData')) && userTargetPrivyId && treasuryWalletId) {
+            console.warn(`[Worker CryptoWithdrawalProcessor] ⚠️ User wallet has no/invalid USDC token account, falling back to treasury...`);
             const { txHash } = await selfCustody.sendCryptoWithGasRetry({
               treasuryWalletId,
               fromAddress: treasuryAddr || '',
