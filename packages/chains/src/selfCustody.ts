@@ -630,9 +630,16 @@ export class SelfCustodyProvider implements CustodyProvider {
     const isEvm = txHash.startsWith('0x');
 
     if (isEvm && this.defaultRpcUrl) {
+      // Try primary RPC, then fallback if configured (same pattern as Solana)
+      const evmRpcUrls = [this.defaultRpcUrl];
+      if (process.env.MONAD_RPC_URL_FALLBACK) {
+        evmRpcUrls.push(process.env.MONAD_RPC_URL_FALLBACK);
+      }
+
+      for (const rpcUrl of evmRpcUrls) {
       try {
         const [receiptRes, txRes] = await Promise.all([
-          fetch(this.defaultRpcUrl, {
+          fetch(rpcUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -642,7 +649,7 @@ export class SelfCustodyProvider implements CustodyProvider {
               id: 1
             })
           }),
-          fetch(this.defaultRpcUrl, {
+          fetch(rpcUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -674,6 +681,7 @@ export class SelfCustodyProvider implements CustodyProvider {
             const decimals = tokenAddress.toLowerCase().includes('usdc') ? 6 : 18;
             const amount = (Number(rawAmount) / Math.pow(10, decimals)).toFixed(2);
 
+            console.log(`[SelfCustody] 🔍 EVM tx ${txHash.slice(0, 20)}... verified on ${rpcUrl}: confirmed=${confirmed}, slot=${blockNumber}`);
             return {
               confirmed,
               amount,
@@ -688,6 +696,7 @@ export class SelfCustodyProvider implements CustodyProvider {
           const rawValue = BigInt(tx.value || '0x0');
           const nativeAmount = (Number(rawValue) / 1e18).toFixed(4);
 
+          console.log(`[SelfCustody] 🔍 EVM tx ${txHash.slice(0, 20)}... verified on ${rpcUrl}: confirmed=${confirmed}, slot=${blockNumber}`);
           return {
             confirmed,
             amount: nativeAmount,
@@ -698,6 +707,7 @@ export class SelfCustodyProvider implements CustodyProvider {
         }
       } catch (err) {
         console.warn('RPC Tx receipt query failed:', err);
+      }
       }
     } else if (!isEvm) {
       // Solana JSON-RPC: Try getSignatureStatuses first (faster, more reliable for confirmation),
@@ -718,7 +728,10 @@ export class SelfCustodyProvider implements CustodyProvider {
               body: JSON.stringify({
                 jsonrpc: '2.0',
                 method: 'getSignatureStatuses',
-                params: [[txHash], { commitment }],
+                // searchTransactionHistory: true is REQUIRED for txs older than the
+                // ~151-slot status cache — otherwise getSignatureStatuses returns null
+                // even though the transaction is final on-chain.
+                params: [[txHash], { commitment, searchTransactionHistory: true }],
                 id: 1
               })
             });
@@ -738,7 +751,10 @@ export class SelfCustodyProvider implements CustodyProvider {
                     body: JSON.stringify({
                       jsonrpc: '2.0',
                       method: 'getTransaction',
-                      params: [txHash, { encoding: 'jsonParsed', commitment: 'confirmed' }],
+                      // maxSupportedTransactionVersion: 0 REQUIRED — withdrawals are
+                      // built as v0 (versioned) txs; without this param the RPC
+                      // errors instead of returning the transaction.
+                      params: [txHash, { encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0 }],
                       id: 1
                     })
                   });
@@ -802,7 +818,7 @@ export class SelfCustodyProvider implements CustodyProvider {
               body: JSON.stringify({
                 jsonrpc: '2.0',
                 method: 'getTransaction',
-                params: [txHash, { encoding: 'jsonParsed', commitment }],
+                params: [txHash, { encoding: 'jsonParsed', commitment, maxSupportedTransactionVersion: 0 }],
                 id: 1
               })
             });
@@ -2104,18 +2120,56 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
       }
       console.log(`[SelfCustody] ✅ Drip confirmed, funds available for gas`);
 
-      // Step 10: Verify signer now has sufficient balance
-      const postDripBalance = Number(await this.getWalletBalance(signerAddress, params.chain));
-      console.log(`[SelfCustody] 💰 Signer balance after drip: ${postDripBalance} ${isSolana ? 'SOL' : 'MON'}`);
+      // Step 10: Poll until the signer's balance is VISIBLE via RPC.
+      // Privy simulates on its own node which can lag the public RPC by many
+      // seconds — a single balance read right after confirmation can still
+      // return the pre-drip value, causing Privy to reject with
+      // "Signer had insufficient balance". Poll until we see the funds.
+      let visibleBalance = 0;
+      const balanceDeadline = Date.now() + 60_000;
+      while (Date.now() < balanceDeadline) {
+        visibleBalance = Number(await this.getWalletBalance(signerAddress, params.chain));
+        if (Number.isFinite(visibleBalance) && visibleBalance > 0) break;
+        await new Promise((r) => setTimeout(r, 5_000));
+      }
+      console.log(`[SelfCustody] 💰 Signer balance after drip: ${visibleBalance} ${isSolana ? 'SOL' : 'MON'}`);
+      if (!Number.isFinite(visibleBalance) || visibleBalance <= 0) {
+        throw new Error(`${originalMsg} [drip confirmed but signer balance still invisible after 60s: ${dripReceipt.txHash}]`);
+      }
 
-      // Step 11: Retry the original sendCrypto WITHOUT the sponsor flag (unsponsored)
-      console.log(
-        `[SelfCustody] 🔄 Retrying unsponsored broadcast after drip confirmed (${params.chain})...`
-      );
-      const retryRes = await this.sendCrypto({
-        ...params,
-        gasPaymentMode: 'USER_PAYS' // User pays now that wallet has native gas
-      });
+      // Step 11: Retry the unsponsored broadcast with backoff.
+      // Privy's node may still lag even after we see the balance on the public
+      // RPC — a few spaced retries absorb the lag instead of failing the whole
+      // withdrawal on the first rejection.
+      let retryRes: { txHash: string } | null = null;
+      let lastRetryErr: unknown = null;
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        if (attempt > 1) {
+          const backoffMs = attempt * 5_000;
+          console.log(`[SelfCustody] 🔄 Retry ${attempt}/3 after ${backoffMs / 1000}s backoff (${params.chain})...`);
+          await new Promise((r) => setTimeout(r, backoffMs));
+        } else {
+          console.log(
+            `[SelfCustody] 🔄 Retrying unsponsored broadcast after drip confirmed (${params.chain})...`
+          );
+        }
+        try {
+          retryRes = await this.sendCrypto({
+            ...params,
+            gasPaymentMode: 'USER_PAYS' // User pays now that wallet has native gas
+          });
+          break;
+        } catch (retryErr: any) {
+          lastRetryErr = retryErr;
+          const retryMsg = retryErr?.message || String(retryErr);
+          const stillBalanceErr = /insufficient balance|insufficient funds/i.test(retryMsg);
+          console.warn(`[SelfCustody] ⚠️ Unsponsored retry ${attempt}/3 failed: ${retryMsg.slice(0, 200)}`);
+          if (!stillBalanceErr) break; // Non-balance errors won't heal with waiting
+        }
+      }
+      if (!retryRes) {
+        throw new Error(`${originalMsg} [retry after confirmed drip failed: ${(lastRetryErr as any)?.message || lastRetryErr}]`);
+      }
 
       console.log(
         `[SelfCustody] ✅ Unsponsored retry succeeded after drip: ${retryRes.txHash.slice(0, 20)}...`
