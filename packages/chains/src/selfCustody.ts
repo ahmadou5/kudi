@@ -2093,16 +2093,24 @@ const signerAddrStr = fromAddress || depositWalletId || this.solanaTreasuryAddre
         }
       }
 
-      // Step 9: Retry the original sendCrypto WITHOUT the sponsor flag (unsponsored)
-      // Build retry body without gas payment mode (user pays now that wallet has native gas)
-      const retryBody = { ...params };
-      delete retryBody.gasPaymentMode;
-
-      // Note: sponsorship is handled by the gas drip fallback - after drip,
-      // we retry with USER_PAYS mode so the sponsored wallet doesn't need gas
-
+      // Step 9: WAIT for drip to be confirmed on-chain before retrying
+      // The funds must be available in the signer's account before we can use them for gas
       console.log(
-        `[SelfCustody] 🔄 Retrying unsponsored broadcast after drip (${params.chain})...`
+        `[SelfCustody] ⏳ Waiting for drip to be confirmed on ${params.chain} before retry...`
+      );
+      const dripConfirmed = await this.waitForConfirmation(dripReceipt.txHash, params.chain);
+      if (!dripConfirmed) {
+        throw new Error(`${originalMsg} [drip broadcast but not confirmed before timeout: ${dripReceipt.txHash}]`);
+      }
+      console.log(`[SelfCustody] ✅ Drip confirmed, funds available for gas`);
+
+      // Step 10: Verify signer now has sufficient balance
+      const postDripBalance = Number(await this.getWalletBalance(signerAddress, params.chain));
+      console.log(`[SelfCustody] 💰 Signer balance after drip: ${postDripBalance} ${isSolana ? 'SOL' : 'MON'}`);
+
+      // Step 11: Retry the original sendCrypto WITHOUT the sponsor flag (unsponsored)
+      console.log(
+        `[SelfCustody] 🔄 Retrying unsponsored broadcast after drip confirmed (${params.chain})...`
       );
       const retryRes = await this.sendCrypto({
         ...params,
