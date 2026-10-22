@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-around',
         paddingVertical: 7,
-        paddingHorizontal: 6,
+        paddingHorizontal: 8,
         borderRadius: 40,
         borderWidth: 1,
         overflow: 'hidden'
@@ -443,12 +443,14 @@ const styles = StyleSheet.create({
         borderRadius: 1,
         zIndex: 1
     },
-    // The liquid pill — absolutely positioned behind the icons, animated by Reanimated
+    // The liquid pill — absolutely positioned behind the icons, animated by Reanimated.
+    // left must be 0: layout.x from onLayout already includes the parent's paddingHorizontal,
+    // so hardcoding left: 6 here double-counts it and shifts the pill off the icon center.
     liquidPill: {
         position: 'absolute',
-        left: 6,
-        top: 4,
-        bottom: 4,
+        left: 0,
+        top: 6,
+        bottom: 6,
         borderRadius: 30,
         zIndex: 0
     },
