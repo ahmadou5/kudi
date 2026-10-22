@@ -74,17 +74,18 @@ export const Typography = {
     lineHeight: 26,
   },
   title3: {
-    fontFamily: FONT_FAMILY.sans,
+    fontFamily: FONT_FAMILY.display,
     fontSize: 16,
     lineHeight: 22,
   },
+  // Normal text (14–16 band) uses the display family — see FONT_FAMILY note above.
   bodyBold: {
-    fontFamily: FONT_FAMILY.sans,
+    fontFamily: FONT_FAMILY.display,
     fontSize: 14,
     lineHeight: 20,
   },
   body: {
-    fontFamily: FONT_FAMILY.sans,
+    fontFamily: FONT_FAMILY.display,
     fontSize: 14,
     lineHeight: 20,
   },
