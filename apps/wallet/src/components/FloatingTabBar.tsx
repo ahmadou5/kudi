@@ -34,8 +34,10 @@ export interface TabItemConfig {
 }
 
 /**
- * Default tab configuration for the 3 main routes: Home, Card, History.
+ * Default tab configuration for the 3 main routes: Home, History, Settings.
  * Easily modify icons, labels, or add/remove routes here!
+ * The bar shows only for routes listed here, so the pill slot mapping and the
+ * visible buttons always stay in sync with this array.
  */
 //To do { name: 'card', label: 'Card', Icon: CreditCard },
 export const DEFAULT_TABS: TabItemConfig[] = [
@@ -197,26 +199,51 @@ export function FloatingTabBar({
     const pillScaleX = useSharedValue(1);   // horizontal stretch during transit
     const pillScaleY = useSharedValue(1);   // vertical squash during transit
 
-    // Per-tab measured layouts (x + width relative to the pill container)
+    // Per-tab measured layouts (x + width relative to the slot row)
     const layoutsRef = useRef<Array<{ x: number; width: number }>>([]);
+    // Tab-array index the pill currently sits on. Never use state.index for
+    // this: it points into state.routes, which also holds non-tab routes
+    // (card, deposit, …), so it drifts from the index within `tabs`.
     const prevIndexRef = useRef<number>(-1);
+    // First paint has no layout yet, so the initial placement is completed by
+    // measureTab; this flag tells the two paths apart.
+    const pillPositionedRef = useRef(false);
+
+    // Which slot in `tabs` the active route maps to (-1 when it has no slot).
+    const activeRouteName = state?.routes?.[state.index]?.name;
+    const activeTabIdx = tabs.findIndex((t) => t.name === activeRouteName);
 
     useEffect(() => {
-        if (!state) return;
-        const newIdx = state.index;
-        if (newIdx === prevIndexRef.current) return;
-        const oldIdx = prevIndexRef.current;
-        prevIndexRef.current = newIdx;
+        if (activeTabIdx < 0) return;
+        const layout = layoutsRef.current[activeTabIdx];
+        if (!layout) return; // measureTab places the pill once layouts arrive
 
-        const layout = layoutsRef.current[newIdx];
-        if (!layout) return; // wait until layouts are measured
-
-        if (oldIdx === -1 || reducedMotion) {
-            // First mount or reduced motion — snap instantly
+        if (!pillPositionedRef.current) {
+            // First placement — snap, never animate from x=0/width=0.
             pillX.set(layout.x);
             pillW.set(layout.width);
             pillScaleX.set(1);
             pillScaleY.set(1);
+            pillPositionedRef.current = true;
+            prevIndexRef.current = activeTabIdx;
+            return;
+        }
+
+        if (activeTabIdx === prevIndexRef.current) {
+            // Same tab — re-align if the slot was re-measured (resize etc).
+            if (pillX.get() !== layout.x || pillW.get() !== layout.width) {
+                pillX.set(layout.x);
+                pillW.set(layout.width);
+            }
+            return;
+        }
+
+        if (reducedMotion) {
+            pillX.set(layout.x);
+            pillW.set(layout.width);
+            pillScaleX.set(1);
+            pillScaleY.set(1);
+            prevIndexRef.current = activeTabIdx;
             return;
         }
 
@@ -241,19 +268,25 @@ export function FloatingTabBar({
         ));
         pillX.set(withSpring(layout.x, PILL_SPRING));
         pillW.set(withSpring(layout.width, PILL_SPRING));
-    }, [state?.index, reducedMotion]);
+        prevIndexRef.current = activeTabIdx;
+    }, [activeTabIdx, reducedMotion]);
 
     // Measure each tab slot so the pill knows where to travel
     const measureTab = useCallback((idx: number, e: LayoutChangeEvent) => {
         const { x, width: w } = e.nativeEvent.layout;
         layoutsRef.current[idx] = { x, width: w };
 
-        // Snap pill to the initially-active tab once its layout is known
-        if (prevIndexRef.current === -1 && state?.index === idx) {
+        // Effects run before native layout events, so the initially-active
+        // tab is placed here as soon as it is measured — this is what makes
+        // the pill visible on app start. Also re-aligns when a slot
+        // re-measures (rotation, font change, …).
+        if (idx === activeTabIdx && (!pillPositionedRef.current || prevIndexRef.current === idx)) {
             pillX.set(x);
             pillW.set(w);
+            pillPositionedRef.current = true;
+            prevIndexRef.current = idx;
         }
-    }, [state?.index]);
+    }, [activeTabIdx]);
 
     // ── Animated styles ───────────────────────────────────────────────────────
     const pillStyle = useAnimatedStyle(() => ({
