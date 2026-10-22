@@ -2,6 +2,7 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { CustodyManager } from '@kudi/chains';
 import { prisma } from '@kudi/database';
 import { LedgerService } from '../../services/ledgerService';
+import { RateService } from '../../services/rateService';
 import { successResponse, errorResponse } from '../../utils/response';
 import { signAccessToken, signRefreshToken } from '../../utils/jwt';
 import { verifyPin, hashPassword, verifyPassword } from '../../utils/hash';
@@ -13,7 +14,8 @@ import { sendPushNotification } from '../../lib/notifications';
 export class AuthController {
   constructor(
     private custodyManager: CustodyManager,
-    private ledgerService: LedgerService
+    private ledgerService: LedgerService,
+    private rateService: RateService
   ) {}
 
   public sendPrivyOTP = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -245,7 +247,7 @@ export class AuthController {
     return successResponse({
       user,
       balanceUSDC: balance,
-      balanceNGN: balance * 1585.50,
+      balanceNGN: balance * this.rateService.getCurrentRate(),
       wallets,
       virtualAccounts
     }, 'User profile retrieved successfully');

@@ -177,7 +177,7 @@ const maintenanceService = new MaintenanceService(io);
 
 // Domain Controllers
 const healthController = new HealthController(custodyManager, paymentRegistry, maintenanceService);
-const authController = new AuthController(custodyManager, ledgerService);
+const authController = new AuthController(custodyManager, ledgerService, rateService);
 const balanceController = new BalanceController(ledgerService, rateService);
 const kycController = new KYCController(ledgerService);
 const payoutController = new PayoutController(paymentRegistry, ledgerService, rateService);
@@ -285,6 +285,11 @@ async function main() {
   rateService.onRateUpdate((rateState) => {
     io.emit('rate:updated', rateState);
   });
+
+  // Kick off the rate engine. Without this, currentRateNGN never leaves the
+  // constructor default (1585.50): fetchLiveRate() would consume the worker's
+  // fresh RateFeedLog rows (or hit providers directly) but nothing called it.
+  rateService.startPolling();
 
   server.log.info('Sole sweep owner: apps/worker ChainDepositProcessor.processSweepRetries (ADR-0001).');
 
