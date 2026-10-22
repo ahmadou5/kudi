@@ -8,7 +8,7 @@ import {
   RefreshControl
 } from 'react-native';
 import { router } from 'expo-router';
-import { Smartphone, Wifi, Zap, CreditCard, Receipt, LucideIcon } from 'lucide-react-native';
+import { Receipt } from 'lucide-react-native';
 import { useAppPalette } from '../../src/lib/theme';
 import { BalanceCarousel } from '../../src/components/BalanceCarousel';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';

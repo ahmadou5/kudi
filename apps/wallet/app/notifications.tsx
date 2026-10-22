@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -15,20 +15,10 @@ import { router } from 'expo-router';
 import { ArrowLeft, CheckCheck, BellOff, X, ArrowDownCircle, ArrowUpCircle, ShieldCheck, Bell, Clock, LucideIcon } from 'lucide-react-native';
 import { useAppPalette, isLight } from '../src/lib/theme';
 import { Typography } from '../src/constants/typography';
-import { API_BASE_URL } from '../src/lib/sdk';
-import { useAuthStore } from '../src/store/auth.store';
+import { useNotifications, type AppNotification } from '../src/hooks/useNotifications';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export interface AppNotification {
-  id: string;
-  userId: string;
-  title: string;
-  body: string;
-  type: string;
-  read: boolean;
-  createdAt: string;
-  data?: Record<string, any>;
-}
+export type { AppNotification };
 
 const filters = [
   { key: 'ALL', label: 'All' },
@@ -63,72 +53,37 @@ export default function NotificationsFeedScreen() {
   const palette = useAppPalette();
   const insets = useSafeAreaInsets();
   const light = isLight(palette.bg);
-  const user = useAuthStore((s) => s.user);
+  const {
+    notifications,
+    unreadCount,
+    isLoading: loading,
+    refetch,
+    markRead,
+    markAllRead
+  } = useNotifications();
 
   const [filter, setFilter] = useState<(typeof filters)[number]['key']>('ALL');
   const [selected, setSelected] = useState<AppNotification | null>(null);
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
 
-  const userId = user?.id || 'usr_1788867509637';
-
-  const fetchNotifications = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/users/${userId}/notifications`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          setNotifications(json.data.data || []);
-          setUnreadCount(json.data.unreadCount || 0);
-        }
-      }
-    } catch (err) {
-      console.warn('Error fetching notifications:', err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-  }, [userId]);
-
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    fetchNotifications();
+    await refetch();
+    setRefreshing(false);
   };
 
   const handleMarkOneRead = async (item: AppNotification) => {
     setSelected(item);
     if (!item.read) {
-      // Optimistic update
-      setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
-      setUnreadCount(prev => Math.max(0, prev - 1));
-
-      try {
-        await fetch(`${API_BASE_URL}/api/v1/users/${userId}/notifications/${item.id}/read`, {
-          method: 'PATCH'
-        });
-      } catch (e) {
-        // Fallback
-      }
+      await markRead(item.id);
     }
   };
 
   const handleMarkAllRead = async () => {
     setMarkingAll(true);
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    setUnreadCount(0);
     try {
-      await fetch(`${API_BASE_URL}/api/v1/users/${userId}/notifications/read-all`, {
-        method: 'PATCH'
-      });
-    } catch (e) {
-      // Fallback
+      await markAllRead();
     } finally {
       setMarkingAll(false);
     }
@@ -139,7 +94,7 @@ export default function NotificationsFeedScreen() {
   }, [filter, notifications]);
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg, paddingTop: insets.top }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
       {/* Header Bar */}
       <View style={[styles.header, { borderColor: palette.border }]}>
         <TouchableOpacity

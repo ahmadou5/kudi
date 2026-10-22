@@ -7,6 +7,7 @@ import {
   type BalanceResponseData,
   type CryptoStatusResponseData,
   type MaintenanceConfig,
+  type NotificationsResponseData,
   type OverrideRateRequest,
   type PayBillRequest,
   type ResolveAccountRequest,
@@ -160,6 +161,29 @@ export class KudiSDK {
       headers: this.getHeaders()
     });
     return this.parseJson<VirtualAccountsResponseData>(res);
+  }
+
+  async getNotifications(userId: string): Promise<ApiResponse<NotificationsResponseData>> {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.users.notifications(userId)}`, {
+      headers: this.getHeaders()
+    });
+    return this.parseJson<NotificationsResponseData>(res);
+  }
+
+  async markNotificationRead(userId: string, notificationId: string) {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.users.markNotificationRead(userId, notificationId)}`, {
+      method: 'PATCH',
+      headers: this.getHeaders()
+    });
+    return this.parseJson(res);
+  }
+
+  async markAllNotificationsRead(userId: string) {
+    const res = await fetch(`${this.baseUrl}${apiRoutes.users.markNotificationsRead(userId)}`, {
+      method: 'PATCH',
+      headers: this.getHeaders()
+    });
+    return this.parseJson(res);
   }
 
   async verifyKYCID(payload: VerifyKycIdRequest) {

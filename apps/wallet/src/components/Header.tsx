@@ -8,6 +8,7 @@ import { Typography } from '../constants/typography';
 
 import { Image, Text } from 'react-native';
 import { useAuthStore } from '../store/auth.store';
+import { useNotifications } from '../hooks/useNotifications';
 import { ChainLogo } from './ui/ChainLogo';
 
 export interface HeaderProps {
@@ -20,6 +21,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
   const themeMode = usePreferencesStore((s: PreferencesState) => s.themeMode);
   const setThemeMode = usePreferencesStore((s: PreferencesState) => s.setThemeMode);
   const user = useAuthStore((s) => s.user);
+  const { unreadCount } = useNotifications();
 
   const isDark = themeMode === 'dark' || palette.text === '#FFFFFF';
 
@@ -78,14 +80,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
       <View style={styles.rightActions}>
 
 
-        {/* Notifications Bell Button */}
-        <TouchableOpacity
-          onPress={() => router.push('/notifications')}
-          style={[styles.iconBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
-          activeOpacity={0.7}
-        >
-          <Bell size={18} color={palette.text} />
-        </TouchableOpacity>
 
         {/* Theme Toggle Button */}
         <TouchableOpacity
@@ -108,15 +102,24 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
         >
           <Scan size={18} color={palette.text} />
         </TouchableOpacity>
-
-        {/* Settings Button */}
+        {/* Notifications Bell Button — badge count comes from the shared
+            notifications cache, so it clears as soon as the feed marks read */}
         <TouchableOpacity
-          onPress={handleSettings}
+          onPress={() => router.push('/notifications')}
           style={[styles.iconBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
           activeOpacity={0.7}
         >
-          <Settings size={18} color={palette.text} />
+          <Bell size={18} color={palette.text} />
+          {unreadCount > 0 && (
+            <View style={[styles.badge, { backgroundColor: '#10B981', borderColor: palette.card }]}>
+              <Text style={styles.badgeText}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
+
+
       </View>
     </View>
   );
@@ -138,6 +141,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center'
+  },
+  badge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.2
   },
   rightActions: {
     flexDirection: 'row',
