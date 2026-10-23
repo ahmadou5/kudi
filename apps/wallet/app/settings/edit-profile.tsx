@@ -7,7 +7,6 @@ import {
   TextInput,
   ScrollView,
   Alert,
-  Image,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform
@@ -21,6 +20,7 @@ import { useAuthStore, AuthState } from '../../src/store/auth.store';
 import { Typography } from '../../src/constants/typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppModal, useAppModal } from '../../src/components/ui/AppModal';
+import { Avatar, userAvatarSeed } from '../../src/components/Avatar';
 
 export default function EditProfileScreen() {
   const palette = useAppPalette();
@@ -36,15 +36,6 @@ export default function EditProfileScreen() {
 
   const userEmail = user?.email || 'authenticated.user@kudi.app';
   const userPhone = user?.phoneNumber || '+234 800 000 0000';
-
-  const displayName = fullName || username || userEmail.split('@')[0] || 'User';
-  const initials = displayName
-    .replace(/^@/, '')
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() || 'K';
 
   const modal = useAppModal();
 
@@ -146,11 +137,7 @@ export default function EditProfileScreen() {
           <View style={[styles.avatarCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
             <TouchableOpacity onPress={handlePickAvatar} style={styles.avatarWrapper} activeOpacity={0.8}>
               <View style={[styles.avatarCircle, { backgroundColor: light ? '#E2E8F0' : '#1E293B', borderColor: '#34D399' }]}>
-                {avatarUrl ? (
-                  <Image source={{ uri: avatarUrl }} style={styles.avatarImg} />
-                ) : (
-                  <Text style={[Typography.title1, { color: palette.text, fontSize: 32 }]}>{initials}</Text>
-                )}
+                <Avatar avatarUrl={avatarUrl} seed={userAvatarSeed(user)} size={96} />
               </View>
               <View style={[styles.cameraBadge, { backgroundColor: '#3B82F6', borderColor: palette.card }]}>
                 <Camera size={14} color="#FFFFFF" />
@@ -281,11 +268,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden'
-  },
-  avatarImg: {
-    width: 96,
-    height: 96,
-    borderRadius: 48
   },
   cameraBadge: {
     position: 'absolute',

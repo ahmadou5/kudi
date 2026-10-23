@@ -1,7 +1,7 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { CustodyManager } from '@kudi/chains';
 import { prisma } from '@kudi/database';
-import { LedgerService } from '../../services/ledgerService';
+import { LedgerService, UserRecord } from '../../services/ledgerService';
 import { RateService } from '../../services/rateService';
 import { successResponse, errorResponse } from '../../utils/response';
 import { signAccessToken, signRefreshToken } from '../../utils/jwt';
@@ -10,6 +10,13 @@ import { getAuthenticatedUser } from '../../utils/authGuards';
 
 import { sendOTPEmail } from '../../services/emailService';
 import { sendPushNotification } from '../../lib/notifications';
+
+type PublicUser = Omit<UserRecord, 'pinHash' | 'passwordHash'> & { hasPin: boolean };
+
+const toPublicUser = (user: UserRecord): PublicUser => {
+  const { pinHash, passwordHash: _passwordHash, ...rest } = user;
+  return { ...rest, hasPin: !!pinHash };
+};
 
 export class AuthController {
   constructor(
@@ -92,7 +99,7 @@ export class AuthController {
     const refreshToken = signRefreshToken(request.server, payload);
 
     return successResponse({
-      user,
+      user: toPublicUser(user),
       wallets: userWallets,
       accessToken,
       refreshToken
@@ -136,7 +143,7 @@ export class AuthController {
     const refreshToken = signRefreshToken(request.server, payload);
 
     return successResponse({
-      user,
+      user: toPublicUser(user),
       wallets: userWallets,
       accessToken,
       refreshToken
@@ -186,7 +193,7 @@ export class AuthController {
     const refreshToken = signRefreshToken(request.server, payload);
 
     return successResponse({
-      user,
+      user: toPublicUser(user),
       wallets: userWallets,
       accessToken,
       refreshToken
@@ -245,7 +252,7 @@ export class AuthController {
     }
 
     return successResponse({
-      user,
+      user: toPublicUser(user),
       balanceUSDC: balance,
       balanceNGN: balance * this.rateService.getCurrentRate(),
       wallets,
@@ -266,7 +273,7 @@ export class AuthController {
     };
 
     const updatedUser = this.ledgerService.updateUserProfile(userId, { fullName, firstName, lastName, username, dob, avatarUrl, profileCompleted });
-    return successResponse({ user: updatedUser }, 'User profile updated successfully');
+    return successResponse({ user: toPublicUser(updatedUser) }, 'User profile updated successfully');
   };
 
   public deleteAccount = async (request: FastifyRequest, reply: FastifyReply) => {

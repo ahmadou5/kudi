@@ -17,6 +17,7 @@ import { Header } from '../../src/components/Header';
 import { TransactionCard, TransactionData } from '../../src/components/TransactionCard';
 import { formatIntelligentTimestamp } from '../../src/utils/timeUtils';
 import { ActivityRowSkeleton } from '../../src/components/ui/AnimatedSkeleton';
+import { SecurityPromptCards } from '../../src/components/SecurityPromptCards';
 import { useLoader } from '../../src/store/loader.store';
 
 export default function HomeTab() {
@@ -95,6 +96,9 @@ export default function HomeTab() {
       <View style={styles.fixedHeaderSection}>
         <Header onOpenScanner={() => router.push('/qr-scanner')} />
         <BalanceCarousel balanceUSDC={balanceUSDC} rateNGN={rateNGN} depositNotification={depositNotification} isLoading={isBalanceLoading && parseFloat(balanceUSDC) === 0} />
+        <View style={{ paddingHorizontal: 14 }}>
+          <SecurityPromptCards />
+        </View>
         <View style={[styles.activityHeaderRow, { paddingHorizontal: 14 }]}>
           <Text style={[Typography.title2, { color: palette.text }]}>
             Recent Activity

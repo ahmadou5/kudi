@@ -6,10 +6,11 @@ import { useAppPalette } from '../lib/theme';
 import { usePreferencesStore, PreferencesState } from '../store/preferences.store';
 import { Typography } from '../constants/typography';
 
-import { Image, Text } from 'react-native';
+import { Text } from 'react-native';
 import { useAuthStore } from '../store/auth.store';
 import { useNotifications } from '../hooks/useNotifications';
 import { ChainLogo } from './ui/ChainLogo';
+import { Avatar, userAvatarSeed } from './Avatar';
 
 export interface HeaderProps {
   onOpenScanner?: () => void;
@@ -49,15 +50,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
     router.push('/settings');
   };
 
-  const displayName = user?.fullName || user?.username || (user?.email ? user.email.split('@')[0] : 'User');
-  const initials = displayName
-    .replace(/^@/, '')
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() || 'K';
-
   return (
     <View style={[styles.header, { backgroundColor: palette.bg, borderColor: palette.border }]}>
       {/* Top Left: Avatar Photo / Initials + User Greeting */}
@@ -67,11 +59,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
         activeOpacity={0.7}
       >
         <View style={[styles.avatarBtn, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0', borderColor: '#34D399' }]}>
-          {user?.avatarUrl ? (
-            <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
-          ) : (
-            <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 14 }]}>{initials}</Text>
-          )}
+          <Avatar avatarUrl={user?.avatarUrl} seed={userAvatarSeed(user)} size={42} />
         </View>
 
       </TouchableOpacity>
@@ -192,11 +180,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden'
-  },
-  avatarImage: {
-    width: 42,
-    height: 42,
-    borderRadius: 21
   },
   greetingTextCol: {
     justifyContent: 'center'
