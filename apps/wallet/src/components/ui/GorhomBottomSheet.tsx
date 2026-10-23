@@ -1,6 +1,11 @@
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
-import { StyleSheet, View, Modal } from 'react-native';
-import BottomSheet, { BottomSheetView, BottomSheetBackdrop, BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import { StyleSheet, Modal, StyleProp, ViewStyle } from 'react-native';
+import BottomSheet, {
+  BottomSheetView,
+  BottomSheetScrollView,
+  BottomSheetBackdrop,
+  BottomSheetBackdropProps
+} from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { useAppPalette } from '../../lib/theme';
@@ -10,13 +15,27 @@ interface GorhomBottomSheetProps {
   onClose: () => void;
   children: React.ReactNode;
   snapPoints?: string[];
+  /** When false, pan-down and backdrop tap won't dismiss the sheet (forced flows). Default true. */
+  dismissible?: boolean;
+  /** Render children inside BottomSheetScrollView (forms/lists that scroll). Default false. */
+  scrollable?: boolean;
+  contentContainerStyle?: StyleProp<ViewStyle>;
+  keyboardBehavior?: 'extend' | 'fillParent' | 'interactive';
+  keyboardBlurBehavior?: 'none' | 'restore';
+  android_keyboardInputMode?: 'adjustPan' | 'adjustResize';
 }
 
 export const GorhomBottomSheet: React.FC<GorhomBottomSheetProps> = ({
   visible,
   onClose,
   children,
-  snapPoints: customSnapPoints
+  snapPoints: customSnapPoints,
+  dismissible = true,
+  scrollable = false,
+  contentContainerStyle,
+  keyboardBehavior,
+  keyboardBlurBehavior,
+  android_keyboardInputMode
 }) => {
   const palette = useAppPalette();
   const isDark = palette.text === '#FFFFFF';
@@ -48,10 +67,10 @@ export const GorhomBottomSheet: React.FC<GorhomBottomSheetProps> = ({
         disappearsOnIndex={-1}
         appearsOnIndex={0}
         opacity={0.65}
-        pressBehavior="close"
+        pressBehavior={dismissible ? 'close' : 'none'}
       />
     ),
-    []
+    [dismissible]
   );
 
   if (!visible) return null;
@@ -69,9 +88,12 @@ export const GorhomBottomSheet: React.FC<GorhomBottomSheetProps> = ({
           ref={bottomSheetRef}
           index={0}
           snapPoints={snapPoints}
-          enablePanDownToClose={true}
+          enablePanDownToClose={dismissible}
           onChange={handleSheetChanges}
           backdropComponent={renderBackdrop}
+          keyboardBehavior={keyboardBehavior}
+          keyboardBlurBehavior={keyboardBlurBehavior}
+          android_keyboardInputMode={android_keyboardInputMode}
           backgroundStyle={[
             styles.backgroundStyle,
             {
@@ -84,9 +106,18 @@ export const GorhomBottomSheet: React.FC<GorhomBottomSheetProps> = ({
             { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(15, 23, 42, 0.25)' }
           ]}
         >
-          <BottomSheetView style={styles.contentContainer}>
-            {children}
-          </BottomSheetView>
+          {scrollable ? (
+            <BottomSheetScrollView
+              contentContainerStyle={[styles.contentContainer, contentContainerStyle]}
+              showsVerticalScrollIndicator={false}
+            >
+              {children}
+            </BottomSheetScrollView>
+          ) : (
+            <BottomSheetView style={[styles.contentContainer, contentContainerStyle]}>
+              {children}
+            </BottomSheetView>
+          )}
         </BottomSheet>
       </GestureHandlerRootView>
     </Modal>

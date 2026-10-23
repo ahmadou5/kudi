@@ -1,17 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Modal,
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Image,
-  Dimensions
+  Image
 } from 'react-native';
 import {
   User,
@@ -35,8 +30,7 @@ import { DobDatePickerModal } from './ui/DobDatePickerModal';
 import { FlowProgressDots } from './wallet/WalletFlowProgress';
 import { userAvatarSeed } from './Avatar';
 import { Blobatar, isBlobatarUrl, blobatarSeed, toBlobatarUrl } from './Blobatar';
-
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+import { GorhomBottomSheet } from './ui/GorhomBottomSheet';
 
 export function ProfileOnboardingModal() {
   const palette = useAppPalette();
@@ -220,18 +214,17 @@ export function ProfileOnboardingModal() {
 
   return (
     <>
-      <Modal visible={true} transparent={true} animationType="fade" statusBarTranslucent={true}>
-        <View style={styles.backdrop}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={styles.keyboardContainer}
-          >
-            <View style={[styles.bottomSheetCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              {/* Drag Handle */}
-              <View style={styles.dragHandleBar}>
-                <View style={[styles.dragIndicator, { backgroundColor: palette.textSecondary + '40' }]} />
-              </View>
-
+      <GorhomBottomSheet
+        visible
+        onClose={() => { }}
+        snapPoints={['90%']}
+        dismissible={false}
+        scrollable
+        contentContainerStyle={styles.scrollForm}
+        keyboardBehavior="extend"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
+      >
               {/* Progress Indicator */}
               <View style={styles.headerRow}>
                 {step > 1 ? (
@@ -256,8 +249,7 @@ export function ProfileOnboardingModal() {
                 </Text>
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollForm}>
-                {errorMsg ? (
+              {errorMsg ? (
                   <View style={[styles.errorBox, { backgroundColor: hexToRgba('#EF4444', 0.12), borderColor: hexToRgba('#EF4444', 0.3) }]}>
                     <Text style={[Typography.caption, { color: '#EF4444', fontWeight: '600' }]}>{errorMsg}</Text>
                   </View>
@@ -516,11 +508,7 @@ export function ProfileOnboardingModal() {
                     </TouchableOpacity>
                   </View>
                 )}
-              </ScrollView>
-            </View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+      </GorhomBottomSheet>
 
       {/* Date of birth picker sheet */}
       <DobDatePickerModal
@@ -537,39 +525,6 @@ export function ProfileOnboardingModal() {
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'flex-end'
-  },
-  keyboardContainer: {
-    width: '100%'
-  },
-  bottomSheetCard: {
-    width: '100%',
-    maxHeight: SCREEN_HEIGHT * 0.88,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    paddingHorizontal: 24,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 28,
-    paddingTop: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.35,
-    shadowRadius: 24,
-    elevation: 20
-  },
-  dragHandleBar: {
-    alignItems: 'center',
-    paddingVertical: 8
-  },
-  dragIndicator: {
-    width: 42,
-    height: 5,
-    borderRadius: 2.5
-  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -585,15 +540,6 @@ const styles = StyleSheet.create({
   },
   backPlaceholder: {
     width: 36
-  },
-  progressPills: {
-    flexDirection: 'row',
-    gap: 6
-  },
-  pill: {
-    width: 32,
-    height: 4,
-    borderRadius: 2
   },
   scrollForm: {
     paddingBottom: 20
