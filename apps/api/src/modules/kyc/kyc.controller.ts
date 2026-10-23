@@ -2,7 +2,7 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { KYCStatus, KYCTier } from '@kudi/types';
 import { LedgerService } from '../../services/ledgerService';
 import { successResponse, errorResponse } from '../../utils/response';
-import { verifyIdentityAndProvisionVirtualAccount } from '../../lib/identityVerification';
+import { verifyIdentityAndProvisionVirtualAccount, VaProvisioningError } from '../../lib/identityVerification';
 import { getAuthenticatedUser } from '../../utils/authGuards';
 
 export class KYCController {
@@ -10,7 +10,7 @@ export class KYCController {
 
   public verifyID = async (request: FastifyRequest, reply: FastifyReply) => {
     const authUser = getAuthenticatedUser(request);
-    const { idNumber, idType, firstName, lastName, dob, email, phone } = request.body as {
+    const { idNumber, idType, firstName, lastName, dob, email, phone, retrievalToken } = request.body as {
       userId?: string;
       idNumber: string;
       idType: 'BVN' | 'NIN';
@@ -19,6 +19,7 @@ export class KYCController {
       dob?: string;
       email?: string;
       phone?: string;
+      retrievalToken?: string;
     };
 
     const userId = authUser?.userId;
@@ -36,6 +37,7 @@ export class KYCController {
         firstName,
         lastName,
         dob,
+        retrievalToken,
       });
 
       if (!verification.verified) {
@@ -68,6 +70,15 @@ export class KYCController {
         virtualAccount: verification.virtualAccount,
       });
     } catch (err) {
+      if (err instanceof VaProvisioningError) {
+        return reply.status(502).send(
+          errorResponse(
+            'VA_PROVISIONING_FAILED',
+            'Identity verified, but virtual account provisioning failed. Please retry verification.',
+            502
+          )
+        );
+      }
       const message = err instanceof Error ? err.message : String(err);
       return reply.status(500).send(errorResponse('KYC_ERROR', message, 500));
     }

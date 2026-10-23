@@ -73,6 +73,8 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
       accountName: string;
       extraDetails?: string;
       transferType: string;
+      /** True when the user has no real virtual account for this currency */
+      unavailable?: boolean;
     };
   } | null>(null);
 
@@ -237,61 +239,41 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
 
     const account = virtualAccounts.find(a => a.currency?.toUpperCase() === currency.toUpperCase());
 
-    if (currency === 'NGN') {
-      return {
-        currency: 'NGN',
-        title: 'NGN Virtual Bank Account',
-        flag: '🇳🇬',
-        bankName: account?.bankName || 'GTBank (Guaranty Trust Bank)',
-        accountNumber: account?.accountNumber || '0123456789',
-        accountName: account?.accountName || fullName,
-        transferType: 'Instant NIP Bank Transfer'
-      };
-    }
-    if (currency === 'USD') {
-      return {
-        currency: 'USD',
-        title: 'USD Virtual Bank Account',
-        flag: '🇺🇸',
-        bankName: account?.bankName || 'Lead Bank',
-        accountNumber: account?.accountNumber || '9920184729',
-        accountName: account?.accountName || fullName,
-        extraDetails: 'Routing Number: 021000021',
-        transferType: 'ACH & Domestic Wire Transfer'
-      };
-    }
-    if (currency === 'EUR') {
-      return {
-        currency: 'EUR',
-        title: 'EUR Virtual Bank Account',
-        flag: '🇪🇺',
-        bankName: account?.bankName || 'Banking Circle S.A.',
-        accountNumber: account?.accountNumber || 'LU29384719283741',
-        accountName: account?.accountName || fullName,
-        extraDetails: 'BIC / SWIFT: BCIRL2L',
-        transferType: 'SEPA & SEPA Instant Credit Transfer'
-      };
-    }
-    if (currency === 'GBP') {
-      return {
-        currency: 'GBP',
-        title: 'GBP Virtual Bank Account',
-        flag: '🇬🇧',
-        bankName: account?.bankName || 'ClearBank Ltd',
-        accountNumber: account?.accountNumber || '88392019',
-        accountName: account?.accountName || fullName,
-        extraDetails: 'Sort Code: 04-00-04',
-        transferType: 'FPS (Faster Payments System)'
-      };
-    }
-    return {
-      currency,
+    const meta: Record<string, { title: string; flag: string; transferType: string; extraDetails?: string }> = {
+      NGN: { title: 'NGN Virtual Bank Account', flag: '🇳🇬', transferType: 'Instant NIP Bank Transfer' },
+      USD: { title: 'USD Virtual Bank Account', flag: '🇺🇸', transferType: 'ACH & Domestic Wire Transfer', extraDetails: 'Routing Number: 021000021' },
+      EUR: { title: 'EUR Virtual Bank Account', flag: '🇪🇺', transferType: 'SEPA & SEPA Instant Credit Transfer', extraDetails: 'BIC / SWIFT: BCIRL2L' },
+      GBP: { title: 'GBP Virtual Bank Account', flag: '🇬🇧', transferType: 'FPS (Faster Payments System)', extraDetails: 'Sort Code: 04-00-04' },
+    };
+    const currencyMeta = meta[currency] || {
       title: `${currency} Virtual Bank Account`,
       flag: '🌐',
-      bankName: account?.bankName || 'Partner Bank',
-      accountNumber: account?.accountNumber || 'N/A',
-      accountName: account?.accountName || fullName,
-      transferType: 'Bank Transfer'
+      transferType: 'Bank Transfer',
+    };
+
+    // Live data only — never fabricate an account number the user doesn't own
+    if (!account) {
+      return {
+        currency,
+        title: currencyMeta.title,
+        flag: currencyMeta.flag,
+        bankName: '',
+        accountNumber: '',
+        accountName: fullName,
+        transferType: currencyMeta.transferType,
+        unavailable: true,
+      };
+    }
+
+    return {
+      currency,
+      title: currencyMeta.title,
+      flag: currencyMeta.flag,
+      bankName: account.bankName,
+      accountNumber: account.accountNumber,
+      accountName: account.accountName || fullName,
+      extraDetails: currencyMeta.extraDetails,
+      transferType: currencyMeta.transferType,
     };
   };
 
@@ -974,6 +956,16 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
             {/* MODE 2: VIRTUAL BANK ACCOUNT BOTTOM SHEET */}
             {activeBottomSheet.type === 'bank' && activeBottomSheet.bankData && (
               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
+                {activeBottomSheet.bankData.unavailable ? (
+                  <View style={[styles.bankDetailsBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                    <Text style={[Typography.bodyBold, { color: palette.text, textAlign: 'center' }]}>
+                      No {activeBottomSheet.bankData.currency} account yet
+                    </Text>
+                    <Text style={[Typography.footnote, { color: palette.textSecondary, textAlign: 'center', marginTop: 8, lineHeight: 18 }]}>
+                      A dedicated {activeBottomSheet.bankData.currency} account number is issued after identity verification. Only real account details are shown here.
+                    </Text>
+                  </View>
+                ) : (
                 <View style={[styles.bankDetailsBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
                   <View style={styles.sheetDetailRow}>
                     <View>
@@ -1048,8 +1040,8 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                     </View>
                   )}
 
-
                 </View>
+                )}
 
                 {/* Live Rate Ticker */}
                 <View style={[

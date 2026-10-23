@@ -110,12 +110,22 @@ export default function KYCScreen() {
     }
   }, [user?.fullName]);
 
-  const kycTier = user?.kycTier || profileData?.user?.kycTier || 'UNVERIFIED';
-  const kycStatus = user?.kycStatus || profileData?.user?.kycStatus || 'NOT_STARTED';
+  // Prefer fresh profile data over the auth store — the store is only
+  // refreshed at login, so after a successful verification it stays stale.
+  const kycTier = profileData?.user?.kycTier || user?.kycTier || 'UNVERIFIED';
+  const kycStatus = profileData?.user?.kycStatus || user?.kycStatus || 'NOT_STARTED';
 
-  const kycComplete = kycTier === 'TIER_2' || kycTier === 'TIER_3' || kycStatus === 'VERIFIED';
+  const kycComplete = kycTier === 'TIER_2' || kycStatus === 'VERIFIED';
   const verificationPending = (kycStatus === 'PENDING' || submitted) && !kycComplete && !forceEdit;
   const verificationRejected = kycStatus === 'REJECTED' || kycStatus === 'SUSPENDED';
+
+  // Write freshly fetched KYC state back into the auth store so every screen
+  // (limits, profile, settings) sees the upgrade without a re-login.
+  const syncUserKyc = (kyc: { kycStatus?: string; kycTier?: string }) => {
+    const current = useAuthStore.getState().user;
+    if (!current) return;
+    useAuthStore.setState({ user: { ...current, ...kyc } });
+  };
 
   // Selected bank item
   const selectedBank = useMemo(
@@ -135,6 +145,7 @@ export default function KYCScreen() {
   useEffect(() => {
     if (kycComplete || verificationRejected) {
       setSubmitted(false);
+      setForceEdit(false);
     }
   }, [kycComplete, verificationRejected]);
 
@@ -256,13 +267,15 @@ export default function KYCScreen() {
 
       setSubmitting(false);
       if (res && res.success) {
-        setSubmitted(true);
+        // Backend verifies synchronously — tier/status/VA are live on success
+        syncUserKyc({ kycStatus: 'VERIFIED', kycTier: res.data?.tier || 'TIER_2' });
+        setSubmitted(false);
         await refetchProfile();
         modal.show({
-          title: 'Verification Submitted! 🎉',
-          description: 'Your identity is being verified. Your Tier 2 limits and dedicated NUBAN account will be activated shortly.',
+          title: 'Verification Complete! 🎉',
+          description: 'Your identity has been verified. Your Tier 2 limits and dedicated NGN account are now active.',
           type: 'success',
-          primaryText: 'View Status',
+          primaryText: 'View Account',
           onPrimaryPress: () => {
             modal.hide();
           },
@@ -285,21 +298,23 @@ export default function KYCScreen() {
 
     setNinSubmitting(true);
     try {
+      const parsed = user?.fullName ? splitFullName(user.fullName) : { firstName: '', lastName: '' };
       const res = await sdk.verifyKYCID({
         userId: user?.id || '',
         idNumber: nin.trim(),
         idType: 'NIN',
-        firstName: firstName.trim() || user?.fullName || 'User',
-        lastName: lastName.trim(),
-        dob: dateOfBirth || '1998-05-12',
+        firstName: firstName.trim() || parsed.firstName || 'User',
+        lastName: lastName.trim() || parsed.lastName,
+        dob: dateOfBirth.trim(),
       });
 
       setNinSubmitting(false);
       if (res && res.success) {
+        syncUserKyc({ kycStatus: 'VERIFIED', kycTier: res.data?.tier || 'TIER_2' });
         setUpgradeModalVisible(false);
         setNin('');
         await refetchProfile();
-        modal.alert('NIN Verified! 🚀', 'Your account has been upgraded to Tier 3 with a ₦5,000,000 daily transfer limit!', 'success');
+        modal.alert('NIN Verified! 🚀', 'Your account has been upgraded to Tier 2 with a ₦5,000,000 daily transfer limit!', 'success');
       } else {
         modal.alert('NIN Upgrade Failed', res?.error?.message || 'Could not verify NIN.', 'error');
       }
@@ -316,15 +331,11 @@ export default function KYCScreen() {
   // 1. VERIFIED STATE VIEW
   if (kycComplete) {
     const virtualAcc = profileData?.virtualAccounts?.[0];
-    const nuban = virtualAcc?.accountNumber || '0123456789';
-    const bankName = virtualAcc?.bankName || 'Wema Bank (Kudi Account)';
-    const accountName = virtualAcc?.accountName || user?.fullName || 'Kudi User';
 
-    const isTier3 = kycTier === 'TIER_3';
     const isTier2 = kycTier === 'TIER_2' || kycComplete;
-    const tierLabel = isTier3 ? 'Tier 3' : (isTier2 ? 'Tier 2' : 'Tier 1');
-    const tierLimit = isTier3 ? '₦5,000,000' : (isTier2 ? '₦2,000,000' : '₦50,000');
-    const tierColor = isTier3 ? palette.success : palette.primary;
+    const tierLabel = isTier2 ? 'Tier 2' : 'Tier 1';
+    const tierLimit = isTier2 ? '₦5,000,000' : '₦50,000';
+    const tierColor = isTier2 ? palette.success : palette.primary;
 
     return (
       <ScrollView
@@ -366,27 +377,41 @@ export default function KYCScreen() {
           </View>
 
           {/* NUBAN Account Card */}
-          <View style={[styles.nubanCard, { backgroundColor: palette.primary, borderColor: palette.primary }]}>
-            <View style={styles.nubanCardHeader}>
-              <Text style={styles.nubanProviderLabel}>{bankName}</Text>
-              <View style={styles.activePill}>
-                <Text style={styles.activePillText}>ACTIVE</Text>
+          {virtualAcc ? (
+            <View style={[styles.nubanCard, { backgroundColor: palette.primary, borderColor: palette.primary }]}>
+              <View style={styles.nubanCardHeader}>
+                <Text style={styles.nubanProviderLabel}>{virtualAcc.bankName}</Text>
+                <View style={styles.activePill}>
+                  <Text style={styles.activePillText}>ACTIVE</Text>
+                </View>
+              </View>
+              <View style={styles.nubanBody}>
+                <Text style={styles.nubanLabel}>ACCOUNT NUMBER</Text>
+                <View style={styles.nubanRow}>
+                  <Text style={styles.nubanNumber}>{virtualAcc.accountNumber}</Text>
+                  <Pressable onPress={() => copyToClipboard(virtualAcc.accountNumber, 'Account Number')} style={styles.copyBtn}>
+                    <Copy size={18} color="#FFFFFF" />
+                  </Pressable>
+                </View>
+                <Text style={styles.accountNameLabel}>Beneficiary: {virtualAcc.accountName || user?.fullName || 'Kudi User'}</Text>
               </View>
             </View>
-            <View style={styles.nubanBody}>
-              <Text style={styles.nubanLabel}>ACCOUNT NUMBER</Text>
-              <View style={styles.nubanRow}>
-                <Text style={styles.nubanNumber}>{nuban}</Text>
-                <Pressable onPress={() => copyToClipboard(nuban, 'Account Number')} style={styles.copyBtn}>
-                  <Copy size={18} color="#FFFFFF" />
-                </Pressable>
-              </View>
-              <Text style={styles.accountNameLabel}>Beneficiary: {accountName}</Text>
+          ) : (
+            <View style={[styles.nubanCard, { backgroundColor: palette.card, borderColor: palette.border, borderStyle: 'dashed' }]}>
+              <Text style={[styles.verifiedSub, { color: palette.textSecondary }]}>
+                Your dedicated account number is being provisioned. It will appear here automatically.
+              </Text>
+              <Pressable
+                onPress={() => void refetchProfile()}
+                style={({ pressed }) => [styles.secondaryAction, { backgroundColor: palette.bg, borderColor: palette.border }, pressed && { opacity: 0.85 }]}
+              >
+                <Text style={[styles.secondaryActionText, { color: palette.text }]}>Refresh</Text>
+              </Pressable>
             </View>
-          </View>
+          )}
 
           {/* Action buttons */}
-          {!isTier3 && (
+          {!isTier2 && (
             <Pressable
               onPress={() => setUpgradeModalVisible(true)}
               style={({ pressed }) => [
@@ -396,7 +421,7 @@ export default function KYCScreen() {
               ]}
             >
               <Zap size={18} color="#FFF" />
-              <Text style={styles.primaryActionText}>Upgrade to Tier 3 (₦5,000,000/day)</Text>
+              <Text style={styles.primaryActionText}>Upgrade to Tier 2 (₦5,000,000/day)</Text>
             </Pressable>
           )}
 
@@ -413,7 +438,7 @@ export default function KYCScreen() {
         </Animated.View>
 
         {/* Upgrade Bottom Sheet Modal */}
-        {!isTier3 && (
+        {!isTier2 && (
           <Modal
             visible={upgradeModalVisible}
             transparent
@@ -430,7 +455,7 @@ export default function KYCScreen() {
                     <Zap size={22} color={palette.primary} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.upgradeTitle, { color: palette.text }]}>Upgrade to Tier 3</Text>
+                    <Text style={[styles.upgradeTitle, { color: palette.text }]}>Upgrade to Tier 2</Text>
                     <Text style={[styles.upgradeSub, { color: palette.textSecondary }]}>
                       Submit your 11-digit NIN to unlock a daily limit of ₦5,000,000.
                     </Text>
@@ -520,7 +545,9 @@ export default function KYCScreen() {
             <Pressable
               onPress={async () => {
                 const res = await refetchProfile();
-                if (res.data?.user?.kycStatus === 'VERIFIED' || res.data?.user?.kycTier !== 'UNVERIFIED') {
+                const fresh = res.data?.user;
+                if (fresh?.kycStatus === 'VERIFIED' || fresh?.kycTier === 'TIER_1' || fresh?.kycTier === 'TIER_2') {
+                  syncUserKyc({ kycStatus: fresh.kycStatus, kycTier: fresh.kycTier });
                   modal.alert('Verification Complete!', 'Your identity has been verified successfully.', 'success');
                 } else {
                   modal.alert('Verification Pending', 'Your details are still being processed. Please check back shortly.', 'info');
@@ -782,7 +809,7 @@ export default function KYCScreen() {
             <View style={styles.consentCopy}>
               <Text style={[styles.consentTitle, { color: palette.text }]}>I consent to identity verification</Text>
               <Text style={[styles.consentBody, { color: palette.textSecondary }]}>
-                I authorize Kudi to verify my details with NIBSS and issue a dedicated account number.
+                I authorize Kudi to verify my BVN with my bank and identity verification partners, and to issue a dedicated account number in my name.
               </Text>
             </View>
           </Pressable>

@@ -272,6 +272,8 @@ export type VerifyKycIdRequest = {
   accountNumber?: string;
   bankCode?: string;
   address?: string;
+  /** NIBSS Consent Hub retrieval token proving customer consent for the BVN lookup */
+  retrievalToken?: string;
 };
 
 export type SpendToBankRequest = {

@@ -91,55 +91,42 @@ export async function createSquadVirtualAccount(
   const cleanPhone = sanitizeMobileNum(params.mobileNum);
   const cleanDob = formatSquadDob(params.dob) || '01/01/1995';
 
-  if (secretKey && !secretKey.includes('placeholder')) {
-    try {
-      const payload: Record<string, any> = {
-        customer_identifier: params.customerIdentifier,
-        first_name: params.firstName,
-        last_name: params.lastName,
-        mobile_num: cleanPhone,
-        bvn: params.bvn,
-        dob: cleanDob,
-        address: params.address || 'Victoria Island, Lagos, Nigeria',
-        gender: params.gender || '1',
-        beneficiary_account: params.beneficiaryAccount || process.env.SQUAD_BENEFICIARY_ACCOUNT,
-      };
+  if (!secretKey || secretKey.includes('placeholder')) {
+    throw new Error('[Squad API] SQUAD_SECRET_KEY is not configured — cannot issue virtual accounts');
+  }
 
-      if (params.middleName) payload.middle_name = params.middleName;
-      if (params.email) payload.email = params.email;
+  try {
+    const payload: Record<string, any> = {
+      customer_identifier: params.customerIdentifier,
+      first_name: params.firstName,
+      last_name: params.lastName,
+      mobile_num: cleanPhone,
+      bvn: params.bvn,
+      dob: cleanDob,
+      address: params.address || 'Victoria Island, Lagos, Nigeria',
+      gender: params.gender || '1',
+      beneficiary_account: params.beneficiaryAccount || process.env.SQUAD_BENEFICIARY_ACCOUNT,
+    };
 
-      const res = await squad.post('/virtual-account', payload);
+    if (params.middleName) payload.middle_name = params.middleName;
+    if (params.email) payload.email = params.email;
 
-      const data = res.data?.data;
-      if (data?.virtual_account_number) {
-        return {
-          virtual_account_number: data.virtual_account_number,
-          account_name: `${params.firstName} ${params.lastName}`,
-          bank_name: data.bank_name ?? 'HabariPay GTBank',
-          bank_code: '058',
-          customer_identifier: params.customerIdentifier,
-        };
-      }
-    } catch (err) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error(`[Squad API] Dedicated VA creation failed in production: ${err instanceof Error ? err.message : String(err)}`);
-      }
-      console.warn('[Squad API] Dedicated VA creation error, falling back to simulated VA:', err instanceof Error ? err.message : String(err));
+    const res = await squad.post('/virtual-account', payload);
+
+    const data = res.data?.data;
+    if (!data?.virtual_account_number) {
+      throw new Error('Squad returned no virtual account number');
     }
+    return {
+      virtual_account_number: data.virtual_account_number,
+      account_name: `${params.firstName} ${params.lastName}`,
+      bank_name: data.bank_name ?? 'HabariPay GTBank',
+      bank_code: '058',
+      customer_identifier: params.customerIdentifier,
+    };
+  } catch (err) {
+    wrapSquadError(err, 'Dedicated VA creation failed');
   }
-
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('[Squad API] Missing SQUAD_SECRET_KEY in production. Cannot issue simulated virtual accounts.');
-  }
-
-  // Consistent simulated virtual account for sandbox & development
-  return {
-    virtual_account_number: `77${Math.floor(10000000 + Math.random() * 90000000)}`,
-    account_name: `KUDI / ${params.firstName} ${params.lastName}`,
-    bank_name: 'GTBank / Squad (HabariPay)',
-    bank_code: '058',
-    customer_identifier: params.customerIdentifier,
-  };
 }
 
 export async function initiateSquadFundTransfer(
