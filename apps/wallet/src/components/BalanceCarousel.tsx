@@ -104,7 +104,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
           setLiveRate({ rate: res.data.rate, updatedAt: new Date(res.data.updatedAt) });
         }
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLiveRateLoading(false));
   }, [activeBottomSheet?.bankData?.currency]);
 
@@ -138,6 +138,9 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
 
   // On-Chain balance calculations & deposit pulse animation
   const numericBalance = parseFloat(balanceUSDC) || 0;
+  // NGN figure must use the authoritative NGN-per-USD rate from /users/:id/balance.
+  // (liveRate below is NGN→USD and only loaded for the bank sheet ticker — it used
+  // to leak in here and render ₦0 or USDC × 0.0006.)
   const ngnEquivalent = numericBalance * rateNGN;
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
@@ -369,8 +372,8 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
           <View style={styles.cardHeaderRow}>
             <View style={styles.badgeRow}>
 
-              <Text style={[Typography.caption, { color: palette.textSecondary }]}>
-                Available On-Chain Balance
+              <Text style={[Typography.body, { color: palette.textSecondary, fontSize: 15, fontWeight: 600 }]}>
+                Balance
               </Text>
             </View>
 
@@ -386,7 +389,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                   }
                 ]}
               >
-                <Text style={[Typography.caption, { color: palette.success, fontWeight: '700' }]}>
+                <Text style={[Typography.currencySub, { color: palette.success, fontSize: 14, fontWeight: '700' }]}>
                   +${depositDelta.toFixed(2)} USDC
                 </Text>
               </Animated.View>
@@ -396,11 +399,11 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
           <Text style={[Typography.currencyDisplay, styles.balanceValue, { color: palette.text }]}>
             ${balanceUSDC} <Text style={[Typography.title2, { color: palette.textSecondary }]}>USDC</Text>
           </Text>
-
-          <Text style={[Typography.bodyBold, styles.subBalance, { color: palette.success }]}>
+          {/** To do */}
+          <Text style={[Typography.title3, styles.subBalance, { color: palette.success, fontWeight: 600, lineHeight: 30 }]}>
             ₦{ngnEquivalent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN{' '}
-            <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
-              (1 USDC = ₦{rateNGN})
+            <Text style={[Typography.display, { color: palette.textSecondary, fontSize: 13, lineHeight: 20 }]}>
+              (1 USDC = ₦{rateNGN.toFixed(2)})
             </Text>
           </Text>
 
@@ -931,7 +934,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                 {/* Conversion Green Alert Callout Banner */}
                 <View style={[styles.conversionAlertBox, { backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#E8F5E9', borderColor: isDark ? 'rgba(34, 197, 94, 0.3)' : '#C8E6C9' }]}>
 
-                  <Text style={[Typography.title1, { color: isDark ? '#86EFAC' : '#1B5E20', flex: 1, fontSize: 14, lineHeight: 20, textAlign: 'center' }]}>
+                  <Text style={[Typography.body, { color: isDark ? '#86EFAC' : '#1B5E20', flex: 1, textAlign: 'center' }]}>
                     Your {currentTokenSymbol} deposits will automatically be converted to Naira at the current exchange rate.
                   </Text>
                 </View>
@@ -944,7 +947,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                     activeOpacity={0.8}
                   >
                     <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
-                      <Text style={[Typography.title1, { color: palette.text, fontSize: 14 }]}>
+                      <Text style={[Typography.body, { color: palette.text }]}>
                         {copiedField === 'sheet_crypto_addr' ? 'Copied' : 'Copy'}
                       </Text>
                       <Copy size={18} color={palette.text} />
@@ -957,7 +960,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                     activeOpacity={0.8}
                   >
                     <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
-                      <Text style={[Typography.title1, { color: palette.text, fontSize: 14 }]}>
+                      <Text style={[Typography.body, { color: palette.text }]}>
                         Share
                       </Text>
                       <LucideShare size={18} color={palette.text} />
@@ -974,7 +977,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                 <View style={[styles.bankDetailsBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
                   <View style={styles.sheetDetailRow}>
                     <View>
-                      <Text style={[Typography.display, { color: palette.textSecondary, fontSize: 16 }]}>Account name</Text>
+                      <Text style={[Typography.title3, { color: palette.textSecondary }]}>Account name</Text>
                       <Text style={[Typography.display, { color: palette.text, fontSize: 18, lineHeight: 15 }]}>
                         {activeBottomSheet.bankData.accountName}
                       </Text>
@@ -992,7 +995,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                   </View>
                   <View style={styles.sheetDetailRow}>
                     <View>
-                      <Text style={[Typography.display, { color: palette.textSecondary, fontSize: 16 }]}>
+                      <Text style={[Typography.title3, { color: palette.textSecondary }]}>
                         {activeBottomSheet.bankData.currency === 'EUR' ? 'IBAN Number' : 'Account Number'}
                       </Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -1015,7 +1018,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                   </View>
                   <View style={styles.sheetDetailRow}>
                     <View>
-                      <Text style={[Typography.display, { color: palette.textSecondary, fontSize: 16 }]}>Bank</Text>
+                      <Text style={[Typography.title3, { color: palette.textSecondary }]}>Bank</Text>
                       <Text style={[Typography.display, { color: palette.text, fontSize: 18, lineHeight: 17 }]}>
                         {activeBottomSheet.bankData.bankName}
                       </Text>
@@ -1028,7 +1031,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                   {activeBottomSheet.bankData.extraDetails && (
                     <View style={styles.sheetDetailRow}>
                       <View>
-                        <Text style={[Typography.display, { color: palette.textSecondary, fontSize: 16 }]}>Code / Routing</Text>
+                        <Text style={[Typography.title3, { color: palette.textSecondary }]}>Code / Routing</Text>
                         <Text style={[Typography.display, { color: palette.text, fontSize: 18, lineHeight: 15 }]}>
                           {activeBottomSheet.bankData.extraDetails}
                         </Text>
@@ -1213,8 +1216,8 @@ const styles = StyleSheet.create({
     borderWidth: 1
   },
   balanceValue: {
-    marginTop: 2,
-    marginBottom: 2
+    marginTop: 0,
+    marginBottom: 3
   },
   subBalance: {
     marginBottom: 10

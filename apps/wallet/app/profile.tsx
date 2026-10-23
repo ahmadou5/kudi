@@ -4,8 +4,7 @@ import {
   Text,
   View,
   TouchableOpacity,
-  ScrollView,
-  Image
+  ScrollView
 } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Edit3, Check, ShieldCheck, Shield, ChevronRight, Copy, Gift, User, Lock, MessageSquare, Settings, LogOut, Trash2 } from 'lucide-react-native';
@@ -15,6 +14,7 @@ import { Typography } from '../src/constants/typography';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppModal, useAppModal } from '../src/components/ui/AppModal';
 import { ChainLogo } from '../src/components/ui/ChainLogo';
+import { Avatar, userAvatarSeed } from '../src/components/Avatar';
 import * as Clipboard from 'expo-clipboard';
 
 export default function ProfileScreen() {
@@ -44,14 +44,6 @@ export default function ProfileScreen() {
   const referralCode = user?.id ? user.id.slice(-8).toUpperCase() : 'KUDI2026';
 
   const modal = useAppModal();
-
-  const initials = userDisplayName
-    .replace(/^@/, '')
-    .split(/\s+/)
-    .map((part: string) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() || 'K';
 
   const handleCopy = async (text: string, label: string) => {
     try {
@@ -123,11 +115,7 @@ export default function ProfileScreen() {
         <View style={[styles.identityCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <TouchableOpacity onPress={() => router.push('/settings/edit-profile' as any)} style={styles.avatarWrapper} activeOpacity={0.8}>
             <View style={[styles.avatarCircle, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0', borderColor: palette.primary }]}>
-              {user?.avatarUrl ? (
-                <Image source={{ uri: user.avatarUrl }} style={styles.avatarImg} />
-              ) : (
-                <Text style={[Typography.title1, { color: palette.text, fontSize: 28 }]}>{initials}</Text>
-              )}
+              <Avatar avatarUrl={user?.avatarUrl} seed={userAvatarSeed(user)} size={84} />
             </View>
             {kycTierNum > 0 && (
               <View style={styles.verifiedBadge}>
@@ -406,11 +394,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden'
-  },
-  avatarImg: {
-    width: 84,
-    height: 84,
-    borderRadius: 42
   },
   verifiedBadge: {
     position: 'absolute',

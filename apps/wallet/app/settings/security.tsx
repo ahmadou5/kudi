@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,20 +9,41 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, KeyRound, ChevronRight, Key } from 'lucide-react-native';
+import { ArrowLeft, KeyRound, ChevronRight, Key, Fingerprint } from 'lucide-react-native';
 import { useAppPalette, isLight } from '../../src/lib/theme';
 import { usePreferencesStore, PreferencesState } from '../../src/store/preferences.store';
 import { useAuthStore } from '../../src/store/auth.store';
 import { Typography } from '../../src/constants/typography';
 import { AppModal, useAppModal } from '../../src/components/ui/AppModal';
+import { authenticateBiometric, getBiometricAvailability } from '../../src/lib/localAuthentication';
 
 export default function SecurityScreen() {
   const palette = useAppPalette();
   const light = isLight(palette.bg);
   const appLockEnabled = usePreferencesStore((s: PreferencesState) => s.appLockEnabled);
   const setAppLockEnabled = usePreferencesStore((s: PreferencesState) => s.setAppLockEnabled);
+  const biometricsEnabled = usePreferencesStore((s: PreferencesState) => s.biometricsEnabled);
+  const setBiometricsEnabled = usePreferencesStore((s: PreferencesState) => s.setBiometricsEnabled);
   const hasPin = useAuthStore((s) => s.hasPin);
   const modal = useAppModal();
+  const [bioAvailable, setBioAvailable] = useState(false);
+
+  useEffect(() => {
+    getBiometricAvailability().then((a) => setBioAvailable(a.available));
+  }, []);
+
+  const handleBiometricsToggle = async (enabled: boolean) => {
+    if (!enabled) {
+      setBiometricsEnabled(false);
+      return;
+    }
+    if (!bioAvailable || !hasPin) return;
+    const success = await authenticateBiometric('Enable fingerprint unlock for Kudi');
+    if (success) {
+      setBiometricsEnabled(true);
+      setAppLockEnabled(true);
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
@@ -64,6 +85,31 @@ export default function SecurityScreen() {
             </View>
             <ChevronRight size={18} color={palette.textSecondary} />
           </TouchableOpacity>
+
+          <View style={[styles.rowItem, { borderBottomColor: palette.border }]}>
+            <View style={styles.itemLeft}>
+              <View style={[styles.iconBadge, { backgroundColor: light ? '#E2E8F0' : 'rgba(255,255,255,0.08)' }]}>
+                <Fingerprint size={18} color={palette.text} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[Typography.bodyBold, { color: palette.text }]}>Fingerprint / Face Unlock</Text>
+                <Text style={[Typography.subhead, { color: palette.textSecondary }]}>
+                  {!bioAvailable
+                    ? 'Not available on this device'
+                    : !hasPin
+                      ? 'Set a PIN first to use biometrics'
+                      : 'Unlock the app without typing your PIN'}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={biometricsEnabled}
+              onValueChange={(v) => void handleBiometricsToggle(v)}
+              disabled={!bioAvailable || !hasPin}
+              trackColor={{ false: light ? '#CBD5E1' : '#3A3A3C', true: '#10B981' }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
 
           <View style={styles.rowItem}>
             <View style={styles.itemLeft}>

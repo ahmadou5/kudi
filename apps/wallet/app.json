@@ -37,7 +37,13 @@
       ],
       "expo-web-browser",
       "expo-secure-store",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Kudi to use Face ID to unlock your wallet."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

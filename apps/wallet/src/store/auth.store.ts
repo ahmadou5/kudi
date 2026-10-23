@@ -17,6 +17,7 @@ export interface User {
   kycTier?: string;
   kycStatus?: string;
   profileCompleted?: boolean;
+  hasPin?: boolean;
 }
 
 export interface WalletInfo {
@@ -99,6 +100,8 @@ const deleteSecureItem = async (key: string): Promise<void> => {
   }
 };
 
+const pinStorageKey = (userId: string) => `kudi_user_pin:${userId}`;
+
 export const useAuthStore = create<AuthState>()((set, get) => ({
   user: null,
   wallets: [],
@@ -107,7 +110,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   isAuthenticated: false,
   isUnlocked: false,
   isLoading: true,
-  pin: '1234',
+  pin: '',
   hasPin: false,
 
   hydrate: async () => {
@@ -116,12 +119,22 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       const storedRefreshToken = await getSecureItem('kudi_refresh_token');
       const storedUser = await getSecureItem('kudi_user');
       const storedWallets = await getSecureItem('kudi_wallets');
-      const storedPin = await getSecureItem('kudi_user_pin');
 
       if (storedToken && storedUser) {
-        const user = JSON.parse(storedUser);
+        const user: User = JSON.parse(storedUser);
         const wallets = storedWallets ? JSON.parse(storedWallets) : [];
         sdk.setAuthToken(storedToken);
+
+        // Per-user PIN key; migrate the legacy unscoped key written by older builds
+        let storedPin = await getSecureItem(pinStorageKey(user.id));
+        if (!storedPin) {
+          const legacyPin = await getSecureItem('kudi_user_pin');
+          if (legacyPin) {
+            storedPin = legacyPin;
+            await setSecureItem(pinStorageKey(user.id), legacyPin);
+          }
+        }
+        await deleteSecureItem('kudi_user_pin');
 
         set({
           user,
@@ -131,9 +144,25 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           isAuthenticated: true,
           isUnlocked: false,
           isLoading: false,
-          pin: storedPin || '1234',
+          pin: storedPin || '',
           hasPin: !!storedPin
         });
+
+        // Refresh server-side PIN status once per launch (cached user may predate hasPin)
+        if (user.hasPin === undefined) {
+          void sdk
+            .getUserProfile(user.id)
+            .then((res: any) => {
+              const fresh = res?.data?.user as User | undefined;
+              const current = get().user;
+              if (fresh && typeof fresh.hasPin === 'boolean' && current?.id === fresh.id) {
+                const updated = { ...current, hasPin: fresh.hasPin };
+                set({ user: updated });
+                void setSecureItem('kudi_user', JSON.stringify(updated));
+              }
+            })
+            .catch(() => {});
+        }
       } else {
         set({ isAuthenticated: false, isLoading: false });
       }
@@ -174,6 +203,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
         sdk.setAuthToken(accessToken);
 
+        const localPin = await getSecureItem(pinStorageKey(user.id));
         set({
           user,
           wallets: wallets || [],
@@ -181,7 +211,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           refreshToken,
           isAuthenticated: true,
           isUnlocked: true,
-          isLoading: false
+          isLoading: false,
+          pin: localPin || '',
+          hasPin: !!localPin
         });
 
         return { success: true };
@@ -214,6 +246,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
         sdk.setAuthToken(accessToken);
 
+        const localPin = await getSecureItem(pinStorageKey(user.id));
         set({
           user,
           wallets: wallets || [],
@@ -221,7 +254,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           refreshToken,
           isAuthenticated: true,
           isUnlocked: true,
-          isLoading: false
+          isLoading: false,
+          pin: localPin || '',
+          hasPin: !!localPin
         });
 
         return { success: true };
@@ -250,7 +285,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       refreshToken: null,
       isAuthenticated: false,
       isUnlocked: false,
-      isLoading: false
+      isLoading: false,
+      pin: '',
+      hasPin: false
     });
   },
 
@@ -262,10 +299,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       } catch (err: any) {
         console.warn('Backend deleteAccount request warning:', err?.message || err);
       }
+      await deleteSecureItem(pinStorageKey(currentUser.id));
     }
     await get().logout();
-    await deleteSecureItem('kudi_user_pin');
-    set({ pin: '1234', hasPin: false });
     return { success: true };
   },
 
@@ -313,24 +349,43 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   verifyPin: (inputPin: string) => {
-    return inputPin === get().pin;
+    const storedPin = get().pin;
+    if (!storedPin || !inputPin) return false;
+    return inputPin === storedPin;
   },
 
   setPin: async (newPin: string) => {
-    await setSecureItem('kudi_user_pin', newPin);
-    const userId = get().user?.id;
-    if (userId) {
+    const currentUser = get().user;
+    if (currentUser?.id) {
+      let res: any;
       try {
-        await sdk.setPin(userId, newPin);
+        res = await sdk.setPin(currentUser.id, newPin);
       } catch (e) {
         console.warn('Failed to sync PIN with server:', e);
+        throw new Error('Could not save your PIN. Please check your connection and try again.');
+      }
+      if (res && res.success === false) {
+        console.warn('PIN rejected by server:', res.message || res.error);
+        throw new Error(res.message || 'Could not save your PIN. Please try again.');
       }
     }
-    set({ pin: newPin, hasPin: true });
+    await setSecureItem(pinStorageKey(currentUser?.id || 'unknown'), newPin);
+    await deleteSecureItem('kudi_user_pin');
+    if (currentUser) {
+      const updatedUser: User = { ...currentUser, hasPin: true };
+      await setSecureItem('kudi_user', JSON.stringify(updatedUser));
+      set({ user: updatedUser, pin: newPin, hasPin: true });
+    } else {
+      set({ pin: newPin, hasPin: true });
+    }
   },
 
   clearPin: async () => {
-    await setSecureItem('kudi_user_pin', '');
-    set({ pin: '1234', hasPin: false });
+    const currentUser = get().user;
+    if (currentUser?.id) {
+      await deleteSecureItem(pinStorageKey(currentUser.id));
+    }
+    await deleteSecureItem('kudi_user_pin');
+    set({ pin: '', hasPin: false });
   }
 }));

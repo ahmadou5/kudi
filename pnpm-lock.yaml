@@ -203,6 +203,9 @@ importers:
 
   apps/wallet:
     dependencies:
+      '@blobatar/react-native':
+        specifier: ^2.7.0
+        version: 2.7.0(blobatar@2.7.0)(react-native-reanimated@4.5.1)(react-native-svg@15.15.4)(react-native-worklets@0.10.4)(react-native@0.86.3)(react@19.2.3)
       '@expo/vector-icons':
         specifier: ^15.1.1
         version: 15.1.1(expo-font@57.0.4)(react-native@0.86.3)(react@19.2.3)
@@ -230,6 +233,9 @@ importers:
       assert:
         specifier: ^2.1.0
         version: 2.1.0
+      blobatar:
+        specifier: ^2.7.0
+        version: 2.7.0(react@19.2.3)
       browserify-zlib:
         specifier: ^0.2.0
         version: 0.2.0
@@ -284,6 +290,9 @@ importers:
       expo-linking:
         specifier: ^57.0.13
         version: 57.0.13(expo@57.0.30)(react-native@0.86.3)(react@19.2.3)
+      expo-local-authentication:
+        specifier: 57.0.3
+        version: 57.0.3(expo@57.0.30)
       expo-notifications:
         specifier: ~57.0.23
         version: 57.0.23(expo@57.0.30)(react-native@0.86.3)(react@19.2.3)(typescript@6.0.3)
@@ -1681,6 +1690,29 @@ packages:
     dependencies:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
+
+  /@blobatar/react-native@2.7.0(blobatar@2.7.0)(react-native-reanimated@4.5.1)(react-native-svg@15.15.4)(react-native-worklets@0.10.4)(react-native@0.86.3)(react@19.2.3):
+    resolution: {integrity: sha512-c1Y14kq0qRjhb+TQ3fwZ6tFIqAGgwcSr1B9Hf3l5yh2k4Qf0XFI794qZNdUpCff6ETAwqvbKE2M9bzZC60he7w==}
+    peerDependencies:
+      blobatar: 2.x
+      react: '>=18'
+      react-native: '>=0.76'
+      react-native-reanimated: '>=4'
+      react-native-svg: '>=15'
+      react-native-worklets: '>=0.5'
+    peerDependenciesMeta:
+      react-native-reanimated:
+        optional: true
+      react-native-worklets:
+        optional: true
+    dependencies:
+      blobatar: 2.7.0(react@19.2.3)
+      react: 19.2.3
+      react-native: 0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1)(@types/react@18.2.79)(react@19.2.3)
+      react-native-reanimated: 4.5.1(react-native-worklets@0.10.4)(react-native@0.86.3)(react@19.2.3)
+      react-native-svg: 15.15.4(react-native@0.86.3)(react@19.2.3)
+      react-native-worklets: 0.10.4(@babel/core@7.29.7)(@react-native/metro-config@0.87.1)(react-native@0.86.3)(react@19.2.3)
+    dev: false
 
   /@egjs/hammerjs@2.0.17:
     resolution: {integrity: sha512-XQsZgjm2EcVUiZQf11UBJQfmZeEmOW8DpI1gsFeln6w0ae0ii4dMQEQ0kjl6DspdWX1aGY1/loyXnP0JS06e/A==}
@@ -5706,6 +5738,20 @@ packages:
     engines: {node: '>=8'}
     dev: true
 
+  /blobatar@2.7.0(react@19.2.3):
+    resolution: {integrity: sha512-tL1p2J3dXE/Z9U/ITwHqU7HBHmTH+Am+hif1J1hWAhvFT1VYC2HG+eXtN7081yuY+L2lrp9bs/VaF7dVH3S2jw==}
+    peerDependencies:
+      react: '>=18'
+      vue: '>=3'
+    peerDependenciesMeta:
+      react:
+        optional: true
+      vue:
+        optional: true
+    dependencies:
+      react: 19.2.3
+    dev: false
+
   /bn.js@4.12.5:
     resolution: {integrity: sha512-3aRg6/JxfffFD+OlOjOFR3Vo79l39ooBTFucxx+MT3dhCtzn3EmiUPQo+6/OZuI2jbXi3YKgmiTFBgChQMwIRQ==}
     dev: false
@@ -7032,6 +7078,15 @@ packages:
     transitivePeerDependencies:
       - expo
       - supports-color
+    dev: false
+
+  /expo-local-authentication@57.0.3(expo@57.0.30):
+    resolution: {integrity: sha512-1oQCBKz8JOpai+Zp+Z2RkBFIi2CHHWLSJk/pjvT9VEyf8nPFslo4kt1ZlQvtJ4rupbKNCmxqKfYr8Mlo8nJEug==}
+    peerDependencies:
+      expo: '*'
+    dependencies:
+      expo: 57.0.30(@babel/core@7.29.7)(@expo/dom-webview@57.0.1)(@expo/metro-runtime@57.0.17)(expo-router@57.0.28)(react-dom@19.2.3)(react-native-web@0.21.2)(react-native-webview@14.0.1)(react-native-worklets@0.10.4)(react-native@0.86.3)(react@19.2.3)(typescript@6.0.3)
+      invariant: 2.2.4
     dev: false
 
   /expo-manifests@57.0.2(expo@57.0.30):

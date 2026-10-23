@@ -177,7 +177,7 @@ const maintenanceService = new MaintenanceService(io);
 
 // Domain Controllers
 const healthController = new HealthController(custodyManager, paymentRegistry, maintenanceService);
-const authController = new AuthController(custodyManager, ledgerService);
+const authController = new AuthController(custodyManager, ledgerService, rateService);
 const balanceController = new BalanceController(ledgerService, rateService);
 const kycController = new KYCController(ledgerService);
 const payoutController = new PayoutController(paymentRegistry, ledgerService, rateService);
@@ -285,6 +285,11 @@ async function main() {
   rateService.onRateUpdate((rateState) => {
     io.emit('rate:updated', rateState);
   });
+
+  // Warm the in-memory rate from the worker's latest RateFeedLog row once at
+  // boot. Refresh stays on-demand via ensureFreshRate() in request paths —
+  // the worker's rate-poller queue owns the polling cadence (ADR-0001).
+  void rateService.ensureFreshRate().catch(() => {});
 
   server.log.info('Sole sweep owner: apps/worker ChainDepositProcessor.processSweepRetries (ADR-0001).');
 

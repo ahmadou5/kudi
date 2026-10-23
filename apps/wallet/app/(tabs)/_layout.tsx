@@ -12,14 +12,19 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const isAuthenticated = useAuthStore((s: AuthState) => s.isAuthenticated);
   const isUnlocked = useAuthStore((s: AuthState) => s.isUnlocked);
+  const hasPin = useAuthStore((s: AuthState) => s.hasPin);
+  const unlock = useAuthStore((s: AuthState) => s.unlock);
 
   useEffect(() => {
     if (!isAuthenticated) {
       router.replace('/(auth)/welcome');
+    } else if (!hasPin) {
+      // Without a PIN there is nothing to verify — never trap the user on the lock screen
+      if (!isUnlocked) unlock();
     } else if (!isUnlocked) {
       router.replace('/auth-lock');
     }
-  }, [isAuthenticated, isUnlocked]);
+  }, [isAuthenticated, isUnlocked, hasPin]);
 
   return (
     <View style={[styles.container, { backgroundColor: palette.bg, paddingTop: insets.top }]}>

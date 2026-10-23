@@ -1,6 +1,6 @@
 import '../src/lib/polyfills';
 import React, { useEffect } from 'react';
-import { View } from 'react-native';
+import { View, AppState } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
@@ -47,6 +47,7 @@ export default function RootLayout() {
   const user = useAuthStore((s: AuthState) => s.user);
   const accessToken = useAuthStore((s: AuthState) => s.accessToken);
   const isAuthenticated = useAuthStore((s: AuthState) => s.isAuthenticated);
+  const appLockEnabled = usePreferencesStore((s: PreferencesState) => s.appLockEnabled);
 
   useEffect(() => {
     if (error) throw error;
@@ -56,6 +57,20 @@ export default function RootLayout() {
     void hydrateAuth();
     void hydratePreferences();
   }, [hydrateAuth, hydratePreferences]);
+
+  useEffect(() => {
+    if (!appLockEnabled) return;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'background') {
+        const auth = useAuthStore.getState();
+        // Only lock when there is a PIN to verify against
+        if (auth.isUnlocked && auth.hasPin) {
+          auth.lock();
+        }
+      }
+    });
+    return () => subscription.remove();
+  }, [appLockEnabled]);
 
   useEffect(() => {
     if (isAuthenticated && user?.id) {

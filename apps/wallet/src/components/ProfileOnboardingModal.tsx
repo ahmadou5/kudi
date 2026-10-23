@@ -33,17 +33,10 @@ import { Typography } from '../constants/typography';
 import { useAuthStore, AuthState } from '../store/auth.store';
 import { DobDatePickerModal } from './ui/DobDatePickerModal';
 import { FlowProgressDots } from './wallet/WalletFlowProgress';
+import { userAvatarSeed } from './Avatar';
+import { Blobatar, isBlobatarUrl, blobatarSeed, toBlobatarUrl } from './Blobatar';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-const PRESET_AVATARS = [
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?w=200&auto=format&fit=crop&q=80',
-];
 
 export function ProfileOnboardingModal() {
   const palette = useAppPalette();
@@ -58,7 +51,10 @@ export function ProfileOnboardingModal() {
   const [lastName, setLastName] = useState('');
   const [username, setUsername] = useState('');
   const [dob, setDob] = useState('');
-  const [selectedAvatar, setSelectedAvatar] = useState(PRESET_AVATARS[0]);
+  // Custom uploaded photo (data URI / file URI / remote URL), or null when
+  // the generated Blobatar is the chosen avatar.
+  const [avatarPhoto, setAvatarPhoto] = useState<string | null>(null);
+  const [blobSeed, setBlobSeed] = useState('');
 
   const [isDobPickerVisible, setIsDobPickerVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -83,13 +79,25 @@ export function ProfileOnboardingModal() {
       }
       if (user.username) setUsername(user.username.replace(/^@/, ''));
       if (user.dob) setDob(user.dob);
-      if (user.avatarUrl) setSelectedAvatar(user.avatarUrl);
+      const seedBase = userAvatarSeed(user);
+      if (user.avatarUrl && isBlobatarUrl(user.avatarUrl)) {
+        setBlobSeed((prev) => prev || blobatarSeed(user.avatarUrl as string, seedBase));
+      } else if (user.avatarUrl) {
+        setAvatarPhoto(user.avatarUrl);
+      }
+      setBlobSeed((prev) => prev || seedBase);
     }
   }, [user]);
 
   if (!isProfileIncomplete) {
     return null;
   }
+
+  // Stable grid of generated characters: the user's default seed plus variants.
+  const baseSeed = userAvatarSeed(user);
+  const defaultSeeds = [1, 2, 3, 4, 5, 6].map((n) => (n === 1 ? baseSeed : `${baseSeed}-${n}`));
+  const avatarSeeds =
+    blobSeed && !defaultSeeds.includes(blobSeed) ? [blobSeed, ...defaultSeeds] : defaultSeeds;
 
   const handleNextStep = () => {
     setErrorMsg('');
@@ -153,7 +161,7 @@ export function ProfileOnboardingModal() {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
         const uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
-        setSelectedAvatar(uri);
+        setAvatarPhoto(uri);
       }
     } catch (err: any) {
       console.warn('Avatar picker error:', err);
@@ -176,7 +184,7 @@ export function ProfileOnboardingModal() {
         fullName: `${cleanFirst} ${cleanLast}`,
         username: `@${cleanUser}`,
         dob,
-        avatarUrl: selectedAvatar,
+        avatarUrl: avatarPhoto || toBlobatarUrl(blobSeed || userAvatarSeed(user)),
         profileCompleted: true
       });
 
@@ -429,7 +437,13 @@ export function ProfileOnboardingModal() {
                 {step === 4 && (
                   <View style={styles.stepContainer}>
                     <View style={styles.avatarPreviewArea}>
-                      <Image source={{ uri: selectedAvatar }} style={styles.mainAvatarImg} />
+                      <View style={styles.mainAvatarImg}>
+                        {avatarPhoto ? (
+                          <Image source={{ uri: avatarPhoto }} style={styles.mainAvatarFill} />
+                        ) : (
+                          <Blobatar name={blobSeed || baseSeed} size={82} />
+                        )}
+                      </View>
                       <TouchableOpacity
                         onPress={handlePickCustomPhoto}
                         style={[styles.customPhotoBadge, { backgroundColor: palette.primary, borderColor: palette.card }]}
@@ -443,24 +457,27 @@ export function ProfileOnboardingModal() {
                       Choose an Avatar
                     </Text>
                     <Text style={[Typography.caption, styles.subtitleText, { color: palette.textSecondary }]}>
-                      Select from our preset avatars or upload your own photo.
+                      Pick a generated character or upload your own photo.
                     </Text>
 
-                    {/* Presets Grid */}
+                    {/* Generated Blobatar variants */}
                     <View style={styles.avatarGrid}>
-                      {PRESET_AVATARS.map((url, idx) => {
-                        const isSelected = selectedAvatar === url;
+                      {avatarSeeds.map((seed) => {
+                        const isSelected = !avatarPhoto && blobSeed === seed;
                         return (
                           <TouchableOpacity
-                            key={idx}
-                            onPress={() => setSelectedAvatar(url)}
+                            key={seed}
+                            onPress={() => {
+                              setAvatarPhoto(null);
+                              setBlobSeed(seed);
+                            }}
                             activeOpacity={0.8}
                             style={[
                               styles.avatarGridItem,
                               { borderColor: isSelected ? palette.primary : palette.border }
                             ]}
                           >
-                            <Image source={{ uri: url }} style={styles.gridAvatarImg} />
+                            <Blobatar name={seed} size={53} />
                             {isSelected && (
                               <View style={[styles.checkBadge, { backgroundColor: palette.primary }]}>
                                 <Check size={12} color="#FFFFFF" />
@@ -659,7 +676,14 @@ const styles = StyleSheet.create({
     height: 88,
     borderRadius: 44,
     borderWidth: 3,
-    borderColor: '#3B82F6'
+    borderColor: '#3B82F6',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  mainAvatarFill: {
+    width: '100%',
+    height: '100%'
   },
   customPhotoBadge: {
     position: 'absolute',
@@ -685,11 +709,9 @@ const styles = StyleSheet.create({
     borderRadius: 29,
     borderWidth: 2.5,
     overflow: 'hidden',
-    position: 'relative'
-  },
-  gridAvatarImg: {
-    width: '100%',
-    height: '100%'
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   checkBadge: {
     position: 'absolute',

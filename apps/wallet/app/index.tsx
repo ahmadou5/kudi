@@ -11,6 +11,7 @@ export default function IndexScreen() {
   const isAuthenticated = useAuthStore((s: AuthState) => s.isAuthenticated);
   const isUnlocked = useAuthStore((s: AuthState) => s.isUnlocked);
   const isLoading = useAuthStore((s: AuthState) => s.isLoading);
+  const hasPin = useAuthStore((s: AuthState) => s.hasPin);
 
   useEffect(() => {
     if (isLoading) return;
@@ -19,7 +20,8 @@ export default function IndexScreen() {
       // Auto-register push token in background if permission is granted
       registerPushToken().catch(() => {});
 
-      if (isUnlocked) {
+      // Only gate behind the PIN screen when this device actually has a PIN set
+      if (isUnlocked || !hasPin) {
         router.replace('/(tabs)');
       } else {
         router.replace('/auth-lock');
@@ -27,7 +29,7 @@ export default function IndexScreen() {
     } else {
       router.replace('/(auth)/welcome');
     }
-  }, [isLoading, isAuthenticated, isUnlocked]);
+  }, [isLoading, isAuthenticated, isUnlocked, hasPin]);
 
   return (
     <View style={[styles.container, { backgroundColor: palette.bg }]}>

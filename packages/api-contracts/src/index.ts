@@ -164,6 +164,22 @@ export interface VirtualAccountsResponseData {
   accounts: any[];
 }
 
+export interface NotificationItem {
+  id: string;
+  userId: string;
+  title: string;
+  body: string;
+  type: string;
+  read: boolean;
+  createdAt: string;
+  data?: Record<string, any>;
+}
+
+export interface NotificationsResponseData {
+  data: NotificationItem[];
+  unreadCount: number;
+}
+
 export interface ResolveAccountRequest {
   accountNumber: string;
   bankCode: string;

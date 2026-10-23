@@ -17,7 +17,7 @@ export class BalanceController {
     const user = this.ledgerService.getUser(userId);
     const tier = user?.kycTier || KYCTier.UNVERIFIED;
     const dailyLimitNGN = dailyLimitForTier(tier);
-    const currentRate = this.rateService.getCurrentRate();
+    const currentRate = await this.rateService.ensureFreshRate();
     const spendableNGN = balanceUSDC * currentRate;
 
     return successResponse({

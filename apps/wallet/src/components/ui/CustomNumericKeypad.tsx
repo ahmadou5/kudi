@@ -31,6 +31,7 @@ export const CustomNumericKeypad: React.FC<CustomNumericKeypadProps> = ({
         <View key={rowIndex} style={styles.row}>
           {row.map((item) => {
             if (item === 'BIO') {
+              if (!onBiometricPress) return null;
               return (
                 <TouchableOpacity
                   key="bio"
