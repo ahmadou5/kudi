@@ -32,11 +32,13 @@ export class RateService {
     isManualOverride: false
   };
 
-  private pollingTimer: NodeJS.Timeout | null = null;
   private rateUpdateListeners: Array<(state: RateState) => void> = [];
   // In-memory FX cache: key = "EUR:USD", value = { rate, fetchedAt }
   private fxCache = new Map<string, FxCacheEntry>();
   private readonly FX_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  // Throttle for on-demand rate refresh (worker owns the actual polling loop)
+  private lastRefreshAttemptAt = 0;
+  private readonly REFRESH_MIN_INTERVAL_MS = 30_000;
 
   public getRateState(): RateState {
     return this.state;
@@ -44,6 +46,22 @@ export class RateService {
 
   public getCurrentRate(): number {
     return this.state.currentRateNGN;
+  }
+
+  /**
+   * On-demand refresh of the in-memory NGN rate from the worker's latest
+   * RateFeedLog row (falls back to provider APIs if the log is stale).
+   * Throttled so request paths can call it freely. The API process must not
+   * run its own polling loop — the worker's rate-poller queue owns cadence.
+   */
+  public async ensureFreshRate(): Promise<number> {
+    if (this.state.isManualOverride) return this.state.currentRateNGN;
+    const now = Date.now();
+    if (now - this.lastRefreshAttemptAt < this.REFRESH_MIN_INTERVAL_MS) {
+      return this.state.currentRateNGN;
+    }
+    this.lastRefreshAttemptAt = now;
+    return this.fetchLiveRate();
   }
 
   public setRateOverride(newRateNGN: number): RateState {
@@ -253,21 +271,6 @@ export class RateService {
     }
 
     throw new Error(`Unable to fetch FX rate for ${normalFrom}→${normalTo} from any provider`);
-  }
-
-  public startPolling(intervalMs = 30_000) {
-    if (this.pollingTimer) clearInterval(this.pollingTimer);
-    this.fetchLiveRate().catch(() => {});
-    this.pollingTimer = setInterval(() => {
-      this.fetchLiveRate().catch(() => {});
-    }, intervalMs);
-  }
-
-  public stopPolling() {
-    if (this.pollingTimer) {
-      clearInterval(this.pollingTimer);
-      this.pollingTimer = null;
-    }
   }
 }
 

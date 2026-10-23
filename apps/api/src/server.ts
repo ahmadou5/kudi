@@ -286,10 +286,10 @@ async function main() {
     io.emit('rate:updated', rateState);
   });
 
-  // Kick off the rate engine. Without this, currentRateNGN never leaves the
-  // constructor default (1585.50): fetchLiveRate() would consume the worker's
-  // fresh RateFeedLog rows (or hit providers directly) but nothing called it.
-  rateService.startPolling();
+  // Warm the in-memory rate from the worker's latest RateFeedLog row once at
+  // boot. Refresh stays on-demand via ensureFreshRate() in request paths —
+  // the worker's rate-poller queue owns the polling cadence (ADR-0001).
+  void rateService.ensureFreshRate().catch(() => {});
 
   server.log.info('Sole sweep owner: apps/worker ChainDepositProcessor.processSweepRetries (ADR-0001).');
 
