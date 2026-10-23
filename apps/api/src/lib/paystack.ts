@@ -59,12 +59,18 @@ export async function createPaystackCustomer(email: string, firstName: string, l
 }
 
 export async function createPaystackDedicatedAccount(customerCode: string, preferredBank = 'wema-bank'): Promise<PaystackDedicatedAccount> {
+  if (!process.env.PAYSTACK_SECRET_KEY) {
+    throw new Error('[Paystack API] PAYSTACK_SECRET_KEY is not configured — cannot issue dedicated accounts');
+  }
   try {
     const res = await paystack.post('/dedicated_account', {
       customer: customerCode,
       preferred_bank: preferredBank,
     });
     const data = res.data.data;
+    if (!data?.account_number) {
+      throw new Error('Paystack returned no dedicated account number');
+    }
     return {
       account_number: data.account_number,
       account_name: data.account_name ?? 'Kudi Wallet',
@@ -73,13 +79,7 @@ export async function createPaystackDedicatedAccount(customerCode: string, prefe
       customer_code: customerCode,
     };
   } catch (err) {
-    return {
-      account_number: `99${Math.floor(10000000 + Math.random() * 90000000)}`,
-      account_name: `KUDI / ${customerCode.slice(-6).toUpperCase()}`,
-      bank_name: 'Wema Bank (Simulated)',
-      bank_code: '035',
-      customer_code: customerCode,
-    };
+    wrapPaystackError(err, 'Failed to create Paystack dedicated account');
   }
 }
 
@@ -95,5 +95,35 @@ export async function initiatePaystackTransfer(amountNGN: number, recipientCode:
     return res.data.data as { transfer_code: string; status: string; reference: string };
   } catch (err) {
     wrapPaystackError(err, 'Failed to initiate Paystack transfer');
+  }
+}
+
+export type PaystackBvnRecord = {
+  bvn: string;
+  first_name: string;
+  last_name: string;
+  phone?: string;
+  dob?: string;
+};
+
+export function isPaystackConfigured(): boolean {
+  return Boolean(process.env.PAYSTACK_SECRET_KEY);
+}
+
+/**
+ * Resolves a BVN to the enrolled identity record via Paystack
+ * (GET /bank/resolve_bvn/{bvn} — ₦10 per call, 10 free per month).
+ * Throws on API errors; callers enforce name/DOB matching.
+ */
+export async function resolvePaystackBvn(bvn: string): Promise<PaystackBvnRecord> {
+  try {
+    const res = await paystack.get(`/bank/resolve_bvn/${bvn}`);
+    const data = res.data?.data as PaystackBvnRecord | undefined;
+    if (!data?.bvn) {
+      throw new Error('Paystack returned no BVN record');
+    }
+    return data;
+  } catch (err) {
+    wrapPaystackError(err, 'Failed to resolve BVN via Paystack');
   }
 }

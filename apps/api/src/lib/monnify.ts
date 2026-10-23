@@ -54,57 +54,46 @@ export async function createMonnifyReservedAccount(
   const token = await getMonnifyAccessToken();
   const contractCode = process.env.MONNIFY_CONTRACT_CODE;
 
-  if (token && contractCode) {
-    try {
-      const res = await monnify.post<
-        MonnifyEnvelope<{
-          accountReference: string;
-          accountName: string;
-          accounts: Array<{ accountNumber: string; bankName: string; bankCode: string }>;
-        }>
-      >(
-        '/api/v2/bank-transfer/reserved-accounts',
-        {
-          accountReference,
-          accountName,
-          currencyCode: 'NGN',
-          contractCode,
-          customerEmail,
-          customerName: accountName,
-          bvn,
-          getAllAvailableBanks: true,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+  if (!token || !contractCode) {
+    throw new Error('[Monnify API] MONNIFY credentials/contract code are not configured — cannot issue virtual accounts');
+  }
 
-      const firstAcc = res.data.responseBody?.accounts?.[0];
-      if (firstAcc) {
-        return {
-          accountReference,
-          accountName,
-          accountNumber: firstAcc.accountNumber,
-          bankName: firstAcc.bankName,
-          bankCode: firstAcc.bankCode,
-        };
-      }
-    } catch (err) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error(`[Monnify API] Reserved account creation failed in production: ${err instanceof Error ? err.message : String(err)}`);
-      }
+  try {
+    const res = await monnify.post<
+      MonnifyEnvelope<{
+        accountReference: string;
+        accountName: string;
+        accounts: Array<{ accountNumber: string; bankName: string; bankCode: string }>;
+      }>
+    >(
+      '/api/v2/bank-transfer/reserved-accounts',
+      {
+        accountReference,
+        accountName,
+        currencyCode: 'NGN',
+        contractCode,
+        customerEmail,
+        customerName: accountName,
+        bvn,
+        getAllAvailableBanks: true,
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    const firstAcc = res.data.responseBody?.accounts?.[0];
+    if (!firstAcc) {
+      throw new Error('Monnify returned no reserved account');
     }
+    return {
+      accountReference,
+      accountName,
+      accountNumber: firstAcc.accountNumber,
+      bankName: firstAcc.bankName,
+      bankCode: firstAcc.bankCode,
+    };
+  } catch (err) {
+    wrapMonnifyError(err, 'Reserved account creation failed');
   }
-
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('[Monnify API] Missing MONNIFY credentials in production. Cannot issue simulated virtual accounts.');
-  }
-
-  return {
-    accountReference,
-    accountName,
-    accountNumber: `88${Math.floor(10000000 + Math.random() * 90000000)}`,
-    bankName: 'Moniepoint Microfinance Bank (Monnify)',
-    bankCode: '50515',
-  };
 }
 
 export async function initiateMonnifyDisbursement(amountNGN: number, reference: string, destinationBankCode: string, destinationAccountNumber: string, narration?: string) {

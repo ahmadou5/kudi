@@ -239,7 +239,7 @@ export class AuthController {
       return reply.status(404).send(errorResponse('USER_NOT_FOUND', 'User not found'));
     }
     const balance = await this.ledgerService.getBalanceAsync(userId);
-    const virtualAccounts = this.ledgerService.getUserVirtualAccounts(userId);
+    const virtualAccounts = await this.ledgerService.getUserVirtualAccountsAsync(userId);
 
     // Always reuse stored wallets — never regenerate for an existing user
     let wallets = user.wallets && user.wallets.length > 0 ? user.wallets : null;

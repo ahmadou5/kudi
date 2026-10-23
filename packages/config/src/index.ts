@@ -70,6 +70,11 @@ const apiEnvSchema = z
     BACHS_SECRET_KEY: z.string().optional(),
     BACHS_BASE_URL: z.string().url().default('https://sandbox-api.bachs.io'),
 
+    // Identity verification (direct NIBSS BVN validation)
+    NIBSS_BASE_URL: z.string().url().default('https://nibss-plc.com.ng/WebPortalBVNManagementService'),
+    NIBSS_ORG_CODE: z.string().optional(),
+    NIBSS_API_KEY: z.string().optional(),
+
     // Token config
     EIP712_TOKEN_NAME: z.string().default('USDC'),
     EIP712_TOKEN_VERSION: z.string().default('2'),
