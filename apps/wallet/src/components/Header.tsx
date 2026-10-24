@@ -11,6 +11,7 @@ import { useAuthStore } from '../store/auth.store';
 import { useNotifications } from '../hooks/useNotifications';
 import { ChainLogo } from './ui/ChainLogo';
 import { Blobatar } from './Blobatar';
+import { Avatar, userAvatarSeed } from './Avatar';
 
 export interface HeaderProps {
   onOpenScanner?: () => void;
@@ -67,12 +68,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
         style={styles.profileGreetingTouch}
         activeOpacity={0.7}
       >
-        <View style={[styles.avatarBtn, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0', borderColor: '#34D399' }]}>
-          {user?.avatarUrl ? (
-            <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
-          ) : (
-            <Blobatar name={user?.username || ''} />
-          )}
+        <View style={[styles.avatarBtn, { backgroundColor: isDark ? '#1E293B01' : '#E2E8F001', borderColor: palette.border }]}>
+          <Avatar avatarUrl={user?.avatarUrl} seed={userAvatarSeed(user)} size={38} />
         </View>
 
       </TouchableOpacity>
