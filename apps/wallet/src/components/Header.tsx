@@ -92,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
           )}
         </TouchableOpacity>
 
-        {/* QR Scanner Button */}
+       
         <TouchableOpacity
           onPress={handleScanner}
           style={[styles.iconBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
