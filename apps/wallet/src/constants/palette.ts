@@ -20,6 +20,15 @@ export const ACCENTS: AccentOption[] = [
   { id: 'rose', label: 'Rose', dark: '#FB7185', light: '#BE123C' }
 ];
 
+export type CardAccentId = 'ngn' | 'usd' | 'eur' | 'usdc';
+
+export const CARD_HUE_TARGETS: Record<CardAccentId, string> = {
+  ngn: '#22C55E',
+  usd: '#3B82F6',
+  eur: '#8B5CF6',
+  usdc: '#14B8A6'
+};
+
 export interface SurfaceOption {
   id: SurfaceId;
   dark: { label: string; bg: string };

@@ -3,34 +3,54 @@ import {
   StyleSheet,
   Text,
   View,
-  TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Modal,
   Pressable,
   RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, CheckCheck, BellOff, X, ArrowDownCircle, ArrowUpCircle, ShieldCheck, Bell, Clock, LucideIcon } from 'lucide-react-native';
-import { useAppPalette, isLight } from '../src/lib/theme';
+import {
+  ArrowLeft,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Bell,
+  CheckCheck,
+  Clock,
+  Inbox,
+  LucideIcon,
+  Mail,
+  ShieldCheck,
+  X
+} from 'lucide-react-native';
+import { useAppPalette, hexToRgba, readableInk } from '../src/lib/theme';
 import { Typography } from '../src/constants/typography';
+import { Spacing } from '../src/constants/spacing';
 import { useNotifications, type AppNotification } from '../src/hooks/useNotifications';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { haptics } from '../src/lib/haptics';
+import { GorhomBottomSheet } from '../src/components/ui/GorhomBottomSheet';
+import { NotificationEmptyVisual } from '../src/components/NotificationEmptyVisual';
 
 export type { AppNotification };
 
-const filters = [
-  { key: 'ALL', label: 'All' },
-  { key: 'UNREAD', label: 'Unread' },
-] as const;
+type NotificationFilter = {
+  key: string;
+  title: string;
+  Icon: LucideIcon;
+  predicate: (notification: AppNotification) => boolean;
+};
 
-function getIconForType(type: string): { Icon: LucideIcon; color: string; bg: string } {
+const filters: NotificationFilter[] = [
+  { key: 'ALL', title: 'All activity', Icon: Inbox, predicate: () => true },
+  { key: 'UNREAD', title: 'Unread', Icon: Mail, predicate: (n) => !n.read }
+];
+
+function getIconForType(type: string): LucideIcon {
   const t = (type || '').toUpperCase();
-  if (t.includes('DEPOSIT') || t.includes('PAYMENT_RECEIVED')) return { Icon: ArrowDownCircle, color: '#10B981', bg: 'rgba(16,185,129,0.12)' };
-  if (t.includes('SPEND') || t.includes('PAYOUT') || t.includes('TRANSFER')) return { Icon: ArrowUpCircle, color: '#8B5CF6', bg: 'rgba(139,92,246,0.12)' };
-  if (t.includes('KYC') || t.includes('SECURITY')) return { Icon: ShieldCheck, color: '#3B82F6', bg: 'rgba(59,130,246,0.12)' };
-  return { Icon: Bell, color: '#6366F1', bg: 'rgba(99,102,241,0.12)' };
+  if (t.includes('DEPOSIT') || t.includes('PAYMENT_RECEIVED')) return ArrowDownCircle;
+  if (t.includes('SPEND') || t.includes('PAYOUT') || t.includes('TRANSFER')) return ArrowUpCircle;
+  if (t.includes('KYC') || t.includes('SECURITY')) return ShieldCheck;
+  return Bell;
 }
 
 function formatRelativeTime(dateStr: string) {
@@ -51,8 +71,6 @@ function formatRelativeTime(dateStr: string) {
 
 export default function NotificationsFeedScreen() {
   const palette = useAppPalette();
-  const insets = useSafeAreaInsets();
-  const light = isLight(palette.bg);
   const {
     notifications,
     unreadCount,
@@ -62,10 +80,16 @@ export default function NotificationsFeedScreen() {
     markAllRead
   } = useNotifications();
 
-  const [filter, setFilter] = useState<(typeof filters)[number]['key']>('ALL');
+  const [filter, setFilter] = useState<string>(filters[0].key);
   const [selected, setSelected] = useState<AppNotification | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
+
+  const tileTint = hexToRgba(palette.text, 0.07);
+  const labelColor = hexToRgba(palette.text, 0.45);
+  const mutedColor = hexToRgba(palette.text, 0.5);
+  const faintColor = hexToRgba(palette.text, 0.4);
+  const ink = readableInk(palette.primary);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -74,6 +98,7 @@ export default function NotificationsFeedScreen() {
   };
 
   const handleMarkOneRead = async (item: AppNotification) => {
+    haptics.tap();
     setSelected(item);
     if (!item.read) {
       await markRead(item.id);
@@ -81,6 +106,7 @@ export default function NotificationsFeedScreen() {
   };
 
   const handleMarkAllRead = async () => {
+    haptics.tap();
     setMarkingAll(true);
     try {
       await markAllRead();
@@ -89,169 +115,273 @@ export default function NotificationsFeedScreen() {
     }
   };
 
+  const activeFilter = filters.find((f) => f.key === filter) || filters[0];
+
   const filteredList = useMemo(() => {
-    return filter === 'UNREAD' ? notifications.filter(n => !n.read) : notifications;
-  }, [filter, notifications]);
+    return notifications.filter(activeFilter.predicate);
+  }, [notifications, activeFilter]);
+
+  const sectionLabel = `${activeFilter.title} · ${filteredList.length}`;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
-      {/* Header Bar */}
-      <View style={[styles.header, { borderColor: palette.border }]}>
-        <TouchableOpacity
+      <View style={styles.header}>
+        <Pressable
           onPress={() => router.back()}
-          style={[styles.backBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
-          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibility-label="Go back"
+          hitSlop={12}
+          style={({ pressed }) => [
+            styles.backButton,
+            { backgroundColor: palette.card, borderColor: palette.border },
+            pressed && { opacity: 0.6 }
+          ]}
         >
           <ArrowLeft size={20} color={palette.text} />
-        </TouchableOpacity>
-
-        <Text style={[Typography.title2, { color: palette.text }]}>Notifications</Text>
-
-
+        </Pressable>
+        <Text style={[Typography.title1, { color: palette.text }]}>Notifications</Text>
       </View>
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#10B981" />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />
+        }
       >
-        {/* Unread Summary Card */}
-        <View style={[styles.summaryCard, { backgroundColor: light ? '#0F172A' : '#1E293B' }]}>
-          <View>
-            <Text style={styles.summaryLabel}>UNREAD UPDATES</Text>
-            <Text style={styles.summaryValue}>{unreadCount}</Text>
-          </View>
-          <TouchableOpacity
-            onPress={handleMarkAllRead}
-            disabled={markingAll || unreadCount === 0}
-            style={[styles.markAllBtn, { opacity: unreadCount > 0 ? 1 : 0.5 }]}
-            activeOpacity={0.8}
-          >
-            {markingAll ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <>
-                <CheckCheck size={16} color="#FFFFFF" />
-                <Text style={styles.markAllText}>Mark all read</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Filter Pills */}
         <View style={styles.filterRow}>
           {filters.map((f) => {
             const active = f.key === filter;
+            const FilterIcon = f.Icon;
             return (
-              <TouchableOpacity
+              <Pressable
                 key={f.key}
-                onPress={() => setFilter(f.key)}
-                style={[
+                onPress={() => {
+                  haptics.tap();
+                  setFilter(f.key);
+                }}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={f.title}
+                style={({ pressed }) => [
                   styles.filterChip,
                   {
-                    backgroundColor: active ? '#10B981' : palette.card,
-                    borderColor: active ? '#10B981' : palette.border
-                  }
+                    backgroundColor: active ? palette.primary : palette.card,
+                    borderColor: active ? palette.primary : palette.border
+                  },
+                  pressed && { opacity: 0.85 }
                 ]}
-                activeOpacity={0.8}
               >
-                <Text style={[styles.filterText, { color: active ? '#FFFFFF' : palette.text }]}>{f.label}</Text>
-              </TouchableOpacity>
+                <FilterIcon
+                  size={17}
+                  strokeWidth={2}
+                  color={active ? ink : palette.textSecondary}
+                />
+              </Pressable>
             );
           })}
         </View>
 
-        {/* Feed List */}
+        <View style={styles.sectionRow}>
+          <Text style={[styles.sectionLabel, { color: labelColor }]}>{sectionLabel}</Text>
+          <Pressable
+            onPress={handleMarkAllRead}
+            disabled={markingAll || unreadCount === 0}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.markAllBtn,
+              (markingAll || unreadCount === 0) && { opacity: 0.4 },
+              pressed && !markingAll && unreadCount > 0 && { opacity: 0.6 }
+            ]}
+          >
+            {markingAll ? (
+              <ActivityIndicator size="small" color={palette.primary} />
+            ) : (
+              <>
+                <CheckCheck size={14} color={palette.primary} />
+                <Text style={[styles.markAllText, { color: palette.primary }]}>Mark all read</Text>
+              </>
+            )}
+          </Pressable>
+        </View>
+
         {loading ? (
           <View style={[styles.stateCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <ActivityIndicator size="large" color="#10B981" />
-            <Text style={[Typography.bodyBold, { color: palette.text, marginTop: 12 }]}>Loading Notifications</Text>
-            <Text style={[Typography.subhead, { color: palette.textSecondary }]}>Fetching your latest wallet activity...</Text>
+            <ActivityIndicator size="large" color={palette.primary} />
+            <Text style={[Typography.bodyBold, { color: palette.text, marginTop: 12 }]}>
+              Loading notifications
+            </Text>
+            <Text style={[Typography.subhead, { color: palette.textSecondary }]}>
+              Fetching your latest wallet activity...
+            </Text>
           </View>
         ) : filteredList.length > 0 ? (
-          <View style={styles.list}>
-            {filteredList.map((item) => {
-              const iconInfo = getIconForType(item.type);
-              const ItemIcon = iconInfo.Icon;
+          <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            {filteredList.map((item, index) => {
+              const ItemIcon = getIconForType(item.type);
               return (
-                <TouchableOpacity
-                  key={item.id}
-                  onPress={() => handleMarkOneRead(item)}
-                  style={[
-                    styles.notificationCard,
-                    {
-                      backgroundColor: palette.card,
-                      borderColor: item.read ? palette.border : '#10B981'
-                    }
-                  ]}
-                  activeOpacity={0.8}
-                >
-                  <View style={[styles.iconWrap, { backgroundColor: iconInfo.bg }]}>
-                    <ItemIcon size={22} color={iconInfo.color} />
-                  </View>
+                <React.Fragment key={item.id}>
+                  {index > 0 && <View style={[styles.divider, { backgroundColor: palette.border }]} />}
+                  <Pressable
+                    onPress={() => handleMarkOneRead(item)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${item.title}. ${item.body}`}
+                    style={({ pressed }) => [
+                      styles.row,
+                      !item.read && { backgroundColor: hexToRgba(palette.primary, 0.06) },
+                      pressed && { backgroundColor: hexToRgba(palette.text, 0.05) }
+                    ]}
+                  >
+                    <View style={[styles.iconTile, { backgroundColor: tileTint }]}>
+                      <ItemIcon size={19} color={palette.textSecondary} strokeWidth={1.9} />
+                    </View>
 
-                  <View style={styles.cardBody}>
-                    <View style={styles.cardHeaderRow}>
-                      <Text style={[styles.cardTitle, { color: palette.text }]} numberOfLines={1}>
-                        {item.title}
+                    <View style={styles.rowCopy}>
+                      <View style={styles.rowTitleRow}>
+                        <Text
+                          style={[styles.rowTitle, { color: palette.text }]}
+                          numberOfLines={1}
+                        >
+                          {item.title}
+                        </Text>
+                        {!item.read && (
+                          <View style={[styles.unreadDot, { backgroundColor: palette.primary }]} />
+                        )}
+                      </View>
+                      <Text
+                        style={[styles.rowSubtitle, { color: mutedColor }]}
+                        numberOfLines={2}
+                      >
+                        {item.body}
                       </Text>
-                      {!item.read && <View style={styles.unreadDot} />}
+                      <View style={styles.timeRow}>
+                        <Clock size={11} color={faintColor} />
+                        <Text style={[styles.timeText, { color: faintColor }]}>
+                          {formatRelativeTime(item.createdAt)}
+                        </Text>
+                      </View>
                     </View>
-                    <Text style={[styles.cardText, { color: palette.textSecondary }]} numberOfLines={2}>
-                      {item.body}
-                    </Text>
-                    <View style={styles.timeRow}>
-                      <Clock size={12} color={palette.textSecondary} />
-                      <Text style={[styles.timeText, { color: palette.textSecondary }]}>
-                        {formatRelativeTime(item.createdAt)}
-                      </Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
+                  </Pressable>
+                </React.Fragment>
               );
             })}
           </View>
         ) : (
-          <View style={[styles.stateCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <BellOff size={32} color={palette.textSecondary} />
-            <Text style={[Typography.bodyBold, { color: palette.text, marginTop: 8 }]}>No Notifications</Text>
-            <Text style={[Typography.subhead, { color: palette.textSecondary, textAlign: 'center' }]}>
-              {filter === 'UNREAD' ? 'You have no unread notification updates.' : 'Incoming deposits, transfers, and system alerts will appear here.'}
-            </Text>
+          <View style={styles.emptyWrap}>
+            <View
+              style={[
+                styles.emptyCard,
+                { backgroundColor: palette.card, borderColor: palette.border }
+              ]}
+            >
+              <NotificationEmptyVisual />
+
+              <Text style={[Typography.title3, styles.emptyTitle, { color: palette.text }]}>
+                No notifications
+              </Text>
+              <Text
+                style={[Typography.subhead, styles.emptyBody, { color: hexToRgba(palette.text, 0.55) }]}
+              >
+                {notifications.length > 0
+                  ? 'Nothing here right now — the rest of your activity is under All activity.'
+                  : 'Incoming deposits, transfers, and system alerts will appear here.'}
+              </Text>
+
+              <View style={styles.emptyActions}>
+                {notifications.length > 0 && (
+                  <Pressable
+                    onPress={() => {
+                      haptics.tap();
+                      setFilter(filters[0].key);
+                    }}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [
+                      styles.primaryBtn,
+                      { backgroundColor: palette.text, borderColor: palette.border },
+                      pressed && { opacity: 0.85 }
+                    ]}
+                  >
+                    <Text style={[Typography.bodyBold, { color: palette.bg }]}>
+                      Show {filters[0].title.toLowerCase()}
+                    </Text>
+                  </Pressable>
+                )}
+
+                <Pressable
+                  onPress={() => {
+                    haptics.tap();
+                    void onRefresh();
+                  }}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [
+                    notifications.length > 0 ? styles.secondaryBtn : styles.primaryBtn,
+                    notifications.length > 0
+                      ? { backgroundColor: palette.card, borderColor: palette.border }
+                      : { backgroundColor: palette.text, borderColor: palette.border },
+                    pressed && { opacity: 0.7 }
+                  ]}
+                >
+                  <Text
+                    style={[
+                      Typography.bodyBold,
+                      { color: notifications.length > 0 ? palette.text : palette.bg }
+                    ]}
+                  >
+                    Refresh
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
           </View>
         )}
       </ScrollView>
 
-      {/* Notification Detail Bottom Sheet Modal */}
-      <Modal visible={Boolean(selected)} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
-        <View style={styles.modalBackdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setSelected(null)} />
-          <View style={[styles.detailSheet, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <View style={styles.sheetHeader}>
-              <Text style={[Typography.title3, { color: palette.text }]}>{selected?.title}</Text>
-              <TouchableOpacity onPress={() => setSelected(null)} style={styles.closeBtn}>
-                <X size={20} color={palette.text} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={[Typography.body, { color: palette.textSecondary, marginTop: 8, lineHeight: 22 }]}>
-              {selected?.body}
-            </Text>
-
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 12 }]}>
-              Received: {selected ? new Date(selected.createdAt).toLocaleString() : ''}
-            </Text>
-
-            <TouchableOpacity
-              onPress={() => setSelected(null)}
-              style={[styles.dismissBtn, { backgroundColor: '#10B981' }]}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.dismissBtnText}>Dismiss</Text>
-            </TouchableOpacity>
-          </View>
+      <GorhomBottomSheet
+        visible={Boolean(selected)}
+        onClose={() => setSelected(null)}
+        scrollable
+      >
+        <View style={styles.sheetHeader}>
+          <Text
+            style={[Typography.title3, { color: palette.text, flex: 1, paddingRight: 12 }]}
+            numberOfLines={2}
+          >
+            {selected?.title}
+          </Text>
+          <Pressable
+            onPress={() => setSelected(null)}
+            accessibilityRole="button"
+            accessibility-label="Close"
+            hitSlop={12}
+            style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.6 }]}
+          >
+            <X size={20} color={palette.text} />
+          </Pressable>
         </View>
-      </Modal>
+
+        <Text style={[Typography.body, { color: palette.textSecondary, marginTop: 8, lineHeight: 22 }]}>
+          {selected?.body}
+        </Text>
+
+        <Text style={[Typography.caption, { color: labelColor, marginTop: 12 }]}>
+          {selected ? `Received: ${new Date(selected.createdAt).toLocaleString()}` : ''}
+        </Text>
+
+        <Pressable
+          onPress={() => {
+            haptics.tap();
+            setSelected(null);
+          }}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.dismissBtn,
+            { backgroundColor: palette.primary },
+            pressed && { opacity: 0.85 }
+          ]}
+        >
+          <Text style={[styles.dismissBtnText, { color: ink }]}>Dismiss</Text>
+        </Pressable>
+      </GorhomBottomSheet>
     </SafeAreaView>
   );
 }
@@ -261,149 +391,177 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1
+    gap: 14,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12
   },
-  backBtn: {
+  backButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center'
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    flexGrow: 1,
+    paddingHorizontal: Spacing.md,
+    paddingTop: 4,
+    paddingBottom: 32,
     gap: 16
   },
-  summaryCard: {
-    borderRadius: 24,
-    padding: 20,
+  emptyWrap: {
+    flex: 1,
+    justifyContent: 'center'
+  },
+  emptyCard: {
+    flex: 1,
+    minHeight: 300,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 20,
+    paddingTop: 26,
+    paddingBottom: 22,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  emptyTitle: {
+    marginTop: 20,
+    textAlign: 'center'
+  },
+  emptyBody: {
+    marginTop: 6,
+    maxWidth: 260,
+    textAlign: 'center'
+  },
+  emptyActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 22
+  },
+  primaryBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1
+  },
+  secondaryBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1
+  },
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  filterChip: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between'
+    justifyContent: 'space-between',
+    paddingHorizontal: 4
   },
-  summaryLabel: {
-    color: '#94A3B8',
+  sectionLabel: {
+    fontFamily: Typography.family.mono,
     fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1
-  },
-  summaryValue: {
-    color: '#FFFFFF',
-    fontSize: 32,
-    fontWeight: '800',
-    marginTop: 4
+    letterSpacing: 1.6,
+    textTransform: 'uppercase'
   },
   markAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.12)'
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 12
   },
   markAllText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700'
+    fontFamily: Typography.family.sans,
+    fontSize: 13
   },
-  filterRow: {
-    flexDirection: 'row',
-    gap: 10
-  },
-  filterChip: {
-    height: 38,
-    paddingHorizontal: 18,
-    borderRadius: 999,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  filterText: {
-    fontSize: 13,
-    fontWeight: '700'
-  },
-  list: {
-    gap: 12
-  },
-  notificationCard: {
+  groupCard: {
     borderRadius: 20,
-    borderWidth: 1.5,
-    padding: 16,
+    borderWidth: 1,
+    overflow: 'hidden'
+  },
+  row: {
     flexDirection: 'row',
     gap: 14,
-    alignItems: 'flex-start'
+    alignItems: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 13
   },
-  iconWrap: {
-    width: 46,
-    height: 46,
-    borderRadius: 16,
+  divider: {
+    height: 1,
+    marginLeft: 66
+  },
+  iconTile: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center'
   },
-  cardBody: {
+  rowCopy: {
     flex: 1,
     gap: 4
   },
-  cardHeaderRow: {
+  rowTitleRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between'
+    alignItems: 'center'
   },
-  cardTitle: {
+  rowTitle: {
+    fontFamily: Typography.family.sans,
     fontSize: 15,
-    fontWeight: '700',
+    lineHeight: 20,
     flex: 1
   },
   unreadDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#10B981',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     marginLeft: 8
   },
-  cardText: {
+  rowSubtitle: {
+    fontFamily: Typography.family.sans,
     fontSize: 13,
     lineHeight: 18
   },
   timeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 4
+    gap: 4
   },
   timeText: {
-    fontSize: 11
+    fontFamily: Typography.family.sans,
+    fontSize: 12,
+    lineHeight: 16
   },
   stateCard: {
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 1,
     padding: 32,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6
   },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end'
-  },
-  detailSheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderWidth: 1,
-    padding: 24,
-    gap: 8
-  },
   sheetHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between'
+    alignItems: 'center'
   },
   closeBtn: {
     padding: 4
@@ -413,11 +571,10 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 16
+    marginTop: 20
   },
   dismissBtnText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700'
+    fontFamily: Typography.family.sans,
+    fontSize: 15
   }
 });

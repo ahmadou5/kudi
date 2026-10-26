@@ -1,8 +1,9 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Delete } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
 import { useAppPalette } from '../../lib/theme';
+import { haptics } from '../../lib/haptics';
+import { Typography } from '../../constants/typography';
 
 interface AmountKeypadProps {
   onDigit: (digit: string) => void;
@@ -22,7 +23,7 @@ export const AmountKeypad: React.FC<AmountKeypadProps> = ({ onDigit, onDot, onBa
   const palette = useAppPalette();
 
   const press = (key: string) => {
-    Haptics.selectionAsync().catch(() => {});
+    haptics.tap();
     if (key === 'DEL') onBackspace();
     else if (key === '.') onDot();
     else onDigit(key);
@@ -63,7 +64,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   keyText: {
+    fontFamily: Typography.family.mono,
     fontSize: 26,
     fontWeight: '500',
+    fontVariant: ['tabular-nums'],
   },
 });

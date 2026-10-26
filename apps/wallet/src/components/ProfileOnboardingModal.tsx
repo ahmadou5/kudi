@@ -22,7 +22,6 @@ import {
   Smile
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as Haptics from 'expo-haptics';
 import { useAppPalette, hexToRgba } from '../lib/theme';
 import { Typography } from '../constants/typography';
 import { useAuthStore, AuthState } from '../store/auth.store';
@@ -31,6 +30,7 @@ import { FlowProgressDots } from './wallet/WalletFlowProgress';
 import { userAvatarSeed } from './Avatar';
 import { Blobatar, isBlobatarUrl, blobatarSeed, toBlobatarUrl } from './Blobatar';
 import { GorhomBottomSheet } from './ui/GorhomBottomSheet';
+import { haptics } from '../lib/haptics';
 
 export function ProfileOnboardingModal() {
   const palette = useAppPalette();
@@ -95,7 +95,7 @@ export function ProfileOnboardingModal() {
 
   const handleNextStep = () => {
     setErrorMsg('');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    haptics.impact('light');
 
     if (step === 1) {
       if (!firstName.trim() || firstName.trim().length < 2) {
@@ -130,7 +130,7 @@ export function ProfileOnboardingModal() {
 
   const handlePrevStep = () => {
     setErrorMsg('');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    haptics.impact('light');
     if (step > 1) {
       setStep((prev) => (prev - 1) as 1 | 2 | 3 | 4);
     }
@@ -165,7 +165,7 @@ export function ProfileOnboardingModal() {
   const handleFinalSubmit = async () => {
     setErrorMsg('');
     setIsSubmitting(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    haptics.impact('medium');
 
     const cleanFirst = firstName.trim();
     const cleanLast = lastName.trim();
@@ -185,7 +185,7 @@ export function ProfileOnboardingModal() {
       if (!res.success) {
         setErrorMsg(res.error || 'Failed to complete profile. Please try again.');
       } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        haptics.notify('success');
       }
     } catch (err: any) {
       setErrorMsg(err?.message || 'An error occurred while saving profile');

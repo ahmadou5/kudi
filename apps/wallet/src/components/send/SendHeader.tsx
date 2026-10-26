@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
+import { haptics } from '../../lib/haptics';
 
 interface SendHeaderProps {
   title: string;
@@ -19,7 +20,10 @@ export const SendHeader: React.FC<SendHeaderProps> = ({ title, onBack, leading }
   return (
     <View style={[styles.row, { paddingTop: insets.top + 8 }]}>
       <TouchableOpacity
-        onPress={onBack}
+        onPress={() => {
+          haptics.tap();
+          onBack();
+        }}
         style={styles.backBtn}
         activeOpacity={0.6}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}

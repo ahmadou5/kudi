@@ -13,9 +13,8 @@ import {
 } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import * as Haptics from 'expo-haptics';
-import { AlertTriangle, ChevronDown, ClipboardPaste, ScanLine, Trash2 } from 'lucide-react-native';
-import { useAppPalette } from '../../src/lib/theme';
+import { AlertTriangle, ClipboardPaste, Inbox, ScanLine, Trash2 } from 'lucide-react-native';
+import { useAppPalette, hexToRgba, mixColors } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
 import { useRecipientsStore } from '../../src/store/recipients.store';
@@ -28,6 +27,7 @@ import { SummaryCard } from '../../src/components/send/SummaryCard';
 import { AmountKeypad } from '../../src/components/send/AmountKeypad';
 import { SendSheet } from '../../src/components/send/SendSheet';
 import { SwipeToSend } from '../../src/components/send/SwipeToSend';
+import { haptics } from '../../src/lib/haptics';
 
 type Chain = 'solana' | 'monad';
 
@@ -68,7 +68,6 @@ const withCommas = (intPart: string) => intPart.replace(/\B(?=(\d{3})+(?!\d))/g,
 
 export default function SendOnchainScreen() {
   const palette = useAppPalette();
-  const isDark = palette.text === '#FFFFFF';
   const modal = useAppModal();
   const params = useLocalSearchParams<{ address?: string; chain?: string }>();
   const { balanceUSDC, rateNGN, sendCrypto, cryptoSendResult, setCryptoSendResult } = useKudiWallet();
@@ -87,7 +86,6 @@ export default function SendOnchainScreen() {
   const [amount, setAmount] = useState('');
   const [address, setAddress] = useState(initialAddress);
   const [chain, setChain] = useState<Chain>(initialChain);
-  const [networkOpen, setNetworkOpen] = useState(false);
   const [addressFocused, setAddressFocused] = useState(false);
   const [saveAddress, setSaveAddress] = useState(false);
 
@@ -110,6 +108,7 @@ export default function SendOnchainScreen() {
   const totalUSDC = numericAmount + (numericAmount > 0 ? ONCHAIN_FEE_USDC : 0);
   const totalNGN = totalUSDC * rateNGN;
   const balanceNGN = numericBalance * rateNGN;
+  const maxAmount = Math.floor(Math.max(0, numericBalance - ONCHAIN_FEE_USDC) * 100) / 100;
 
   const amountError = useMemo(() => {
     if (numericAmount > 0 && numericAmount < MIN_SEND_USDC) return `Minimum send is $${MIN_SEND_USDC.toFixed(2)}`;
@@ -118,6 +117,7 @@ export default function SendOnchainScreen() {
   }, [numericAmount, totalUSDC, numericBalance]);
 
   const canContinueAmount = numericAmount >= MIN_SEND_USDC && !amountError;
+  const maxActive = maxAmount > 0 && numericAmount === maxAmount;
   const trimmedAddress = address.trim();
   const addressValid = isValidAddress(trimmedAddress, chain);
   const showAddressError = trimmedAddress.length > 0 && !addressValid && !addressFocused;
@@ -182,11 +182,13 @@ export default function SendOnchainScreen() {
   const handleDot = () => setAmount((prev) => (prev.includes('.') ? prev : (prev || '0') + '.'));
   const handleBackspace = () => setAmount((prev) => prev.slice(0, -1));
 
-  const handleQuickAmount = (value: number) => setAmount(String(value));
+  const handleQuickAmount = (value: number) => {
+    haptics.tap();
+    setAmount(String(value));
+  };
   const handleMax = () => {
-    const spendable = Math.max(0, numericBalance - ONCHAIN_FEE_USDC);
-    const floored = Math.floor(spendable * 100) / 100;
-    setAmount(floored > 0 ? String(floored) : '');
+    haptics.tap();
+    setAmount(maxAmount > 0 ? String(maxAmount) : '');
   };
 
   const handleBack = () => {
@@ -202,7 +204,7 @@ export default function SendOnchainScreen() {
         setAddress(text);
         const detected = detectChain(text);
         if (detected) setChain(detected);
-        Haptics.selectionAsync().catch(() => {});
+        haptics.tap();
       }
     } catch {
       // clipboard unavailable
@@ -214,10 +216,11 @@ export default function SendOnchainScreen() {
   const handleSelectSaved = (a: string, c: Chain) => {
     setAddress(a);
     setChain(c);
-    Haptics.selectionAsync().catch(() => {});
+    haptics.tap();
   };
 
   const handleRemoveSaved = (id: string, addr: string) => {
+    haptics.impact('light');
     modal.show({
       title: 'Remove Address',
       description: `Remove ${shortAddress(addr)} from saved addresses?`,
@@ -304,30 +307,50 @@ export default function SendOnchainScreen() {
           ) : null}
         </>
       ) : (
-        <Text style={[styles.amountMain, { color: isDark ? '#3B3F4D' : '#D4D4D8' }]}>0.00</Text>
+        <Text style={[styles.amountMain, { color: hexToRgba(palette.text, 0.35) }]}>0.00</Text>
       )}
     </Text>
   );
 
-  const cardBg = isDark ? palette.card : '#FFFFFF';
-  const inputBg = isDark ? palette.bg : '#FFFFFF';
-  const disabledBtn = isDark ? '#23262F' : '#E8E8EA';
-  const disabledBtnText = isDark ? '#6B7080' : '#FFFFFF';
-  const primaryBtn = isDark ? '#FFFFFF' : '#000000';
-  const primaryBtnText = isDark ? '#000000' : '#FFFFFF';
+  const insetBg = mixColors(palette.bg, palette.text, 0.04);
+  const ctaBg = (enabled: boolean) => (enabled ? palette.text : hexToRgba(palette.text, 0.12));
+  const ctaText = (enabled: boolean) => (enabled ? palette.bg : hexToRgba(palette.text, 0.38));
   const tokenLogo = <ChainLogo chain={chain} size={26} />;
 
   return (
     <View style={[styles.container, { backgroundColor: palette.bg }]}>
       <SendHeader title={`Send ${token} (${CHAINS[chain].short})`} onBack={handleBack} leading={tokenLogo} />
 
+      <View style={styles.progressRow}>
+        {[1, 2].map((seg) => (
+          <TouchableOpacity
+            key={seg}
+            style={styles.progressSeg}
+            disabled={seg === 1 && step === 1}
+            onPress={() => seg === 1 && step === 2 && setStep(1)}
+            activeOpacity={0.7}
+            accessibilityRole="progressbar"
+            accessibilityLabel={seg === 1 ? 'Amount step' : 'Recipient step'}
+            accessibilityValue={{ now: step === seg ? 1 : 0, min: 0, max: 1 }}
+          >
+            <View
+              style={[
+                styles.progressSegBar,
+                { backgroundColor: step >= seg ? palette.text : hexToRgba(palette.text, 0.12) },
+              ]}
+            />
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {step === 1 ? (
         // ───────────── STEP 1 · AMOUNT ─────────────
         <View style={styles.flex}>
           <View style={styles.amountTop}>
-            <View style={[styles.balancePill, { borderColor: palette.border, backgroundColor: inputBg }]}>
-              <Text style={[Typography.footnote, { color: palette.text, fontWeight: '600' }]}>
-                Current Balance: {fmtNgn(balanceNGN).replace(/\.00$/, '')}
+            <View style={[styles.balancePill, { borderColor: palette.border, backgroundColor: insetBg }]}>
+              <Text style={[Typography.caption, { color: hexToRgba(palette.text, 0.5) }]}>Balance</Text>
+              <Text style={[Typography.currencySub, { color: palette.text }]}>
+                {fmtNgn(balanceNGN).replace(/\.00$/, '')}
               </Text>
             </View>
 
@@ -338,22 +361,55 @@ export default function SendOnchainScreen() {
             ) : null}
 
             <View style={styles.chipsRow}>
-              {QUICK_AMOUNTS.map((v) => (
-                <TouchableOpacity
-                  key={v}
-                  onPress={() => handleQuickAmount(v)}
-                  style={[styles.chip, { borderColor: palette.border, backgroundColor: inputBg }]}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[Typography.body, { color: palette.text, fontWeight: '600' }]}>${v}</Text>
-                </TouchableOpacity>
-              ))}
+              {QUICK_AMOUNTS.map((v) => {
+                const active = numericAmount === v;
+                return (
+                  <TouchableOpacity
+                    key={v}
+                    onPress={() => handleQuickAmount(v)}
+                    style={[
+                      styles.chip,
+                      {
+                        borderColor: active ? palette.text : palette.border,
+                        backgroundColor: active ? palette.text : insetBg,
+                      },
+                    ]}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text
+                      style={[
+                        Typography.currencySub,
+                        { color: active ? palette.bg : palette.text, fontWeight: '700' },
+                      ]}
+                    >
+                      {`$${v}`}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
               <TouchableOpacity
                 onPress={handleMax}
-                style={[styles.chip, { borderColor: palette.border, backgroundColor: inputBg }]}
+                style={[
+                  styles.chip,
+                  {
+                    borderColor: maxActive ? palette.text : palette.border,
+                    backgroundColor: maxActive ? palette.text : insetBg,
+                  },
+                ]}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityState={{ selected: maxActive }}
               >
-                <Text style={[Typography.body, { color: palette.text, fontWeight: '600' }]}>Max</Text>
+                <Text
+                  style={[
+                    Typography.currencySub,
+                    { color: maxActive ? palette.bg : palette.text, fontWeight: '700' },
+                  ]}
+                >
+                  Max
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -373,9 +429,9 @@ export default function SendOnchainScreen() {
               disabled={!canContinueAmount}
               onPress={() => setStep(2)}
               activeOpacity={0.85}
-              style={[styles.primaryBtn, { backgroundColor: canContinueAmount ? primaryBtn : disabledBtn }]}
+              style={[styles.primaryBtn, { backgroundColor: ctaBg(canContinueAmount) }]}
             >
-              <Text style={[Typography.title3, { color: canContinueAmount ? primaryBtnText : disabledBtnText, fontWeight: '600' }]}>
+              <Text style={[Typography.title3, { color: ctaText(canContinueAmount), fontWeight: '700' }]}>
                 Continue
               </Text>
             </TouchableOpacity>
@@ -389,16 +445,25 @@ export default function SendOnchainScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <TouchableOpacity onPress={() => setStep(1)} activeOpacity={0.7} style={styles.recipientAmount}>
+            <TouchableOpacity
+              onPress={() => setStep(1)}
+              activeOpacity={0.7}
+              style={styles.recipientAmount}
+              accessibilityRole="button"
+              accessibilityLabel="Edit amount"
+            >
               {amountDisplay}
+              <Text style={[Typography.caption, { color: hexToRgba(palette.text, 0.4) }]}>
+                Tap to edit amount
+              </Text>
             </TouchableOpacity>
 
-            <View style={[styles.formCard, { borderColor: palette.border, backgroundColor: cardBg }]}>
+            <View style={[styles.formCard, { borderColor: palette.border, backgroundColor: palette.card }]}>
               <View
                 style={[
                   styles.addressBox,
                   {
-                    backgroundColor: inputBg,
+                    backgroundColor: insetBg,
                     borderColor: showAddressError ? palette.error : addressFocused ? palette.text : palette.border,
                     borderWidth: addressFocused || showAddressError ? 1.5 : 1,
                   },
@@ -410,18 +475,26 @@ export default function SendOnchainScreen() {
                   onFocus={() => setAddressFocused(true)}
                   onBlur={() => setAddressFocused(false)}
                   placeholder="Enter receiving wallet address"
-                  placeholderTextColor={isDark ? '#6B7080' : '#9CA3AF'}
+                  placeholderTextColor={hexToRgba(palette.text, 0.4)}
                   multiline
                   autoCapitalize="none"
                   autoCorrect={false}
                   spellCheck={false}
                   style={[styles.addressInput, { color: palette.text }]}
                 />
+                <View style={[styles.inputDivider, { backgroundColor: palette.border }]} />
                 <TouchableOpacity onPress={handlePaste} hitSlop={8} accessibilityLabel="Paste address">
-                  <ClipboardPaste size={24} color={palette.text} />
+                  <ClipboardPaste size={22} color={palette.text} />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={handleScan} hitSlop={8} accessibilityLabel="Scan QR code">
-                  <ScanLine size={24} color={palette.text} />
+                <TouchableOpacity
+                  onPress={() => {
+                    haptics.tap();
+                    handleScan();
+                  }}
+                  hitSlop={8}
+                  accessibilityLabel="Scan QR code"
+                >
+                  <ScanLine size={22} color={palette.text} />
                 </TouchableOpacity>
               </View>
 
@@ -431,39 +504,42 @@ export default function SendOnchainScreen() {
                 </Text>
               ) : null}
 
-              <TouchableOpacity
-                onPress={() => setNetworkOpen((o) => !o)}
-                activeOpacity={0.8}
-                style={[styles.networkBox, { backgroundColor: inputBg, borderColor: palette.border }]}
-              >
-                <Text style={[Typography.body, { color: palette.text, flex: 1 }]}>{CHAINS[chain].label}</Text>
-                <ChevronDown
-                  size={20}
-                  color={palette.text}
-                  style={{ transform: [{ rotate: networkOpen ? '180deg' : '0deg' }] }}
-                />
-              </TouchableOpacity>
-
-              {networkOpen ? (
-                <View style={[styles.networkMenu, { backgroundColor: inputBg, borderColor: palette.border }]}>
-                  {(Object.keys(CHAINS) as Chain[]).map((c) => (
+              <View style={styles.chainRow}>
+                {(Object.keys(CHAINS) as Chain[]).map((c) => {
+                  const selected = c === chain;
+                  return (
                     <TouchableOpacity
                       key={c}
                       onPress={() => {
-                        setChain(c);
-                        setNetworkOpen(false);
+                        if (!selected) {
+                          setChain(c);
+                          haptics.tap();
+                        }
                       }}
-                      style={styles.networkOption}
-                      activeOpacity={0.7}
+                      activeOpacity={0.8}
+                      style={[
+                        styles.chainSeg,
+                        {
+                          borderColor: selected ? palette.text : palette.border,
+                          backgroundColor: selected ? palette.text : insetBg,
+                        },
+                      ]}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
                     >
-                      <ChainLogo chain={c} size={22} />
-                      <Text style={[Typography.body, { color: palette.text, flex: 1, fontWeight: c === chain ? '700' : '500' }]}>
-                        {CHAINS[c].label} · {CHAINS[c].token}
+                      <ChainLogo chain={c} size={18} />
+                      <Text
+                        style={[
+                          Typography.footnote,
+                          { color: selected ? palette.bg : palette.textSecondary, fontWeight: '700' },
+                        ]}
+                      >
+                        {CHAINS[c].short} · {CHAINS[c].token}
                       </Text>
                     </TouchableOpacity>
-                  ))}
-                </View>
-              ) : null}
+                  );
+                })}
+              </View>
 
               <TouchableOpacity
                 disabled={!addressValid}
@@ -472,46 +548,56 @@ export default function SendOnchainScreen() {
                   setSheetOpen(true);
                 }}
                 activeOpacity={0.85}
-                style={[styles.primaryBtn, styles.cardBtn, { backgroundColor: addressValid ? primaryBtn : disabledBtn }]}
+                style={[styles.primaryBtn, styles.cardBtn, { backgroundColor: ctaBg(addressValid) }]}
               >
-                <Text style={[Typography.title3, { color: addressValid ? primaryBtnText : disabledBtnText, fontWeight: '600' }]}>
+                <Text style={[Typography.title3, { color: ctaText(addressValid), fontWeight: '700' }]}>
                   Continue
                 </Text>
               </TouchableOpacity>
             </View>
 
-            <View style={[styles.savedTab, { backgroundColor: '#1E3A5F' }]}>
-              <Text style={[Typography.footnote, { color: '#FFFFFF', fontWeight: '600' }]}>Saved Addresses</Text>
-            </View>
+            <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45) }]}>
+              Saved Addresses{savedCrypto.length > 0 ? ` · ${savedCrypto.length}` : ''}
+            </Text>
 
             {savedCrypto.length === 0 ? (
               <View style={styles.emptyWrap}>
-                <Text style={[Typography.body, { color: palette.text }]}>No saved addresses</Text>
+                <View style={[styles.emptyTile, { backgroundColor: hexToRgba(palette.text, 0.07) }]}>
+                  <Inbox size={24} color={palette.textSecondary} />
+                </View>
+                <Text style={[Typography.body, { color: palette.textSecondary }]}>No saved addresses yet</Text>
+                <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.4) }]}>
+                  Addresses you save after a send show up here
+                </Text>
               </View>
             ) : (
-              <View style={styles.savedList}>
-                {savedCrypto.map((r) => (
-                  <TouchableOpacity
-                    key={r.id}
-                    onPress={() => handleSelectSaved(r.address, r.chain)}
-                    activeOpacity={0.7}
-                    style={[styles.savedRow, { borderColor: palette.border, backgroundColor: cardBg }]}
-                  >
-                    <ChainLogo chain={r.chain} size={32} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[Typography.bodyBold, { color: palette.text }]}>{shortAddress(r.address)}</Text>
-                      <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
-                        {CHAINS[r.chain].label}
-                      </Text>
-                    </View>
+              <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                {savedCrypto.map((r, index) => (
+                  <React.Fragment key={r.id}>
+                    {index > 0 && <View style={[styles.rowDivider, { backgroundColor: palette.border }]} />}
                     <TouchableOpacity
-                      onPress={() => handleRemoveSaved(r.id, r.address)}
-                      hitSlop={10}
-                      accessibilityLabel="Remove saved address"
+                      onPress={() => handleSelectSaved(r.address, r.chain)}
+                      activeOpacity={0.7}
+                      style={styles.savedRow}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Use saved address ${shortAddress(r.address)}`}
                     >
-                      <Trash2 size={18} color={palette.textSecondary} />
+                      <ChainLogo chain={r.chain} size={32} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[Typography.bodyBold, { color: palette.text }]}>{shortAddress(r.address)}</Text>
+                        <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
+                          {CHAINS[r.chain].label}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => handleRemoveSaved(r.id, r.address)}
+                        hitSlop={10}
+                        accessibilityLabel="Remove saved address"
+                      >
+                        <Trash2 size={18} color={palette.textSecondary} />
+                      </TouchableOpacity>
                     </TouchableOpacity>
-                  </TouchableOpacity>
+                  </React.Fragment>
                 ))}
               </View>
             )}
@@ -521,6 +607,9 @@ export default function SendOnchainScreen() {
 
       {/* ───────────── REVIEW SHEET ───────────── */}
       <SendSheet visible={sheetOpen} onClose={() => setSheetOpen(false)}>
+        <Text style={[Typography.caption, { color: hexToRgba(palette.text, 0.45), textAlign: 'center' }]}>
+          You are sending
+        </Text>
         <Text style={[styles.sheetAmount, { color: palette.text }]}>
           {numericAmount.toFixed(2)} {token}
         </Text>
@@ -529,13 +618,13 @@ export default function SendOnchainScreen() {
           style={[
             styles.warning,
             {
-              backgroundColor: isDark ? 'rgba(251,146,60,0.12)' : '#FDEDE3',
-              borderColor: isDark ? 'rgba(251,146,60,0.35)' : '#F8D3BB',
+              backgroundColor: hexToRgba(palette.warning, 0.12),
+              borderColor: hexToRgba(palette.warning, 0.3),
             },
           ]}
         >
-          <AlertTriangle size={20} color={isDark ? '#FB923C' : '#7C2D12'} />
-          <Text style={[Typography.body, { color: isDark ? '#FDBA74' : '#7C2D12', flex: 1 }]}>
+          <AlertTriangle size={20} color={palette.warning} />
+          <Text style={[Typography.body, { color: palette.text, flex: 1 }]}>
             Ensure you confirm all transaction details. Stablecoin transfers are irreversible
           </Text>
         </View>
@@ -560,11 +649,11 @@ export default function SendOnchainScreen() {
         />
 
         <View style={styles.toggleRow}>
-          <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 15 }]}>Save receivers wallet address</Text>
+          <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 15 }]}>Save this address for next time</Text>
           <Switch
             value={saveAddress}
             onValueChange={setSaveAddress}
-            trackColor={{ false: isDark ? '#2A2D38' : '#E5E7EB', true: '#34C759' }}
+            trackColor={{ false: hexToRgba(palette.text, 0.16), true: palette.primary }}
             thumbColor="#FFFFFF"
           />
         </View>
@@ -609,27 +698,43 @@ const styles = StyleSheet.create({
   // Step 1
   amountTop: { paddingHorizontal: 20, gap: 14, alignItems: 'center' },
   balancePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     paddingHorizontal: 14,
     paddingVertical: 7,
-    borderRadius: 18,
+    borderRadius: 999,
     borderWidth: 1,
   },
   amountWrap: { minHeight: 84, justifyContent: 'center', alignItems: 'center' },
   amountRow: { textAlign: 'center' },
-  amountMain: { fontSize: 60, lineHeight: 72, fontWeight: '800', letterSpacing: -1 },
+  amountMain: {
+    fontFamily: Typography.family.mono,
+    fontSize: 56,
+    lineHeight: 64,
+    fontWeight: '700',
+    letterSpacing: -1,
+    fontVariant: ['tabular-nums'],
+  },
   chipsRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center' },
   chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    minWidth: 68,
+    height: 40,
+    borderRadius: 12,
     borderWidth: 1,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  progressRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 20, paddingBottom: 10 },
+  progressSeg: { flex: 1, height: 12, justifyContent: 'center' },
+  progressSegBar: { height: 3, borderRadius: 2 },
   summary: { alignSelf: 'stretch', marginTop: 8 },
   bottom: { flex: 1, justifyContent: 'flex-end', paddingBottom: 16, gap: 8 },
   primaryBtn: {
     marginHorizontal: 20,
-    height: 56,
-    borderRadius: 12,
+    height: 52,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -647,7 +752,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     minHeight: 60,
@@ -659,47 +764,54 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     textAlignVertical: 'center',
   },
-  networkBox: {
+  chainRow: { flexDirection: 'row', gap: 10 },
+  chainSeg: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 46,
+    borderRadius: 12,
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    height: 58,
   },
-  networkMenu: { borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
-  networkOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
+  inputDivider: { width: 1, height: 28 },
   cardBtn: { marginHorizontal: 0 },
-  savedTab: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 6,
+  groupLabel: {
+    fontFamily: Typography.family.mono,
+    fontSize: 11,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    paddingHorizontal: 4,
   },
-  emptyWrap: { alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
-  savedList: { gap: 10 },
+  groupCard: { borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
+  rowDivider: { height: StyleSheet.hairlineWidth, marginLeft: 58 },
   savedRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
+  },
+  emptyWrap: { alignItems: 'center', gap: 6, paddingVertical: 40 },
+  emptyTile: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
   },
 
   // Sheet
   sheetAmount: {
-    fontSize: 26,
+    fontFamily: Typography.family.mono,
+    fontSize: 32,
+    lineHeight: 38,
     fontWeight: '700',
     textAlign: 'center',
     marginTop: 4,
     marginBottom: 16,
+    fontVariant: ['tabular-nums'],
   },
   warning: {
     flexDirection: 'row',
@@ -711,7 +823,11 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   addressValue: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  addressValueText: { fontSize: 14, fontWeight: '600' },
+  addressValueText: {
+    fontFamily: Typography.family.mono,
+    fontSize: 14,
+    fontWeight: '600',
+  },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',

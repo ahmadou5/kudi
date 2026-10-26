@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useColorScheme as useDeviceColorScheme } from 'react-native';
 import { DarkTheme, DefaultTheme, type Theme as NavigationTheme } from '@react-navigation/native';
-import { Colors, ACCENTS, SURFACES, CARD_TINTS } from '../constants/palette';
+import { Colors, ACCENTS, SURFACES, CARD_TINTS, CARD_HUE_TARGETS, type CardAccentId } from '../constants/palette';
 import { usePreferencesStore, PreferencesState } from '../store/preferences.store';
 
 export type AppPalette = typeof Colors.dark;
@@ -59,6 +59,11 @@ export function getThemeLabel(mode: string, deviceScheme: 'light' | 'dark') {
   if (mode === 'light') return 'Light';
   if (mode === 'dark') return 'Dark';
   return 'Custom';
+}
+
+export function cardHue(id: CardAccentId, accent: string, scheme: string): string {
+  const base = mixColors(accent, CARD_HUE_TARGETS[id], 0.7);
+  return scheme === 'light' ? shade(base, -0.06) : shade(base, 0.1);
 }
 
 export function useAppPalette(): AppPalette {

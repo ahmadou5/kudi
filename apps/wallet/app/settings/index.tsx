@@ -8,7 +8,6 @@ import {
   View
 } from 'react-native';
 import { router } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import {
   ArrowLeft,
   Bell,
@@ -30,6 +29,7 @@ import { Typography } from '../../src/constants/typography';
 import { Spacing } from '../../src/constants/spacing';
 import { Avatar, userAvatarSeed } from '../../src/components/Avatar';
 import { AppVersionFooter } from '../../src/components/AppVersionFooter';
+import { haptics } from '../../src/lib/haptics';
 
 type MenuItem = {
   id: string;
@@ -254,7 +254,7 @@ export default function SettingsScreen() {
         {/* Destructive */}
         <Pressable
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            haptics.impact('light');
             setLogoutModalVisible(true);
           }}
           accessibilityRole="button"

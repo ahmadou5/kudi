@@ -29,11 +29,11 @@ import {
 import * as Clipboard from 'expo-clipboard';
 // You likely already have this given the haptics system elsewhere in the app —
 // swap this call for your existing wrapper if you have one, just for consistency.
-import * as Haptics from 'expo-haptics';
 import { useAppPalette } from '../src/lib/theme';
 import { Typography } from '../src/constants/typography';
 import { ChainLogo } from '../src/components/ui/ChainLogo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { haptics } from '../src/lib/haptics';
 
 type TransactionDetailsParams = {
     title?: string;
@@ -144,7 +144,7 @@ export default function TransactionDetailsScreen() {
 
     const handleCopyRef = async () => {
         await Clipboard.setStringAsync(ref);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        haptics.impact('light');
         setCopied(true);
         copyResetTimeout.current = setTimeout(() => setCopied(false), 2500);
     };
