@@ -28,9 +28,17 @@ export interface KudiClientConfig {
   baseUrl: string;
 }
 
+export interface KudiAuthHandlers {
+  onTokenRefreshed?: (accessToken: string) => void;
+  onAuthExpired?: () => void;
+}
+
 export class KudiSDK {
   private baseUrl: string;
   private authToken: string | null = null;
+  private refreshTokenValue: string | null = null;
+  private authHandlers: KudiAuthHandlers = {};
+  private refreshInFlight: Promise<boolean> | null = null;
 
   constructor(config: KudiClientConfig = { baseUrl: 'https://kudiapi-production.up.railway.app' }) {
     let cleanUrl = (config?.baseUrl || '').trim().replace(/\/$/, '');
@@ -42,6 +50,87 @@ export class KudiSDK {
 
   setAuthToken(token: string | null) {
     this.authToken = token;
+  }
+
+  setRefreshToken(token: string | null) {
+    this.refreshTokenValue = token;
+  }
+
+  setAuthHandlers(handlers: KudiAuthHandlers) {
+    this.authHandlers = handlers;
+  }
+
+  private handleAuthExpired() {
+    this.authToken = null;
+    this.refreshTokenValue = null;
+    this.authHandlers.onAuthExpired?.();
+  }
+
+  /**
+   * Exchange the stored refresh token for a fresh access token.
+   * Deduped: concurrent 401s share a single refresh request.
+   * Returns false without expiring the session on network failure.
+   */
+  private refreshAccessToken(): Promise<boolean> {
+    if (!this.refreshTokenValue) return Promise.resolve(false);
+    if (this.refreshInFlight) return this.refreshInFlight;
+
+    this.refreshInFlight = (async () => {
+      try {
+        const res = await fetch(`${this.baseUrl}${apiRoutes.auth.refresh}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: this.refreshTokenValue })
+        });
+        if (!res.ok) {
+          this.handleAuthExpired();
+          return false;
+        }
+        const parsed = apiResponseSchema.parse(await res.json());
+        const accessToken = (parsed.data as { accessToken?: string } | undefined)?.accessToken;
+        if (!accessToken) return false;
+        this.authToken = accessToken;
+        this.authHandlers.onTokenRefreshed?.(accessToken);
+        return true;
+      } catch (err) {
+        console.warn('[Kudi SDK] Token refresh failed:', (err as Error)?.message || err);
+        return false;
+      } finally {
+        this.refreshInFlight = null;
+      }
+    })();
+
+    return this.refreshInFlight;
+  }
+
+  /**
+   * All requests go through here: headers are rebuilt on every attempt so a
+   * refreshed token is picked up, and a 401 transparently triggers one
+   * refresh + retry before the response is handed back to the caller.
+   */
+  private async send(
+    path: string,
+    init: RequestInit = {},
+    opts: { skipRefresh?: boolean } = {}
+  ): Promise<Response> {
+    const url = `${this.baseUrl}${path}`;
+    const attempt = (): Promise<Response> =>
+      fetch(url, { ...init, headers: this.getHeaders() });
+
+    const res = await attempt();
+    if (res.status !== 401 || opts.skipRefresh || !this.refreshTokenValue) {
+      return res;
+    }
+
+    const refreshed = await this.refreshAccessToken();
+    if (!refreshed) return res;
+
+    try {
+      (res as any).body?.cancel?.();
+    } catch {
+      // Discarding the superseded 401 body is best-effort
+    }
+    return attempt();
   }
 
   private getHeaders(customHeaders: Record<string, string> = {}): Record<string, string> {
@@ -61,14 +150,14 @@ export class KudiSDK {
   }
 
   async getHealth() {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.health}`);
+    const res = await this.send(`${apiRoutes.health}`);
     return this.parseJson(res);
   }
 
   async authenticatePrivy(payload: AuthenticatePrivyRequest): Promise<ApiResponse<AuthResponseData>> {
     const targetUrl = `${this.baseUrl}${apiRoutes.auth.privyAuthenticate}`;
     console.log('[Kudi SDK] Fetching Privy auth URL:', targetUrl);
-    const res = await fetch(targetUrl, {
+    const res = await this.send(apiRoutes.auth.privyAuthenticate, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -77,7 +166,7 @@ export class KudiSDK {
   }
 
   async sendPrivyOTP(email: string): Promise<ApiResponse<{ email: string; sent: boolean }>> {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.auth.privySendOtp}`, {
+    const res = await this.send(`${apiRoutes.auth.privySendOtp}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ email })
@@ -86,7 +175,7 @@ export class KudiSDK {
   }
 
   async verifyPrivyOTP(email: string, code: string): Promise<ApiResponse<AuthResponseData>> {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.auth.privyVerifyOtp}`, {
+    const res = await this.send(`${apiRoutes.auth.privyVerifyOtp}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ email, code })
@@ -95,16 +184,20 @@ export class KudiSDK {
   }
 
   async refreshToken(refreshToken: string): Promise<ApiResponse<{ accessToken: string }>> {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.auth.refresh}`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ refreshToken })
-    });
+    const res = await this.send(
+      `${apiRoutes.auth.refresh}`,
+      {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ refreshToken })
+      },
+      { skipRefresh: true }
+    );
     return this.parseJson<{ accessToken: string }>(res);
   }
 
   async registerUser(phoneNumber: string, email: string) {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.users.register}`, {
+    const res = await this.send(`${apiRoutes.users.register}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ phoneNumber, email })
@@ -113,14 +206,14 @@ export class KudiSDK {
   }
 
   async getUserProfile(userId: string) {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.users.byId(userId)}`, {
+    const res = await this.send(`${apiRoutes.users.byId(userId)}`, {
       headers: this.getHeaders()
     });
     return this.parseJson(res);
   }
 
   async updateUserProfile(userId: string, payload: UpdateUserProfileRequest) {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.users.byId(userId)}`, {
+    const res = await this.send(`${apiRoutes.users.byId(userId)}`, {
       method: 'PATCH',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -129,7 +222,7 @@ export class KudiSDK {
   }
 
   async deleteAccount(userId: string) {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.users.byId(userId)}`, {
+    const res = await this.send(`${apiRoutes.users.byId(userId)}`, {
       method: 'DELETE',
       headers: this.getHeaders()
     });
@@ -137,7 +230,7 @@ export class KudiSDK {
   }
 
   async getBalance(userId: string): Promise<ApiResponse<BalanceResponseData>> {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.users.balance(userId)}`, {
+    const res = await this.send(`${apiRoutes.users.balance(userId)}`, {
       headers: this.getHeaders()
     });
     return this.parseJson<BalanceResponseData>(res);
@@ -150,28 +243,28 @@ export class KudiSDK {
     if (options.type) params.append('type', options.type);
     const queryString = params.toString() ? `?${params.toString()}` : '';
 
-    const res = await fetch(`${this.baseUrl}${apiRoutes.users.transactions(userId)}${queryString}`, {
+    const res = await this.send(`${apiRoutes.users.transactions(userId)}${queryString}`, {
       headers: this.getHeaders()
     });
     return this.parseJson<TransactionsResponseData>(res);
   }
 
   async getVirtualAccounts(userId: string): Promise<ApiResponse<VirtualAccountsResponseData>> {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.users.virtualAccounts(userId)}`, {
+    const res = await this.send(`${apiRoutes.users.virtualAccounts(userId)}`, {
       headers: this.getHeaders()
     });
     return this.parseJson<VirtualAccountsResponseData>(res);
   }
 
   async getNotifications(userId: string): Promise<ApiResponse<NotificationsResponseData>> {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.users.notifications(userId)}`, {
+    const res = await this.send(`${apiRoutes.users.notifications(userId)}`, {
       headers: this.getHeaders()
     });
     return this.parseJson<NotificationsResponseData>(res);
   }
 
   async markNotificationRead(userId: string, notificationId: string) {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.users.markNotificationRead(userId, notificationId)}`, {
+    const res = await this.send(`${apiRoutes.users.markNotificationRead(userId, notificationId)}`, {
       method: 'PATCH',
       headers: this.getHeaders()
     });
@@ -179,7 +272,7 @@ export class KudiSDK {
   }
 
   async markAllNotificationsRead(userId: string) {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.users.markNotificationsRead(userId)}`, {
+    const res = await this.send(`${apiRoutes.users.markNotificationsRead(userId)}`, {
       method: 'PATCH',
       headers: this.getHeaders()
     });
@@ -187,7 +280,7 @@ export class KudiSDK {
   }
 
   async verifyKYCID(payload: VerifyKycIdRequest) {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.kyc.verifyId}`, {
+    const res = await this.send(`${apiRoutes.kyc.verifyId}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -196,7 +289,7 @@ export class KudiSDK {
   }
 
   async setPin(userId: string, pin: string) {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.users.setPin}`, {
+    const res = await this.send(`${apiRoutes.users.setPin}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ userId, pin })
@@ -205,7 +298,7 @@ export class KudiSDK {
   }
 
   async verifyPin(userId: string, pin: string) {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.auth.verifyPin}`, {
+    const res = await this.send(`${apiRoutes.auth.verifyPin}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ userId, pin })
@@ -214,25 +307,25 @@ export class KudiSDK {
   }
 
   async getCurrentRates() {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.rates.current}`);
+    const res = await this.send(`${apiRoutes.rates.current}`);
     return this.parseJson(res);
   }
 
   async getFxRate(from: string, to = 'USD') {
     const params = new URLSearchParams({ from, to });
-    const res = await fetch(`${this.baseUrl}${apiRoutes.rates.fx}?${params.toString()}`);
+    const res = await this.send(`${apiRoutes.rates.fx}?${params.toString()}`);
     return this.parseJson<{ from: string; to: string; rate: number; updatedAt: string; isStale: boolean }>(res);
   }
 
   async getSupportedBanks() {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.payout.banks}`, {
+    const res = await this.send(`${apiRoutes.payout.banks}`, {
       headers: this.getHeaders()
     });
     return this.parseJson(res);
   }
 
   async resolveAccount(accountNumber: ResolveAccountRequest['accountNumber'], bankCode: ResolveAccountRequest['bankCode']): Promise<ApiResponse<ResolveAccountResponseData>> {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.payout.resolveAccount}`, {
+    const res = await this.send(`${apiRoutes.payout.resolveAccount}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ accountNumber, bankCode })
@@ -241,7 +334,7 @@ export class KudiSDK {
   }
 
   async spendToBank(payload: SpendToBankRequest): Promise<ApiResponse<{ reference?: string; status?: string; amountNGN?: number; message?: string }>> {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.payout.spend}`, {
+    const res = await this.send(`${apiRoutes.payout.spend}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -250,7 +343,7 @@ export class KudiSDK {
   }
 
   async spendToUser(payload: SpendToUserRequest) {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.payout.spendUser}`, {
+    const res = await this.send(`${apiRoutes.payout.spendUser}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -259,7 +352,7 @@ export class KudiSDK {
   }
 
   async spendOnChain(payload: SpendOnChainRequest): Promise<ApiResponse<SendCryptoResponseData>> {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.payout.spendOnChain}`, {
+    const res = await this.send(`${apiRoutes.payout.spendOnChain}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -273,7 +366,7 @@ export class KudiSDK {
    * Poll getCryptoWithdrawalStatus() to track PENDING → BROADCAST → CONFIRMED.
    */
   async sendCrypto(payload: SpendOnChainRequest): Promise<ApiResponse<SendCryptoResponseData>> {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.payout.spendOnChain}`, {
+    const res = await this.send(`${apiRoutes.payout.spendOnChain}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -286,7 +379,7 @@ export class KudiSDK {
    * Status lifecycle: PENDING → BROADCAST → CONFIRMED | FAILED
    */
   async getCryptoWithdrawalStatus(reference: string): Promise<ApiResponse<CryptoStatusResponseData>> {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.payout.cryptoStatus(reference)}`, {
+    const res = await this.send(`${apiRoutes.payout.cryptoStatus(reference)}`, {
       headers: this.getHeaders()
     });
     return this.parseJson<CryptoStatusResponseData>(res);
@@ -295,7 +388,7 @@ export class KudiSDK {
 
 
   async overrideRate(newRateNGN: OverrideRateRequest['newRateNGN']) {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.admin.rateOverride}`, {
+    const res = await this.send(`${apiRoutes.admin.rateOverride}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ newRateNGN })
@@ -304,14 +397,14 @@ export class KudiSDK {
   }
 
   async getReceiptHTML(reference: string): Promise<string> {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.payout.receipt(reference)}`, {
+    const res = await this.send(`${apiRoutes.payout.receipt(reference)}`, {
       headers: this.getHeaders()
     });
     return res.text();
   }
 
   async payBill(payload: PayBillRequest) {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.bills.pay}`, {
+    const res = await this.send(`${apiRoutes.bills.pay}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -320,21 +413,21 @@ export class KudiSDK {
   }
 
   async exportAuditCSV(): Promise<string> {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.admin.exportReconciliationCsv}`, {
+    const res = await this.send(`${apiRoutes.admin.exportReconciliationCsv}`, {
       headers: this.getHeaders()
     });
     return res.text();
   }
 
   async getAdminConfig() {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.admin.config}`, {
+    const res = await this.send(`${apiRoutes.admin.config}`, {
       headers: this.getHeaders()
     });
     return this.parseJson(res);
   }
 
   async setActivePaymentProvider(providerId: SetActivePaymentProviderRequest['providerId']) {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.admin.setActiveProvider}`, {
+    const res = await this.send(`${apiRoutes.admin.setActiveProvider}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ providerId })
@@ -343,19 +436,19 @@ export class KudiSDK {
   }
 
   async getHealthConfig(): Promise<ApiResponse<{ maintenance: MaintenanceConfig }>> {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.healthConfig}`);
+    const res = await this.send(`${apiRoutes.healthConfig}`);
     return this.parseJson<{ maintenance: MaintenanceConfig }>(res);
   }
 
   async getMaintenanceConfig(): Promise<ApiResponse<MaintenanceConfig>> {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.admin.maintenance}`, {
+    const res = await this.send(`${apiRoutes.admin.maintenance}`, {
       headers: this.getHeaders()
     });
     return this.parseJson<MaintenanceConfig>(res);
   }
 
   async setMaintenanceConfig(payload: SetMaintenanceConfigRequest): Promise<ApiResponse<{ success: boolean }>> {
-    const res = await fetch(`${this.baseUrl}${apiRoutes.admin.maintenance}`, {
+    const res = await this.send(`${apiRoutes.admin.maintenance}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)

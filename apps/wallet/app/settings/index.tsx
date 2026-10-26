@@ -1,19 +1,34 @@
 import React, { useState } from 'react';
 import {
+  Modal,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
-  View,
-  TouchableOpacity,
-  ScrollView,
-  Modal,
-  Pressable
+  View
 } from 'react-native';
 import { router } from 'expo-router';
-import { Palette, Bell, User, ShieldCheck, Receipt, Gauge, Lock, MessageSquare, ChevronRight, ArrowLeft, LogOut, LucideIcon } from 'lucide-react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppPalette, isLight } from '../../src/lib/theme';
+import * as Haptics from 'expo-haptics';
+import {
+  ArrowLeft,
+  Bell,
+  ChevronRight,
+  Gauge,
+  Lock,
+  LogOut,
+  LucideIcon,
+  MessageSquare,
+  Palette,
+  Receipt,
+  ShieldCheck,
+  User
+} from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAppPalette, hexToRgba } from '../../src/lib/theme';
 import { useAuthStore, AuthState } from '../../src/store/auth.store';
 import { Typography } from '../../src/constants/typography';
+import { Spacing } from '../../src/constants/spacing';
+import { Avatar, userAvatarSeed } from '../../src/components/Avatar';
 import { AppVersionFooter } from '../../src/components/AppVersionFooter';
 
 type MenuItem = {
@@ -22,74 +37,67 @@ type MenuItem = {
   subtitle: string;
   href: string;
   Icon: LucideIcon;
-  iconColor: string;
-  iconBg: string;
   badge?: string;
+  badgeTone?: 'success' | 'warning';
 };
 
 export default function SettingsScreen() {
   const palette = useAppPalette();
-  const insets = useSafeAreaInsets();
-  const light = isLight(palette.bg);
   const user = useAuthStore((s: AuthState) => s.user);
   const logout = useAuthStore((s: AuthState) => s.logout);
 
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
 
   const rawTier = user?.kycTier;
-  const kycTier = rawTier === '2' || rawTier === 'TIER_2' ? 2 : rawTier === '1' || rawTier === 'TIER_1' || user?.kycStatus === 'VERIFIED' ? 1 : 0;
+  const kycTier =
+    rawTier === '2' || rawTier === 'TIER_2'
+      ? 2
+      : rawTier === '1' || rawTier === 'TIER_1' || user?.kycStatus === 'VERIFIED'
+        ? 1
+        : 0;
   const kycBadge = kycTier === 2 ? 'Tier 2 Pro' : kycTier === 1 ? 'Tier 1' : 'Unverified';
 
   const ACCOUNT_ITEMS: MenuItem[] = [
     {
       id: 'profile',
       title: 'Profile',
-      subtitle: 'Account details & personal identity',
+      subtitle: 'Name, photo & personal identity',
       href: '/profile',
-      Icon: User,
-      iconColor: '#10B981',
-      iconBg: '#10B98118'
+      Icon: User
     },
     {
       id: 'kyc',
-      title: 'KYC',
-      subtitle: 'Identity level & verification limits',
+      title: 'Identity & KYC',
+      subtitle: 'Verification level and limits',
       href: '/kyc',
       Icon: ShieldCheck,
-      iconColor: '#3B82F6',
-      iconBg: '#3B82F618',
-      badge: kycBadge
+      badge: kycBadge,
+      badgeTone: kycTier > 0 ? 'success' : 'warning'
     },
     {
       id: 'limits',
-      title: 'Spending Limit',
-      subtitle: 'Daily & per-tx off-ramp caps',
+      title: 'Spending limits',
+      subtitle: 'Daily and per-transaction caps',
       href: '/settings/limits',
-      Icon: Gauge,
-      iconColor: '#14B8A6',
-      iconBg: '#14B8A618'
-    },
+      Icon: Gauge
+    }
   ];
 
   const PREFERENCE_ITEMS: MenuItem[] = [
     {
       id: 'appearance',
-      title: 'Theme Preference',
-      subtitle: 'Light, dark, or system appearance',
+      title: 'Appearance',
+      subtitle: 'Light, dark or system theme',
       href: '/settings/appearance',
-      Icon: Palette,
-      iconColor: '#8B5CF6',
-      iconBg: '#8B5CF618'
+      Icon: Palette
     },
     {
       id: 'notifications',
-      title: 'Notification Preference',
-      subtitle: 'Push alerts & deposit triggers',
+      title: 'Notifications',
+      subtitle: 'Push alerts and deposit triggers',
       href: '/settings/notifications',
-      Icon: Bell,
-      iconColor: '#EC4899',
-      iconBg: '#EC489918'
-    },
+      Icon: Bell
+    }
   ];
 
   const ACTIVITY_ITEMS: MenuItem[] = [
@@ -98,36 +106,26 @@ export default function SettingsScreen() {
       title: 'Activities',
       subtitle: 'USDC deposit & spend ledger',
       href: '/(tabs)/history',
-      Icon: Receipt,
-      iconColor: '#6366F1',
-      iconBg: '#6366F118'
-    },
+      Icon: Receipt
+    }
   ];
 
   const SECURITY_ITEMS: MenuItem[] = [
     {
       id: 'security',
       title: 'Security',
-      subtitle: 'PIN code, biometrics & app lock',
+      subtitle: 'PIN, biometrics & app lock',
       href: '/settings/security',
-      Icon: Lock,
-      iconColor: '#EF4444',
-      iconBg: '#EF444418'
+      Icon: Lock
     },
     {
       id: 'support',
       title: 'Support',
-      subtitle: 'Customer service & assistance',
+      subtitle: 'Chat with the Kudi team',
       href: '/settings/support',
-      Icon: MessageSquare,
-      iconColor: '#06B6D4',
-      iconBg: '#06B6D418'
-    },
+      Icon: MessageSquare
+    }
   ];
-
-  const handlePressItem = (item: MenuItem) => {
-    router.push(item.href as any);
-  };
 
   const confirmLogout = () => {
     setLogoutModalVisible(false);
@@ -136,49 +134,64 @@ export default function SettingsScreen() {
   };
 
   const userName = user?.fullName || user?.username || 'Kudi User';
-  const initials = userName
-    ? userName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
-    : 'KD';
+  const userHandle =
+    user?.username ? `@${user.username}` : user?.email || 'Authenticated session';
 
-  const renderSectionGroup = (label: string, items: MenuItem[]) => (
+  const tileTint = hexToRgba(palette.text, 0.07);
+
+  const renderGroup = (label: string, items: MenuItem[]) => (
     <View style={styles.group}>
-      <Text style={[styles.groupLabel, { color: palette.textSecondary }]}>{label}</Text>
-      <View style={styles.groupList}>
-        {items.map((item) => {
+      <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45) }]}>{label}</Text>
+      <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+        {items.map((item, index) => {
           const ItemIcon = item.Icon;
+          const badgeColor =
+            item.badgeTone === 'success' ? palette.success : palette.warning;
           return (
-            <TouchableOpacity
-              key={item.id}
-              onPress={() => handlePressItem(item)}
-              style={[styles.menuRow, { backgroundColor: palette.bg, borderColor: palette.border + '50' }]}
-              activeOpacity={0.75}
-            >
-              <View style={[styles.iconBox, { backgroundColor: item.iconBg }]}>
-                <ItemIcon size={20} color={item.iconColor} />
-              </View>
-
-              <View style={styles.menuCopy}>
-                <View style={styles.menuTitleRow}>
-                  <Text style={[styles.menuTitle, { color: palette.text }]}>{item.title}</Text>
-                  {item.badge && (
-                    <View style={[
-                      styles.badgePill,
-                      { backgroundColor: kycTier > 0 ? '#10B98120' : '#F59E0B20' }
-                    ]}>
-                      <Text style={[
-                        styles.badgeText,
-                        { color: kycTier > 0 ? '#10B981' : '#F59E0B' }
-                      ]}>
-                        {item.badge}
-                      </Text>
-                    </View>
-                  )}
+            <React.Fragment key={item.id}>
+              {index > 0 && <View style={[styles.divider, { backgroundColor: palette.border }]} />}
+              <Pressable
+                onPress={() => router.push(item.href as any)}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.title}. ${item.subtitle}`}
+                style={({ pressed }) => [
+                  styles.row,
+                  pressed && { backgroundColor: hexToRgba(palette.text, 0.05) }
+                ]}
+              >
+                <View style={[styles.iconTile, { backgroundColor: tileTint }]}>
+                  <ItemIcon size={19} color={palette.textSecondary} strokeWidth={1.9} />
                 </View>
-                <Text style={[styles.menuSubtitle, { color: palette.textSecondary }]}>{item.subtitle}</Text>
-              </View>
 
-              <ChevronRight size={18} color={palette.textSecondary} />
-            </TouchableOpacity>
+                <View style={styles.rowCopy}>
+                  <Text
+                    style={[styles.rowTitle, { color: palette.text }]}
+                    numberOfLines={1}
+                  >
+                    {item.title}
+                  </Text>
+                  <Text
+                    style={[styles.rowSubtitle, { color: hexToRgba(palette.text, 0.5) }]}
+                    numberOfLines={1}
+                  >
+                    {item.subtitle}
+                  </Text>
+                </View>
+
+                {item.badge && (
+                  <View
+                    style={[
+                      styles.badge,
+                      { backgroundColor: hexToRgba(badgeColor, 0.14) }
+                    ]}
+                  >
+                    <Text style={[styles.badgeText, { color: badgeColor }]}>{item.badge}</Text>
+                  </View>
+                )}
+
+                <ChevronRight size={17} color={hexToRgba(palette.text, 0.35)} />
+              </Pressable>
+            </React.Fragment>
           );
         })}
       </View>
@@ -187,51 +200,82 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
-      {/* Header */}
-      <View style={[styles.headerRow]}>
-        <TouchableOpacity
+      <View style={styles.header}>
+        <Pressable
           onPress={() => router.back()}
-          style={[styles.backButton, { backgroundColor: palette.card, borderColor: palette.border }]}
-          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibility-label="Go back"
+          hitSlop={12}
+          style={({ pressed }) => [
+            styles.backButton,
+            { backgroundColor: palette.card, borderColor: palette.border },
+            pressed && { opacity: 0.6 }
+          ]}
         >
           <ArrowLeft size={20} color={palette.text} />
-        </TouchableOpacity>
+        </Pressable>
         <Text style={[Typography.title1, { color: palette.text }]}>Settings</Text>
-        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-
-
-        {/* Settings Sections */}
-        <View style={[styles.sectionCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-          {renderSectionGroup('Account', ACCOUNT_ITEMS)}
-          <View style={styles.groupSpacer} />
-          {renderSectionGroup('Preferences', PREFERENCE_ITEMS)}
-          <View style={styles.groupSpacer} />
-          {renderSectionGroup('Activity', ACTIVITY_ITEMS)}
-          <View style={styles.groupSpacer} />
-          {renderSectionGroup('Security & Support', SECURITY_ITEMS)}
-        </View>
-
-        {/* Standalone Logout Button */}
-        <TouchableOpacity
-          onPress={() => setLogoutModalVisible(true)}
-          style={[styles.logoutButton, { backgroundColor: palette.card, borderColor: palette.border }]}
-          activeOpacity={0.8}
+        {/* Identity */}
+        <Pressable
+          onPress={() => router.push('/profile')}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.identityCard,
+            { backgroundColor: palette.card, borderColor: palette.border },
+            pressed && { opacity: 0.75 }
+          ]}
         >
-          <LogOut size={20} color="#EF4444" />
-          <Text style={styles.logoutText}>Log out</Text>
-        </TouchableOpacity>
+          <Avatar avatarUrl={user?.avatarUrl} seed={userAvatarSeed(user)} size={52} />
+          <View style={styles.identityCopy}>
+            <Text style={[styles.identityName, { color: palette.text }]} numberOfLines={1}>
+              {userName}
+            </Text>
+            <Text
+              style={[styles.identityHandle, { color: hexToRgba(palette.text, 0.5) }]}
+              numberOfLines={1}
+            >
+              {userHandle}
+            </Text>
+          </View>
+          <ChevronRight size={17} color={hexToRgba(palette.text, 0.35)} />
+        </Pressable>
 
-        {/* Footer Version & OTA Updates Button */}
+        {renderGroup('Account', ACCOUNT_ITEMS)}
+        {renderGroup('Preferences', PREFERENCE_ITEMS)}
+        {renderGroup('Activity', ACTIVITY_ITEMS)}
+        {renderGroup('Security & support', SECURITY_ITEMS)}
+
+        {/* Destructive */}
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            setLogoutModalVisible(true);
+          }}
+          accessibilityRole="button"
+          accessibility-label="Log out"
+          style={({ pressed }) => [
+            styles.logoutRow,
+            {
+              backgroundColor: hexToRgba(palette.error, 0.08),
+              borderColor: hexToRgba(palette.error, 0.28)
+            },
+            pressed && { opacity: 0.7 }
+          ]}
+        >
+          <LogOut size={19} color={palette.error} />
+          <Text style={[styles.logoutText, { color: palette.error }]}>Log out</Text>
+        </Pressable>
+
         <AppVersionFooter />
       </ScrollView>
 
-      {/* Logout Confirmation Bottom Sheet Modal */}
+      {/* Logout confirmation sheet */}
       <Modal
         visible={logoutModalVisible}
         transparent
@@ -241,30 +285,37 @@ export default function SettingsScreen() {
         <View style={styles.modalBackdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setLogoutModalVisible(false)} />
           <View style={[styles.sheet, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <View style={styles.sheetHeaderIcon}>
-              <LogOut size={24} color="#EF4444" />
+            <View style={[styles.grabber, { backgroundColor: hexToRgba(palette.text, 0.18) }]} />
+            <View style={[styles.sheetIcon, { backgroundColor: hexToRgba(palette.error, 0.14) }]}>
+              <LogOut size={22} color={palette.error} />
             </View>
-            <Text style={[styles.sheetTitle, { color: palette.text }]}>Log Out of Kudi?</Text>
-            <Text style={[styles.sheetText, { color: palette.textSecondary }]}>
+            <Text style={[styles.sheetTitle, { color: palette.text }]}>Log out of Kudi?</Text>
+            <Text style={[styles.sheetText, { color: hexToRgba(palette.text, 0.55) }]}>
               You will need to verify your session again to sign back in.
             </Text>
 
             <View style={styles.sheetActions}>
-              <TouchableOpacity
+              <Pressable
                 onPress={() => setLogoutModalVisible(false)}
-                style={[styles.sheetButton, { backgroundColor: palette.bg, borderColor: palette.border }]}
-                activeOpacity={0.8}
+                style={({ pressed }) => [
+                  styles.sheetButton,
+                  { backgroundColor: palette.bg, borderColor: palette.border },
+                  pressed && { opacity: 0.7 }
+                ]}
               >
-                <Text style={[styles.sheetButtonText, { color: palette.text }]}>Cancel</Text>
-              </TouchableOpacity>
+                <Text style={[styles.sheetButtonText, { color: palette.text }]}>Stay signed in</Text>
+              </Pressable>
 
-              <TouchableOpacity
+              <Pressable
                 onPress={confirmLogout}
-                style={[styles.sheetButton, { backgroundColor: '#EF4444', borderColor: '#EF4444' }]}
-                activeOpacity={0.8}
+                style={({ pressed }) => [
+                  styles.sheetButton,
+                  { backgroundColor: palette.error, borderColor: palette.error },
+                  pressed && { opacity: 0.8 }
+                ]}
               >
                 <Text style={[styles.sheetButtonText, { color: '#FFFFFF' }]}>Log out</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -275,144 +326,110 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  headerRow: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-  },
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700'
-  },
-  headerSpacer: {
-    width: 42
-  },
-  content: {
-    paddingHorizontal: 12,
-    paddingTop: 16,
-    paddingBottom: 40,
-    gap: 16
-  },
-  userProfileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 20,
-    borderWidth: 1
-  },
-  avatarCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  avatarInitials: {
-    fontSize: 18,
-    fontWeight: '800'
-  },
-  userInfo: {
-    flex: 1,
-    marginLeft: 12
-  },
-  tierTag: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    marginRight: 6
-  },
-  tierTagText: {
-    fontSize: 11,
-    fontWeight: '700'
-  },
-  sectionCard: {
-    borderRadius: 24,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 19
-  },
-  group: {
-    gap: 10
-  },
-  groupLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    paddingLeft: 2
-  },
-  groupList: {
-    gap: 8
-  },
-  groupSpacer: {
-    height: 18
-  },
-  menuRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderRadius: 18,
-    borderWidth: 1,
-    paddingHorizontal: 12,
+    gap: 14,
+    paddingHorizontal: Spacing.md,
     paddingVertical: 12
   },
-  iconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 16,
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center'
   },
-  menuCopy: {
-    flex: 1,
-    gap: 2
+  content: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: 6,
+    paddingBottom: 40,
+    gap: 20
   },
-  menuTitleRow: {
+  identityCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8
+    gap: 14,
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 14
   },
-  menuTitle: {
+  identityCopy: { flex: 1 },
+  identityName: {
+    fontFamily: Typography.family.sans,
+    fontSize: 17,
+    lineHeight: 22
+  },
+  identityHandle: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 2
+  },
+  group: { gap: 8 },
+  groupLabel: {
+    fontFamily: Typography.family.mono,
+    fontSize: 11,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    paddingHorizontal: 4
+  },
+  groupCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    overflow: 'hidden'
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 13
+  },
+  divider: {
+    height: 1,
+    marginLeft: 66
+  },
+  iconTile: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  rowCopy: { flex: 1 },
+  rowTitle: {
+    fontFamily: Typography.family.sans,
     fontSize: 15,
-    fontWeight: '700'
+    lineHeight: 20
   },
-  menuSubtitle: {
-    fontSize: 13
+  rowSubtitle: {
+    fontSize: 13,
+    lineHeight: 17,
+    marginTop: 1
   },
-  badgePill: {
+  badge: {
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 999
   },
   badgeText: {
     fontSize: 10,
-    fontWeight: '800'
+    fontWeight: '800',
+    letterSpacing: 0.3
   },
-  logoutButton: {
+  logoutRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
     borderRadius: 20,
     borderWidth: 1,
-    height: 56
+    height: 54
   },
   logoutText: {
-    color: '#EF4444',
-    fontSize: 16,
-    fontWeight: '700'
+    fontFamily: Typography.family.sans,
+    fontSize: 15
   },
   modalBackdrop: {
     flex: 1,
@@ -423,45 +440,54 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderWidth: 1,
-    padding: 24,
-    gap: 12,
+    paddingHorizontal: 24,
+    paddingTop: 10,
+    paddingBottom: 34,
+    gap: 10,
     alignItems: 'center'
   },
-  sheetHeaderIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(239,68,68,0.12)',
+  grabber: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 10
+  },
+  sheetIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4
+    marginBottom: 2
   },
   sheetTitle: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontFamily: Typography.family.sans,
+    fontSize: 19,
+    lineHeight: 24,
     textAlign: 'center'
   },
   sheetText: {
     fontSize: 14,
     textAlign: 'center',
-    lineHeight: 20
+    lineHeight: 20,
+    paddingHorizontal: 8
   },
   sheetActions: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 8,
+    marginTop: 12,
     width: '100%'
   },
   sheetButton: {
     flex: 1,
-    height: 52,
+    height: 50,
     borderRadius: 16,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center'
   },
   sheetButtonText: {
-    fontSize: 15,
-    fontWeight: '700'
+    fontFamily: Typography.family.sans,
+    fontSize: 14
   }
 });

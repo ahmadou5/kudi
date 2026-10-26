@@ -8,7 +8,6 @@ import {
   RefreshControl
 } from 'react-native';
 import { router } from 'expo-router';
-import { Receipt } from 'lucide-react-native';
 import { useAppPalette } from '../../src/lib/theme';
 import { BalanceCarousel } from '../../src/components/BalanceCarousel';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
@@ -17,6 +16,8 @@ import { Header } from '../../src/components/Header';
 import { TransactionCard, TransactionData } from '../../src/components/TransactionCard';
 import { formatIntelligentTimestamp } from '../../src/utils/timeUtils';
 import { ActivityRowSkeleton } from '../../src/components/ui/AnimatedSkeleton';
+import { ActivityEmptyState } from '../../src/components/ActivityEmptyState';
+import { useDepositRequestStore } from '../../src/store/deposit-request.store';
 import { SecurityPromptCards } from '../../src/components/SecurityPromptCards';
 import { useLoader } from '../../src/store/loader.store';
 
@@ -24,6 +25,7 @@ export default function HomeTab() {
   const palette = useAppPalette();
   const { showLoader, hideLoader } = useLoader();
   const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
+  const requestDeposit = useDepositRequestStore((s) => s.requestDeposit);
   const {
     balanceUSDC,
     rateNGN,
@@ -147,13 +149,14 @@ export default function HomeTab() {
               />
             ))
           ) : (
-            <View style={[styles.emptyBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              <Receipt size={32} color={palette.textSecondary} />
-              <Text style={[Typography.bodyBold, { color: palette.text, marginTop: 4 }]}>No Activity Yet</Text>
-              <Text style={[Typography.caption, { color: palette.textSecondary, textAlign: 'center', maxWidth: 240 }]}>
-                Your deposits and payouts will appear here in real-time.
-              </Text>
-            </View>
+            <ActivityEmptyState
+              title="No activity yet"
+              body="Deposits and payouts land here the moment they settle on-chain."
+              primaryLabel="Deposit"
+              onPrimary={requestDeposit}
+              secondaryLabel="View all"
+              onSecondary={() => router.push('/(tabs)/history')}
+            />
           )}
         </View>
       </ScrollView>
@@ -178,16 +181,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4
   },
-  activityList: { gap: 10 },
-  emptyBox: {
-    flex: 1,
-    minHeight: 200,
-    padding: 32,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 16
-  }
+  activityList: { gap: 10 }
 });
