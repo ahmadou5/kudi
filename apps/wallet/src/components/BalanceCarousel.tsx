@@ -23,6 +23,7 @@ import { useAppPalette } from '../lib/theme';
 import { Typography } from '../constants/typography';
 import { useVirtualAccounts, VirtualAccount } from '../hooks/useVirtualAccounts';
 import { useAuthStore } from '../store/auth.store';
+import { useDepositRequestStore } from '../store/deposit-request.store';
 import { ChainLogo } from './ui/ChainLogo';
 import { GorhomBottomSheet } from './ui/GorhomBottomSheet';
 import { BalanceCardSkeleton } from './ui/AnimatedSkeleton';
@@ -291,6 +292,27 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
       bankData
     });
   };
+
+  // External "open the deposit sheet" requests (empty state, other screens).
+  // The sheet shown always matches the card the carousel is currently on.
+  const activeIndexRef = useRef(activeIndex);
+  activeIndexRef.current = activeIndex;
+  const depositRequest = useDepositRequestStore((s) => s.request);
+
+  useEffect(() => {
+    if (!depositRequest) return;
+    const index = activeIndexRef.current;
+    if (index === 0) {
+      openCryptoDepositSheet();
+    } else if (index === 1) {
+      openBankDepositSheet(ngnAccount ?? 'NGN', '🇳🇬', 'Instant Local Bank Transfer');
+    } else if (index === 2) {
+      openBankDepositSheet(usdAccount ?? 'USD', '🇺🇸', 'ACH & Domestic Wire Transfer', 'Routing Number: 021000021');
+    } else {
+      openBankDepositSheet(eurAccount ?? 'EUR', '🇪🇺', 'SEPA Instant Transfer', 'BIC / SWIFT: BNCKBEBB');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [depositRequest]);
 
   const currentCryptoAddress = selectedCryptoChain === 'solana' ? solanaAddress : monadAddress;
   const currentTokenSymbol = selectedCryptoChain === 'solana' ? 'USDC' : 'AUSD';

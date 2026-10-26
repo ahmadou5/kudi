@@ -1,8 +1,10 @@
 import React from 'react';
 import { StyleSheet, Text, View, ScrollView, RefreshControl } from 'react-native';
-import { Receipt } from 'lucide-react-native';
+import { router } from 'expo-router';
 import { useAppPalette } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
+import { ActivityEmptyState } from '../../src/components/ActivityEmptyState';
+import { useDepositRequestStore } from '../../src/store/deposit-request.store';
 import { TransactionCard, TransactionData } from '../../src/components/TransactionCard';
 import { useTransactions } from '../../src/hooks/useTransactions';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
@@ -24,6 +26,7 @@ function ActivitySkeleton({ palette }: { palette: any }) {
 }
 
 export default function HistoryTab() {
+  const requestDeposit = useDepositRequestStore((s) => s.requestDeposit);
   const palette = useAppPalette();
   const { data: apiTxs, isLoading, refetch, isRefetching } = useTransactions(50);
   const { userId, rateNGN } = useKudiWallet();
@@ -94,13 +97,17 @@ export default function HistoryTab() {
             <TransactionCard key={item.id || item.ref} item={item} />
           ))
         ) : (
-          <View style={[styles.emptyBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <Receipt size={36} color={palette.textSecondary} />
-            <Text style={[Typography.bodyBold, { color: palette.text, marginTop: 6 }]}>No Activities Yet</Text>
-            <Text style={[Typography.caption, { color: palette.textSecondary, textAlign: 'center', maxWidth: 260 }]}>
-              All your deposits, transfers, and payouts will appear here in real-time.
-            </Text>
-          </View>
+          <ActivityEmptyState
+            title="Nothing here yet"
+            body="Every deposit, transfer and payout shows up here as soon as it settles."
+            primaryLabel="Deposit"
+            onPrimary={() => {
+              router.push('/(tabs)');
+              requestDeposit();
+            }}
+            secondaryLabel="Refresh"
+            onSecondary={() => refetch()}
+          />
         )}
       </View>
     </ScrollView>
@@ -109,18 +116,6 @@ export default function HistoryTab() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  emptyBox: {
-    flex: 1,
-    minHeight: 240,
-    padding: 32,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 12,
-    marginBottom: 16
-  },
   skeletonCard: {
     padding: 16,
     borderRadius: 18,

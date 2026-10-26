@@ -124,6 +124,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         const user: User = JSON.parse(storedUser);
         const wallets = storedWallets ? JSON.parse(storedWallets) : [];
         sdk.setAuthToken(storedToken);
+        sdk.setRefreshToken(storedRefreshToken);
 
         // Per-user PIN key; migrate the legacy unscoped key written by older builds
         let storedPin = await getSecureItem(pinStorageKey(user.id));
@@ -202,6 +203,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         if (wallets) await setSecureItem('kudi_wallets', JSON.stringify(wallets));
 
         sdk.setAuthToken(accessToken);
+        sdk.setRefreshToken(refreshToken ?? null);
 
         const localPin = await getSecureItem(pinStorageKey(user.id));
         set({
@@ -245,6 +247,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         if (wallets) await setSecureItem('kudi_wallets', JSON.stringify(wallets));
 
         sdk.setAuthToken(accessToken);
+        sdk.setRefreshToken(refreshToken ?? null);
 
         const localPin = await getSecureItem(pinStorageKey(user.id));
         set({
@@ -278,6 +281,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     await deleteSecureItem('kudi_user');
     await deleteSecureItem('kudi_wallets');
     sdk.setAuthToken(null);
+    sdk.setRefreshToken(null);
     set({
       user: null,
       wallets: [],
@@ -389,3 +393,16 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ pin: '', hasPin: false });
   }
 }));
+
+// The SDK refreshes on 401 by itself; these hooks persist the new access token
+// and end the local session when the refresh token is no longer accepted.
+sdk.setAuthHandlers({
+  onTokenRefreshed: (accessToken) => {
+    useAuthStore.setState({ accessToken });
+    void setSecureItem('kudi_access_token', accessToken);
+  },
+  onAuthExpired: () => {
+    console.warn('[AuthStore] Refresh token rejected — signing out');
+    void useAuthStore.getState().logout();
+  }
+});
