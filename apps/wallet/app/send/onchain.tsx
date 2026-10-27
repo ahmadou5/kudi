@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   BackHandler,
   KeyboardAvoidingView,
   Platform,
@@ -13,7 +14,7 @@ import {
 } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import { AlertTriangle, ClipboardPaste, Inbox, ScanLine, Trash2 } from 'lucide-react-native';
+import { AlertTriangle, ArrowLeftRight, ClipboardPaste, Inbox, ScanLine, Trash2 } from 'lucide-react-native';
 import { useAppPalette, hexToRgba, mixColors } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
@@ -44,7 +45,8 @@ const CHAINS: Record<Chain, { label: string; short: string; network: string; tok
 const ONCHAIN_FEE_USDC = 0;
 const MIN_SEND_USDC = 1;
 const MAX_AMOUNT_LENGTH = 9;
-const QUICK_AMOUNTS = [50, 100, 500, 1000];
+const QUICK_AMOUNTS = [10, 50, 100];
+const QUICK_AMOUNTS_NGN = [5000, 10000];
 
 const SOLANA_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const EVM_RE = /^0x[a-fA-F0-9]{40}$/;
@@ -84,6 +86,7 @@ export default function SendOnchainScreen() {
 
   const [step, setStep] = useState<1 | 2>(1);
   const [amount, setAmount] = useState('');
+  const [entryNgn, setEntryNgn] = useState(false);
   const [address, setAddress] = useState(initialAddress);
   const [chain, setChain] = useState<Chain>(initialChain);
   const [addressFocused, setAddressFocused] = useState(false);
@@ -103,21 +106,32 @@ export default function SendOnchainScreen() {
   }>({ visible: false, type: 'success', title: '', message: '' });
 
   const token = CHAINS[chain].token;
+  const rateReady = rateNGN > 0;
   const numericBalance = parseFloat(String(balanceUSDC)) || 0;
-  const numericAmount = parseFloat(amount) || 0;
+  const enteredAmount = parseFloat(amount) || 0;
+  const numericAmount = entryNgn && rateReady ? enteredAmount / rateNGN : enteredAmount;
   const totalUSDC = numericAmount + (numericAmount > 0 ? ONCHAIN_FEE_USDC : 0);
   const totalNGN = totalUSDC * rateNGN;
   const balanceNGN = numericBalance * rateNGN;
   const maxAmount = Math.floor(Math.max(0, numericBalance - ONCHAIN_FEE_USDC) * 100) / 100;
+  const maxAmountNGN = Math.floor(balanceNGN * 100) / 100;
+  const quickAmounts = entryNgn ? QUICK_AMOUNTS_NGN : QUICK_AMOUNTS;
+  const quickLabel = (v: number) => (entryNgn ? `₦${v.toLocaleString('en-NG')}` : `$${v}`);
 
   const amountError = useMemo(() => {
-    if (numericAmount > 0 && numericAmount < MIN_SEND_USDC) return `Minimum send is $${MIN_SEND_USDC.toFixed(2)}`;
+    if (enteredAmount > 0 && numericAmount < MIN_SEND_USDC) {
+      return entryNgn
+        ? `Minimum send is ${fmtNgn(rateNGN * MIN_SEND_USDC).replace(/\.00$/, '')}`
+        : `Minimum send is $${MIN_SEND_USDC.toFixed(2)}`;
+    }
     if (totalUSDC > numericBalance) return 'Insufficient balance';
     return '';
-  }, [numericAmount, totalUSDC, numericBalance]);
+  }, [enteredAmount, numericAmount, totalUSDC, numericBalance, entryNgn, rateNGN]);
 
   const canContinueAmount = numericAmount >= MIN_SEND_USDC && !amountError;
-  const maxActive = maxAmount > 0 && numericAmount === maxAmount;
+  const maxActive = entryNgn
+    ? maxAmountNGN > 0 && enteredAmount === maxAmountNGN
+    : maxAmount > 0 && enteredAmount === maxAmount;
   const trimmedAddress = address.trim();
   const addressValid = isValidAddress(trimmedAddress, chain);
   const showAddressError = trimmedAddress.length > 0 && !addressValid && !addressFocused;
@@ -188,7 +202,20 @@ export default function SendOnchainScreen() {
   };
   const handleMax = () => {
     haptics.tap();
-    setAmount(maxAmount > 0 ? String(maxAmount) : '');
+    const cap = entryNgn ? maxAmountNGN : maxAmount;
+    setAmount(cap > 0 ? String(cap) : '');
+  };
+
+  const toggleEntryCurrency = () => {
+    if (!rateReady) return;
+    haptics.tap();
+    const next = !entryNgn;
+    setEntryNgn(next);
+    if (amount) {
+      const converted = next ? enteredAmount * rateNGN : enteredAmount / rateNGN;
+      const rounded = Math.round(converted * 100) / 100;
+      setAmount(rounded > 0 ? String(rounded) : '');
+    }
   };
 
   const handleBack = () => {
@@ -296,18 +323,34 @@ export default function SendOnchainScreen() {
   // ── Amount display ──
   const [intPart, decPart] = amount.split('.');
   const hasAmount = amount.length > 0;
+  const visibleError = amountError && hasAmount ? amountError : '';
+  const errorAnim = useRef(new Animated.Value(0)).current;
+  const errorRise = errorAnim.interpolate({ inputRange: [0, 1], outputRange: [4, 0] });
+
+  useEffect(() => {
+    Animated.timing(errorAnim, {
+      toValue: visibleError ? 1 : 0,
+      duration: visibleError ? 200 : 140,
+      useNativeDriver: true,
+    }).start();
+  }, [visibleError, errorAnim]);
   const amountDisplay = (
-    <Text style={styles.amountRow} accessibilityLabel={`Amount ${hasAmount ? amount : '0'} dollars`}>
-      <Text style={[styles.amountMain, { color: palette.text }]}>$</Text>
+    <Text
+      style={[styles.amountRow]}
+      accessibilityLabel={`Amount ${hasAmount ? amount : '0'} ${entryNgn ? 'naira' : 'dollars'}`}
+    >
+      <Text style={[{ color: palette.text, fontFamily: Typography.currencySub.fontFamily, fontSize: 40 }]}>
+        {entryNgn ? '₦' : '$'}
+      </Text>
       {hasAmount ? (
         <>
-          <Text style={[styles.amountMain, { color: palette.text }]}>{withCommas(intPart || '0')}</Text>
+          <Text style={[{ color: palette.text, fontFamily: Typography.currencySub.fontFamily, fontSize: 43 }]}>{withCommas(intPart || '0')}</Text>
           {decPart !== undefined ? (
-            <Text style={[styles.amountMain, { color: palette.text }]}>.{decPart}</Text>
+            <Text style={[{ color: palette.text, fontFamily: Typography.currencySub.fontFamily, fontSize: 35 }]}>.{decPart}</Text>
           ) : null}
         </>
       ) : (
-        <Text style={[styles.amountMain, { color: hexToRgba(palette.text, 0.35) }]}>0.00</Text>
+        <Text style={[{ color: hexToRgba(palette.text, 0.35), fontFamily: Typography.currencySub.fontFamily, fontSize: 48 }]}>0.00</Text>
       )}
     </Text>
   );
@@ -347,22 +390,50 @@ export default function SendOnchainScreen() {
         // ───────────── STEP 1 · AMOUNT ─────────────
         <View style={styles.flex}>
           <View style={styles.amountTop}>
-            <View style={[styles.balancePill, { borderColor: palette.border, backgroundColor: insetBg }]}>
-              <Text style={[Typography.caption, { color: hexToRgba(palette.text, 0.5) }]}>Balance</Text>
-              <Text style={[Typography.currencySub, { color: palette.text }]}>
-                {fmtNgn(balanceNGN).replace(/\.00$/, '')}
+            <TouchableOpacity
+              onPress={toggleEntryCurrency}
+              activeOpacity={0.7}
+              style={[styles.balancePill, { borderColor: palette.border, backgroundColor: insetBg }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Balance. Switch amount currency, currently ${entryNgn ? 'Naira' : 'USDC'}`}
+            >
+              <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.5) }]}>Balance</Text>
+              <Text
+                style={[
+                  Typography.currencySub,
+                  { fontFamily: Typography.currencySub.fontFamily, color: palette.text },
+                ]}
+              >
+                {entryNgn
+                  ? fmtNgn(balanceNGN).replace(/\.00$/, '')
+                  : `$${numericBalance.toFixed(2)}`}
               </Text>
-            </View>
+              <ArrowLeftRight size={13} color={hexToRgba(palette.text, 0.4)} />
+            </TouchableOpacity>
 
             <View style={styles.amountWrap}>{amountDisplay}</View>
 
-            {amountError && hasAmount ? (
-              <Text style={[Typography.footnote, { color: palette.error, textAlign: 'center' }]}>{amountError}</Text>
-            ) : null}
+            <View style={styles.errorSlot} pointerEvents="none" accessibilityLiveRegion="polite">
+              <Animated.View
+                style={[
+                  styles.errorPill,
+                  {
+                    opacity: errorAnim,
+                    transform: [{ translateY: errorRise }],
+                    backgroundColor: hexToRgba(palette.error, 0.12),
+                    borderColor: hexToRgba(palette.error, 0.35),
+                  },
+                ]}
+              >
+                <Text style={[Typography.currencySub, { color: palette.error, textAlign: 'center', fontSize: 10 }]}>
+                  {visibleError}
+                </Text>
+              </Animated.View>
+            </View>
 
             <View style={styles.chipsRow}>
-              {QUICK_AMOUNTS.map((v) => {
-                const active = numericAmount === v;
+              {quickAmounts.map((v) => {
+                const active = enteredAmount === v;
                 return (
                   <TouchableOpacity
                     key={v}
@@ -380,11 +451,11 @@ export default function SendOnchainScreen() {
                   >
                     <Text
                       style={[
-                        Typography.currencySub,
-                        { color: active ? palette.bg : palette.text, fontWeight: '700' },
+
+                        { color: active ? palette.bg : palette.text, fontFamily: Typography.currencySub.fontFamily, fontSize: 12 },
                       ]}
                     >
-                      {`$${v}`}
+                      {quickLabel(v)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -405,7 +476,7 @@ export default function SendOnchainScreen() {
                 <Text
                   style={[
                     Typography.currencySub,
-                    { color: maxActive ? palette.bg : palette.text, fontWeight: '700' },
+                    { color: maxActive ? palette.bg : palette.text },
                   ]}
                 >
                   Max
@@ -416,9 +487,20 @@ export default function SendOnchainScreen() {
             <SummaryCard
               style={styles.summary}
               rows={[
-                { label: 'Exchange Rate', value: `₦${rateNGN.toLocaleString('en-NG')}` },
+                ...(entryNgn
+                  ? [
+
+                    { label: 'You send', value: `${numericAmount.toFixed(2)} ${token}` },
+                  ]
+                  : []),
                 { label: 'Fee', value: `$${ONCHAIN_FEE_USDC}` },
-                { label: 'Total debit', value: fmtNgn(totalNGN).replace(/\.00$/, ''), total: true },
+                {
+                  label: 'Total debit',
+                  value: entryNgn
+                    ? fmtNgn(totalNGN).replace(/\.00$/, '')
+                    : `$${totalUSDC.toFixed(2)}`,
+                  total: true,
+                },
               ]}
             />
           </View>
@@ -702,19 +784,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
   },
   amountWrap: { minHeight: 84, justifyContent: 'center', alignItems: 'center' },
   amountRow: { textAlign: 'center' },
-  amountMain: {
-    fontFamily: Typography.family.mono,
-    fontSize: 56,
-    lineHeight: 64,
-    fontWeight: '700',
-    letterSpacing: -1,
-    fontVariant: ['tabular-nums'],
+  errorSlot: {
+    alignSelf: 'stretch',
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   chipsRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center' },
   chip: {
@@ -730,7 +816,7 @@ const styles = StyleSheet.create({
   progressSeg: { flex: 1, height: 12, justifyContent: 'center' },
   progressSegBar: { height: 3, borderRadius: 2 },
   summary: { alignSelf: 'stretch', marginTop: 8 },
-  bottom: { flex: 1, justifyContent: 'flex-end', paddingBottom: 16, gap: 8 },
+  bottom: { flex: 1, justifyContent: 'flex-end', paddingBottom: 18, gap: 8 },
   primaryBtn: {
     marginHorizontal: 20,
     height: 52,

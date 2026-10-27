@@ -101,12 +101,11 @@ const styles = StyleSheet.create({
   totalLabel: {
     fontFamily: Typography.family.mono,
     fontSize: 15,
-    fontWeight: '700',
+
   },
   totalValue: {
     fontFamily: Typography.family.mono,
     fontSize: 15,
-    fontWeight: '700',
     textAlign: 'right',
     fontVariant: ['tabular-nums'],
   },
