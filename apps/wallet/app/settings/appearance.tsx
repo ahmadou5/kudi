@@ -8,7 +8,6 @@ import {
   useColorScheme as useDeviceColorScheme
 } from 'react-native';
 import { router } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { ArrowLeft, Check } from 'lucide-react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +17,7 @@ import { usePreferencesStore, PreferencesState, ThemeMode } from '../../src/stor
 import { Typography } from '../../src/constants/typography';
 import { Spacing } from '../../src/constants/spacing';
 import { IconTile } from '../../src/components/ui/IconTile';
+import { haptics } from '../../src/lib/haptics';
 
 const MODE_OPTIONS: Array<{ mode: ThemeMode; title: string; glyph: string }> = [
   { mode: 'light', title: 'Light', glyph: 'white-balance-sunny' },
@@ -99,7 +99,7 @@ export default function AppearanceScreen() {
   }, [themeMode, scheme, surfaceId, activeAccentLabel, activeTintLabel]);
 
   const tap = () => {
-    Haptics.selectionAsync().catch(() => {});
+    haptics.tap();
   };
 
   const labelColor = hexToRgba(palette.text, 0.45);

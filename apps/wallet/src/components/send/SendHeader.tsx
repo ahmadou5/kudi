@@ -1,9 +1,10 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, Pressable, View } from 'react-native';
 import { ArrowLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
+import { haptics } from '../../lib/haptics';
 
 interface SendHeaderProps {
   title: string;
@@ -18,16 +19,22 @@ export const SendHeader: React.FC<SendHeaderProps> = ({ title, onBack, leading }
 
   return (
     <View style={[styles.row, { paddingTop: insets.top + 8 }]}>
-      <TouchableOpacity
-        onPress={onBack}
-        style={styles.backBtn}
-        activeOpacity={0.6}
+      <Pressable
+        onPress={() => {
+          haptics.tap();
+          onBack();
+        }}
+        style={({ pressed }) => [
+          styles.backButton,
+          { backgroundColor: palette.card, borderColor: palette.border },
+          pressed && { opacity: 0.6 }
+        ]}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         accessibilityRole="button"
         accessibilityLabel="Go back"
       >
         <ArrowLeft size={24} color={palette.text} />
-      </TouchableOpacity>
+      </Pressable>
 
       <View style={styles.titleWrap} pointerEvents="none">
         {leading}
@@ -48,11 +55,14 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     minHeight: 56,
   },
-  backBtn: {
-    position: 'absolute',
-    left: 20,
-    bottom: 12,
-    zIndex: 2,
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center'
+
   },
   titleWrap: {
     flexDirection: 'row',

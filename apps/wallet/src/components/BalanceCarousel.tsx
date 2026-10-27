@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -15,11 +15,10 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import * as Haptics from 'expo-haptics';
 import QRCodeStyled from 'react-native-qrcode-styled';
 import { Rect } from 'react-native-svg';
 import { Copy, Check, ShieldCheck, Sparkles, Building2, Globe2, ArrowRight, X, QrCode, Share2, CheckCircle2, ChevronDown, ChevronUp, CopyIcon, LucideShare } from 'lucide-react-native';
-import { useAppPalette } from '../lib/theme';
+import { useAppPalette, isLight, hexToRgba, mixColors, cardHue } from '../lib/theme';
 import { Typography } from '../constants/typography';
 import { useVirtualAccounts, VirtualAccount } from '../hooks/useVirtualAccounts';
 import { useAuthStore } from '../store/auth.store';
@@ -28,6 +27,7 @@ import { ChainLogo } from './ui/ChainLogo';
 import { GorhomBottomSheet } from './ui/GorhomBottomSheet';
 import { BalanceCardSkeleton } from './ui/AnimatedSkeleton';
 import { sdk } from '../lib/sdk';
+import { haptics } from '../lib/haptics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CONTAINER_PADDING = 14;
@@ -41,6 +41,18 @@ interface BalanceCarouselProps {
   isLoading?: boolean;
 }
 
+function CardPattern({ hue }: { hue: string }) {
+  const palette = useAppPalette();
+  const light = isLight(palette.bg);
+  return (
+    <View style={styles.patternContainer} pointerEvents="none">
+      <View style={[styles.patternRingOuter, { borderColor: hexToRgba(palette.text, light ? 0.05 : 0.06) }]} />
+      <View style={[styles.patternRingInner, { borderColor: hexToRgba(palette.text, light ? 0.035 : 0.04) }]} />
+      <View style={[styles.patternGlow, { backgroundColor: hexToRgba(hue, light ? 0.07 : 0.09) }]} />
+    </View>
+  );
+}
+
 export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
   balanceUSDC,
   rateNGN,
@@ -48,10 +60,20 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
   isLoading = false
 }) => {
   const palette = useAppPalette();
-  const isDark = palette.text === '#FFFFFF';
+  const isDark = !isLight(palette.bg);
   const user = useAuthStore(s => s.user);
   const wallets = useAuthStore(s => s.wallets);
   const { data: virtualAccounts = [] } = useVirtualAccounts();
+
+  const cardHues = useMemo(
+    () => ({
+      usdc: cardHue('usdc', palette.primary, palette.scheme),
+      ngn: cardHue('ngn', palette.primary, palette.scheme),
+      usd: cardHue('usd', palette.primary, palette.scheme),
+      eur: cardHue('eur', palette.primary, palette.scheme)
+    }),
+    [palette.primary, palette.scheme]
+  );
 
   const [activeIndex, setActiveIndex] = useState<number>(0);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -216,13 +238,13 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
   const scrollToIndex = (index: number) => {
     setActiveIndex(index);
     scrollViewRef.current?.scrollTo({ x: index * (CARD_WIDTH + CARD_GAP), animated: true });
-    Haptics.selectionAsync().catch(() => { });
+    haptics.tap();
   };
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
       await Clipboard.setStringAsync(text);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => { });
+      haptics.notify('success');
       setCopiedField(label);
       setTimeout(() => setCopiedField(null), 2000);
     } catch {
@@ -231,7 +253,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
   };
 
   const openCryptoDepositSheet = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
+    haptics.impact('light');
     setActiveBottomSheet({ type: 'crypto', cryptoChain: selectedCryptoChain });
   };
 
@@ -279,7 +301,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
   };
 
   const openBankDepositSheet = (accountOrCurrency: VirtualAccount | string | undefined, flag?: string, transferType?: string, extraDetails?: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
+    haptics.impact('light');
     const currency = typeof accountOrCurrency === 'string' ? accountOrCurrency : (accountOrCurrency?.currency || 'NGN');
     const bankData = getBankDataForCurrency(currency);
     if (typeof accountOrCurrency === 'object' && accountOrCurrency) {
@@ -347,8 +369,8 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
             {
               width: CARD_WIDTH,
               marginRight: CARD_GAP,
-              backgroundColor: palette.card,
-              borderColor: palette.border,
+              backgroundColor: mixColors(palette.card, cardHues.usdc, 0.06),
+              borderColor: hexToRgba(cardHues.usdc, 0.18),
               transform: [{ scale: scaleAnim }]
             }
           ]}
@@ -367,11 +389,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
             pointerEvents="none"
           />
 
-          <View style={styles.patternContainer} pointerEvents="none">
-            <View style={[styles.patternRingOuter, { borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(15, 23, 42, 0.05)' }]} />
-            <View style={[styles.patternRingInner, { borderColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(15, 23, 42, 0.04)' }]} />
-            <View style={[styles.patternGlow, { backgroundColor: isDark ? 'rgba(52, 211, 153, 0.06)' : 'rgba(16, 185, 129, 0.05)' }]} />
-          </View>
+          <CardPattern hue={cardHues.usdc} />
 
           <View style={styles.cardHeaderRow}>
             <View style={styles.badgeRow}>
@@ -386,7 +404,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                 style={[
                   styles.depositBadge,
                   {
-                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    backgroundColor: hexToRgba(palette.success, 0.15),
                     borderColor: palette.success,
                     opacity: badgeOpacityAnim,
                     transform: [{ translateY: badgeYAnim }]
@@ -437,16 +455,12 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
             {
               width: CARD_WIDTH,
               marginRight: CARD_GAP,
-              backgroundColor: palette.card,
-              borderColor: palette.border
+              backgroundColor: mixColors(palette.card, cardHues.ngn, 0.06),
+              borderColor: hexToRgba(cardHues.ngn, 0.18)
             }
           ]}
         >
-          <View style={styles.patternContainer} pointerEvents="none">
-            <View style={[styles.patternRingOuter, { borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(15, 23, 42, 0.05)' }]} />
-            <View style={[styles.patternRingInner, { borderColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(15, 23, 42, 0.04)' }]} />
-            <View style={[styles.patternGlow, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.07)' : 'rgba(16, 185, 129, 0.05)' }]} />
-          </View>
+          <CardPattern hue={cardHues.ngn} />
 
           <View style={styles.cardHeaderRow}>
             <View style={styles.badgeRow}>
@@ -455,8 +469,8 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                 NGN Virtual Account
               </Text>
             </View>
-            <View style={[styles.statusPill, { backgroundColor: ngnAccount ? 'rgba(16, 185, 129, 0.12)' : 'rgba(234, 179, 8, 0.12)', borderColor: ngnAccount ? palette.success : '#EAB308' }]}>
-              <Text style={[Typography.caption, { color: ngnAccount ? palette.success : '#EAB308', fontWeight: '700' }]}>
+            <View style={[styles.statusPill, { backgroundColor: hexToRgba(ngnAccount ? palette.success : palette.warning, 0.12), borderColor: ngnAccount ? palette.success : palette.warning }]}>
+              <Text style={[Typography.caption, { color: ngnAccount ? palette.success : palette.warning, fontWeight: '700' }]}>
                 {ngnAccount ? 'Active NUBAN' : 'Requires KYC'}
               </Text>
             </View>
@@ -534,16 +548,12 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
             {
               width: CARD_WIDTH,
               marginRight: CARD_GAP,
-              backgroundColor: palette.card,
-              borderColor: palette.border
+              backgroundColor: mixColors(palette.card, cardHues.usd, 0.06),
+              borderColor: hexToRgba(cardHues.usd, 0.18)
             }
           ]}
         >
-          <View style={styles.patternContainer} pointerEvents="none">
-            <View style={[styles.patternRingOuter, { borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(15, 23, 42, 0.05)' }]} />
-            <View style={[styles.patternRingInner, { borderColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(15, 23, 42, 0.04)' }]} />
-            <View style={[styles.patternGlow, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.07)' : 'rgba(59, 130, 246, 0.05)' }]} />
-          </View>
+          <CardPattern hue={cardHues.usd} />
 
           <View style={styles.cardHeaderRow}>
             <View style={styles.badgeRow}>
@@ -552,8 +562,8 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                 USD Virtual Account
               </Text>
             </View>
-            <View style={[styles.statusPill, { backgroundColor: usdAccount ? 'rgba(16, 185, 129, 0.12)' : 'rgba(59, 130, 246, 0.12)', borderColor: usdAccount ? palette.success : '#3B82F6' }]}>
-              <Text style={[Typography.caption, { color: usdAccount ? palette.success : '#3B82F6', fontWeight: '700' }]}>
+            <View style={[styles.statusPill, { backgroundColor: hexToRgba(usdAccount ? palette.success : palette.warning, 0.12), borderColor: usdAccount ? palette.success : palette.warning }]}>
+              <Text style={[Typography.caption, { color: usdAccount ? palette.success : palette.warning, fontWeight: '700' }]}>
                 {usdAccount ? 'Active ACH' : 'Tier 2 KYC'}
               </Text>
             </View>
@@ -631,16 +641,12 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
             {
               width: CARD_WIDTH,
               marginRight: 0,
-              backgroundColor: palette.card,
-              borderColor: palette.border
+              backgroundColor: mixColors(palette.card, cardHues.eur, 0.06),
+              borderColor: hexToRgba(cardHues.eur, 0.18)
             }
           ]}
         >
-          <View style={styles.patternContainer} pointerEvents="none">
-            <View style={[styles.patternRingOuter, { borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(15, 23, 42, 0.05)' }]} />
-            <View style={[styles.patternRingInner, { borderColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(15, 23, 42, 0.04)' }]} />
-            <View style={[styles.patternGlow, { backgroundColor: isDark ? 'rgba(139, 92, 246, 0.07)' : 'rgba(139, 92, 246, 0.05)' }]} />
-          </View>
+          <CardPattern hue={cardHues.eur} />
 
           <View style={styles.cardHeaderRow}>
             <View style={styles.badgeRow}>
@@ -649,8 +655,8 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                 EUR Virtual IBAN
               </Text>
             </View>
-            <View style={[styles.statusPill, { backgroundColor: eurAccount ? 'rgba(16, 185, 129, 0.12)' : 'rgba(59, 130, 246, 0.12)', borderColor: eurAccount ? palette.success : '#3B82F6' }]}>
-              <Text style={[Typography.caption, { color: eurAccount ? palette.success : '#3B82F6', fontWeight: '700' }]}>
+            <View style={[styles.statusPill, { backgroundColor: hexToRgba(eurAccount ? palette.success : palette.warning, 0.12), borderColor: eurAccount ? palette.success : palette.warning }]}>
+              <Text style={[Typography.caption, { color: eurAccount ? palette.success : palette.warning, fontWeight: '700' }]}>
                 {eurAccount ? 'Active SEPA' : 'Tier 2 KYC'}
               </Text>
             </View>
@@ -735,7 +741,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                 style={[
                   styles.dotCap,
                   {
-                    backgroundColor: isActive ? palette.text : (isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)'),
+                    backgroundColor: isActive ? palette.text : hexToRgba(palette.text, isDark ? 0.2 : 0.15),
                     width: isActive ? 24 : 8
                   }
                 ]}
@@ -821,7 +827,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                         onPress={() => {
                           setSelectedCryptoChain('solana');
                           setNetworkDropdownOpen(false);
-                          Haptics.selectionAsync().catch(() => { });
+                          haptics.tap();
                         }}
                         style={[styles.dropdownItem, selectedCryptoChain === 'solana' && { backgroundColor: palette.bg }]}
                       >
@@ -833,7 +839,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                         onPress={() => {
                           setSelectedCryptoChain('monad');
                           setNetworkDropdownOpen(false);
-                          Haptics.selectionAsync().catch(() => { });
+                          haptics.tap();
                         }}
                         style={[styles.dropdownItem, selectedCryptoChain === 'monad' && { backgroundColor: palette.bg }]}
                       >
@@ -858,7 +864,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                               const newBankData = getBankDataForCurrency(item.currency);
                               setActiveBottomSheet({ type: 'bank', bankData: newBankData });
                               setNetworkDropdownOpen(false);
-                              Haptics.selectionAsync().catch(() => { });
+                              haptics.tap();
                             }}
                             style={[
                               styles.dropdownItem,
@@ -936,9 +942,9 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
 
 
                 {/* Conversion Green Alert Callout Banner */}
-                <View style={[styles.conversionAlertBox, { backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#E8F5E9', borderColor: isDark ? 'rgba(34, 197, 94, 0.3)' : '#C8E6C9' }]}>
+                <View style={[styles.conversionAlertBox, { backgroundColor: hexToRgba(palette.success, isDark ? 0.12 : 0.08), borderColor: hexToRgba(palette.success, 0.3) }]}>
 
-                  <Text style={[Typography.body, { color: isDark ? '#86EFAC' : '#1B5E20', flex: 1, textAlign: 'center' }]}>
+                  <Text style={[Typography.body, { color: palette.text, flex: 1, textAlign: 'center' }]}>
                     Your {currentTokenSymbol} deposits will automatically be converted to Naira at the current exchange rate.
                   </Text>
                 </View>
@@ -1069,7 +1075,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                 <View style={[
                   styles.conversionAlertBox,
                   {
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                    backgroundColor: hexToRgba(palette.text, 0.05),
                     borderColor: palette.border,
                     flexDirection: 'column',
                     gap: 6,
@@ -1081,7 +1087,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
                       <Animated.View style={{
                         width: 7, height: 7, borderRadius: 4,
-                        backgroundColor: liveRateLoading ? palette.textSecondary : '#22C55E',
+                        backgroundColor: liveRateLoading ? palette.textSecondary : palette.success,
                         opacity: livePulseAnim
                       }} />
                       <Text style={[Typography.caption, { color: palette.textSecondary, fontSize: 11, letterSpacing: 0.5 }]}>
@@ -1098,8 +1104,8 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                   {/* Rate display */}
                   {liveRateLoading ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <View style={{ width: 80, height: 22, borderRadius: 4, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)' }} />
-                      <View style={{ width: 50, height: 14, borderRadius: 4, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }} />
+                      <View style={{ width: 80, height: 22, borderRadius: 4, backgroundColor: hexToRgba(palette.text, 0.07) }} />
+                      <View style={{ width: 50, height: 14, borderRadius: 4, backgroundColor: hexToRgba(palette.text, 0.05) }} />
                     </View>
                   ) : liveRate ? (
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
@@ -1109,7 +1115,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                       <Text style={[Typography.caption, { color: palette.textSecondary, fontSize: 13 }]}>
                         =
                       </Text>
-                      <Text style={[Typography.currencyMain, { color: '#22C55E', fontSize: 22, lineHeight: 26 }]}>
+                      <Text style={[Typography.currencyMain, { color: palette.success, fontSize: 22, lineHeight: 26 }]}>
                         {`$${liveRate.rate.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`}
                       </Text>
                     </View>

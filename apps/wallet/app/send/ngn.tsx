@@ -13,7 +13,6 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
 import { useAppPalette } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
@@ -27,6 +26,7 @@ import { TransactionResultModal } from '../../src/components/TransactionResultMo
 import { SendHeader } from '../../src/components/send/SendHeader';
 import { SummaryCard } from '../../src/components/send/SummaryCard';
 import { SendSheet } from '../../src/components/send/SendSheet';
+import { haptics } from '../../src/lib/haptics';
 
 /** Flat fee shown to the user and added on top of the amount (matches the API's ₦20 payout fee). */
 const NGN_FEE = 20;
@@ -159,7 +159,7 @@ export default function SendNgnScreen() {
   };
 
   const pickRecipient = (r: BankRecipient) => {
-    Haptics.selectionAsync().catch(() => {});
+    haptics.tap();
     prefilledKey.current = `${r.accountNumber}:${r.bankCode}`;
     setAccountNumber(r.accountNumber);
     setBankCode(r.bankCode);

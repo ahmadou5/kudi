@@ -7,8 +7,8 @@ import BottomSheet, {
   BottomSheetBackdropProps
 } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import * as Haptics from 'expo-haptics';
 import { useAppPalette } from '../../lib/theme';
+import { haptics } from '../../lib/haptics';
 
 interface GorhomBottomSheetProps {
   visible: boolean;
@@ -56,7 +56,7 @@ export const GorhomBottomSheet: React.FC<GorhomBottomSheetProps> = ({
     if (index === -1) {
       onClose();
     } else {
-      Haptics.selectionAsync().catch(() => { });
+      haptics.tap();
     }
   }, [onClose]);
 

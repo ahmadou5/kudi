@@ -1,5 +1,4 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import * as Haptics from 'expo-haptics';
 import {
     StyleSheet,
     View,
@@ -26,6 +25,7 @@ import { Home, CreditCard, Clock, LucideIcon, Settings } from 'lucide-react-nati
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useAppPalette } from '../lib/theme';
 import { Typography } from '../constants/typography';
+import { haptics } from '../lib/haptics';
 
 export interface TabItemConfig {
     name: string;
@@ -111,7 +111,7 @@ function TabItem({
         // Instant squeeze — critically-damped, no overshoot (§1)
         scale.set(withSpring(0.86, { duration: 90, dampingRatio: 1 }));
         if (!isFocused && Platform.OS === 'ios') {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            haptics.impact('light');
         }
     };
 

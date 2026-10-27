@@ -9,7 +9,8 @@ import {
   View,
 } from 'react-native';
 import { ChevronsRight } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import { haptics } from '../../lib/haptics';
+import { useAppPalette } from '../../lib/theme';
 
 const KNOB = 48;
 const PADDING = 4;
@@ -34,6 +35,7 @@ export const SwipeToSend: React.FC<SwipeToSendProps> = ({
   knobIcon,
   trailing,
 }) => {
+  const palette = useAppPalette();
   const translateX = useRef(new Animated.Value(0)).current;
   const [trackWidth, setTrackWidth] = useState(0);
   const maxX = Math.max(0, trackWidth - KNOB - PADDING * 2);
@@ -65,7 +67,7 @@ export const SwipeToSend: React.FC<SwipeToSendProps> = ({
         const max = maxXRef.current;
         if (max > 0 && g.dx >= max * COMPLETE_THRESHOLD) {
           Animated.timing(translateX, { toValue: max, duration: 120, useNativeDriver: true }).start();
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          haptics.notify('success');
           completeRef.current();
         } else {
           Animated.spring(translateX, { toValue: 0, useNativeDriver: true, friction: 7 }).start();
@@ -85,18 +87,18 @@ export const SwipeToSend: React.FC<SwipeToSendProps> = ({
 
   return (
     <View
-      style={[styles.track, disabled && styles.trackDisabled]}
+      style={[styles.track, { backgroundColor: palette.text }, disabled && styles.trackDisabled]}
       onLayout={(e: LayoutChangeEvent) => setTrackWidth(e.nativeEvent.layout.width)}
       accessibilityRole="adjustable"
       accessibilityLabel={label}
     >
-      <Animated.Text style={[styles.label, { opacity: labelOpacity }]} numberOfLines={1}>
+      <Animated.Text style={[styles.label, { color: palette.bg, opacity: labelOpacity }]} numberOfLines={1}>
         {loading ? 'Sending…' : label}
       </Animated.Text>
 
       {!loading && (
         <Animated.View style={[styles.chevrons, { opacity: labelOpacity }]} pointerEvents="none">
-          <ChevronsRight size={16} color="#FFFFFF" />
+          <ChevronsRight size={16} color={palette.bg} />
         </Animated.View>
       )}
 
@@ -104,9 +106,9 @@ export const SwipeToSend: React.FC<SwipeToSendProps> = ({
 
       <Animated.View
         {...panResponder.panHandlers}
-        style={[styles.knob, { transform: [{ translateX }] }]}
+        style={[styles.knob, { backgroundColor: palette.bg, transform: [{ translateX }] }]}
       >
-        {loading ? <ActivityIndicator color="#0B0B0F" /> : knobIcon ?? <ChevronsRight size={22} color="#0B0B0F" />}
+        {loading ? <ActivityIndicator color={palette.text} /> : knobIcon ?? <ChevronsRight size={22} color={palette.text} />}
       </Animated.View>
     </View>
   );
@@ -116,7 +118,6 @@ const styles = StyleSheet.create({
   track: {
     height: KNOB + PADDING * 2,
     borderRadius: (KNOB + PADDING * 2) / 2,
-    backgroundColor: '#0B0B0F',
     justifyContent: 'center',
     paddingHorizontal: PADDING,
   },
@@ -127,7 +128,6 @@ const styles = StyleSheet.create({
     width: KNOB,
     height: KNOB,
     borderRadius: KNOB / 2,
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -136,7 +136,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     textAlign: 'center',
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
     paddingLeft: 24,

@@ -12,6 +12,7 @@ import { useAppPalette, buildNavigationTheme, isLight } from '../src/lib/theme';
 import { useAuthStore, AuthState } from '../src/store/auth.store';
 import { usePreferencesStore, PreferencesState } from '../src/store/preferences.store';
 import { connectSocket, disconnectSocket } from '../src/lib/socket';
+import { hapticsDiagnostics } from '../src/lib/haptics';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PrivyProvider } from '@privy-io/expo';
@@ -57,6 +58,10 @@ export default function RootLayout() {
     void hydrateAuth();
     void hydratePreferences();
   }, [hydrateAuth, hydratePreferences]);
+
+  useEffect(() => {
+    if (__DEV__) void hapticsDiagnostics();
+  }, []);
 
   useEffect(() => {
     if (!appLockEnabled) return;

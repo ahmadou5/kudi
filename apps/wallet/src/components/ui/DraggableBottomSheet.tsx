@@ -9,8 +9,8 @@ import {
   Dimensions,
   TouchableWithoutFeedback
 } from 'react-native';
-import * as Haptics from 'expo-haptics';
 import { useAppPalette } from '../../lib/theme';
+import { haptics } from '../../lib/haptics';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const DISMISS_THRESHOLD = 120;
@@ -104,7 +104,7 @@ export const DraggableBottomSheet: React.FC<DraggableBottomSheetProps> = ({
 
         // Trigger dismiss if dragged down past threshold OR flicked down with velocity
         if (dy > DISMISS_THRESHOLD || vy > VELOCITY_THRESHOLD) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+          haptics.impact('light');
           dismissSheet(vy);
         } else {
           // Snap back to resting position

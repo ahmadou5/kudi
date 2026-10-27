@@ -15,37 +15,32 @@ interface SummaryCardProps {
   style?: StyleProp<ViewStyle>;
 }
 
-/** Light-blue info card with a heavy bottom edge, used for rates / fees / totals. */
+/** Neutral rate/fee/total card: hairline row dividers, mono money, no competing accent. */
 export const SummaryCard: React.FC<SummaryCardProps> = ({ rows, style }) => {
   const palette = useAppPalette();
-  const isDark = palette.text === '#FFFFFF';
 
   return (
     <View
       style={[
         styles.card,
-        {
-          backgroundColor: isDark ? 'rgba(59,130,246,0.10)' : '#EAF2FE',
-          borderColor: isDark ? 'rgba(59,130,246,0.25)' : '#D3E3FA',
-          borderBottomColor: isDark ? '#3B82F6' : '#1E3A5F',
-        },
+        { backgroundColor: palette.card, borderColor: palette.border },
         style,
       ]}
     >
       {rows.map((row, idx) => {
         const isTotal = !!row.total;
-        const showDivider = isTotal && idx > 0;
         return (
           <View
             key={`${row.label}-${idx}`}
             style={[
               styles.row,
-              showDivider && [styles.totalRow, { borderTopColor: palette.border }],
+              idx > 0 && [styles.divider, { borderTopColor: palette.border }],
+              isTotal && styles.totalRow,
             ]}
           >
             <Text
               style={[
-                isTotal ? styles.totalLabel : Typography.body,
+                isTotal ? styles.totalLabel : styles.label,
                 { color: isTotal ? palette.text : palette.textSecondary },
               ]}
             >
@@ -53,10 +48,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ rows, style }) => {
             </Text>
             {typeof row.value === 'string' || typeof row.value === 'number' ? (
               <Text
-                style={[
-                  isTotal ? styles.totalValue : styles.value,
-                  { color: palette.text },
-                ]}
+                style={[isTotal ? styles.totalValue : styles.value, { color: palette.text }]}
                 numberOfLines={1}
               >
                 {row.value}
@@ -73,38 +65,48 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ rows, style }) => {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    borderBottomWidth: 3,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    gap: 14,
+    gap: 0,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
+    paddingVertical: 7,
+  },
+  divider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 14,
   },
   totalRow: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: 12,
+    paddingTop: 14,
+  },
+  label: {
+    fontFamily: Typography.family.mono,
+    fontSize: 13,
+    flexShrink: 1,
   },
   value: {
-    fontFamily: Typography.family.sans,
+    fontFamily: Typography.family.mono,
     fontSize: 14,
     fontWeight: '600',
     flexShrink: 1,
     textAlign: 'right',
+    fontVariant: ['tabular-nums'],
   },
   totalLabel: {
-    fontFamily: Typography.family.sans,
-    fontSize: 16,
-    fontWeight: '700',
+    fontFamily: Typography.family.mono,
+    fontSize: 15,
+
   },
   totalValue: {
-    fontFamily: Typography.family.sans,
-    fontSize: 16,
-    fontWeight: '700',
+    fontFamily: Typography.family.mono,
+    fontSize: 15,
+    textAlign: 'right',
+    fontVariant: ['tabular-nums'],
   },
 });
