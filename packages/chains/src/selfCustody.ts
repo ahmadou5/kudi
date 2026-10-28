@@ -32,7 +32,7 @@ import { getTransferCheckedInstruction, TOKEN_PROGRAM_ADDRESS, ASSOCIATED_TOKEN_
  */
 export type GasPaymentMode = 'PRIVY_SPONSOR' | 'TREASURY_FEE_PAYER' | 'USER_PAYS';
 
-export const GAS_PAYMENT_MODES: readonly GasPaymentMode[] = ['PRIVY_SPONSOR', 'TREASURY_FEE_PAYER', 'USER_PAYS'];
+const GAS_PAYMENT_MODES: readonly GasPaymentMode[] = ['PRIVY_SPONSOR', 'TREASURY_FEE_PAYER', 'USER_PAYS'];
 
 export function isGasPaymentMode(value: unknown): value is GasPaymentMode {
   return value === 'PRIVY_SPONSOR' || value === 'TREASURY_FEE_PAYER' || value === 'USER_PAYS';
@@ -180,7 +180,7 @@ export function resolveSweepAmount(params: {
  * Tie-break direction is fail-safe: a message matching both TOKEN-strong and
  * GAS-strong phrases classifies as TOKEN (no drip beats a wasted/minted drip).
  */
-export type SweepFailureClass = 'GAS' | 'TOKEN' | 'BLOCKHASH' | 'OTHER';
+type SweepFailureClass = 'GAS' | 'TOKEN' | 'BLOCKHASH' | 'OTHER';
 
 /** Token-side phrases: strong enough to VETO a drip on their own. */
 const TOKEN_STRONG_PATTERNS: readonly string[] = [
@@ -328,7 +328,7 @@ export function getDripTuning(): DripTuning {
  * persisted. `depositAmountUSDC` feeds the dust floor inside the eligibility
  * check; `trigger` defaults to 'SWEEP_RETRY' at the persistence layer.
  */
-export interface DripHooks {
+interface DripHooks {
   depositAmountUSDC?: number;
   checkDripEligibility?: (ctx: {
     walletAddress: string;
@@ -347,7 +347,7 @@ export interface DripHooks {
 }
 
 /** Commitment at which Solana deposits are eligible for ledger credit. */
-export const SOLANA_CREDIT_COMMITMENT = 'finalized' as const;
+const SOLANA_CREDIT_COMMITMENT = 'finalized' as const;
 
 export class SelfCustodyProvider implements CustodyProvider {
   public readonly track = CustodyTrack.TRACK_A_SELF_CUSTODY;

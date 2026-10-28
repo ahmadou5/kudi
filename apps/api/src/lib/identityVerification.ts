@@ -5,10 +5,10 @@ import { createBachsVirtualAccount, isBachsConfigured } from './bachs';
 import { verifyBVNWithNibss, isNibssConfigured } from './nibss';
 import { resolvePaystackBvn, isPaystackConfigured } from './paystack';
 
-export type IdentityProviderName = 'NIBSS' | 'PAYSTACK' | 'SMILE' | 'DOJAH' | 'PREMBLY' | 'NONE';
-export type IdentityCheckType = 'NIN' | 'BVN';
+type IdentityProviderName = 'NIBSS' | 'PAYSTACK' | 'SMILE' | 'DOJAH' | 'PREMBLY' | 'NONE';
+type IdentityCheckType = 'NIN' | 'BVN';
 
-export type VerificationResult = {
+type VerificationResult = {
   verified: boolean;
   name: string | null;
   dob: string | null;
@@ -37,7 +37,7 @@ export class VaProvisioningError extends Error {
   }
 }
 
-export function normalizeIdentityProvider(value?: string | null): IdentityProviderName {
+function normalizeIdentityProvider(value?: string | null): IdentityProviderName {
   const upper = value?.trim().toUpperCase();
   if (upper === 'NIBSS' || upper === 'PAYSTACK' || upper === 'SMILE' || upper === 'DOJAH' || upper === 'PREMBLY') return upper;
   return 'NONE';

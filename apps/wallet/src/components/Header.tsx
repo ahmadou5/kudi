@@ -13,7 +13,7 @@ import { ChainLogo } from './ui/ChainLogo';
 import { Blobatar } from './Blobatar';
 import { Avatar, userAvatarSeed } from './Avatar';
 
-export interface HeaderProps {
+interface HeaderProps {
   onOpenScanner?: () => void;
   onOpenProfile?: () => void;
 }

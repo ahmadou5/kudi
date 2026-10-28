@@ -2,7 +2,7 @@ import { Expo, ExpoPushMessage } from 'expo-server-sdk';
 
 const expo = new Expo();
 
-export type NotificationEventType =
+type NotificationEventType =
   | 'DEPOSIT_RECEIVED'
   | 'SPEND_COMPLETED'
   | 'KYC_APPROVED'
@@ -10,7 +10,7 @@ export type NotificationEventType =
   | 'BILL_PAYMENT_SUCCESS'
   | 'VIRTUAL_CARD_CREATED';
 
-export type NotificationPayload = {
+type NotificationPayload = {
   title: string;
   body: string;
   data?: Record<string, unknown>;
@@ -24,7 +24,7 @@ function formatNGN(amount: number) {
   }).format(amount);
 }
 
-export function buildNotificationPayload(type: NotificationEventType, payload: Record<string, unknown>): NotificationPayload {
+function buildNotificationPayload(type: NotificationEventType, payload: Record<string, unknown>): NotificationPayload {
   switch (type) {
     case 'DEPOSIT_RECEIVED':
       return {

@@ -5,9 +5,9 @@ import { useAuthStore } from '../store/auth.store';
 import { sdk, API_BASE_URL } from '../lib/sdk';
 import { socket } from '../lib/socket';
 
-export type CryptoWithdrawalStatus = 'PENDING' | 'BROADCAST' | 'CONFIRMED' | 'FAILED' | 'CANCELLED';
+type CryptoWithdrawalStatus = 'PENDING' | 'BROADCAST' | 'CONFIRMED' | 'FAILED' | 'CANCELLED';
 
-export interface CryptoSendResult {
+interface CryptoSendResult {
   reference: string;
   status: CryptoWithdrawalStatus;
   txHash?: string;

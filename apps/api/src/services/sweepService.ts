@@ -25,7 +25,7 @@ import { LedgerService } from './ledgerService';
 import { prisma, checkDripEligibility, recordDrip } from '@kudi/database';
 import { fetchJsonWithRpcFallback, redactAddress, apiConfig } from '@kudi/config';
 
-export interface SweepResult {
+interface SweepResult {
   success: boolean;
   txHash?: string;
   amountUSDC: number;

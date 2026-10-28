@@ -2,7 +2,7 @@ export type AccentId = 'slate' | 'violet' | 'indigo' | 'emerald' | 'sky' | 'rose
 export type SurfaceId = 'neutral' | 'muted' | 'deep';
 export type CardTintId = 'flat' | 'soft' | 'elevated';
 
-export interface AccentOption {
+interface AccentOption {
   id: AccentId;
   label: string;
   /** Accent used on the dark scheme (kept light so dark ink stays readable). */
@@ -29,7 +29,7 @@ export const CARD_HUE_TARGETS: Record<CardAccentId, string> = {
   usdc: '#14B8A6'
 };
 
-export interface SurfaceOption {
+interface SurfaceOption {
   id: SurfaceId;
   dark: { label: string; bg: string };
   light: { label: string; bg: string };
@@ -41,7 +41,7 @@ export const SURFACES: SurfaceOption[] = [
   { id: 'deep', dark: { label: 'Graphite', bg: '#191C24' }, light: { label: 'Stone', bg: '#F1EFEA' } }
 ];
 
-export interface CardTintOption {
+interface CardTintOption {
   id: CardTintId;
   label: string;
   /** Blend factor of the card surface away from the page background. */

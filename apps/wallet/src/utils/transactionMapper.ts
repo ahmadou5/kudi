@@ -4,7 +4,7 @@ import { formatIntelligentTimestamp } from './timeUtils';
 
 export type TransactionDirection = 'deposit' | 'send' | 'payout';
 
-export interface MappedTransaction extends TransactionData {
+interface MappedTransaction extends TransactionData {
   direction: TransactionDirection;
   amountValue: number;
   timestampMs: number;

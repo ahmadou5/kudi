@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 
-export interface TokenPayload {
+interface TokenPayload {
   userId: string;
   email?: string;
   phoneNumber?: string;

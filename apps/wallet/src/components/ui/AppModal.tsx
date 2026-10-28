@@ -6,7 +6,7 @@ import { Spacing } from '../../constants/spacing';
 import { Typography } from '../../constants/typography';
 import { useAppPalette, readableInk } from '../../lib/theme';
 
-export type AppModalConfig = {
+type AppModalConfig = {
   visible: boolean;
   title: string;
   description: string;
@@ -26,7 +26,7 @@ const EMPTY: AppModalConfig = {
   onPrimaryPress: () => {},
 };
 
-export type ShowAlertOptions = {
+type ShowAlertOptions = {
   title: string;
   description: string;
   type?: AppModalConfig['type'];
@@ -193,7 +193,7 @@ export function AppModalProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useGlobalAlert() {
+function useGlobalAlert() {
   const context = useContext(AppModalContext);
   if (!context) {
     throw new Error('useGlobalAlert must be used within an AppModalProvider');

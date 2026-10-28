@@ -8,7 +8,7 @@ function numberFrom(row: NumericRow | undefined, key: string): number {
   return Number(row[key]) || 0;
 }
 
-export interface ReconciliationMetrics {
+interface ReconciliationMetrics {
   totalLiabilityUSDC: number;
   totalAvailableUSDC: number;
   totalReservedUSDC: number;

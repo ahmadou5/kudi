@@ -48,7 +48,7 @@ function bankInitialColor(name: string): string {
   return BANK_PALETTE[Math.abs(hash) % BANK_PALETTE.length];
 }
 
-export function BankAvatar({ name, size = 40 }: { name: string; size?: number }) {
+function BankAvatar({ name, size = 40 }: { name: string; size?: number }) {
   const color = bankInitialColor(name);
   const initial = name.trim().charAt(0).toUpperCase() || 'B';
   return (
@@ -115,7 +115,7 @@ export const BANK_SLUGS_MAP: Record<string, string> = {
 
 const LOGO_BASE = 'https://cdn.jsdelivr.net/gh/supermx1/nigerian-banks-api@main/logos';
 
-export function getBankLogoUrl(bankCode?: string, bankName?: string, slug?: string | null): string {
+function getBankLogoUrl(bankCode?: string, bankName?: string, slug?: string | null): string {
   // 1. Prefer the explicit slug on the item
   if (slug) return `${LOGO_BASE}/${slug}.png`;
   // 2. Fall back to our hardcoded map

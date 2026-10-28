@@ -10,7 +10,7 @@ import { StyleProp, ViewStyle } from 'react-native';
  * 135ms  section 2
  * …      +45ms per section, capped at maxStagger; later items appear immediately
  */
-export const TIMING = {
+const TIMING = {
   fast: 150,
   base: 280,
   stagger: 45,

@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { sdk } from '../lib/sdk';
 
-export interface User {
+interface User {
   id: string;
   privyUserId?: string;
   email?: string;
@@ -20,7 +20,7 @@ export interface User {
   hasPin?: boolean;
 }
 
-export interface WalletInfo {
+interface WalletInfo {
   chain: string;
   address: string;
 }

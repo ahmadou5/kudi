@@ -4,7 +4,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, HelpCircle, X, ShieldAlert, CheckCircle2 } from 'lucide-react';
 
-export interface ConfirmActionModalProps {
+interface ConfirmActionModalProps {
   isOpen: boolean;
   title: string;
   description: string;

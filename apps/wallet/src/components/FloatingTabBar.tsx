@@ -27,7 +27,7 @@ import { useAppPalette, hexToRgba } from '../lib/theme';
 import { Typography } from '../constants/typography';
 import { haptics } from '../lib/haptics';
 
-export interface TabItemConfig {
+interface TabItemConfig {
     name: string;
     label: string;
     Icon: LucideIcon;
@@ -40,7 +40,7 @@ export interface TabItemConfig {
  * visible buttons always stay in sync with this array.
  */
 //To do { name: 'card', label: 'Card', Icon: CreditCard },
-export const DEFAULT_TABS: TabItemConfig[] = [
+const DEFAULT_TABS: TabItemConfig[] = [
     { name: 'index', label: 'Home', Icon: Home },
     { name: 'history', label: 'History', Icon: Clock },
     { name: 'settings', label: 'Settings', Icon: Settings },
@@ -64,7 +64,7 @@ const STRETCH_DURATION = 130;   // ms to reach peak stretch
 const PILL_SPRING = { duration: 420, dampingRatio: 0.72 } as const;   // travel + settle
 const SETTLE_SPRING = { duration: 340, dampingRatio: 0.55 } as const; // bounce out of stretch
 
-export interface FloatingTabBarProps {
+interface FloatingTabBarProps {
     state?: any;
     descriptors?: any;
     navigation?: any;

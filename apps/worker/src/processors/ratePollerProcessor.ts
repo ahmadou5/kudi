@@ -1,6 +1,6 @@
 import { prisma } from '@kudi/database';
 
-export async function fetchLiveExchangeRate(): Promise<{ rawRate: number; source: string }> {
+async function fetchLiveExchangeRate(): Promise<{ rawRate: number; source: string }> {
   const providers = [
     {
       name: 'OpenER-API (USD/NGN)',

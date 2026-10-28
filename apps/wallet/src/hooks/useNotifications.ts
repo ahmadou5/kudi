@@ -13,7 +13,7 @@ export interface AppNotification {
   data?: Record<string, any>;
 }
 
-export interface NotificationsData {
+interface NotificationsData {
   notifications: AppNotification[];
   unreadCount: number;
 }

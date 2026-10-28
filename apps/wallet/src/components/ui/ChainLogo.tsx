@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 
-export type ChainId = 'solana' | 'monad' | 'ethereum' | 'polygon' | 'arbitrum';
+type ChainId = 'solana' | 'monad' | 'ethereum' | 'polygon' | 'arbitrum';
 
 interface ChainLogoProps {
   chain: ChainId | string;

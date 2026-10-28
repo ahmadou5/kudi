@@ -3,7 +3,7 @@ import { StyleSheet, View, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { readableInk, shade, hexToRgba } from '../../lib/theme';
 
-export type GlyphComponent = ComponentType<any>;
+type GlyphComponent = ComponentType<any>;
 
 const ABSOLUTE_FILL = {
   position: 'absolute' as const,

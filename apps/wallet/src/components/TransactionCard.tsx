@@ -6,7 +6,7 @@ import { Typography } from '../constants/typography';
 import { ChainLogo } from './ui/ChainLogo';
 import { router } from 'expo-router';
 
-export type BrandProvider = 'usdc' | 'ausd' | 'solana' | 'monad' | 'mtn' | 'airtel' | 'glo' | '9mobile' | 'electricity' | 'gtbank' | 'zenith' | 'paystack' | 'monnify' | 'generic';
+type BrandProvider = 'usdc' | 'ausd' | 'solana' | 'monad' | 'mtn' | 'airtel' | 'glo' | '9mobile' | 'electricity' | 'gtbank' | 'zenith' | 'paystack' | 'monnify' | 'generic';
 
 const BRAND_LOGOS: Record<string, ImageSourcePropType> = {
   usdc: require('../../assets/logos/usdc.png'),

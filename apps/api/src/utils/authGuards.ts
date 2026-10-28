@@ -2,7 +2,7 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { apiConfig } from '@kudi/config';
 import { errorResponse } from './response';
 
-export interface AuthenticatedUser {
+interface AuthenticatedUser {
   userId: string;
   email?: string;
   phoneNumber?: string;
@@ -34,21 +34,6 @@ export function requireSelfParam(paramName = 'userId') {
 
     if (!authUser || !requestedUserId || authUser.userId !== requestedUserId) {
       void reply.status(403).send(errorResponse('FORBIDDEN', 'You can only access your own account', 403));
-    }
-  };
-}
-
-export function requireSelfBody(fieldName = 'userId') {
-  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    await requireAuth(request, reply);
-    if (reply.sent) return;
-
-    const authUser = getAuthenticatedUser(request);
-    const body = (request.body || {}) as Record<string, unknown>;
-    const requestedUserId = body[fieldName];
-
-    if (!authUser || typeof requestedUserId !== 'string' || authUser.userId !== requestedUserId) {
-      void reply.status(403).send(errorResponse('FORBIDDEN', 'You can only move funds from your own account', 403));
     }
   };
 }

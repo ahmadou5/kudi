@@ -1,4 +1,4 @@
-export interface WebhookJobPayload {
+interface WebhookJobPayload {
   provider: 'squad' | 'monnify' | 'paystack' | 'korapay' | 'privy';
   eventId: string;
   eventType: string;

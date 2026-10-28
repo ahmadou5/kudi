@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as LocalAuth from 'expo-local-authentication';
 
-export interface BiometricAvailability {
+interface BiometricAvailability {
   hasHardware: boolean;
   enrolled: boolean;
   available: boolean;

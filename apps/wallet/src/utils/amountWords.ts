@@ -24,7 +24,7 @@ function chunkToWords(n: number): string {
 }
 
 /** Converts a whole number to English words, e.g. 1000 -> "One Thousand". */
-export function numberToWords(value: number): string {
+function numberToWords(value: number): string {
   let n = Math.floor(Math.abs(value));
   if (n === 0) return 'Zero';
   const words: string[] = [];

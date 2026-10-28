@@ -30,7 +30,7 @@ export function shade(hex: string, amount: number): string {
 }
 
 /** WCAG relative luminance, 0 (black) to 1 (white). */
-export function relativeLuminance(hex: string): number {
+function relativeLuminance(hex: string): number {
   const [r, g, b] = parseHex(hex).map((channel) => {
     const s = channel / 255;
     return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
@@ -52,13 +52,6 @@ export function hexToRgba(hex: string, opacity: number): string {
   if (c.length === 3) c = c.split('').map((char) => char + char).join('');
   const num = parseInt(c, 16);
   return `rgba(${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}, ${opacity})`;
-}
-
-export function getThemeLabel(mode: string, deviceScheme: 'light' | 'dark') {
-  if (mode === 'system') return `System (${deviceScheme === 'dark' ? 'Dark' : 'Light'})`;
-  if (mode === 'light') return 'Light';
-  if (mode === 'dark') return 'Dark';
-  return 'Custom';
 }
 
 export function cardHue(id: CardAccentId, accent: string, scheme: string): string {

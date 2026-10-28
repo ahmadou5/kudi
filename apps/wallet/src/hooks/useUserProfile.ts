@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../store/auth.store';
 import { sdk } from '../lib/sdk';
 
-export interface UserProfileData {
+interface UserProfileData {
   user: {
     id: string;
     privyUserId?: string;

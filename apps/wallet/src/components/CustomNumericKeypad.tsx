@@ -1,6 +1,6 @@
 import { CustomNumericKeypad as BaseKeypad, type CustomNumericKeypadProps as BaseProps } from './ui/CustomNumericKeypad';
 
-export type CustomNumericKeypadProps = BaseProps & {
+type CustomNumericKeypadProps = BaseProps & {
   mode?: 'light' | 'dark';
 };
 

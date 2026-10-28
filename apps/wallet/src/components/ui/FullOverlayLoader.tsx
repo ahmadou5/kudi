@@ -17,7 +17,7 @@ import { useLoaderStore } from '../../store/loader.store';
 
 const { width } = Dimensions.get('window');
 
-export interface FullOverlayLoaderProps {
+interface FullOverlayLoaderProps {
   visible?: boolean;
   message?: string;
   title?: string;
