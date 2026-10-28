@@ -7,7 +7,7 @@ type MonnifyEnvelope<T> = {
   responseBody?: T;
 };
 
-export type MonnifyReservedAccount = {
+type MonnifyReservedAccount = {
   accountReference: string;
   accountName: string;
   accountNumber: string;
@@ -93,31 +93,5 @@ export async function createMonnifyReservedAccount(
     };
   } catch (err) {
     wrapMonnifyError(err, 'Reserved account creation failed');
-  }
-}
-
-export async function initiateMonnifyDisbursement(amountNGN: number, reference: string, destinationBankCode: string, destinationAccountNumber: string, narration?: string) {
-  const token = await getMonnifyAccessToken();
-  if (!token) {
-    throw new Error('[Monnify API] MONNIFY_API_KEY and MONNIFY_SECRET_KEY not configured');
-  }
-
-  try {
-    const res = await monnify.post<MonnifyEnvelope<{ reference: string; status: string }>>(
-      '/api/v2/disbursements/single',
-      {
-        amount: amountNGN,
-        reference,
-        narration: narration ?? 'Kudi Payout',
-        destinationBankCode,
-        destinationAccountNumber,
-        currency: 'NGN',
-        sourceAccountNumber: process.env.MONNIFY_SOURCE_ACCOUNT_NUMBER ?? '',
-      },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    return res.data.responseBody;
-  } catch (err) {
-    wrapMonnifyError(err, 'Failed to disburse funds via Monnify');
   }
 }

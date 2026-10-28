@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { cn } from '@/lib/cn';
 
-export interface CardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
+interface CardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
   title?: React.ReactNode;
   subtitle?: React.ReactNode;
   headerAction?: React.ReactNode;

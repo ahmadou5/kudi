@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Pressable, View, StyleSheet } from 'react-native';
+import { useAppPalette } from '../../lib/theme';
 
 type FlowProgressDotsProps = {
   currentStep: number;
@@ -15,7 +16,9 @@ type FlowProgressDotsProps = {
  * - Completed step: narrower pill (width 8, opacity 0.65)
  * - Future step: narrowest pill (width 8, opacity 0.25)
  */
-export function FlowProgressDots({ currentStep, totalSteps, onStepPress, color = '#FFFFFF' }: FlowProgressDotsProps) {
+export function FlowProgressDots({ currentStep, totalSteps, onStepPress, color }: FlowProgressDotsProps) {
+  const palette = useAppPalette();
+  const pillColor = color ?? palette.text;
   const widths = useRef(
     Array.from({ length: totalSteps }, (_, i) =>
       new Animated.Value(i + 1 === currentStep ? 24 : 8)
@@ -75,7 +78,7 @@ export function FlowProgressDots({ currentStep, totalSteps, onStepPress, color =
                 {
                   width: widths[i],
                   opacity: opacities[i],
-                  backgroundColor: color
+                  backgroundColor: pillColor
                 }
               ]}
             />

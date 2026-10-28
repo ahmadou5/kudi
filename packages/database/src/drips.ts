@@ -29,7 +29,7 @@
  *   here only to size cap accounting when the caller omits dripAmountNative).
  */
 
-export type DripChain = 'solana' | 'monad' | 'stellar';
+type DripChain = 'solana' | 'monad' | 'stellar';
 // NOTE: 'stellar' is accepted by the type because upstream sweep engines pass
 // it through, but there is deliberately NO Stellar drip policy yet —
 // checkDripEligibility/recordDrip below still reject 'stellar' at runtime
@@ -37,9 +37,9 @@ export type DripChain = 'solana' | 'monad' | 'stellar';
 // defined. Widening the type changes zero runtime behavior; it only stops
 // the compiler from lying about what callers already send.
 
-export type DripStatus = 'BROADCAST' | 'CONFIRMED' | 'TIMEOUT';
+type DripStatus = 'BROADCAST' | 'CONFIRMED' | 'TIMEOUT';
 
-export interface DripEligibilityRequest {
+interface DripEligibilityRequest {
   walletAddress: string;
   chain: DripChain;
   /** Sweepable deposit size — dust below the floor never drips. */
@@ -48,13 +48,13 @@ export interface DripEligibilityRequest {
   dripAmountNative?: number;
 }
 
-export interface DripEligibilityDecision {
+interface DripEligibilityDecision {
   eligible: boolean;
   /** Machine-readable block reason (surfaced as DripBlocked:<REASON>). */
   reason?: string;
 }
 
-export interface DripRecord {
+interface DripRecord {
   walletAddress: string;
   chain: DripChain;
   amountNative: number;
@@ -64,12 +64,12 @@ export interface DripRecord {
 }
 
 /** Minimal Prisma surface used (raw SQL only — no generated delegate). */
-export interface DripPrisma {
+interface DripPrisma {
   $queryRaw: (query: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>;
   $executeRaw: (query: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>;
 }
 
-export interface DripPolicy {
+interface DripPolicy {
   maxDripsPerWalletPerDay: number;
   dailyCapSol: number;
   dailyCapMon: number;
@@ -108,7 +108,7 @@ function parsePolicyInt(name: string, raw: string | undefined, def: number): num
 }
 
 /** Validated drip policy (throws a clear error on garbage env). */
-export function getDripPolicy(): DripPolicy {
+function getDripPolicy(): DripPolicy {
   return {
     maxDripsPerWalletPerDay: parsePolicyInt(
       'SWEEP_MAX_DRIPS_PER_WALLET_PER_DAY', process.env.SWEEP_MAX_DRIPS_PER_WALLET_PER_DAY, 1

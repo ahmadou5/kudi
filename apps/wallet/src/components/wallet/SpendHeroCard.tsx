@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Banknote, LucideBanknote } from 'lucide-react-native';
-import { useAppPalette } from '../../lib/theme';
+import { useAppPalette, hexToRgba } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
 import { FlowProgressDots } from './WalletFlowProgress';
@@ -26,11 +26,11 @@ export const SpendHeroCard: React.FC<SpendHeroCardProps> = ({
 
   return (
     <View style={[styles.heroCard, { backgroundColor: palette.card }]}>
-      <CardBackgroundPattern glowColor="rgba(10, 132, 255, 0.12)" isDarkOverride={true} />
+      <CardBackgroundPattern glowColor={hexToRgba(palette.primary, 0.12)} isDarkOverride={true} />
       <View style={styles.heroTop}>
         <View>
 
-          <Text style={styles.heroValue}>{activeFlowTitle}</Text>
+          <Text style={[styles.heroValue, { color: palette.text }]}>{activeFlowTitle}</Text>
         </View>
 
       </View>
@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroLabel: { color: 'rgba(255,255,255,0.6)', fontSize: Typography.xs },
-  heroValue: { color: '#fff', fontSize: Typography.lg, fontFamily: Typography.family.bold },
+  heroValue: { fontSize: Typography.lg, fontFamily: Typography.family.bold },
   heroIcon: {
     width: 40,
     height: 40,

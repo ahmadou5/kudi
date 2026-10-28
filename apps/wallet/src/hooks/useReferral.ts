@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../store/auth.store';
 import { sdk } from '../lib/sdk';
 
-export interface ReferralInvitedUser {
+interface ReferralInvitedUser {
   id: string;
   name: string;
   username?: string;
@@ -10,7 +10,7 @@ export interface ReferralInvitedUser {
   joinedAt: string;
 }
 
-export interface ReferralOverview {
+interface ReferralOverview {
   code: string;
   invitedCount: number;
   invited: ReferralInvitedUser[];

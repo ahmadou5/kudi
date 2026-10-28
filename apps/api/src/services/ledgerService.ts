@@ -1405,9 +1405,34 @@ export class LedgerService {
     return newBal;
   }
 
-  public getUserNotifications(userId: string): NotificationRecord[] {
-    const list = this.notifications.get(userId) || [];
-    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  /**
+   * Notifications are read from Neon (the worker writes rows directly there),
+   * and the in-memory cache is refreshed as a side effect so legacy in-memory
+   * paths stay warm. DB is the single source of truth for read/unread state.
+   */
+  public async getUserNotifications(userId: string): Promise<NotificationRecord[]> {
+    try {
+      const rows = await prisma.notification.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' }
+      });
+      const records: NotificationRecord[] = rows.map(n => ({
+        id: n.id,
+        userId: n.userId,
+        title: n.title,
+        body: n.body,
+        type: n.type,
+        read: n.read,
+        createdAt: n.createdAt.toISOString(),
+        data: n.data ? JSON.parse(n.data) : undefined
+      }));
+      this.notifications.set(userId, records);
+      return records;
+    } catch (err: any) {
+      console.warn('[LedgerService] DB getUserNotifications fallback warning:', err?.message);
+      const list = this.notifications.get(userId) || [];
+      return [...list].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
   }
 
   public addNotification(userId: string, title: string, body: string, type: string = 'SYSTEM', data?: Record<string, any>): NotificationRecord {
@@ -1441,21 +1466,25 @@ export class LedgerService {
     return item;
   }
 
-  public markNotificationRead(userId: string, notificationId: string): boolean {
+  public async markNotificationRead(userId: string, notificationId: string): Promise<boolean> {
     const list = this.notifications.get(userId) || [];
     const target = list.find(n => n.id === notificationId);
-    if (target) {
-      target.read = true;
-      prisma.notification.update({
-        where: { id: notificationId },
+    if (target) target.read = true;
+    try {
+      // updateMany: no-op (count 0) instead of throwing when the id is unknown
+      // to this instance (e.g. row created by the worker, different replica).
+      const res = await prisma.notification.updateMany({
+        where: { id: notificationId, userId },
         data: { read: true }
-      }).catch(err => console.warn('[LedgerService] DB notification update warning:', err?.message));
-      return true;
+      });
+      return res.count > 0 || !!target;
+    } catch (err: any) {
+      console.warn('[LedgerService] DB notification update warning:', err?.message);
+      return !!target;
     }
-    return false;
   }
 
-  public markAllNotificationsRead(userId: string): number {
+  public async markAllNotificationsRead(userId: string): Promise<number> {
     const list = this.notifications.get(userId) || [];
     let count = 0;
     list.forEach(n => {
@@ -1464,11 +1493,16 @@ export class LedgerService {
         count++;
       }
     });
-    prisma.notification.updateMany({
-      where: { userId, read: false },
-      data: { read: true }
-    }).catch(err => console.warn('[LedgerService] DB markAllNotificationsRead warning:', err?.message));
-    return count;
+    try {
+      const res = await prisma.notification.updateMany({
+        where: { userId, read: false },
+        data: { read: true }
+      });
+      return Math.max(count, res.count);
+    } catch (err: any) {
+      console.warn('[LedgerService] DB markAllNotificationsRead warning:', err?.message);
+      return count;
+    }
   }
 
   public isSignatureProcessed(signature: string): boolean {

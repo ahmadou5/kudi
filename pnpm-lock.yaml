@@ -100,9 +100,6 @@ importers:
       '@kudi/api-contracts':
         specifier: workspace:*
         version: link:../../packages/api-contracts
-      '@kudi/cards':
-        specifier: workspace:*
-        version: link:../../packages/cards
       '@kudi/chains':
         specifier: workspace:*
         version: link:../../packages/chains
@@ -115,9 +112,6 @@ importers:
       '@kudi/database':
         specifier: workspace:*
         version: link:../../packages/database
-      '@kudi/kyc':
-        specifier: workspace:*
-        version: link:../../packages/kyc
       '@kudi/payment-providers':
         specifier: workspace:*
         version: link:../../packages/payment-providers

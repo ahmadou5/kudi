@@ -26,6 +26,7 @@ import { useDepositRequestStore } from '../store/deposit-request.store';
 import { ChainLogo } from './ui/ChainLogo';
 import { GorhomBottomSheet } from './ui/GorhomBottomSheet';
 import { BalanceCardSkeleton } from './ui/AnimatedSkeleton';
+import { AnimatedAmount, formatNaira, formatUsd } from './ui/AnimatedAmount';
 import { sdk } from '../lib/sdk';
 import { haptics } from '../lib/haptics';
 
@@ -419,13 +420,31 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
           </View>
 
           <Text style={[Typography.currencyDisplay, styles.balanceValue, { color: palette.text }]}>
-            ${balanceUSDC} <Text style={[Typography.title2, { color: palette.textSecondary }]}>USDC</Text>
+            $<AnimatedAmount
+              value={numericBalance}
+              format={formatUsd}
+              color={palette.text}
+              style={[Typography.currencyDisplay, styles.balanceValue]}
+            />{' '}
+            <Text style={[Typography.title2, { color: palette.textSecondary }]}>USDC</Text>
           </Text>
           {/** To do */}
           <Text style={[Typography.title3, styles.subBalance, { color: palette.success, fontWeight: 600, lineHeight: 30 }]}>
-            ₦{ngnEquivalent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN{' '}
+            ₦<AnimatedAmount
+              value={ngnEquivalent}
+              format={formatNaira}
+              color={palette.success}
+              style={[Typography.title3, { fontWeight: 600, lineHeight: 30 }]}
+            />{' '}
+            NGN{' '}
             <Text style={[Typography.display, { color: palette.textSecondary, fontSize: 13, lineHeight: 20 }]}>
-              (1 USDC = ₦{rateNGN.toFixed(2)})
+              (1 USDC = ₦<AnimatedAmount
+                value={rateNGN}
+                format={(n) => n.toFixed(2)}
+                flash={false}
+                color={palette.textSecondary}
+                style={[Typography.display, { fontSize: 13, lineHeight: 20 }]}
+              />)
             </Text>
           </Text>
 
@@ -479,12 +498,23 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
           {ngnAccount ? (
             <>
               <Text style={[Typography.currencyDisplay, styles.balanceValue, { color: palette.text }]}>
-                ₦{ngnEquivalent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                ₦<AnimatedAmount
+                  value={ngnEquivalent}
+                  format={formatNaira}
+                  color={palette.text}
+                  style={[Typography.currencyDisplay, styles.balanceValue]}
+                />{' '}
                 <Text style={[Typography.title2, { color: palette.textSecondary }]}>NGN</Text>
               </Text>
 
               <Text style={[Typography.bodyBold, styles.subBalance, { color: palette.success }]}>
-                ≈ ${numericBalance.toFixed(2)} USDC{' '}
+                ≈ $<AnimatedAmount
+                  value={numericBalance}
+                  format={formatUsd}
+                  color={palette.success}
+                  style={[Typography.bodyBold]}
+                />{' '}
+                USDC{' '}
                 <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
                   ({ngnAccount.bankName} • {ngnAccount.accountNumber})
                 </Text>
@@ -572,12 +602,23 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
           {usdAccount ? (
             <>
               <Text style={[Typography.currencyDisplay, styles.balanceValue, { color: palette.text }]}>
-                ${numericBalance.toFixed(2)}{' '}
+                $<AnimatedAmount
+                  value={numericBalance}
+                  format={formatUsd}
+                  color={palette.text}
+                  style={[Typography.currencyDisplay, styles.balanceValue]}
+                />{' '}
                 <Text style={[Typography.title2, { color: palette.textSecondary }]}>USD</Text>
               </Text>
 
               <Text style={[Typography.bodyBold, styles.subBalance, { color: palette.success }]}>
-                ≈ ₦{ngnEquivalent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN{' '}
+                ≈ ₦<AnimatedAmount
+                  value={ngnEquivalent}
+                  format={formatNaira}
+                  color={palette.success}
+                  style={[Typography.bodyBold]}
+                />{' '}
+                NGN{' '}
                 <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
                   ({usdAccount.bankName} • {usdAccount.accountNumber})
                 </Text>
@@ -665,12 +706,23 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
           {eurAccount ? (
             <>
               <Text style={[Typography.currencyDisplay, styles.balanceValue, { color: palette.text }]}>
-                €{(numericBalance * 0.92).toFixed(2)}{' '}
+                €<AnimatedAmount
+                  value={numericBalance * 0.92}
+                  format={formatUsd}
+                  color={palette.text}
+                  style={[Typography.currencyDisplay, styles.balanceValue]}
+                />{' '}
                 <Text style={[Typography.title2, { color: palette.textSecondary }]}>EUR</Text>
               </Text>
 
               <Text style={[Typography.bodyBold, styles.subBalance, { color: palette.success }]}>
-                ≈ ${numericBalance.toFixed(2)} USDC{' '}
+                ≈ $<AnimatedAmount
+                  value={numericBalance}
+                  format={formatUsd}
+                  color={palette.success}
+                  style={[Typography.bodyBold]}
+                />{' '}
+                USDC{' '}
                 <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
                   ({eurAccount.bankName} • IBAN)
                 </Text>

@@ -17,17 +17,17 @@ import Animated, {
     useReducedMotion,
     Easing
 } from 'react-native-reanimated';
-import { Home, CreditCard, Clock, LucideIcon, Settings } from 'lucide-react-native';
+import { Home, CreditCard, Clock, LucideIcon, Settings, BarChart3 } from 'lucide-react-native';
 // npx expo install expo-glass-effect — official Expo wrapper around iOS 26's Liquid Glass
 // (UIVisualEffectView). GlassView renders the real native glass on iOS 26+ and quietly
 // falls back to a plain View everywhere else (older iOS, Android, web) — no Platform
 // branching needed on our end.
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { useAppPalette } from '../lib/theme';
+import { useAppPalette, hexToRgba } from '../lib/theme';
 import { Typography } from '../constants/typography';
 import { haptics } from '../lib/haptics';
 
-export interface TabItemConfig {
+interface TabItemConfig {
     name: string;
     label: string;
     Icon: LucideIcon;
@@ -40,16 +40,15 @@ export interface TabItemConfig {
  * visible buttons always stay in sync with this array.
  */
 //To do { name: 'card', label: 'Card', Icon: CreditCard },
-export const DEFAULT_TABS: TabItemConfig[] = [
+const DEFAULT_TABS: TabItemConfig[] = [
     { name: 'index', label: 'Home', Icon: Home },
     { name: 'history', label: 'History', Icon: Clock },
+    { name: 'insights', label: 'Insights', Icon: BarChart3 },
     { name: 'settings', label: 'Settings', Icon: Settings },
 ];
 
 // Tint laid over the real glass on iOS 26+ — kept light so the native blur still does the
-// work of obscuring what's underneath. Swap these for your exact brand purple.
-const GLASS_TINT_DARK = 'rgba(139, 92, 246, 0.18)';
-const GLASS_TINT_LIGHT = 'rgba(124, 58, 237, 0.12)';
+// work of obscuring what's underneath. Derived from the active accent at render time.
 
 // How strongly the active icon's shape gets washed with color while its outline stays crisp.
 // Lower (~0.15) for a barely-there wash, higher (~0.4) for a bolder duotone look.
@@ -66,7 +65,7 @@ const STRETCH_DURATION = 130;   // ms to reach peak stretch
 const PILL_SPRING = { duration: 420, dampingRatio: 0.72 } as const;   // travel + settle
 const SETTLE_SPRING = { duration: 340, dampingRatio: 0.55 } as const; // bounce out of stretch
 
-export interface FloatingTabBarProps {
+interface FloatingTabBarProps {
     state?: any;
     descriptors?: any;
     navigation?: any;
@@ -82,8 +81,8 @@ export interface FloatingTabBarProps {
 interface TabItemProps {
     tab: TabItemConfig;
     isFocused: boolean;
-    isDark: boolean;
     activeColor: string;
+    inactiveColor: string;
     iconSize: number;
     showLabels: boolean;
     onLayout: (e: LayoutChangeEvent) => void;
@@ -93,8 +92,8 @@ interface TabItemProps {
 function TabItem({
     tab,
     isFocused,
-    isDark,
     activeColor,
+    inactiveColor,
     iconSize,
     showLabels,
     onLayout,
@@ -120,9 +119,7 @@ function TabItem({
         scale.set(withSpring(1, { duration: 280, dampingRatio: 0.6 }));
     };
 
-    const iconColor = isFocused
-        ? activeColor
-        : (isDark ? 'rgba(255,255,255,0.38)' : 'rgba(15,23,42,0.35)');
+    const iconColor = isFocused ? activeColor : inactiveColor;
 
     return (
         <Animated.View
@@ -185,7 +182,7 @@ export function FloatingTabBar({
     descriptors,
     navigation,
     tabs = DEFAULT_TABS,
-    width = '60%',
+    width = '72%',
     showLabels = false,
     iconSize = 20,
     containerStyle
@@ -301,24 +298,27 @@ export function FloatingTabBar({
     if (!state || !navigation) return null;
 
     const currentRouteName = state.routes[state.index]?.name;
-    const isAllowedTab = ['index', 'card', 'history'].includes(currentRouteName);
+    const isAllowedTab = ['index', 'card', 'history', 'insights'].includes(currentRouteName);
     if (!isAllowedTab) return null;
 
-    const isDark = palette.text === '#FFFFFF';
+    const isDark = palette.scheme === 'dark';
 
     // True only where the compiled app can actually render Liquid Glass (iOS 26+, right
     // Xcode/Info.plist). GlassView falls back to a plain View regardless — this just tells
     // us whether to skip painting an opaque fallback color over real glass.
     const hasNativeGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
-    // Active accent — vivid white on dark, deep navy on light
-    const activeColor = isDark ? '#FFFFFF' : '#0F172A';
+    // Active accent follows the theme's text color
+    const activeColor = palette.text;
+    const inactiveColor = hexToRgba(palette.text, isDark ? 0.38 : 0.35);
     // Active pill background — visible frosted highlight
-    const activePillBg = isDark ? 'rgba(255,255,255,0.22)' : 'rgba(15,23,42,0.13)';
+    const activePillBg = hexToRgba(palette.text, isDark ? 0.22 : 0.13);
     // Border: bright top edge = light catching glass
-    const borderColor = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.09)';
+    const borderColor = hexToRgba(palette.text, isDark ? 0.18 : 0.09);
     // Outer shadow glow colour
     const shadowColor = isDark ? '#000' : '#1E293B';
+    // Glass tint derives from the active accent so custom themes recolor the bar
+    const glassTint = hexToRgba(palette.primary, isDark ? 0.18 : 0.12);
 
     return (
         <View style={[styles.floatingContainer, { bottom: Platform.OS === 'ios' ? 28 : 20 }]}>
@@ -330,7 +330,7 @@ export function FloatingTabBar({
                     {
                         width,
                         shadowColor,
-                        backgroundColor: isDark ? '#121216' : '#FFFFFF'
+                        backgroundColor: palette.card
                     }
                 ]}
             >
@@ -338,12 +338,12 @@ export function FloatingTabBar({
                     tinted look as a graceful fallback everywhere else */}
                 <GlassView
                     glassEffectStyle="regular"
-                    tintColor={hasNativeGlass ? (isDark ? GLASS_TINT_DARK : GLASS_TINT_LIGHT) : undefined}
+                    tintColor={hasNativeGlass ? glassTint : undefined}
                     style={[
                         styles.pillTabBar,
                         { borderColor },
                         !hasNativeGlass && {
-                            backgroundColor: isDark ? 'rgba(18,18,22,0.78)' : 'rgba(255,255,255,0.82)'
+                            backgroundColor: hexToRgba(palette.card, 0.82)
                         },
                         containerStyle
                     ]}
@@ -351,9 +351,9 @@ export function FloatingTabBar({
                     {/* Bright top-edge inner highlight — simulates light catching the glass rim */}
                     <View
                         pointerEvents="none"
-                        style={[
+                            style={[
                             styles.topEdgeHighlight,
-                            { backgroundColor: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.6)' }
+                            { backgroundColor: hexToRgba(palette.text, isDark ? 0.09 : 0.6) }
                         ]}
                     />
 
@@ -392,8 +392,8 @@ export function FloatingTabBar({
                                 key={tab.name}
                                 tab={tab}
                                 isFocused={isFocused}
-                                isDark={isDark}
                                 activeColor={activeColor}
+                                inactiveColor={inactiveColor}
                                 iconSize={iconSize}
                                 showLabels={showLabels}
                                 onLayout={(e) => measureTab(idx, e)}

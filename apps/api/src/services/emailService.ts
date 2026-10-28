@@ -2,7 +2,7 @@ import { Resend } from 'resend';
 import sgMail from '@sendgrid/mail';
 import nodemailer from 'nodemailer';
 
-export interface SendOTPEmailParams {
+interface SendOTPEmailParams {
   toEmail: string;
   otpCode: string;
 }

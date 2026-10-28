@@ -6,7 +6,7 @@ import { happy } from 'blobatar/expression';
  * `blobatar:<seed>`. The seed is any string (username, name, id) and the
  * same seed always renders the same character.
  */
-export const BLOBATAR_PREFIX = 'blobatar:';
+const BLOBATAR_PREFIX = 'blobatar:';
 
 export const isBlobatarUrl = (url?: string | null): boolean => !!url && url.startsWith(BLOBATAR_PREFIX);
 
@@ -17,7 +17,7 @@ export const blobatarSeed = (url: string, fallback = 'kudi'): string => {
   return seed || fallback;
 };
 
-export interface BlobatarProps {
+interface BlobatarProps {
   name: string;
   size?: number;
   background?: 'squircle' | 'circle' | 'square';

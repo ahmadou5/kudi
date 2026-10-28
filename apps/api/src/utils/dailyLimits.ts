@@ -1,12 +1,12 @@
 import { KYCTier } from '@kudi/types';
 
-export const DAILY_LIMITS_NGN: Record<KYCTier, number> = {
+const DAILY_LIMITS_NGN: Record<KYCTier, number> = {
   [KYCTier.UNVERIFIED]: 0,
   [KYCTier.TIER_1]: 50000,
   [KYCTier.TIER_2]: 5000000
 };
 
-export interface DailyLimitCheck {
+interface DailyLimitCheck {
   amountNGN: number;
   limitNGN: number;
 }

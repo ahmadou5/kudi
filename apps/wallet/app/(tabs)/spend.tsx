@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { ArrowLeft, Building2, Smartphone } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useAppPalette } from '../../src/lib/theme';
+import { useAppPalette, hexToRgba } from '../../src/lib/theme';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
 import { useSendAuth } from '../../src/hooks/useSendAuth';
 import { Typography } from '../../src/constants/typography';
@@ -28,6 +28,7 @@ import { Step3Review } from '../../src/components/wallet/Step3Review';
 import { Beneficiary } from '../../src/components/wallet/BeneficiariesScroll';
 import { ChainLogo } from '../../src/components/ui/ChainLogo';
 import { NIGERIAN_BANKS } from '../../src/constants/banks';
+import { EnterSection } from '../../src/lib/animations';
 
 type SpendType = 'select' | 'offchain' | 'onchain';
 type OffchainSubMode = 'BANK' | 'INTERAPP';
@@ -428,169 +429,177 @@ export default function SpendTab() {
 
         {/* Root Spend Type Selection (Off-chain & On-chain Cards) */}
         {spendType === 'select' ? (
-          <RailSelectorCard
-            onSelectOffchain={() => {
-              setSpendType('offchain');
-              setStep(1);
-            }}
-            onSelectOnchain={() => {
-              setSpendType('onchain');
-              setStep(1);
-            }}
-          />
+          <EnterSection index={0}>
+            <RailSelectorCard
+              onSelectOffchain={() => {
+                setSpendType('offchain');
+                setStep(1);
+              }}
+              onSelectOnchain={() => {
+                setSpendType('onchain');
+                setStep(1);
+              }}
+            />
+          </EnterSection>
         ) : (
           /* Modular Component Flow */
           <View style={styles.sectionGap}>
             {/* Top Hero Banner with FlowProgressDots */}
-            <SpendHeroCard
-              activeFlowTitle={activeFlowTitle}
-              currentStep={step}
-              totalSteps={3}
-              onStepPress={(target) => {
-                if (target < step) setStep(target as FlowStep);
-              }}
-            />
+            <EnterSection index={0}>
+              <SpendHeroCard
+                activeFlowTitle={activeFlowTitle}
+                currentStep={step}
+                totalSteps={3}
+                onStepPress={(target) => {
+                  if (target < step) setStep(target as FlowStep);
+                }}
+              />
+            </EnterSection>
 
             {/* Sub-mode Switcher Pills */}
-            {spendType === 'offchain' ? (
-              <View style={styles.chainTabRow}>
-                <TouchableOpacity
-                  onPress={() => setOffchainMode('BANK')}
-                  activeOpacity={0.8}
-                  style={[
-                    styles.chainTab,
-                    {
-                      backgroundColor: offchainMode === 'BANK' ? (palette.text === '#FFFFFF' ? '#1E293B' : '#0F172A') : palette.card,
-                      borderColor: offchainMode === 'BANK' ? palette.primary : palette.border
-                    }
-                  ]}
-                >
-                  <Building2 size={16} color={offchainMode === 'BANK' ? palette.primary : palette.textSecondary} />
-                  <Text style={[Typography.footnote, { color: offchainMode === 'BANK' ? '#FFF' : palette.textSecondary, fontWeight: offchainMode === 'BANK' ? '700' : '500' }]}>
-                    Bank Transfer (NGN)
-                  </Text>
-                  {offchainMode === 'BANK' && <View style={[styles.activeDot, { backgroundColor: palette.primary }]} />}
-                </TouchableOpacity>
+            <EnterSection index={1}>
+              {spendType === 'offchain' ? (
+                <View style={styles.chainTabRow}>
+                  <TouchableOpacity
+                    onPress={() => setOffchainMode('BANK')}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.chainTab,
+                      {
+                        backgroundColor: offchainMode === 'BANK' ? hexToRgba(palette.text, 0.12) : palette.card,
+                        borderColor: offchainMode === 'BANK' ? palette.primary : palette.border
+                      }
+                    ]}
+                  >
+                    <Building2 size={16} color={offchainMode === 'BANK' ? palette.primary : palette.textSecondary} />
+                    <Text style={[Typography.footnote, { color: offchainMode === 'BANK' ? '#FFF' : palette.textSecondary, fontWeight: offchainMode === 'BANK' ? '700' : '500' }]}>
+                      Bank Transfer (NGN)
+                    </Text>
+                    {offchainMode === 'BANK' && <View style={[styles.activeDot, { backgroundColor: palette.primary }]} />}
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  onPress={() => setOffchainMode('INTERAPP')}
-                  activeOpacity={0.8}
-                  style={[
-                    styles.chainTab,
-                    {
-                      backgroundColor: offchainMode === 'INTERAPP' ? (palette.text === '#FFFFFF' ? '#1E293B' : '#0F172A') : palette.card,
-                      borderColor: offchainMode === 'INTERAPP' ? palette.primary : palette.border
-                    }
-                  ]}
-                >
-                  <Smartphone size={16} color={offchainMode === 'INTERAPP' ? palette.primary : palette.textSecondary} />
-                  <Text style={[Typography.footnote, { color: offchainMode === 'INTERAPP' ? '#FFF' : palette.textSecondary, fontWeight: offchainMode === 'INTERAPP' ? '700' : '500' }]}>
-                    Inter-App
-                  </Text>
-                  {offchainMode === 'INTERAPP' && <View style={[styles.activeDot, { backgroundColor: palette.primary }]} />}
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.chainTabRow}>
-                <TouchableOpacity
-                  onPress={() => setOnchainChain('solana')}
-                  activeOpacity={0.8}
-                  style={[
-                    styles.chainTab,
-                    {
-                      backgroundColor: onchainChain === 'solana' ? (palette.text === '#FFFFFF' ? '#1E293B' : '#0F172A') : palette.card,
-                      borderColor: onchainChain === 'solana' ? '#9945FF' : palette.border
-                    }
-                  ]}
-                >
-                  <ChainLogo chain="solana" size={16} />
+                  <TouchableOpacity
+                    onPress={() => setOffchainMode('INTERAPP')}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.chainTab,
+                      {
+                        backgroundColor: offchainMode === 'INTERAPP' ? hexToRgba(palette.text, 0.12) : palette.card,
+                        borderColor: offchainMode === 'INTERAPP' ? palette.primary : palette.border
+                      }
+                    ]}
+                  >
+                    <Smartphone size={16} color={offchainMode === 'INTERAPP' ? palette.primary : palette.textSecondary} />
+                    <Text style={[Typography.footnote, { color: offchainMode === 'INTERAPP' ? '#FFF' : palette.textSecondary, fontWeight: offchainMode === 'INTERAPP' ? '700' : '500' }]}>
+                      Inter-App
+                    </Text>
+                    {offchainMode === 'INTERAPP' && <View style={[styles.activeDot, { backgroundColor: palette.primary }]} />}
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.chainTabRow}>
+                  <TouchableOpacity
+                    onPress={() => setOnchainChain('solana')}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.chainTab,
+                      {
+                        backgroundColor: onchainChain === 'solana' ? hexToRgba(palette.text, 0.12) : palette.card,
+                        borderColor: onchainChain === 'solana' ? '#9945FF' : palette.border
+                      }
+                    ]}
+                  >
+                    <ChainLogo chain="solana" size={16} />
 
-                  {onchainChain === 'solana' && <View style={[styles.activeDot, { backgroundColor: '#9945FF' }]} />}
-                </TouchableOpacity>
+                    {onchainChain === 'solana' && <View style={[styles.activeDot, { backgroundColor: '#9945FF' }]} />}
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  onPress={() => setOnchainChain('monad')}
-                  activeOpacity={0.8}
-                  style={[
-                    styles.chainTab,
-                    {
-                      backgroundColor: onchainChain === 'monad' ? (palette.text === '#FFFFFF' ? '#1E293B' : '#0F172A') : palette.card,
-                      borderColor: onchainChain === 'monad' ? '#836EF9' : palette.border
-                    }
-                  ]}
-                >
-                  <ChainLogo chain="monad" size={16} />
+                  <TouchableOpacity
+                    onPress={() => setOnchainChain('monad')}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.chainTab,
+                      {
+                        backgroundColor: onchainChain === 'monad' ? hexToRgba(palette.text, 0.12) : palette.card,
+                        borderColor: onchainChain === 'monad' ? '#836EF9' : palette.border
+                      }
+                    ]}
+                  >
+                    <ChainLogo chain="monad" size={16} />
 
-                  {onchainChain === 'monad' && <View style={[styles.activeDot, { backgroundColor: '#836EF9' }]} />}
-                </TouchableOpacity>
-              </View>
-            )}
+                    {onchainChain === 'monad' && <View style={[styles.activeDot, { backgroundColor: '#836EF9' }]} />}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </EnterSection>
 
             {/* STEP 1 Component */}
-            {step === 1 ? (
-              <Step1Recipient
-                spendType={spendType}
-                offchainMode={offchainMode}
-                onchainChain={onchainChain}
-                selectedBank={selectedBank}
-                onOpenBankPicker={() => setBankPickerOpen(true)}
-                accountNumber={accountNumber}
-                onChangeAccountNumber={setAccountNumber}
-                isResolving={isResolving}
-                accountName={accountName}
-                bankConfirmed={bankConfirmed}
-                onToggleBankConfirmed={() => setBankConfirmed(!bankConfirmed)}
-                isSaved={isSaved}
-                onSaveBeneficiary={handleSaveBeneficiary}
-                recipientHandle={recipientHandle}
-                onChangeRecipientHandle={setRecipientHandle}
-                resolvedUser={resolvedUser}
-                onchainAddress={onchainAddress}
-                onChangeOnchainAddress={setOnchainAddress}
-                activeBeneficiaries={activeBeneficiaries}
-                onSelectBeneficiary={(b) => {
-                  if (b.type === 'BANK') {
-                    setBankCode(b.bankCode || '058');
-                    setAccountNumber(b.accountNumber || '');
-                    setAccountName(b.name);
-                    setBankConfirmed(true);
-                  } else if (b.type === 'INTERAPP') {
-                    setRecipientHandle(b.handle || b.name);
-                    setResolvedUser(b.handle || b.name);
-                  } else {
-                    setOnchainAddress(b.address || '');
-                  }
-                }}
-                onRemoveBeneficiary={handleRemoveBeneficiary}
-                isRecipientReady={isRecipientReady}
-                onContinue={() => setStep(2)}
-              />
-            ) : null}
+            <EnterSection index={2}>
+              {step === 1 ? (
+                <Step1Recipient
+                  spendType={spendType}
+                  offchainMode={offchainMode}
+                  onchainChain={onchainChain}
+                  selectedBank={selectedBank}
+                  onOpenBankPicker={() => setBankPickerOpen(true)}
+                  accountNumber={accountNumber}
+                  onChangeAccountNumber={setAccountNumber}
+                  isResolving={isResolving}
+                  accountName={accountName}
+                  bankConfirmed={bankConfirmed}
+                  onToggleBankConfirmed={() => setBankConfirmed(!bankConfirmed)}
+                  isSaved={isSaved}
+                  onSaveBeneficiary={handleSaveBeneficiary}
+                  recipientHandle={recipientHandle}
+                  onChangeRecipientHandle={setRecipientHandle}
+                  resolvedUser={resolvedUser}
+                  onchainAddress={onchainAddress}
+                  onChangeOnchainAddress={setOnchainAddress}
+                  activeBeneficiaries={activeBeneficiaries}
+                  onSelectBeneficiary={(b) => {
+                    if (b.type === 'BANK') {
+                      setBankCode(b.bankCode || '058');
+                      setAccountNumber(b.accountNumber || '');
+                      setAccountName(b.name);
+                      setBankConfirmed(true);
+                    } else if (b.type === 'INTERAPP') {
+                      setRecipientHandle(b.handle || b.name);
+                      setResolvedUser(b.handle || b.name);
+                    } else {
+                      setOnchainAddress(b.address || '');
+                    }
+                  }}
+                  onRemoveBeneficiary={handleRemoveBeneficiary}
+                  isRecipientReady={isRecipientReady}
+                  onContinue={() => setStep(2)}
+                />
+              ) : null}
 
-            {/* STEP 2 Component */}
-            {step === 2 ? (
-              <Step2Amount
-                activeRecipientName={activeRecipientName}
-                amount={amount}
-                onChangeAmount={setAmount}
-                balanceUSDC={balanceUSDC}
-                rateNGN={rateNGN}
-                onContinueToReview={() => setStep(3)}
-              />
-            ) : null}
+              {/* STEP 2 Component */}
+              {step === 2 ? (
+                <Step2Amount
+                  activeRecipientName={activeRecipientName}
+                  amount={amount}
+                  onChangeAmount={setAmount}
+                  balanceUSDC={balanceUSDC}
+                  rateNGN={rateNGN}
+                  onContinueToReview={() => setStep(3)}
+                />
+              ) : null}
 
-            {/* STEP 3 Component */}
-            {step === 3 ? (
-              <Step3Review
-                spendType={spendType}
-                offchainMode={offchainMode}
-                selectedBank={selectedBank}
-                activeRecipientName={activeRecipientName}
-                numericAmount={numericAmount}
-                rateNGN={rateNGN}
-                onOpenPinModal={handleOpenAuth}
-              />
-            ) : null}
+              {/* STEP 3 Component */}
+              {step === 3 ? (
+                <Step3Review
+                  spendType={spendType}
+                  offchainMode={offchainMode}
+                  selectedBank={selectedBank}
+                  activeRecipientName={activeRecipientName}
+                  numericAmount={numericAmount}
+                  rateNGN={rateNGN}
+                  onOpenPinModal={handleOpenAuth}
+                />
+              ) : null}
+            </EnterSection>
           </View>
         )}
 

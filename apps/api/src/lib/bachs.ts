@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import { apiConfig } from '@kudi/config';
 
-export type BachsVirtualAccount = {
+type BachsVirtualAccount = {
   accountNumber: string;
   accountName: string;
   bankName: string;

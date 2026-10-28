@@ -10,9 +10,7 @@ const frontendForbiddenPackages = [
   '@kudi/database',
   '@kudi/chains',
   '@kudi/payment-providers',
-  '@kudi/kyc',
   '@kudi/config',
-  '@kudi/cards',
   '@kudi/receipts'
 ];
 

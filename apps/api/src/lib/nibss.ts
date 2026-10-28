@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import { apiConfig } from '@kudi/config';
 
-export type NibssBvnResult = {
+type NibssBvnResult = {
   verified: boolean;
   name: string | null;
   dob: string | null;

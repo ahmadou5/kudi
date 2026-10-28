@@ -12,6 +12,7 @@ import { haptics } from '../src/lib/haptics';
 import { useReferral } from '../src/hooks/useReferral';
 import { AnimatedSkeleton } from '../src/components/ui/AnimatedSkeleton';
 import { Avatar } from '../src/components/Avatar';
+import { EnterSection } from '../src/lib/animations';
 
 const STEPS = [
   {
@@ -99,159 +100,167 @@ export default function ReferralScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* ── Referral code card ── */}
-        <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45) }]}>
-          YOUR REFERRAL CODE
-        </Text>
-        <View style={[styles.codeCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <View style={[styles.codeIconTile, { backgroundColor: hexToRgba(palette.primary, 0.14) }]}>
-            <Gift size={26} color={palette.primary} />
-          </View>
-          {isLoading ? (
-            <AnimatedSkeleton width={160} height={30} borderRadius={8} />
-          ) : referralCode ? (
-            <Text style={[styles.codeText, { color: palette.text }]} accessibilityLabel={`Referral code ${referralCode}`}>
-              {referralCode}
-            </Text>
-          ) : (
-            <Text style={[styles.codeText, { color: hexToRgba(palette.text, 0.35) }]}>————</Text>
-          )}
-          <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.5), textAlign: 'center' }]}>
-            Share it with friends so you can send to each other faster
-          </Text>
-          {isError && (
-            <Pressable onPress={() => refetch()} hitSlop={8} style={styles.retryLink}>
-              <RotateCcw size={13} color={palette.textSecondary} />
-              <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
-                {isRefetching ? 'Retrying…' : "Couldn't load your code. Tap to retry."}
-              </Text>
-            </Pressable>
-          )}
-        </View>
-
-        {/* ── Copy / Share ── */}
-        <View style={styles.actionRow}>
-          <Pressable
-            onPress={handleCopy}
-            disabled={!referralCode}
-            accessibilityRole="button"
-            accessibility-label="Copy referral code"
-            style={({ pressed }) => [
-              styles.primaryBtn,
-              { backgroundColor: palette.text },
-              (!referralCode || pressed) && { opacity: 0.6 }
-            ]}
-          >
-            <Copy size={17} color={palette.bg} />
-            <Text style={[Typography.currencySub, { color: palette.bg, fontSize: 14 }]}>Copy Code</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={handleShare}
-            disabled={!referralCode}
-            accessibilityRole="button"
-            accessibility-label="Share referral code"
-            style={({ pressed }) => [
-              styles.secondaryBtn,
-              { backgroundColor: hexToRgba(palette.text, 0.04), borderColor: palette.border },
-              (!referralCode || pressed) && { opacity: 0.6 }
-            ]}
-          >
-            <Share2 size={17} color={palette.text} />
-            <Text style={[Typography.currencySub, { color: palette.text, fontSize: 14 }]}>Share</Text>
-          </Pressable>
-        </View>
-
-        {/* ── Invited friends ── */}
-        <View style={styles.group}>
+        <EnterSection index={0}>
           <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45) }]}>
-            INVITED FRIENDS{invitedCount > 0 ? ` · ${invitedCount}` : ''}
+            YOUR REFERRAL CODE
           </Text>
-
-          {isLoading ? (
-            <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              {[0, 1].map((i) => (
-                <View key={i} style={[styles.invitedRow, i > 0 && { borderTopWidth: 1, borderTopColor: palette.border }]}>
-                  <AnimatedSkeleton width={40} height={40} borderRadius={20} />
-                  <View style={{ flex: 1, gap: 6 }}>
-                    <AnimatedSkeleton width={120} height={13} borderRadius={4} />
-                    <AnimatedSkeleton width={80} height={10} borderRadius={4} />
-                  </View>
-                  <AnimatedSkeleton width={64} height={12} borderRadius={4} />
-                </View>
-              ))}
+          <View style={[styles.codeCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <View style={[styles.codeIconTile, { backgroundColor: hexToRgba(palette.primary, 0.14) }]}>
+              <Gift size={26} color={palette.primary} />
             </View>
-          ) : isError ? (
-            <View style={[styles.groupCard, styles.emptyCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              <Pressable onPress={() => refetch()} style={styles.emptyWrap}>
-                <View style={[styles.iconTile, { backgroundColor: tileTint }]}>
-                  <RotateCcw size={19} color={palette.textSecondary} strokeWidth={1.9} />
-                </View>
-                <Text style={[styles.rowTitle, { color: palette.text }]}>Couldn't load invites</Text>
-                <Text style={[styles.rowSubtitle, { color: hexToRgba(palette.text, 0.5) }]}>
-                  Check your connection and try again
+            {isLoading ? (
+              <AnimatedSkeleton width={160} height={30} borderRadius={8} />
+            ) : referralCode ? (
+              <Text style={[styles.codeText, { color: palette.text }]} accessibilityLabel={`Referral code ${referralCode}`}>
+                {referralCode}
+              </Text>
+            ) : (
+              <Text style={[styles.codeText, { color: hexToRgba(palette.text, 0.35) }]}>————</Text>
+            )}
+            <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.5), textAlign: 'center' }]}>
+              Share it with friends so you can send to each other faster
+            </Text>
+            {isError && (
+              <Pressable onPress={() => refetch()} hitSlop={8} style={styles.retryLink}>
+                <RotateCcw size={13} color={palette.textSecondary} />
+                <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
+                  {isRefetching ? 'Retrying…' : "Couldn't load your code. Tap to retry."}
                 </Text>
               </Pressable>
-            </View>
-          ) : invited.length === 0 ? (
-            <View style={[styles.groupCard, styles.emptyCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              <View style={[styles.iconTile, { backgroundColor: tileTint }]}>
-                <Users size={19} color={palette.textSecondary} strokeWidth={1.9} />
-              </View>
-              <Text style={[styles.rowTitle, { color: palette.text }]}>No invites yet</Text>
-              <Text style={[styles.rowSubtitle, { color: hexToRgba(palette.text, 0.5), textAlign: 'center' }]}>
-                Share your code — friends who join with it will appear here
-              </Text>
-            </View>
-          ) : (
-            <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              {invited.map((invite, index) => (
-                <React.Fragment key={invite.id}>
-                  {index > 0 && <View style={[styles.invitedDivider, { backgroundColor: palette.border }]} />}
-                  <View style={styles.invitedRow}>
-                    <Avatar avatarUrl={invite.avatarUrl} seed={invite.name} size={40} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.rowTitle, { color: palette.text }]} numberOfLines={1}>
-                        {invite.name}
-                      </Text>
-                      {invite.username ? (
-                        <Text style={[styles.rowSubtitle, { color: hexToRgba(palette.text, 0.5) }]} numberOfLines={1}>
-                          {invite.username.startsWith('@') ? invite.username : `@${invite.username}`}
-                        </Text>
-                      ) : null}
+            )}
+          </View>
+        </EnterSection>
+
+        {/* ── Copy / Share ── */}
+        <EnterSection index={1}>
+          <View style={styles.actionRow}>
+            <Pressable
+              onPress={handleCopy}
+              disabled={!referralCode}
+              accessibilityRole="button"
+              accessibility-label="Copy referral code"
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                { backgroundColor: palette.text },
+                (!referralCode || pressed) && { opacity: 0.6 }
+              ]}
+            >
+              <Copy size={17} color={palette.bg} />
+              <Text style={[Typography.currencySub, { color: palette.bg, fontSize: 14 }]}>Copy Code</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={handleShare}
+              disabled={!referralCode}
+              accessibilityRole="button"
+              accessibility-label="Share referral code"
+              style={({ pressed }) => [
+                styles.secondaryBtn,
+                { backgroundColor: hexToRgba(palette.text, 0.04), borderColor: palette.border },
+                (!referralCode || pressed) && { opacity: 0.6 }
+              ]}
+            >
+              <Share2 size={17} color={palette.text} />
+              <Text style={[Typography.currencySub, { color: palette.text, fontSize: 14 }]}>Share</Text>
+            </Pressable>
+          </View>
+        </EnterSection>
+
+        {/* ── Invited friends ── */}
+        <EnterSection index={2}>
+          <View style={styles.group}>
+            <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45) }]}>
+              INVITED FRIENDS{invitedCount > 0 ? ` · ${invitedCount}` : ''}
+            </Text>
+
+            {isLoading ? (
+              <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                {[0, 1].map((i) => (
+                  <View key={i} style={[styles.invitedRow, i > 0 && { borderTopWidth: 1, borderTopColor: palette.border }]}>
+                    <AnimatedSkeleton width={40} height={40} borderRadius={20} />
+                    <View style={{ flex: 1, gap: 6 }}>
+                      <AnimatedSkeleton width={120} height={13} borderRadius={4} />
+                      <AnimatedSkeleton width={80} height={10} borderRadius={4} />
                     </View>
-                    <Text style={[styles.joinedDate, { color: hexToRgba(palette.text, 0.4) }]}>
-                      {formatJoinedDate(invite.joinedAt)}
+                    <AnimatedSkeleton width={64} height={12} borderRadius={4} />
+                  </View>
+                ))}
+              </View>
+            ) : isError ? (
+              <View style={[styles.groupCard, styles.emptyCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                <Pressable onPress={() => refetch()} style={styles.emptyWrap}>
+                  <View style={[styles.iconTile, { backgroundColor: tileTint }]}>
+                    <RotateCcw size={19} color={palette.textSecondary} strokeWidth={1.9} />
+                  </View>
+                  <Text style={[styles.rowTitle, { color: palette.text }]}>Couldn't load invites</Text>
+                  <Text style={[styles.rowSubtitle, { color: hexToRgba(palette.text, 0.5) }]}>
+                    Check your connection and try again
+                  </Text>
+                </Pressable>
+              </View>
+            ) : invited.length === 0 ? (
+              <View style={[styles.groupCard, styles.emptyCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                <View style={[styles.iconTile, { backgroundColor: tileTint }]}>
+                  <Users size={19} color={palette.textSecondary} strokeWidth={1.9} />
+                </View>
+                <Text style={[styles.rowTitle, { color: palette.text }]}>No invites yet</Text>
+                <Text style={[styles.rowSubtitle, { color: hexToRgba(palette.text, 0.5), textAlign: 'center' }]}>
+                  Share your code — friends who join with it will appear here
+                </Text>
+              </View>
+            ) : (
+              <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                {invited.map((invite, index) => (
+                  <React.Fragment key={invite.id}>
+                    {index > 0 && <View style={[styles.invitedDivider, { backgroundColor: palette.border }]} />}
+                    <View style={styles.invitedRow}>
+                      <Avatar avatarUrl={invite.avatarUrl} seed={invite.name} size={40} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.rowTitle, { color: palette.text }]} numberOfLines={1}>
+                          {invite.name}
+                        </Text>
+                        {invite.username ? (
+                          <Text style={[styles.rowSubtitle, { color: hexToRgba(palette.text, 0.5) }]} numberOfLines={1}>
+                            {invite.username.startsWith('@') ? invite.username : `@${invite.username}`}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Text style={[styles.joinedDate, { color: hexToRgba(palette.text, 0.4) }]}>
+                        {formatJoinedDate(invite.joinedAt)}
+                      </Text>
+                    </View>
+                  </React.Fragment>
+                ))}
+              </View>
+            )}
+          </View>
+        </EnterSection>
+
+        {/* ── How it works ── */}
+        <EnterSection index={3}>
+          <View style={styles.group}>
+            <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45) }]}>HOW IT WORKS</Text>
+            <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              {STEPS.map(({ Icon, title, subtitle }, index) => (
+                <React.Fragment key={title}>
+                  {index > 0 && <View style={[styles.divider, { backgroundColor: palette.border }]} />}
+                  <View style={styles.row}>
+                    <View style={[styles.iconTile, { backgroundColor: tileTint }]}>
+                      <Icon size={19} color={palette.textSecondary} strokeWidth={1.9} />
+                    </View>
+                    <View style={styles.rowCopy}>
+                      <Text style={[styles.rowTitle, { color: palette.text }]}>{title}</Text>
+                      <Text style={[styles.rowSubtitle, { color: hexToRgba(palette.text, 0.5) }]}>{subtitle}</Text>
+                    </View>
+                    <Text style={[styles.stepNumber, { color: hexToRgba(palette.text, 0.3) }]}>
+                      0{index + 1}
                     </Text>
                   </View>
                 </React.Fragment>
               ))}
             </View>
-          )}
-        </View>
-
-        {/* ── How it works ── */}
-        <View style={styles.group}>
-          <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45) }]}>HOW IT WORKS</Text>
-          <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            {STEPS.map(({ Icon, title, subtitle }, index) => (
-              <React.Fragment key={title}>
-                {index > 0 && <View style={[styles.divider, { backgroundColor: palette.border }]} />}
-                <View style={styles.row}>
-                  <View style={[styles.iconTile, { backgroundColor: tileTint }]}>
-                    <Icon size={19} color={palette.textSecondary} strokeWidth={1.9} />
-                  </View>
-                  <View style={styles.rowCopy}>
-                    <Text style={[styles.rowTitle, { color: palette.text }]}>{title}</Text>
-                    <Text style={[styles.rowSubtitle, { color: hexToRgba(palette.text, 0.5) }]}>{subtitle}</Text>
-                  </View>
-                  <Text style={[styles.stepNumber, { color: hexToRgba(palette.text, 0.3) }]}>
-                    0{index + 1}
-                  </Text>
-                </View>
-              </React.Fragment>
-            ))}
           </View>
-        </View>
+        </EnterSection>
 
         <AppModal config={modal.config} onClose={modal.hide} />
       </ScrollView>

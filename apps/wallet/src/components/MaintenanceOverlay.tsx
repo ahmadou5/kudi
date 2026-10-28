@@ -265,13 +265,13 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 11,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
     letterSpacing: 0.6,
   },
   heading: {
     fontSize: 20,
     lineHeight: 26,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
     textAlign: 'center',
     letterSpacing: -0.4,
     marginBottom: 12,
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
   message: {
     fontSize: 14,
     lineHeight: 22,
-    fontFamily: Typography.family.regular,
+    fontFamily: Typography.currencySub.fontFamily,
     textAlign: 'center',
     marginBottom: 24,
     paddingHorizontal: 8,
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   },
   timerText: {
     fontSize: 13,
-    fontFamily: Typography.family.semibold,
+    fontFamily: Typography.currencySub.fontFamily,
   },
   loaderRow: {
     flexDirection: 'row',
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
   },
   loaderText: {
     fontSize: 12,
-    fontFamily: Typography.family.regular,
+    fontFamily: Typography.currencySub.fontFamily,
   },
   retryButton: {
     flexDirection: 'row',
@@ -323,6 +323,6 @@ const styles = StyleSheet.create({
   },
   retryText: {
     fontSize: 13,
-    fontFamily: Typography.family.semibold,
+    fontFamily: Typography.currencySub.fontFamily,
   },
 });

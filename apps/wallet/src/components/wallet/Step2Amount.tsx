@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Banknote, AlertTriangle } from 'lucide-react-native';
-import { useAppPalette } from '../../lib/theme';
+import { useAppPalette, hexToRgba, readableInk } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
 import { AmountInput } from './AmountInput';
@@ -35,7 +35,7 @@ export const Step2Amount: React.FC<Step2AmountProps> = ({
     <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
       <CardBackgroundPattern />
       <View style={styles.sectionHeader}>
-        <View style={[styles.stepPill, { backgroundColor: 'rgba(10,132,255,0.08)', borderColor: palette.primary }]}>
+        <View style={[styles.stepPill, { backgroundColor: hexToRgba(palette.primary, 0.08), borderColor: palette.primary }]}>
           <Banknote size={16} color={palette.primary} />
         </View>
         <View style={styles.sectionCopy}>
@@ -79,16 +79,16 @@ export const Step2Amount: React.FC<Step2AmountProps> = ({
 
       {/* Validation Warnings */}
       {numericAmount > 0 && numericAmount < 1.0 ? (
-        <View style={[styles.statusCard, { backgroundColor: 'rgba(245,158,11,0.12)', borderColor: '#F59E0B' }]}>
-          <AlertTriangle size={18} color="#F59E0B" />
-          <Text style={[styles.statusTitle, { color: '#F59E0B' }]}>
+        <View style={[styles.statusCard, { backgroundColor: hexToRgba(palette.warning, 0.12), borderColor: palette.warning }]}>
+          <AlertTriangle size={18} color={palette.warning} />
+          <Text style={[styles.statusTitle, { color: palette.warning }]}>
             Minimum transfer amount is $1.00 USDC
           </Text>
         </View>
       ) : null}
 
       {numericAmount > numericBalance ? (
-        <View style={[styles.statusCard, { backgroundColor: 'rgba(255,69,58,0.12)', borderColor: palette.error }]}>
+        <View style={[styles.statusCard, { backgroundColor: hexToRgba(palette.error, 0.12), borderColor: palette.error }]}>
           <AlertTriangle size={18} color={palette.error} />
           <Text style={[styles.statusTitle, { color: palette.error }]}>
             Amount exceeds available balance (${numericBalance.toFixed(2)})
@@ -105,7 +105,7 @@ export const Step2Amount: React.FC<Step2AmountProps> = ({
           { backgroundColor: isAmountValid ? palette.primary : palette.border, marginTop: Spacing.md },
         ]}
       >
-        <Text style={styles.primaryButtonText}>Review Transfer</Text>
+        <Text style={[styles.primaryButtonText, { color: readableInk(isAmountValid ? palette.primary : palette.border) }]}>Review Transfer</Text>
       </TouchableOpacity>
     </View>
   );
@@ -168,5 +168,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryButtonText: { color: '#fff', fontSize: Typography.md, fontFamily: Typography.family.bold },
+  primaryButtonText: { fontSize: Typography.md, fontFamily: Typography.family.bold },
 });

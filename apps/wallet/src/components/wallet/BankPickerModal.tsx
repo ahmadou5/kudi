@@ -48,7 +48,7 @@ function bankInitialColor(name: string): string {
   return BANK_PALETTE[Math.abs(hash) % BANK_PALETTE.length];
 }
 
-export function BankAvatar({ name, size = 40 }: { name: string; size?: number }) {
+function BankAvatar({ name, size = 40 }: { name: string; size?: number }) {
   const color = bankInitialColor(name);
   const initial = name.trim().charAt(0).toUpperCase() || 'B';
   return (
@@ -115,7 +115,7 @@ export const BANK_SLUGS_MAP: Record<string, string> = {
 
 const LOGO_BASE = 'https://cdn.jsdelivr.net/gh/supermx1/nigerian-banks-api@main/logos';
 
-export function getBankLogoUrl(bankCode?: string, bankName?: string, slug?: string | null): string {
+function getBankLogoUrl(bankCode?: string, bankName?: string, slug?: string | null): string {
   // 1. Prefer the explicit slug on the item
   if (slug) return `${LOGO_BASE}/${slug}.png`;
   // 2. Fall back to our hardcoded map
@@ -310,14 +310,13 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     paddingBottom: 40,
     gap: Spacing.md,
-    height: '82%',
     maxHeight: '82%',
   },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center' },
-  modalTitle: { fontSize: Typography.lg, fontFamily: Typography.family.bold },
-  modalSubtitle: { fontSize: Typography.sm, marginTop: 2 },
+  modalTitle: { fontSize: Typography.lg, fontFamily: Typography.currencySub.fontFamily },
+  modalSubtitle: { fontSize: Typography.sm, marginTop: 2, fontFamily: Typography.currencySub.fontFamily },
   modalClose: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10 },
-  modalCloseText: { fontSize: Typography.sm, fontFamily: Typography.family.bold },
+  modalCloseText: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -332,6 +331,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.sm,
     padding: 0,
     height: 28,
+    fontFamily: Typography.currencySub.fontFamily,
   },
   bankLoading: { paddingVertical: Spacing.xl, alignItems: 'center', justifyContent: 'center' },
   bankList: { flex: 1, minHeight: 160 },
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   bankRowCopy: { flex: 1, gap: 2 },
-  bankRowName: { fontSize: Typography.sm, fontFamily: Typography.family.bold },
+  bankRowName: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
   bankRowCode: { fontSize: 11 },
   checkboxCheck: {
     width: 22,

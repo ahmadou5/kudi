@@ -29,15 +29,6 @@ try {
   console.warn('[Notifications] Native push module not available (Expo Go). Skipping handler setup.');
 }
 
-export async function getPushPermissionStatus(): Promise<Notifications.PermissionStatus> {
-  try {
-    const settings = await Notifications.getPermissionsAsync();
-    return settings.status;
-  } catch {
-    return Notifications.PermissionStatus.UNDETERMINED;
-  }
-}
-
 export async function registerPushToken(userId?: string): Promise<{ success: boolean; token?: string; error?: string }> {
   try {
     if (Platform.OS === 'web') {

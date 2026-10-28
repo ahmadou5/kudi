@@ -14,9 +14,9 @@ import { router } from 'expo-router';
 import {
   AlertCircle,
   BadgeInfo,
+  ArrowLeft,
   CheckCircle2,
   ChevronDown,
-  ChevronLeft,
   Copy,
   CreditCard,
   ShieldCheck,
@@ -24,7 +24,7 @@ import {
   X,
 } from 'lucide-react-native';
 
-import { useAppPalette, hexToRgba } from '../src/lib/theme';
+import { useAppPalette, hexToRgba, readableInk } from '../src/lib/theme';
 import { Typography } from '../src/constants/typography';
 import { Spacing } from '../src/constants/spacing';
 import { useAuthStore } from '../src/store/auth.store';
@@ -37,6 +37,7 @@ import { NIGERIAN_BANKS } from '../src/constants/banks';
 import { useBanks } from '../src/hooks/useBanks';
 import { FlowProgressDots } from '../src/components/wallet/WalletFlowProgress';
 import { AnimatedSkeleton } from '../src/components/ui/AnimatedSkeleton';
+import { EnterSection } from '../src/lib/animations';
 
 function isOfAge(dateString: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return false;
@@ -68,6 +69,10 @@ type KycStep = 1 | 2 | 3;
 
 export default function KYCScreen() {
   const palette = useAppPalette();
+  const ink = readableInk(palette.primary);
+  const inkSoft = hexToRgba(ink, 0.7);
+  const inkFaint = hexToRgba(ink, 0.9);
+  const inkPill = hexToRgba(ink, 0.2);
   const modal = useAppModal();
   const user = useAuthStore((s) => s.user);
   const updateUserStore = useAuthStore((s) => s.updateProfile);
@@ -348,7 +353,7 @@ export default function KYCScreen() {
             style={[styles.backButton, { backgroundColor: palette.card, borderColor: palette.border }]}
             onPress={() => router.back()}
           >
-            <ChevronLeft size={20} color={palette.text} />
+            <ArrowLeft size={20} color={palette.text} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: palette.text }]}>KYC Verification</Text>
           <View style={styles.headerSpacer} />
@@ -520,7 +525,7 @@ export default function KYCScreen() {
             style={[styles.backButton, { backgroundColor: palette.card, borderColor: palette.border }]}
             onPress={() => router.back()}
           >
-            <ChevronLeft size={20} color={palette.text} />
+            <ArrowLeft size={20} color={palette.text} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: palette.text }]}>Verification Pending</Text>
           <View style={styles.headerSpacer} />
@@ -531,10 +536,10 @@ export default function KYCScreen() {
             <Animated.View
               style={[
                 styles.pendingBadgeWrap,
-                { backgroundColor: 'rgba(255,159,10,0.12)', borderColor: '#FF9F0A', transform: [{ scale: pulseAnim }] },
+                { backgroundColor: hexToRgba(palette.warning, 0.12), borderColor: palette.warning, transform: [{ scale: pulseAnim }] },
               ]}
             >
-              <BadgeInfo size={44} color="#FF9F0A" />
+              <BadgeInfo size={44} color={palette.warning} />
             </Animated.View>
 
             <Text style={[styles.verifiedTitle, { color: palette.text }]}>Verification in Progress</Text>
@@ -597,14 +602,14 @@ export default function KYCScreen() {
           style={[styles.backButton, { backgroundColor: palette.card, borderColor: palette.border }]}
           onPress={headerBack}
         >
-          <ChevronLeft size={20} color={palette.text} />
+          <ArrowLeft size={20} color={palette.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: palette.text }]}>Identity Verification</Text>
         <View style={styles.headerSpacer} />
       </View>
 
       {verificationRejected && (
-        <View style={[styles.errorCard, { backgroundColor: 'rgba(255,69,58,0.12)', borderColor: palette.error }]}>
+        <View style={[styles.errorCard, { backgroundColor: hexToRgba(palette.error, 0.12), borderColor: palette.error }]}>
           <AlertCircle size={20} color={palette.error} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.errorTitle, { color: palette.error }]}>Verification Attempt Failed</Text>
@@ -616,27 +621,29 @@ export default function KYCScreen() {
       )}
 
       {/* Hero Banner with Step Tracker */}
-      <View style={[styles.hero, { backgroundColor: palette.primary }]}>
-        <View style={styles.heroTop}>
-          <View>
-            <Text style={styles.heroLabel}>IDENTITY CHECK</Text>
-            <Text style={styles.heroValue}>{`Step ${step} of 3`}</Text>
+      <EnterSection index={0}>
+        <View style={[styles.hero, { backgroundColor: palette.primary }]}>
+          <View style={styles.heroTop}>
+            <View>
+              <Text style={[styles.heroLabel, { color: inkSoft }]}>IDENTITY CHECK</Text>
+              <Text style={[styles.heroValue, { color: ink }]}>{`Step ${step} of 3`}</Text>
+            </View>
+            <View style={[styles.heroIcon, { backgroundColor: hexToRgba(ink, 0.18) }]}>
+              <ShieldCheck size={24} color={ink} />
+            </View>
           </View>
-          <View style={styles.heroIcon}>
-            <ShieldCheck size={24} color="#FFF" />
-          </View>
+          <Text style={[styles.heroBody, { color: inkFaint }]}>
+            Verifying your BVN creates a dedicated bank account in your name for instant deposits and higher daily limits.
+          </Text>
+          <FlowProgressDots
+            currentStep={step}
+            totalSteps={3}
+            onStepPress={(targetStep) => {
+              if (targetStep < step) setStep(targetStep as KycStep);
+            }}
+          />
         </View>
-        <Text style={styles.heroBody}>
-          Verifying your BVN creates a dedicated bank account in your name for instant deposits and higher daily limits.
-        </Text>
-        <FlowProgressDots
-          currentStep={step}
-          totalSteps={3}
-          onStepPress={(targetStep) => {
-            if (targetStep < step) setStep(targetStep as KycStep);
-          }}
-        />
-      </View>
+      </EnterSection>
 
       {/* STEP 1: Personal Info */}
       {step === 1 && (
@@ -945,82 +952,82 @@ function KycSkeleton({ palette }: { palette: any }) {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { paddingHorizontal: Spacing.lg, paddingTop: 48, gap: Spacing.lg, paddingBottom: 60 },
-  headerRow: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerTitle: { fontSize: Typography.lg, fontFamily: Typography.family.bold },
-  backButton: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  headerRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 14 },
+  headerTitle: { ...Typography.title1 },
+  backButton: { width: 40, height: 40, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerSpacer: { width: 42 },
   hero: { borderRadius: 24, padding: Spacing.lg, gap: 12 },
   heroTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  heroLabel: { color: 'rgba(255,255,255,0.7)', fontSize: Typography.xs, fontFamily: Typography.family.bold, letterSpacing: 1 },
-  heroValue: { color: '#FFF', fontSize: Typography.lg, fontFamily: Typography.family.bold, marginTop: 2 },
-  heroIcon: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.18)' },
-  heroBody: { color: 'rgba(255,255,255,0.9)', fontSize: Typography.sm, lineHeight: 20 },
+  heroLabel: { fontSize: Typography.xs, fontFamily: Typography.currencySub.fontFamily, letterSpacing: 1 },
+  heroValue: { fontSize: Typography.lg, fontFamily: Typography.currencySub.fontFamily, marginTop: 2 },
+  heroIcon: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  heroBody: { fontSize: Typography.sm, lineHeight: 20 },
   card: { borderRadius: 24, borderWidth: 1, padding: Spacing.lg, gap: 14 },
   sectionHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   stepPill: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   sectionCopy: { flex: 1, gap: 3 },
-  sectionTitle: { fontSize: Typography.md, fontFamily: Typography.family.bold },
+  sectionTitle: { fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily },
   sectionSubtitle: { fontSize: Typography.xs, lineHeight: 17 },
   nameRow: { flexDirection: 'row', gap: 10 },
   nameField: { flex: 1 },
   input: { height: 52, borderRadius: 14, borderWidth: 1, paddingHorizontal: 16, fontSize: Typography.md },
   summaryMini: { borderRadius: 18, borderWidth: 1, padding: Spacing.md, gap: 4 },
-  summaryMiniLabel: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: Typography.family.bold },
-  summaryMiniValue: { fontSize: Typography.md, fontFamily: Typography.family.bold },
+  summaryMiniLabel: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: Typography.currencySub.fontFamily },
+  summaryMiniValue: { fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily },
   summaryMiniMeta: { fontSize: Typography.xs },
   bankButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 16, paddingHorizontal: 16, minHeight: 60, gap: 10 },
   bankButtonCopy: { flex: 1, gap: 2 },
-  bankButtonValue: { fontSize: Typography.md, fontFamily: Typography.family.bold },
+  bankButtonValue: { fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily },
   consentRow: { borderRadius: 18, borderWidth: 1, padding: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: 12 },
   checkbox: { width: 24, height: 24, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  checkboxMark: { color: '#FFF', fontSize: Typography.sm, fontFamily: Typography.family.bold },
+  checkboxMark: { color: '#FFF', fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
   consentCopy: { flex: 1, gap: 2 },
-  consentTitle: { fontSize: Typography.sm, fontFamily: Typography.family.bold },
+  consentTitle: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
   consentBody: { fontSize: Typography.xs, lineHeight: 16 },
   stepActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   stepActionFlex: { flex: 1 },
   primaryAction: { minHeight: 54, borderRadius: 16, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  primaryActionText: { color: '#FFF', fontSize: Typography.md, fontFamily: Typography.family.bold, textAlign: 'center' },
+  primaryActionText: { color: '#FFF', fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily, textAlign: 'center' },
   secondaryAction: { minHeight: 52, borderRadius: 16, borderWidth: 1, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  secondaryActionText: { fontSize: Typography.md, fontFamily: Typography.family.bold, textAlign: 'center' },
+  secondaryActionText: { fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily, textAlign: 'center' },
   secondary: { minHeight: 54, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
-  secondaryText: { fontSize: Typography.md, fontFamily: Typography.family.bold },
+  secondaryText: { fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily },
   reviewCard: { borderRadius: 18, borderWidth: 1, padding: Spacing.md, gap: 4 },
-  reviewGroupLabel: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: Typography.family.bold, marginBottom: 4 },
+  reviewGroupLabel: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: Typography.currencySub.fontFamily, marginBottom: 4 },
   reviewRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: Spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
   reviewLabel: { fontSize: Typography.sm },
-  reviewValue: { fontSize: Typography.sm, fontFamily: Typography.family.bold, textAlign: 'right', flex: 1 },
+  reviewValue: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily, textAlign: 'right', flex: 1 },
   verifiedCard: { borderRadius: 28, borderWidth: 1, padding: Spacing.xl, gap: Spacing.lg, alignItems: 'center', width: '100%' },
   verifiedBadgeGlow: { width: 96, height: 96, borderRadius: 48, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   pendingBadgeWrap: { width: 88, height: 88, borderRadius: 44, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  verifiedTitle: { fontSize: 24, fontFamily: Typography.family.bold, textAlign: 'center', letterSpacing: -0.5 },
+  verifiedTitle: { fontSize: 24, fontFamily: Typography.currencySub.fontFamily, textAlign: 'center', letterSpacing: -0.5 },
   verifiedSub: { fontSize: Typography.sm, lineHeight: 22, textAlign: 'center' },
   nubanCard: { width: '100%', borderRadius: 20, borderWidth: 1, padding: Spacing.lg, gap: Spacing.md },
   nubanCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  nubanProviderLabel: { color: '#FFFFFF', fontSize: Typography.sm, fontFamily: Typography.family.bold },
-  activePill: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  activePillText: { color: '#FFFFFF', fontSize: 10, fontFamily: Typography.family.bold, letterSpacing: 0.8 },
+  nubanProviderLabel: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
+  activePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  activePillText: { fontSize: 10, fontFamily: Typography.currencySub.fontFamily, letterSpacing: 0.8 },
   nubanBody: { gap: 4 },
-  nubanLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontFamily: Typography.family.bold, letterSpacing: 1 },
+  nubanLabel: { fontSize: 10, fontFamily: Typography.currencySub.fontFamily, letterSpacing: 1 },
   nubanRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  nubanNumber: { color: '#FFFFFF', fontSize: 30, fontFamily: Typography.family.bold, letterSpacing: 2 },
-  copyBtn: { padding: 8, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)' },
-  accountNameLabel: { color: 'rgba(255,255,255,0.9)', fontSize: Typography.xs, fontFamily: Typography.family.medium, marginTop: 4 },
+  nubanNumber: { fontSize: 30, fontFamily: Typography.currencySub.fontFamily, letterSpacing: 2 },
+  copyBtn: { padding: 8, borderRadius: 10 },
+  accountNameLabel: { fontSize: Typography.xs, fontFamily: Typography.family.medium, marginTop: 4 },
   tierBadgeRow: { flexDirection: 'row', alignItems: 'center', width: '100%', gap: 12, borderRadius: 16, borderWidth: 1, padding: Spacing.md },
   tierDot: { width: 10, height: 10, borderRadius: 5 },
   tierBadgeLabel: { fontSize: Typography.xs, fontFamily: Typography.family.medium, textTransform: 'uppercase', letterSpacing: 0.6 },
-  tierBadgeValue: { fontSize: Typography.sm, fontFamily: Typography.family.bold, marginTop: 2 },
+  tierBadgeValue: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily, marginTop: 2 },
   tierBadgePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, borderWidth: 1 },
-  tierBadgePillText: { fontSize: Typography.xs, fontFamily: Typography.family.bold, letterSpacing: 0.4 },
+  tierBadgePillText: { fontSize: Typography.xs, fontFamily: Typography.currencySub.fontFamily, letterSpacing: 0.4 },
   bottomSheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   bottomSheetContainer: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, padding: Spacing.xl, gap: Spacing.md },
-  dragHandle: { width: 36, height: 5, borderRadius: 2.5, backgroundColor: 'rgba(150,150,150,0.4)', alignSelf: 'center', marginBottom: 4 },
+  dragHandle: { width: 36, height: 5, borderRadius: 2.5, alignSelf: 'center', marginBottom: 4 },
   sheetHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 4 },
   upgradeIconWrap: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  upgradeTitle: { fontSize: Typography.md, fontFamily: Typography.family.bold },
+  upgradeTitle: { fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily },
   upgradeSub: { fontSize: Typography.xs, lineHeight: 17, marginTop: 3 },
   closeIconButton: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   errorCard: { width: '100%', borderRadius: 18, borderWidth: 1, padding: Spacing.md, flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  errorTitle: { fontSize: Typography.sm, fontFamily: Typography.family.bold },
+  errorTitle: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
   errorSub: { fontSize: Typography.xs, lineHeight: 16, marginTop: 2 },
 });

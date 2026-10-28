@@ -2,7 +2,7 @@ import React from 'react';
 import { Image } from 'react-native';
 import { Blobatar, isBlobatarUrl, blobatarSeed } from './Blobatar';
 
-export interface AvatarProps {
+interface AvatarProps {
   /** Stored avatar: a photo URI/data-URI, a `blobatar:<seed>` URL, or empty. */
   avatarUrl?: string | null;
   /** Seed used when there is no photo at all — typically the user's name/username. */

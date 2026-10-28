@@ -21,6 +21,7 @@ import {
   Palette,
   Receipt,
   ShieldCheck,
+  TrendingUp,
   User
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,6 +32,7 @@ import { Spacing } from '../../src/constants/spacing';
 import { Avatar, userAvatarSeed } from '../../src/components/Avatar';
 import { AppVersionFooter } from '../../src/components/AppVersionFooter';
 import { haptics } from '../../src/lib/haptics';
+import { EnterSection } from '../../src/lib/animations';
 
 type MenuItem = {
   id: string;
@@ -99,9 +101,16 @@ export default function SettingsScreen() {
     {
       id: 'transactions',
       title: 'Transactions',
-      subtitle: 'Transaction History',
-      href: '/(tabs)/history',
+      subtitle: 'Search, filter & sort',
+      href: '/settings/transactions',
       Icon: Receipt
+    },
+    {
+      id: 'rates',
+      title: 'Exchange rates',
+      subtitle: 'Naira to major currencies',
+      href: '/settings/rates',
+      Icon: TrendingUp
     }
   ];
 
@@ -217,54 +226,58 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Identity */}
-        <Pressable
-          onPress={() => router.push('/profile')}
-          accessibilityRole="button"
-          style={({ pressed }) => [
-            styles.identityCard,
-            { backgroundColor: palette.card, borderColor: palette.border },
-            pressed && { opacity: 0.75 }
-          ]}
-        >
-          <Avatar avatarUrl={user?.avatarUrl} seed={userAvatarSeed(user)} size={52} />
-          <View style={styles.identityCopy}>
-            <Text style={[Typography.currencySub, { color: palette.text, fontSize: 18 }]} numberOfLines={1}>
-              {userName}
-            </Text>
-            <Text
-              style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.5), fontSize: 14 }]}
-              numberOfLines={1}
-            >
-              {userHandle}
-            </Text>
-          </View>
-          <ChevronRight size={17} color={hexToRgba(palette.text, 0.35)} />
-        </Pressable>
+        <EnterSection index={0}>
+          <Pressable
+            onPress={() => router.push('/profile')}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.identityCard,
+              { backgroundColor: palette.card, borderColor: palette.border },
+              pressed && { opacity: 0.75 }
+            ]}
+          >
+            <Avatar avatarUrl={user?.avatarUrl} seed={userAvatarSeed(user)} size={52} />
+            <View style={styles.identityCopy}>
+              <Text style={[Typography.currencySub, { color: palette.text, fontSize: 18 }]} numberOfLines={1}>
+                {userName}
+              </Text>
+              <Text
+                style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.5), fontSize: 14 }]}
+                numberOfLines={1}
+              >
+                {userHandle}
+              </Text>
+            </View>
+            <ChevronRight size={17} color={hexToRgba(palette.text, 0.35)} />
+          </Pressable>
+        </EnterSection>
 
-        {renderGroup('Account', ACCOUNT_ITEMS)}
-        {renderGroup('Preferences', PREFERENCE_ITEMS)}
-        {renderGroup('Activity', ACTIVITY_ITEMS)}
-        {renderGroup('Security & support', SECURITY_ITEMS)}
+        <EnterSection index={1}>{renderGroup('Account', ACCOUNT_ITEMS)}</EnterSection>
+        <EnterSection index={2}>{renderGroup('Preferences', PREFERENCE_ITEMS)}</EnterSection>
+        <EnterSection index={3}>{renderGroup('Activity', ACTIVITY_ITEMS)}</EnterSection>
+        <EnterSection index={4}>{renderGroup('Security & support', SECURITY_ITEMS)}</EnterSection>
 
         {/* Destructive */}
-        <Pressable
-          onPress={() => {
-            haptics.impact('light');
-            setLogoutModalVisible(true);
-          }}
-          accessibilityRole="button"
-          accessibility-label="Log out"
-          style={({ pressed }) => [
-            styles.logoutRow,
-            {
-              backgroundColor: hexToRgba(palette.error, 0.08),
-              borderColor: hexToRgba(palette.error, 0.28)
-            },
-            pressed && { opacity: 0.7 }
-          ]}
-        >
-          <Text style={[Typography.currencySub, { color: palette.error }]}>Log out</Text>
-        </Pressable>
+        <EnterSection index={5}>
+          <Pressable
+            onPress={() => {
+              haptics.impact('light');
+              setLogoutModalVisible(true);
+            }}
+            accessibilityRole="button"
+            accessibility-label="Log out"
+            style={({ pressed }) => [
+              styles.logoutRow,
+              {
+                backgroundColor: hexToRgba(palette.error, 0.08),
+                borderColor: hexToRgba(palette.error, 0.28)
+              },
+              pressed && { opacity: 0.7 }
+            ]}
+          >
+            <Text style={[Typography.currencySub, { color: palette.error }]}>Log out</Text>
+          </Pressable>
+        </EnterSection>
 
         <AppVersionFooter />
       </ScrollView>
@@ -454,18 +467,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 2
   },
-  sheetTitle: {
-    fontFamily: Typography.family.sans,
-    fontSize: 19,
-    lineHeight: 24,
-    textAlign: 'center'
-  },
-  sheetText: {
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 8
-  },
   sheetActions: {
     flexDirection: 'row',
     gap: 12,
@@ -479,9 +480,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center'
-  },
-  sheetButtonText: {
-    fontFamily: Typography.family.sans,
-    fontSize: 14
   }
 });

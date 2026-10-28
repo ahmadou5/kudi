@@ -17,7 +17,7 @@ export function initSentry(config: ApiConfig) {
   console.log('⚡ [Sentry] Error monitoring initialized');
 }
 
-export function captureException(error: unknown, context?: Record<string, unknown>) {
+function captureException(error: unknown, context?: Record<string, unknown>) {
   if (sentryDsn) {
     Sentry.captureException(error, { extra: context });
   } else {

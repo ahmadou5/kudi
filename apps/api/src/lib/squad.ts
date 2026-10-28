@@ -1,6 +1,6 @@
 import axios, { AxiosError } from 'axios';
 
-export type SquadVirtualAccount = {
+type SquadVirtualAccount = {
   virtual_account_number: string;
   account_name: string;
   bank_name: string;
@@ -25,7 +25,7 @@ function wrapSquadError(error: unknown, fallbackMsg: string): never {
   throw new Error(`[Squad API] ${fallbackMsg}`);
 }
 
-export interface CreateSquadVirtualAccountParams {
+interface CreateSquadVirtualAccountParams {
   customerIdentifier: string;
   firstName: string;
   lastName: string;
@@ -126,48 +126,6 @@ export async function createSquadVirtualAccount(
     };
   } catch (err) {
     wrapSquadError(err, 'Dedicated VA creation failed');
-  }
-}
-
-export async function initiateSquadFundTransfer(
-  amountNGN: number,
-  bankCode: string,
-  accountNumber: string,
-  accountName: string,
-  transactionRef: string,
-  narration?: string
-) {
-  try {
-    const res = await squad.post('/payout/transfer', {
-      amount: Math.round(amountNGN * 100), // in kobo
-      bank_code: bankCode,
-      account_number: accountNumber,
-      account_name: accountName,
-      transaction_reference: transactionRef,
-      remark: narration ?? 'Kudi Instant Transfer',
-    });
-    return res.data.data;
-  } catch (err) {
-    wrapSquadError(err, 'Failed to execute transfer via Squadco');
-  }
-}
-
-/**
- * Simulates a payment credit into a virtual account on Squad Sandbox.
- */
-export async function simulateSquadVirtualAccountDeposit(
-  accountNumber: string,
-  amountNaira: number
-) {
-  try {
-    const res = await squad.post('/virtual-account/simulate/payment', {
-      virtual_account_number: accountNumber,
-      amount: String(amountNaira),
-      dva: false,
-    });
-    return res.data;
-  } catch (err) {
-    wrapSquadError(err, 'Failed to simulate payment on Squad Sandbox');
   }
 }
 

@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, ViewStyle, StyleProp } from 'react-native';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 
-export interface SummaryRow {
+interface SummaryRow {
   label: string;
   value: React.ReactNode;
   /** Emphasised row (used for "Total debit"). */

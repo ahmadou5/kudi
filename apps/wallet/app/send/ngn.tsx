@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
-import { useAppPalette } from '../../src/lib/theme';
+import { useAppPalette, hexToRgba, readableInk } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
 import { NIGERIAN_BANKS, PHONE_NUMBER_BANK_CODES } from '../../src/constants/banks';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
@@ -28,6 +28,7 @@ import { SummaryCard } from '../../src/components/send/SummaryCard';
 import { SendSheet } from '../../src/components/send/SendSheet';
 import { haptics } from '../../src/lib/haptics';
 import { useSendAuth } from '../../src/hooks/useSendAuth';
+import { EnterSection } from '../../src/lib/animations';
 
 /** Flat fee shown to the user and added on top of the amount (matches the API's ₦20 payout fee). */
 const NGN_FEE = 20;
@@ -50,7 +51,7 @@ type ListTab = 'recent' | 'saved';
 
 export default function SendNgnScreen() {
   const palette = useAppPalette();
-  const isDark = palette.text === '#FFFFFF';
+  const isDark = palette.scheme === 'dark';
   const { bioReady, authorize } = useSendAuth();
   const { balanceUSDC, rateNGN, resolveAccount, spendToBank } = useKudiWallet();
 
@@ -268,12 +269,12 @@ export default function SendNgnScreen() {
   // ── Theme-derived styling ──
   const inputBg = isDark ? palette.bg : '#FFFFFF';
   const cardBg = isDark ? palette.card : '#FFFFFF';
-  const placeholder = isDark ? '#6B7080' : '#9CA3AF';
-  const primaryBtn = isDark ? '#FFFFFF' : '#000000';
-  const primaryBtnText = isDark ? '#000000' : '#FFFFFF';
-  const disabledBtn = isDark ? '#23262F' : '#E8E8EA';
-  const disabledBtnText = isDark ? '#6B7080' : '#FFFFFF';
-  const activeTab = '#1E3A5F';
+  const placeholder = hexToRgba(palette.text, 0.4);
+  const primaryBtn = palette.text;
+  const primaryBtnText = palette.bg;
+  const disabledBtn = hexToRgba(palette.text, 0.1);
+  const disabledBtnText = hexToRgba(palette.text, 0.4);
+  const activeTab = palette.primary;
 
   const accountReady = accountComplete && !!selectedBank && !!accountName && !isResolving;
   const list = listTab === 'recent' ? recentBank : savedBank;
@@ -291,170 +292,176 @@ export default function SendNgnScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <View style={[styles.formCard, { borderColor: palette.border, backgroundColor: cardBg }]}>
-              <TextInput
-                value={accountNumber}
-                onChangeText={(t) => setAccountNumber(t.replace(/\D/g, '').slice(0, 10))}
-                onFocus={() => setAccountFocused(true)}
-                onBlur={() => setAccountFocused(false)}
-                placeholder="Enter 10-digit account number"
-                placeholderTextColor={placeholder}
-                keyboardType="number-pad"
-                maxLength={10}
-                style={[
-                  styles.input,
-                  {
-                    color: palette.text,
-                    backgroundColor: inputBg,
-                    borderColor: accountFocused ? palette.text : palette.border,
-                    borderWidth: accountFocused ? 1.5 : 1,
-                  },
-                ]}
-              />
-
-              <TouchableOpacity
-                onPress={() => setBankPickerOpen(true)}
-                activeOpacity={0.8}
-                style={[styles.bankSelect, { backgroundColor: inputBg, borderColor: palette.border }]}
-              >
-                {selectedBank ? (
-                  <View style={styles.bankSelected}>
-                    <BankLogo name={selectedBank.name} bankCode={selectedBank.code} size={26} />
-                    <Text style={[Typography.body, { color: palette.text }]} numberOfLines={1}>
-                      {shortBankName(selectedBank.name)}
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={[Typography.body, { color: placeholder, flex: 1 }]}>Select bank</Text>
-                )}
-                <ChevronDown size={20} color={palette.text} />
-              </TouchableOpacity>
-
-              {suggestedBanks.length > 0 ? (
-                <View style={styles.suggestions}>
-                  {suggestedBanks.map((b) => (
-                    <TouchableOpacity
-                      key={b.code}
-                      onPress={() => setBankCode(b.code)}
-                      activeOpacity={0.7}
-                      style={styles.suggestionRow}
-                    >
-                      <BankLogo name={b.name} bankCode={b.code} size={40} />
-                      <Text style={[Typography.title3, { color: palette.text }]}>{shortBankName(b.name)}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              ) : null}
-
-              {isResolving ? (
-                <View style={[styles.nameBox, { backgroundColor: inputBg, borderColor: palette.border }]}>
-                  <ActivityIndicator size="small" color={palette.textSecondary} />
-                  <Text style={[Typography.body, { color: palette.textSecondary }]}>Verifying account…</Text>
-                </View>
-              ) : accountName && accountComplete && selectedBank ? (
-                <View
+            <EnterSection index={0}>
+              <View style={[styles.formCard, { borderColor: palette.border, backgroundColor: cardBg }]}>
+                <TextInput
+                  value={accountNumber}
+                  onChangeText={(t) => setAccountNumber(t.replace(/\D/g, '').slice(0, 10))}
+                  onFocus={() => setAccountFocused(true)}
+                  onBlur={() => setAccountFocused(false)}
+                  placeholder="Enter 10-digit account number"
+                  placeholderTextColor={placeholder}
+                  keyboardType="number-pad"
+                  maxLength={10}
                   style={[
-                    styles.nameBox,
+                    styles.input,
                     {
-                      backgroundColor: isDark ? 'rgba(16,185,129,0.12)' : '#E7F5E4',
-                      borderColor: isDark ? 'rgba(16,185,129,0.35)' : '#CDE8C8',
+                      color: palette.text,
+                      backgroundColor: inputBg,
+                      borderColor: accountFocused ? palette.text : palette.border,
+                      borderWidth: accountFocused ? 1.5 : 1,
                     },
                   ]}
+                />
+
+                <TouchableOpacity
+                  onPress={() => setBankPickerOpen(true)}
+                  activeOpacity={0.8}
+                  style={[styles.bankSelect, { backgroundColor: inputBg, borderColor: palette.border }]}
                 >
-                  <Text style={[Typography.body, { color: isDark ? '#6EE7B7' : '#1F5F1B', fontWeight: '600' }]} numberOfLines={1}>
-                    {accountName}
-                  </Text>
-                </View>
-              ) : null}
-
-              <TouchableOpacity
-                disabled={!accountReady}
-                onPress={() => setStep('amount')}
-                activeOpacity={0.85}
-                style={[styles.primaryBtn, { backgroundColor: accountReady ? primaryBtn : disabledBtn }]}
-              >
-                <Text style={[Typography.title3, { color: accountReady ? primaryBtnText : disabledBtnText, fontWeight: '600' }]}>
-                  Continue
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Recent / Saved */}
-            <View style={styles.tabsRow}>
-              <View style={styles.tabs}>
-                {(['recent', 'saved'] as ListTab[]).map((t) => {
-                  const active = listTab === t;
-                  return (
-                    <TouchableOpacity
-                      key={t}
-                      onPress={() => {
-                        setListTab(t);
-                        setShowAll(false);
-                      }}
-                      activeOpacity={0.8}
-                      style={[
-                        styles.tab,
-                        active
-                          ? { backgroundColor: activeTab, borderColor: activeTab }
-                          : { backgroundColor: inputBg, borderColor: palette.border },
-                      ]}
-                    >
-                      <Text style={[Typography.footnote, { color: active ? '#FFFFFF' : palette.text, fontWeight: '600' }]}>
-                        {t === 'recent' ? 'Recent' : 'Saved'}
+                  {selectedBank ? (
+                    <View style={styles.bankSelected}>
+                      <BankLogo name={selectedBank.name} bankCode={selectedBank.code} size={26} />
+                      <Text style={[Typography.body, { color: palette.text }]} numberOfLines={1}>
+                        {shortBankName(selectedBank.name)}
                       </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              {list.length > RECENT_PREVIEW ? (
-                <TouchableOpacity onPress={() => setShowAll((s) => !s)} hitSlop={8}>
-                  <Text style={[Typography.title3, { color: palette.text, fontWeight: '500' }]}>
-                    {showAll ? 'Show Less' : 'View All'}
+                    </View>
+                  ) : (
+                    <Text style={[Typography.body, { color: placeholder, flex: 1 }]}>Select bank</Text>
+                  )}
+                  <ChevronDown size={20} color={palette.text} />
+                </TouchableOpacity>
+
+                {suggestedBanks.length > 0 ? (
+                  <View style={styles.suggestions}>
+                    {suggestedBanks.map((b) => (
+                      <TouchableOpacity
+                        key={b.code}
+                        onPress={() => setBankCode(b.code)}
+                        activeOpacity={0.7}
+                        style={styles.suggestionRow}
+                      >
+                        <BankLogo name={b.name} bankCode={b.code} size={40} />
+                        <Text style={[Typography.title3, { color: palette.text }]}>{shortBankName(b.name)}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : null}
+
+                {isResolving ? (
+                  <View style={[styles.nameBox, { backgroundColor: inputBg, borderColor: palette.border }]}>
+                    <ActivityIndicator size="small" color={palette.textSecondary} />
+                    <Text style={[Typography.body, { color: palette.textSecondary }]}>Verifying account…</Text>
+                  </View>
+                ) : accountName && accountComplete && selectedBank ? (
+                  <View
+                    style={[
+                      styles.nameBox,
+                      {
+                        backgroundColor: hexToRgba(palette.success, 0.12),
+                        borderColor: isDark ? hexToRgba(palette.success, 0.35) : hexToRgba(palette.success, 0.22),
+                      },
+                    ]}
+                  >
+                    <Text style={[Typography.body, { color: palette.success, fontWeight: '600' }]} numberOfLines={1}>
+                      {accountName}
+                    </Text>
+                  </View>
+                ) : null}
+
+                <TouchableOpacity
+                  disabled={!accountReady}
+                  onPress={() => setStep('amount')}
+                  activeOpacity={0.85}
+                  style={[styles.primaryBtn, { backgroundColor: accountReady ? primaryBtn : disabledBtn }]}
+                >
+                  <Text style={[Typography.title3, { color: accountReady ? primaryBtnText : disabledBtnText, fontWeight: '600' }]}>
+                    Continue
                   </Text>
                 </TouchableOpacity>
-              ) : null}
-            </View>
-
-            {visibleList.length === 0 ? (
-              <View style={styles.empty}>
-                <Text style={[Typography.body, { color: palette.textSecondary }]}>
-                  {listTab === 'recent' ? 'No recent recipients yet' : 'No saved beneficiaries yet'}
-                </Text>
               </View>
-            ) : (
-              <View style={styles.recipientList}>
-                {visibleList.map((r) => (
-                  <TouchableOpacity
-                    key={r.id}
-                    onPress={() => pickRecipient(r)}
-                    onLongPress={listTab === 'saved' ? () => removeSavedBank(r.id) : undefined}
-                    activeOpacity={0.7}
-                    style={styles.recipientRow}
-                  >
-                    <BankLogo name={r.bankName} bankCode={r.bankCode} size={46} />
-                    <View style={styles.recipientInfo}>
-                      <Text style={[Typography.title3, { color: palette.text, fontWeight: '600' }]} numberOfLines={1}>
-                        {r.name}
-                      </Text>
-                      <View style={styles.recipientMeta}>
-                        <View style={[styles.bankPill, { borderColor: palette.border }]}>
-                          <Text style={[Typography.footnote, { color: palette.textSecondary }]} numberOfLines={1}>
-                            {r.bankName}
-                          </Text>
-                        </View>
-                        <Text style={[Typography.footnote, { color: palette.textSecondary }]}>{r.accountNumber}</Text>
-                      </View>
-                    </View>
-                    <ChevronRight size={20} color={palette.text} />
+            </EnterSection>
+
+            {/* Recent / Saved */}
+            <EnterSection index={1}>
+              <View style={styles.tabsRow}>
+                <View style={styles.tabs}>
+                  {(['recent', 'saved'] as ListTab[]).map((t) => {
+                    const active = listTab === t;
+                    return (
+                      <TouchableOpacity
+                        key={t}
+                        onPress={() => {
+                          setListTab(t);
+                          setShowAll(false);
+                        }}
+                        activeOpacity={0.8}
+                        style={[
+                          styles.tab,
+                          active
+                            ? { backgroundColor: activeTab, borderColor: activeTab }
+                            : { backgroundColor: inputBg, borderColor: palette.border },
+                        ]}
+                      >
+                        <Text style={[Typography.footnote, { color: active ? readableInk(palette.primary) : palette.text, fontWeight: '600' }]}>
+                          {t === 'recent' ? 'Recent' : 'Saved'}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                {list.length > RECENT_PREVIEW ? (
+                  <TouchableOpacity onPress={() => setShowAll((s) => !s)} hitSlop={8}>
+                    <Text style={[Typography.title3, { color: palette.text, fontWeight: '500' }]}>
+                      {showAll ? 'Show Less' : 'View All'}
+                    </Text>
                   </TouchableOpacity>
-                ))}
-                {listTab === 'saved' ? (
-                  <Text style={[Typography.footnote, { color: palette.textSecondary, textAlign: 'center' }]}>
-                    Long-press a saved beneficiary to remove it
-                  </Text>
                 ) : null}
               </View>
-            )}
+            </EnterSection>
+
+            <EnterSection index={2}>
+              {visibleList.length === 0 ? (
+                <View style={styles.empty}>
+                  <Text style={[Typography.body, { color: palette.textSecondary }]}>
+                    {listTab === 'recent' ? 'No recent recipients yet' : 'No saved beneficiaries yet'}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.recipientList}>
+                  {visibleList.map((r) => (
+                    <TouchableOpacity
+                      key={r.id}
+                      onPress={() => pickRecipient(r)}
+                      onLongPress={listTab === 'saved' ? () => removeSavedBank(r.id) : undefined}
+                      activeOpacity={0.7}
+                      style={styles.recipientRow}
+                    >
+                      <BankLogo name={r.bankName} bankCode={r.bankCode} size={46} />
+                      <View style={styles.recipientInfo}>
+                        <Text style={[Typography.title3, { color: palette.text, fontWeight: '600' }]} numberOfLines={1}>
+                          {r.name}
+                        </Text>
+                        <View style={styles.recipientMeta}>
+                          <View style={[styles.bankPill, { borderColor: palette.border }]}>
+                            <Text style={[Typography.footnote, { color: palette.textSecondary }]} numberOfLines={1}>
+                              {r.bankName}
+                            </Text>
+                          </View>
+                          <Text style={[Typography.footnote, { color: palette.textSecondary }]}>{r.accountNumber}</Text>
+                        </View>
+                      </View>
+                      <ChevronRight size={20} color={palette.text} />
+                    </TouchableOpacity>
+                  ))}
+                  {listTab === 'saved' ? (
+                    <Text style={[Typography.footnote, { color: palette.textSecondary, textAlign: 'center' }]}>
+                      Long-press a saved beneficiary to remove it
+                    </Text>
+                  ) : null}
+                </View>
+              )}
+            </EnterSection>
           </ScrollView>
         </KeyboardAvoidingView>
       ) : (
@@ -466,81 +473,91 @@ export default function SendNgnScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Text style={[Typography.body, { color: palette.textSecondary, fontWeight: '500' }]}>Transfer to</Text>
-            <View
-              style={[
-                styles.recipientCard,
-                {
-                  backgroundColor: isDark ? 'rgba(59,130,246,0.10)' : '#EAF2FE',
-                  borderColor: isDark ? 'rgba(59,130,246,0.25)' : '#D3E3FA',
-                  borderBottomColor: isDark ? '#3B82F6' : '#1E3A5F',
-                },
-              ]}
-            >
-              {selectedBank ? <BankLogo name={selectedBank.name} bankCode={selectedBank.code} size={40} /> : null}
-              <Text style={[Typography.title3, { color: palette.text, flex: 1 }]} numberOfLines={2}>
-                {selectedBank ? shortBankName(selectedBank.name) : ''}
-                <Text style={[Typography.body, { color: palette.textSecondary }]}> ({accountName})</Text>
-              </Text>
-            </View>
-
-            <View style={styles.balanceRow}>
-              <View style={[styles.balancePill, { borderColor: palette.border, backgroundColor: inputBg }]}>
-                <Text style={[Typography.footnote, { color: palette.text, fontWeight: '600' }]}>
-                  Current Balance: {fmtNgn(balanceNGN)}
+            <EnterSection index={0}>
+              <Text style={[Typography.body, { color: palette.textSecondary, fontWeight: '500' }]}>Transfer to</Text>
+              <View
+                style={[
+                  styles.recipientCard,
+                  {
+                    backgroundColor: hexToRgba(palette.primary, 0.1),
+                    borderColor: isDark ? hexToRgba(palette.primary, 0.25) : hexToRgba(palette.primary, 0.22),
+                    borderBottomColor: palette.primary,
+                  },
+                ]}
+              >
+                {selectedBank ? <BankLogo name={selectedBank.name} bankCode={selectedBank.code} size={40} /> : null}
+                <Text style={[Typography.title3, { color: palette.text, flex: 1 }]} numberOfLines={2}>
+                  {selectedBank ? shortBankName(selectedBank.name) : ''}
+                  <Text style={[Typography.body, { color: palette.textSecondary }]}> ({accountName})</Text>
                 </Text>
               </View>
-            </View>
+            </EnterSection>
 
-            <View
-              style={[
-                styles.amountBox,
-                {
-                  backgroundColor: inputBg,
-                  borderColor: amountError && numericAmount > 0 ? palette.error : palette.border,
-                },
-              ]}
-            >
-              <Text style={[styles.currency, { color: palette.text }]}>₦</Text>
-              <TextInput
-                value={amountText}
-                onChangeText={handleAmountChange}
-                placeholder="Enter amount"
-                placeholderTextColor={placeholder}
-                keyboardType="decimal-pad"
-                style={[styles.amountInput, { color: palette.text }]}
-              />
-            </View>
-            {amountError && numericAmount > 0 ? (
-              <Text style={[Typography.footnote, { color: palette.error }]}>{amountError}</Text>
-            ) : null}
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-              {QUICK_AMOUNTS.map((v) => (
-                <TouchableOpacity
-                  key={v}
-                  onPress={() => handleAmountChange(String(v))}
-                  activeOpacity={0.7}
-                  style={[styles.chip, { borderColor: palette.border, backgroundColor: inputBg }]}
-                >
-                  <Text style={[Typography.body, { color: palette.text, fontWeight: '600' }]}>
-                    ₦{v.toLocaleString('en-NG')}
+            <EnterSection index={1}>
+              <View style={styles.balanceRow}>
+                <View style={[styles.balancePill, { borderColor: palette.border, backgroundColor: inputBg }]}>
+                  <Text style={[Typography.footnote, { color: palette.text, fontWeight: '600' }]}>
+                    Current Balance: {fmtNgn(balanceNGN)}
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+                </View>
+              </View>
+            </EnterSection>
 
-            <TextInput
-              value={note}
-              onChangeText={setNote}
-              placeholder="Note (Optional)"
-              placeholderTextColor={placeholder}
-              maxLength={60}
-              style={[
-                styles.noteInput,
-                { color: palette.text, backgroundColor: inputBg, borderColor: palette.border },
-              ]}
-            />
+            <EnterSection index={2}>
+              <View
+                style={[
+                  styles.amountBox,
+                  {
+                    backgroundColor: inputBg,
+                    borderColor: amountError && numericAmount > 0 ? palette.error : palette.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.currency, { color: palette.text }]}>₦</Text>
+                <TextInput
+                  value={amountText}
+                  onChangeText={handleAmountChange}
+                  placeholder="Enter amount"
+                  placeholderTextColor={placeholder}
+                  keyboardType="decimal-pad"
+                  style={[styles.amountInput, { color: palette.text }]}
+                />
+              </View>
+              {amountError && numericAmount > 0 ? (
+                <Text style={[Typography.footnote, { color: palette.error }]}>{amountError}</Text>
+              ) : null}
+            </EnterSection>
+
+            <EnterSection index={3}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
+                {QUICK_AMOUNTS.map((v) => (
+                  <TouchableOpacity
+                    key={v}
+                    onPress={() => handleAmountChange(String(v))}
+                    activeOpacity={0.7}
+                    style={[styles.chip, { borderColor: palette.border, backgroundColor: inputBg }]}
+                  >
+                    <Text style={[Typography.body, { color: palette.text, fontWeight: '600' }]}>
+                      ₦{v.toLocaleString('en-NG')}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </EnterSection>
+
+            <EnterSection index={4}>
+              <TextInput
+                value={note}
+                onChangeText={setNote}
+                placeholder="Note (Optional)"
+                placeholderTextColor={placeholder}
+                maxLength={60}
+                style={[
+                  styles.noteInput,
+                  { color: palette.text, backgroundColor: inputBg, borderColor: palette.border },
+                ]}
+              />
+            </EnterSection>
           </ScrollView>
 
           <View style={styles.footer}>
@@ -591,7 +608,7 @@ export default function SendNgnScreen() {
           <Switch
             value={saveBeneficiary}
             onValueChange={setSaveBeneficiary}
-            trackColor={{ false: isDark ? '#2A2D38' : '#E5E7EB', true: '#34C759' }}
+            trackColor={{ false: hexToRgba(palette.text, isDark ? 0.2 : 0.12), true: palette.success }}
             thumbColor="#FFFFFF"
           />
         </View>

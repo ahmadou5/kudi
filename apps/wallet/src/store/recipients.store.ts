@@ -8,13 +8,13 @@ export interface BankRecipient {
   bankName: string;
 }
 
-export interface CryptoRecipient {
+interface CryptoRecipient {
   id: string;
   address: string;
   chain: 'solana' | 'monad';
 }
 
-export interface RecipientsState {
+interface RecipientsState {
   recentBank: BankRecipient[];
   savedBank: BankRecipient[];
   savedCrypto: CryptoRecipient[];

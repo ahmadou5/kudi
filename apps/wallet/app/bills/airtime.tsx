@@ -19,6 +19,7 @@ import { Typography } from '../../src/constants/typography';
 import { useAuthStore } from '../../src/store/auth.store';
 import { sdk } from '../../src/lib/sdk';
 import { AppModal, useAppModal } from '../../src/components/ui/AppModal';
+import { EnterSection } from '../../src/lib/animations';
 
 const NETWORKS = [
   { id: 'MTN', name: 'MTN Nigeria', logo: require('../../assets/logos/mtn.png') },
@@ -100,91 +101,99 @@ export default function AirtimeBillScreen() {
         <Text style={[Typography.title2, { color: palette.text }]}>Buy Airtime</Text>
       </View>
 
-      <Text style={[Typography.body, { color: palette.textSecondary, marginTop: 8 }]}>
-        Instantly top up mobile credit for any network in Nigeria using your USDC balance.
-      </Text>
+      <EnterSection index={0}>
+        <Text style={[Typography.body, { color: palette.textSecondary, marginTop: 8 }]}>
+          Instantly top up mobile credit for any network in Nigeria using your USDC balance.
+        </Text>
+      </EnterSection>
 
       {/* Network Picker */}
-      <View style={{ marginTop: 24 }}>
-        <Text style={[Typography.bodyBold, { color: palette.text, marginBottom: 12 }]}>Select Network</Text>
-        <View style={styles.networkGrid}>
-          {NETWORKS.map(net => {
-            const isSelected = selectedNetwork === net.id;
-            return (
-              <TouchableOpacity
-                key={net.id}
-                onPress={() => setSelectedNetwork(net.id)}
-                style={[
-                  styles.networkCard,
-                  {
-                    backgroundColor: isSelected ? palette.card : 'transparent',
-                    borderColor: isSelected ? palette.text : palette.border
-                  }
-                ]}
-                activeOpacity={0.7}
-              >
-                <Image source={net.logo} style={styles.logoImage} resizeMode="contain" />
-                <Text style={[Typography.caption, { color: palette.text }]}>{net.id}</Text>
+      <EnterSection index={1}>
+        <View style={{ marginTop: 24 }}>
+          <Text style={[Typography.bodyBold, { color: palette.text, marginBottom: 12 }]}>Select Network</Text>
+          <View style={styles.networkGrid}>
+            {NETWORKS.map(net => {
+              const isSelected = selectedNetwork === net.id;
+              return (
+                <TouchableOpacity
+                  key={net.id}
+                  onPress={() => setSelectedNetwork(net.id)}
+                  style={[
+                    styles.networkCard,
+                    {
+                      backgroundColor: isSelected ? palette.card : 'transparent',
+                      borderColor: isSelected ? palette.text : palette.border
+                    }
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <Image source={net.logo} style={styles.logoImage} resizeMode="contain" />
+                  <Text style={[Typography.caption, { color: palette.text }]}>{net.id}</Text>
 
-              </TouchableOpacity>
-            );
-          })}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
-      </View>
+      </EnterSection>
 
       {/* Input Fields */}
-      <View style={{ gap: 16, marginTop: 24 }}>
-        <View>
-          <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>Mobile Number</Text>
-          <TextInput
-            placeholder="e.g. 08031234567"
-            placeholderTextColor={palette.textSecondary}
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-            keyboardType="phone-pad"
-            style={[styles.input, { backgroundColor: palette.card, color: palette.text, borderColor: palette.border }]}
-          />
-        </View>
+      <EnterSection index={2}>
+        <View style={{ gap: 16, marginTop: 24 }}>
+          <View>
+            <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>Mobile Number</Text>
+            <TextInput
+              placeholder="e.g. 08031234567"
+              placeholderTextColor={palette.textSecondary}
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              keyboardType="phone-pad"
+              style={[styles.input, { backgroundColor: palette.card, color: palette.text, borderColor: palette.border }]}
+            />
+          </View>
 
-        <View>
-          <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>Amount (NGN)</Text>
-          <TextInput
-            placeholder="1000"
-            placeholderTextColor={palette.textSecondary}
-            value={amountNGN}
-            onChangeText={setAmountNGN}
-            keyboardType="number-pad"
-            style={[styles.input, { backgroundColor: palette.card, color: palette.text, borderColor: palette.border }]}
-          />
-        </View>
+          <View>
+            <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>Amount (NGN)</Text>
+            <TextInput
+              placeholder="1000"
+              placeholderTextColor={palette.textSecondary}
+              value={amountNGN}
+              onChangeText={setAmountNGN}
+              keyboardType="number-pad"
+              style={[styles.input, { backgroundColor: palette.card, color: palette.text, borderColor: palette.border }]}
+            />
+          </View>
 
-        {/* Quick Amount Chips */}
-        <View style={styles.chipRow}>
-          {['500', '1000', '2000', '5000'].map(val => (
-            <TouchableOpacity
-              key={val}
-              onPress={() => setAmountNGN(val)}
-              style={[styles.chip, { backgroundColor: palette.card, borderColor: palette.border }]}
-            >
-              <Text style={[Typography.caption, { color: palette.text }]}>₦{val}</Text>
-            </TouchableOpacity>
-          ))}
+          {/* Quick Amount Chips */}
+          <View style={styles.chipRow}>
+            {['500', '1000', '2000', '5000'].map(val => (
+              <TouchableOpacity
+                key={val}
+                onPress={() => setAmountNGN(val)}
+                style={[styles.chip, { backgroundColor: palette.card, borderColor: palette.border }]}
+              >
+                <Text style={[Typography.caption, { color: palette.text }]}>₦{val}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
-      </View>
+      </EnterSection>
 
       {/* Pay Button */}
-      <TouchableOpacity
-        onPress={handlePurchase}
-        disabled={isSubmitting}
-        style={[styles.submitBtn, { backgroundColor: palette.text, marginTop: 32 }]}
-        activeOpacity={0.8}
-      >
-        {isSubmitting ? (
-          <ActivityIndicator color={palette.bg} />
-        ) : (
-          <Text style={[Typography.bodyBold, { color: palette.bg }]}>Purchase Airtime</Text>
-        )}
-      </TouchableOpacity>
+      <EnterSection index={3}>
+        <TouchableOpacity
+          onPress={handlePurchase}
+          disabled={isSubmitting}
+          style={[styles.submitBtn, { backgroundColor: palette.text, marginTop: 32 }]}
+          activeOpacity={0.8}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color={palette.bg} />
+          ) : (
+            <Text style={[Typography.bodyBold, { color: palette.bg }]}>Purchase Airtime</Text>
+          )}
+        </TouchableOpacity>
+      </EnterSection>
       <AppModal config={modal.config} onClose={modal.hide} />
     </ScrollView>
   </KeyboardAvoidingView>

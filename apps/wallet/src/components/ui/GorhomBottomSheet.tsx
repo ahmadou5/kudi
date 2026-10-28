@@ -7,7 +7,7 @@ import BottomSheet, {
   BottomSheetBackdropProps
 } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useAppPalette } from '../../lib/theme';
+import { useAppPalette, hexToRgba } from '../../lib/theme';
 import { haptics } from '../../lib/haptics';
 
 interface GorhomBottomSheetProps {
@@ -103,7 +103,7 @@ export const GorhomBottomSheet: React.FC<GorhomBottomSheetProps> = ({
           ]}
           handleIndicatorStyle={[
             styles.indicatorStyle,
-            { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(15, 23, 42, 0.25)' }
+            { backgroundColor: isDark ? hexToRgba(palette.text, 0.3) : hexToRgba(palette.text, 0.25) }
           ]}
         >
           {scrollable ? (

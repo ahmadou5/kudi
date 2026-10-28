@@ -20,6 +20,7 @@ import { Typography } from '../../src/constants/typography';
 import { Spacing } from '../../src/constants/spacing';
 import { AppModal, useAppModal } from '../../src/components/ui/AppModal';
 import { Avatar, userAvatarSeed } from '../../src/components/Avatar';
+import { EnterSection } from '../../src/lib/animations';
 
 export default function EditProfileScreen() {
   const palette = useAppPalette();
@@ -138,126 +139,134 @@ export default function EditProfileScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* ── Avatar ── */}
-          <View style={[styles.avatarCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <Pressable onPress={handlePickAvatar} style={styles.avatarWrapper} accessibilityLabel="Change profile photo">
-              <Avatar avatarUrl={avatarUrl} seed={userAvatarSeed(user)} size={96} />
-              <View style={[styles.cameraBadge, { backgroundColor: palette.primary, borderColor: palette.card }]}>
-                <Camera size={14} color={palette.bg} strokeWidth={2.2} />
-              </View>
-            </Pressable>
-            <Pressable onPress={handlePickAvatar}>
-              <Text style={[Typography.bodyBold, { color: palette.primary, marginTop: 12 }]}>
-                Change Profile Photo
-              </Text>
-            </Pressable>
-          </View>
+          <EnterSection index={0}>
+            <View style={[styles.avatarCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <Pressable onPress={handlePickAvatar} style={styles.avatarWrapper} accessibilityLabel="Change profile photo">
+                <Avatar avatarUrl={avatarUrl} seed={userAvatarSeed(user)} size={96} />
+                <View style={[styles.cameraBadge, { backgroundColor: palette.primary, borderColor: palette.card }]}>
+                  <Camera size={14} color={palette.bg} strokeWidth={2.2} />
+                </View>
+              </Pressable>
+              <Pressable onPress={handlePickAvatar}>
+                <Text style={[Typography.bodyBold, { color: palette.primary, marginTop: 12 }]}>
+                  Change Profile Photo
+                </Text>
+              </Pressable>
+            </View>
+          </EnterSection>
 
           {/* ── Profile details ── */}
-          <View style={styles.group}>
-            <Text style={[styles.groupLabel, labelStyle]}>PROFILE</Text>
-            <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              <View style={styles.field}>
-                <Text style={[styles.fieldLabel, labelStyle]}>FULL NAME</Text>
-                <View
-                  style={[
-                    styles.inputWrapper,
-                    { backgroundColor: palette.bg },
-                    inputBorder(nameFocused)
-                  ]}
-                >
-                  <User size={18} color={nameFocused ? palette.text : palette.textSecondary} />
-                  <TextInput
-                    style={[Typography.body, styles.textInput, { color: palette.text }]}
-                    value={fullName}
-                    onChangeText={setFullName}
-                    onFocus={() => setNameFocused(true)}
-                    onBlur={() => setNameFocused(false)}
-                    placeholder="e.g. Ahmadou Sow"
-                    placeholderTextColor={hexToRgba(palette.text, 0.35)}
-                    autoCapitalize="words"
-                  />
+          <EnterSection index={1}>
+            <View style={styles.group}>
+              <Text style={[styles.groupLabel, labelStyle]}>PROFILE</Text>
+              <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                <View style={styles.field}>
+                  <Text style={[styles.fieldLabel, labelStyle]}>FULL NAME</Text>
+                  <View
+                    style={[
+                      styles.inputWrapper,
+                      { backgroundColor: palette.bg },
+                      inputBorder(nameFocused)
+                    ]}
+                  >
+                    <User size={18} color={nameFocused ? palette.text : palette.textSecondary} />
+                    <TextInput
+                      style={[Typography.currencySub, styles.textInput, { color: palette.text }]}
+                      value={fullName}
+                      onChangeText={setFullName}
+                      onFocus={() => setNameFocused(true)}
+                      onBlur={() => setNameFocused(false)}
+                      placeholder="e.g. Ahmadou Sow"
+                      placeholderTextColor={hexToRgba(palette.text, 0.35)}
+                      autoCapitalize="words"
+                    />
+                  </View>
                 </View>
-              </View>
 
-              <View style={styles.field}>
-                <Text style={[styles.fieldLabel, labelStyle]}>USERNAME</Text>
-                <View
-                  style={[
-                    styles.inputWrapper,
-                    { backgroundColor: palette.bg },
-                    inputBorder(usernameFocused)
-                  ]}
-                >
-                  <AtSign
-                    size={18}
-                    color={usernameFocused ? palette.text : palette.textSecondary}
-                  />
-                  <TextInput
-                    style={[Typography.body, styles.textInput, { color: palette.text }]}
-                    value={username}
-                    onChangeText={(t) => setUsername(t.replace(/\s/g, ''))}
-                    onFocus={() => setUsernameFocused(true)}
-                    onBlur={() => setUsernameFocused(false)}
-                    placeholder="e.g. @ahmadou"
-                    placeholderTextColor={hexToRgba(palette.text, 0.35)}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
+                <View style={styles.field}>
+                  <Text style={[styles.fieldLabel, labelStyle]}>USERNAME</Text>
+                  <View
+                    style={[
+                      styles.inputWrapper,
+                      { backgroundColor: palette.bg },
+                      inputBorder(usernameFocused)
+                    ]}
+                  >
+                    <AtSign
+                      size={18}
+                      color={usernameFocused ? palette.text : palette.textSecondary}
+                    />
+                    <TextInput
+                      style={[Typography.currencySub, styles.textInput, { color: palette.text }]}
+                      value={username}
+                      onChangeText={(t) => setUsername(t.replace(/\s/g, ''))}
+                      onFocus={() => setUsernameFocused(true)}
+                      onBlur={() => setUsernameFocused(false)}
+                      placeholder="e.g. @ahmadou"
+                      placeholderTextColor={hexToRgba(palette.text, 0.35)}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
                 </View>
               </View>
             </View>
-          </View>
+          </EnterSection>
 
           {/* ── Contact (read-only) ── */}
-          <View style={styles.group}>
-            <Text style={[styles.groupLabel, labelStyle]}>CONTACT</Text>
-            <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              <View style={[styles.readonlyRow, { borderBottomColor: palette.border }]}>
-                <View style={[styles.readonlyIcon, { backgroundColor: hexToRgba(palette.text, 0.07) }]}>
-                  <Mail size={17} color={palette.textSecondary} strokeWidth={1.9} />
+          <EnterSection index={2}>
+            <View style={styles.group}>
+              <Text style={[styles.groupLabel, labelStyle]}>CONTACT</Text>
+              <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                <View style={[styles.readonlyRow, { borderBottomColor: palette.border }]}>
+                  <View style={[styles.readonlyIcon, { backgroundColor: hexToRgba(palette.text, 0.07) }]}>
+                    <Mail size={17} color={palette.textSecondary} strokeWidth={1.9} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.fieldLabel, labelStyle]}>EMAIL ADDRESS</Text>
+                    <Text style={[Typography.currencySub, { color: palette.text }]} numberOfLines={1}>
+                      {userEmail}
+                    </Text>
+                  </View>
+                  <Lock size={14} color={hexToRgba(palette.text, 0.35)} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.fieldLabel, labelStyle]}>EMAIL ADDRESS</Text>
-                  <Text style={[Typography.body, { color: palette.text }]} numberOfLines={1}>
-                    {userEmail}
-                  </Text>
-                </View>
-                <Lock size={14} color={hexToRgba(palette.text, 0.35)} />
-              </View>
 
-              <View style={styles.readonlyRow}>
-                <View style={[styles.readonlyIcon, { backgroundColor: hexToRgba(palette.text, 0.07) }]}>
-                  <Phone size={17} color={palette.textSecondary} strokeWidth={1.9} />
+                <View style={styles.readonlyRow}>
+                  <View style={[styles.readonlyIcon, { backgroundColor: hexToRgba(palette.text, 0.07) }]}>
+                    <Phone size={17} color={palette.textSecondary} strokeWidth={1.9} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.fieldLabel, labelStyle]}>PHONE NUMBER</Text>
+                    <Text style={[Typography.currencySub, { color: palette.text }]} numberOfLines={1}>
+                      {userPhone}
+                    </Text>
+                  </View>
+                  <Lock size={14} color={hexToRgba(palette.text, 0.35)} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.fieldLabel, labelStyle]}>PHONE NUMBER</Text>
-                  <Text style={[Typography.body, { color: palette.text }]} numberOfLines={1}>
-                    {userPhone}
-                  </Text>
-                </View>
-                <Lock size={14} color={hexToRgba(palette.text, 0.35)} />
               </View>
             </View>
-          </View>
+          </EnterSection>
 
           {/* ── Save (primary CTA) ── */}
-          <Pressable
-            onPress={handleSave}
-            disabled={isSaving}
-            accessibilityRole="button"
-            accessibility-label="Save profile"
-            style={({ pressed }) => [
-              styles.primaryBtn,
-              { backgroundColor: palette.text },
-              (isSaving || pressed) && { opacity: 0.9 }
-            ]}
-          >
-            {isSaving ? (
-              <ActivityIndicator color={palette.bg} />
-            ) : (
-              <Text style={[Typography.currencySub, { color: palette.bg }]}>Save Profile</Text>
-            )}
-          </Pressable>
+          <EnterSection index={3}>
+            <Pressable
+              onPress={handleSave}
+              disabled={isSaving}
+              accessibilityRole="button"
+              accessibility-label="Save profile"
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                { backgroundColor: palette.text },
+                (isSaving || pressed) && { opacity: 0.9 }
+              ]}
+            >
+              {isSaving ? (
+                <ActivityIndicator color={palette.bg} />
+              ) : (
+                <Text style={[Typography.currencySub, { color: palette.bg }]}>Save Profile</Text>
+              )}
+            </Pressable>
+          </EnterSection>
 
           <AppModal config={modal.config} onClose={modal.hide} />
         </ScrollView>

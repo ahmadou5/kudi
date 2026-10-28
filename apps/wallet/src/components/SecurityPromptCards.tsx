@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { ShieldCheck, Fingerprint, Lock } from 'lucide-react-native';
-import { useAppPalette, isLight } from '../lib/theme';
+import { useAppPalette, isLight, hexToRgba, readableInk } from '../lib/theme';
 import { useAuthStore, AuthState } from '../store/auth.store';
 import { usePreferencesStore, PreferencesState } from '../store/preferences.store';
 import { Typography } from '../constants/typography';
@@ -65,8 +65,8 @@ export const SecurityPromptCards = () => {
         ]}
       >
         <View style={styles.row}>
-          <View style={[styles.iconBadge, { backgroundColor: light ? '#FEF3C7' : 'rgba(245,158,11,0.15)' }]}>
-            <ShieldCheck size={20} color="#F59E0B" />
+          <View style={[styles.iconBadge, { backgroundColor: hexToRgba(palette.warning, light ? 0.22 : 0.15) }]}>
+            <ShieldCheck size={20} color={palette.warning} />
           </View>
           <View style={styles.copyBlock}>
             <Text style={[Typography.bodyBold, { color: palette.text }]}>Secure your wallet</Text>
@@ -82,7 +82,7 @@ export const SecurityPromptCards = () => {
             activeOpacity={0.8}
             disabled={enabling}
           >
-            <Text style={styles.primaryBtnText}>Set up PIN</Text>
+            <Text style={[styles.primaryBtnText, { color: readableInk(palette.primary) }]}>Set up PIN</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.secondaryBtn}
@@ -127,11 +127,11 @@ export const SecurityPromptCards = () => {
         ]}
       >
         <View style={styles.row}>
-          <View style={[styles.iconBadge, { backgroundColor: light ? '#DBEAFE' : 'rgba(59,130,246,0.15)' }]}>
+          <View style={[styles.iconBadge, { backgroundColor: hexToRgba(palette.primary, light ? 0.18 : 0.15) }]}>
             {canUseBiometrics ? (
-              <Fingerprint size={20} color="#3B82F6" />
+              <Fingerprint size={20} color={palette.primary} />
             ) : (
-              <Lock size={20} color="#3B82F6" />
+              <Lock size={20} color={palette.primary} />
             )}
           </View>
           <View style={styles.copyBlock}>
@@ -158,9 +158,9 @@ export const SecurityPromptCards = () => {
             disabled={enabling}
           >
             {enabling ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <ActivityIndicator size="small" color={readableInk(palette.primary)} />
             ) : (
-              <Text style={styles.primaryBtnText}>
+              <Text style={[styles.primaryBtnText, { color: readableInk(palette.primary) }]}>
                 {canUseBiometrics ? 'Enable' : 'Turn on'}
               </Text>
             )}
@@ -223,7 +223,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   primaryBtnText: {
-    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700'
   },

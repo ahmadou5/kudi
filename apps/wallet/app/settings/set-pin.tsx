@@ -15,6 +15,7 @@ import { useAppPalette, isLight } from '../../src/lib/theme';
 import { useAuthStore } from '../../src/store/auth.store';
 import { Typography } from '../../src/constants/typography';
 import { CustomNumericKeypad } from '../../src/components/ui/CustomNumericKeypad';
+import { EnterSection } from '../../src/lib/animations';
 
 /**
  * Shared PIN setup / change screen.
@@ -187,59 +188,67 @@ export default function SetPinScreen() {
 
       <View style={styles.body}>
         {/* Step indicator pills */}
-        <View style={styles.stepRow}>
-          {Array.from({ length: totalSteps }).map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.stepPill,
-                {
-                  backgroundColor: i < currentStepIdx
-                    ? palette.primary
-                    : (light ? '#E2E8F0' : 'rgba(255,255,255,0.1)')
-                }
-              ]}
-            />
-          ))}
-        </View>
-
-        {/* Title */}
-        <Text style={[Typography.title2, { color: palette.text, textAlign: 'center', marginTop: 32 }]}>
-          {title}
-        </Text>
-        <Text style={[Typography.subhead, { color: palette.textSecondary, textAlign: 'center', marginTop: 6, marginBottom: 40 }]}>
-          {subtitle}
-        </Text>
-
-        {/* PIN dots */}
-        <Animated.View style={[styles.dotsRow, { transform: [{ translateX: shakeAnim }] }]}>
-          {Array.from({ length: 4 }).map((_, i) => {
-            const filled = i < pin.length;
-            return (
+        <EnterSection index={0}>
+          <View style={styles.stepRow}>
+            {Array.from({ length: totalSteps }).map((_, i) => (
               <View
                 key={i}
                 style={[
-                  styles.pinDot,
+                  styles.stepPill,
                   {
-                    backgroundColor: error
-                      ? (filled ? palette.error : 'transparent')
-                      : (filled ? palette.primary : 'transparent'),
-                    borderColor: error
-                      ? palette.error
-                      : (filled ? palette.primary : (light ? '#CBD5E1' : 'rgba(255,255,255,0.2)'))
+                    backgroundColor: i < currentStepIdx
+                      ? palette.primary
+                      : (light ? '#E2E8F0' : 'rgba(255,255,255,0.1)')
                   }
                 ]}
               />
-            );
-          })}
-        </Animated.View>
+            ))}
+          </View>
+        </EnterSection>
+
+        {/* Title */}
+        <EnterSection index={1}>
+          <Text style={[Typography.title2, { color: palette.text, textAlign: 'center', marginTop: 32 }]}>
+            {title}
+          </Text>
+          <Text style={[Typography.subhead, { color: palette.textSecondary, textAlign: 'center', marginTop: 6, marginBottom: 40 }]}>
+            {subtitle}
+          </Text>
+        </EnterSection>
+
+        {/* PIN dots */}
+        <EnterSection index={2}>
+          <Animated.View style={[styles.dotsRow, { transform: [{ translateX: shakeAnim }] }]}>
+            {Array.from({ length: 4 }).map((_, i) => {
+              const filled = i < pin.length;
+              return (
+                <View
+                  key={i}
+                  style={[
+                    styles.pinDot,
+                    {
+                      backgroundColor: error
+                        ? (filled ? palette.error : 'transparent')
+                        : (filled ? palette.primary : 'transparent'),
+                      borderColor: error
+                        ? palette.error
+                        : (filled ? palette.primary : (light ? '#CBD5E1' : 'rgba(255,255,255,0.2)'))
+                    }
+                  ]}
+                />
+              );
+            })}
+          </Animated.View>
+        </EnterSection>
 
         {/* Error */}
-        {error ? (
-          <Text style={[styles.errorText, { color: palette.error }]}>{error}</Text>
-        ) : (
-          <View style={{ height: 20 }} />
-        )}
+        <EnterSection index={3}>
+          {error ? (
+            <Text style={[styles.errorText, { color: palette.error }]}>{error}</Text>
+          ) : (
+            <View style={{ height: 20 }} />
+          )}
+        </EnterSection>
 
         {saving && <ActivityIndicator color={palette.primary} style={{ marginBottom: 12 }} />}
 

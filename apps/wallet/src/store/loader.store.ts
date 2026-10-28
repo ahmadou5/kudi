@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 
-export interface LoaderOptions {
+interface LoaderOptions {
   message?: string;
   title?: string;
 }
 
-export interface LoaderState {
+interface LoaderState {
   visible: boolean;
   message?: string;
   title?: string;

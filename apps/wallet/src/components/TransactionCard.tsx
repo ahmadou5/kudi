@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Image, ImageSourcePropType } from 'react-native';
 import { Zap, ArrowDownCircle, ArrowUpCircle, ArrowDown, ArrowUp, Clock, LucideIcon, BadgeAlert, BadgeCheck, BadgeX, ExternalLink } from 'lucide-react-native';
-import { useAppPalette } from '../lib/theme';
+import { useAppPalette, hexToRgba, readableInk } from '../lib/theme';
 import { Typography } from '../constants/typography';
 import { ChainLogo } from './ui/ChainLogo';
 import { router } from 'expo-router';
 
-export type BrandProvider = 'usdc' | 'ausd' | 'solana' | 'monad' | 'mtn' | 'airtel' | 'glo' | '9mobile' | 'electricity' | 'gtbank' | 'zenith' | 'paystack' | 'monnify' | 'generic';
+type BrandProvider = 'usdc' | 'ausd' | 'solana' | 'monad' | 'mtn' | 'airtel' | 'glo' | '9mobile' | 'electricity' | 'gtbank' | 'zenith' | 'paystack' | 'monnify' | 'generic';
 
 const BRAND_LOGOS: Record<string, ImageSourcePropType> = {
   usdc: require('../../assets/logos/usdc.png'),
@@ -107,16 +107,16 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
   const isPending = ['PENDING', 'PROCESSING', 'BROADCAST'].includes(item.status.toUpperCase());
 
   const statusBg = isSuccess
-    ? 'rgba(52, 211, 153, 0.15)'
+    ? hexToRgba(palette.success, 0.15)
     : isPending
-      ? 'rgba(251, 191, 36, 0.15)'
-      : 'rgba(244, 63, 94, 0.15)';
+      ? hexToRgba(palette.warning, 0.15)
+      : hexToRgba(palette.error, 0.15);
 
   const statusColor = isSuccess
-    ? '#34D399'
+    ? palette.success
     : isPending
-      ? '#FBBF24'
-      : '#F43F5E';
+      ? palette.warning
+      : palette.error;
 
   const navigateToDetails = () => {
     if (onPress) {
@@ -151,7 +151,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
 
     if (logoSource) {
       return (
-        <View style={[styles.brandContainer, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: palette.border, borderWidth: 1 }]}>
+        <View style={[styles.brandContainer, { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1 }]}>
           <Image source={logoSource} style={styles.logoImage} resizeMode="contain" />
         </View>
       );
@@ -159,8 +159,8 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
 
     if (provider === 'electricity') {
       return (
-        <View style={[styles.brandContainer, { backgroundColor: '#F59E0B' }]}>
-          <Zap size={20} color="#FFFFFF" />
+        <View style={[styles.brandContainer, { backgroundColor: palette.warning }]}>
+          <Zap size={20} color={readableInk(palette.warning)} />
         </View>
       );
     }
@@ -171,15 +171,15 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
           styles.brandContainer,
           {
             backgroundColor: isDeposit
-              ? (isDark ? 'rgba(16, 185, 129, 0.16)' : 'rgba(16, 185, 129, 0.12)')
-              : (isDark ? 'rgba(244, 63, 94, 0.16)' : 'rgba(244, 63, 94, 0.12)')
+              ? hexToRgba(palette.success, isDark ? 0.16 : 0.12)
+              : hexToRgba(palette.error, isDark ? 0.16 : 0.12)
           }
         ]}
       >
         {isDeposit ? (
-          <ArrowDownCircle size={20} color="#10B981" />
+          <ArrowDownCircle size={20} color={palette.success} />
         ) : (
-          <ArrowUpCircle size={20} color="#F43F5E" />
+          <ArrowUpCircle size={20} color={palette.error} />
         )}
       </View>
     );
@@ -209,15 +209,15 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
               {renderBrandIcon()}
 
               {detectedChain ? (
-                <View style={[styles.chainBadgeOverlay, { borderColor: palette.card }]}>
+                <View style={[styles.chainBadgeOverlay, { backgroundColor: palette.bg, borderColor: palette.card }]}>
                   <ChainLogo chain={detectedChain} size={14} />
                 </View>
               ) : (
-                <View style={[styles.directionOverlay, { backgroundColor: isDeposit ? '#10B981' : '#F43F5E', borderColor: palette.card }]}>
+                <View style={[styles.directionOverlay, { backgroundColor: isDeposit ? palette.success : palette.error, borderColor: palette.card }]}>
                   {isDeposit ? (
-                    <ArrowDown size={9} color="#FFFFFF" />
+                    <ArrowDown size={9} color={readableInk(isDeposit ? palette.success : palette.error)} />
                   ) : (
-                    <ArrowUp size={9} color="#FFFFFF" />
+                    <ArrowUp size={9} color={readableInk(isDeposit ? palette.success : palette.error)} />
                   )}
                 </View>
               )}
@@ -247,7 +247,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
           {/* Right Group: Status Badge ONLY */}
           <View style={styles.rightHeaderGroup}>
             <View style={[styles.statusBadge, { backgroundColor: statusBg, borderColor: statusColor + '40' }]}>
-              <Text style={[Typography.footnote, { color: statusColor, fontSize: 11, fontWeight: '700' }]}>
+              <Text style={[Typography.currencySub, { color: statusColor, fontSize: 11 }]}>
                 {isSuccess ? 'CONFIRMED' : isPending ? 'PENDING' : item.status.toUpperCase()}
               </Text>
               {isPending && <BadgeAlert size={14} color={statusColor} />}
@@ -259,7 +259,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
 
         {/* Expanded Panel (Revealed on Tap) */}
         {isExpanded && (
-          <View style={styles.expandedPanel}>
+          <View style={[styles.expandedPanel, { borderTopColor: hexToRgba(palette.text, 0.18) }]}>
             <View style={styles.expandedRow}>
               <View style={styles.amountStack}>
                 <Text style={[Typography.currencySub, { color: isDeposit ? palette.success : palette.text, fontSize: 16 }]}>
@@ -274,13 +274,13 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
 
               <View style={styles.rightExpandedStack}>
                 {!!item.subtitle && (
-                  <Text style={[Typography.caption, { color: palette.textSecondary, fontSize: 11, fontWeight: '600' }]}>
+                  <Text style={[Typography.currencySub, { color: palette.textSecondary, fontSize: 11 }]}>
                     {item.subtitle}
                   </Text>
                 )}
                 <View style={styles.dateGroup}>
                   <Clock size={11} color={palette.textSecondary} />
-                  <Text style={[Typography.footnote, { color: palette.textSecondary, fontSize: 11 }]}>
+                  <Text style={[Typography.currencySub, { color: palette.textSecondary, fontSize: 11 }]}>
                     {item.date}
                   </Text>
                 </View>
@@ -289,7 +289,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
 
             <TouchableOpacity
               onPress={navigateToDetails}
-              style={[styles.viewDetailsBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)', borderColor: palette.border }]}
+              style={[styles.viewDetailsBtn, { backgroundColor: hexToRgba(palette.text, isDark ? 0.08 : 0.04), borderColor: palette.border }]}
               activeOpacity={0.7}
             >
               <Text style={[Typography.caption, { color: palette.text, fontWeight: '700', fontSize: 12 }]}>
@@ -324,26 +324,26 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
             {renderBrandIcon()}
 
             {detectedChain ? (
-              <View style={[styles.chainBadgeOverlay, { borderColor: palette.card }]}>
+              <View style={[styles.chainBadgeOverlay, { backgroundColor: palette.bg, borderColor: palette.card }]}>
                 <ChainLogo chain={detectedChain} size={14} />
               </View>
             ) : (
-              <View style={[styles.directionOverlay, { backgroundColor: isDeposit ? '#10B981' : '#F43F5E', borderColor: palette.card }]}>
+              <View style={[styles.directionOverlay, { backgroundColor: isDeposit ? palette.success : palette.error, borderColor: palette.card }]}>
                 {isDeposit ? (
-                  <ArrowDown size={9} color="#FFFFFF" />
+                  <ArrowDown size={9} color={readableInk(isDeposit ? palette.success : palette.error)} />
                 ) : (
-                  <ArrowUp size={9} color="#FFFFFF" />
+                  <ArrowUp size={9} color={readableInk(isDeposit ? palette.success : palette.error)} />
                 )}
               </View>
             )}
           </View>
 
           <View style={styles.titleStack}>
-            <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 14 }]} numberOfLines={1}>
+            <Text style={[Typography.currencySub, { color: palette.text, fontSize: 14 }]} numberOfLines={1}>
               {item.title}
             </Text>
             {!!item.subtitle && (
-              <Text style={[Typography.subhead, { color: palette.textSecondary, fontSize: 12 }]} numberOfLines={1}>
+              <Text style={[Typography.currencySub, { color: palette.textSecondary, fontSize: 12 }]} numberOfLines={1}>
                 {item.subtitle}
               </Text>
             )}
@@ -353,7 +353,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
         {/* Right Status Badge */}
         <View style={styles.rightHeaderGroup}>
           <View style={[styles.statusBadge, { backgroundColor: statusBg, borderColor: statusColor + '40' }]}>
-            <Text style={[Typography.footnote, { color: statusColor, fontSize: 11, fontWeight: '700' }]}>
+            <Text style={[Typography.currencySub, { color: statusColor, fontSize: 11 }]}>
               {isSuccess ? 'CONFIRMED' : isPending ? 'PENDING' : item.status.toUpperCase()}
             </Text>
             {isPending && <BadgeAlert size={14} color={statusColor} />}
@@ -364,7 +364,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
       </View>
 
       {/* Amount & Date Bottom Row for History View */}
-      <View style={styles.bottomRow}>
+      <View style={[styles.bottomRow, { borderTopColor: hexToRgba(palette.text, 0.15) }]}>
         <View style={styles.amountStack}>
           <Text
             style={[
@@ -386,7 +386,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
 
         <View style={styles.dateGroup}>
           <Clock size={12} color={palette.textSecondary} />
-          <Text style={[Typography.footnote, { color: palette.textSecondary, fontSize: 11 }]}>
+          <Text style={[Typography.currencySub, { color: palette.textSecondary, fontSize: 11 }]}>
             {item.date}
           </Text>
         </View>
@@ -460,8 +460,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    overflow: 'hidden',
-    backgroundColor: '#0F172A'
+    overflow: 'hidden'
   },
   titleStack: {
     flex: 1,
@@ -498,8 +497,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     paddingTop: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(148, 163, 184, 0.15)'
+    borderTopWidth: StyleSheet.hairlineWidth
   },
   amountStack: {
     gap: 2
@@ -526,7 +524,6 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     marginTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(148, 163, 184, 0.18)',
     gap: 10
   },
   expandedRow: {

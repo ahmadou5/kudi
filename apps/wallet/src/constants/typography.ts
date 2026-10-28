@@ -6,7 +6,7 @@ import { Platform } from 'react-native';
  * 2. Share Tech Mono: Financial Values, USDC/NGN Amounts, Monospace Codes
  * 3. Inter: Body Text, Labels, and UI Components
  */
-export const FONT_FAMILY = {
+const FONT_FAMILY = {
   display: Platform.select({
     web: 'SpaceMono_400Regular, "Space Mono", monospace',
     ios: 'SpaceMono_400Regular',

@@ -15,6 +15,8 @@ export default function SettingsLayout() {
       <Stack.Screen name="security" />
       <Stack.Screen name="limits" />
       <Stack.Screen name="support" />
+      <Stack.Screen name="transactions" />
+      <Stack.Screen name="rates" />
     </Stack>
   );
 }

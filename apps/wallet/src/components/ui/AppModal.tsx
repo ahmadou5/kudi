@@ -4,9 +4,9 @@ import { XCircle, CheckCircle2, AlertTriangle, Info } from 'lucide-react-native'
 
 import { Spacing } from '../../constants/spacing';
 import { Typography } from '../../constants/typography';
-import { useAppPalette } from '../../lib/theme';
+import { useAppPalette, readableInk } from '../../lib/theme';
 
-export type AppModalConfig = {
+type AppModalConfig = {
   visible: boolean;
   title: string;
   description: string;
@@ -26,7 +26,7 @@ const EMPTY: AppModalConfig = {
   onPrimaryPress: () => {},
 };
 
-export type ShowAlertOptions = {
+type ShowAlertOptions = {
   title: string;
   description: string;
   type?: AppModalConfig['type'];
@@ -87,13 +87,7 @@ export function AppModal({ config, onClose }: Props) {
     config.type === 'warning' ? palette.error :
     palette.primary;
 
-  const isDarkBg = palette.bg === '#090A0F';
-  const primaryTextColor =
-    config.type === 'error' || config.type === 'warning'
-      ? '#FFFFFF'
-      : isDarkBg
-      ? '#090A0F'
-      : '#FFFFFF';
+  const primaryTextColor = readableInk(primaryBg);
 
   return (
     <Modal
@@ -199,7 +193,7 @@ export function AppModalProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useGlobalAlert() {
+function useGlobalAlert() {
   const context = useContext(AppModalContext);
   if (!context) {
     throw new Error('useGlobalAlert must be used within an AppModalProvider');
@@ -232,12 +226,12 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: Typography.lg,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
   },
   body: {
     fontSize: Typography.sm,
     lineHeight: 20,
-    fontFamily: Typography.family.regular,
+    fontFamily: Typography.currencySub.fontFamily,
   },
   actions: {
     flexDirection: 'row',
@@ -254,7 +248,7 @@ const styles = StyleSheet.create({
   },
   secondaryText: {
     fontSize: Typography.md,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
   },
   primary: {
     flex: 1,
@@ -265,6 +259,6 @@ const styles = StyleSheet.create({
   },
   primaryText: {
     fontSize: Typography.md,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
   },
 });

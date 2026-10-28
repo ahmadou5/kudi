@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { cn } from '@/lib/cn';
 
-export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
+interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'silver';
 }
 

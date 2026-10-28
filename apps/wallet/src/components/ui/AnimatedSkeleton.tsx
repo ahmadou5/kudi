@@ -89,20 +89,6 @@ export function ActivityRowSkeleton() {
   );
 }
 
-export function VirtualCardSkeleton() {
-  const palette = useAppPalette();
-  return (
-    <View style={[styles.skeletonCard, { backgroundColor: palette.card, borderColor: palette.border, height: 215 }]}>
-      <AnimatedPulseView style={{ width: 100, height: 20, borderRadius: 6 }} />
-      <AnimatedPulseView style={{ width: 200, height: 24, borderRadius: 6, marginVertical: 20 }} />
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 'auto' }}>
-        <AnimatedPulseView style={{ width: 80, height: 14, borderRadius: 4 }} />
-        <AnimatedPulseView style={{ width: 60, height: 14, borderRadius: 4 }} />
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   skeletonCard: {
     padding: 18,

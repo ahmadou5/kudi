@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, Badge, Mono } from '@kudi/ui';
 import { Copy, Check } from 'lucide-react';
 
-export interface ChainConfigItem {
+interface ChainConfigItem {
   id: string;
   name: string;
   token: string;
