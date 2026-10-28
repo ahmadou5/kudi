@@ -1,79 +1,53 @@
 import React from 'react';
-import {
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  ScrollView
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Edit3, Check, ShieldCheck, Shield, ChevronRight, Copy, Gift, User, Lock, MessageSquare, Settings, LogOut, Trash2 } from 'lucide-react-native';
-import { useAppPalette, isLight } from '../src/lib/theme';
+import {
+  ArrowLeft,
+  Check,
+  ChevronRight,
+  Edit3,
+  Gift,
+  Settings,
+  Shield,
+  ShieldCheck,
+  Trash2
+} from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAppPalette, hexToRgba, mixColors } from '../src/lib/theme';
 import { useAuthStore, AuthState } from '../src/store/auth.store';
 import { Typography } from '../src/constants/typography';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Spacing } from '../src/constants/spacing';
 import { AppModal, useAppModal } from '../src/components/ui/AppModal';
-import { ChainLogo } from '../src/components/ui/ChainLogo';
 import { Avatar, userAvatarSeed } from '../src/components/Avatar';
-import * as Clipboard from 'expo-clipboard';
 
 export default function ProfileScreen() {
   const palette = useAppPalette();
-  const insets = useSafeAreaInsets();
-  const light = isLight(palette.bg);
   const user = useAuthStore((s: AuthState) => s.user);
-  const wallets = useAuthStore((s: AuthState) => s.wallets);
-  const pin = useAuthStore((s: AuthState) => s.pin);
-  const logout = useAuthStore((s: AuthState) => s.logout);
   const deleteAccount = useAuthStore((s: AuthState) => s.deleteAccount);
-  const isDark = palette.text === '#FFFFFF';
+  const modal = useAppModal();
 
-  const solanaAddress = wallets.find(w => w.chain === 'solana')?.address || 'Solana Address Loading...';
-  const monadAddress = wallets.find(w => w.chain.includes('monad'))?.address || 'Monad Address Loading...';
-
-  const userEmail = user?.email || 'authenticated.user@kudi.app';
+  const userEmail = user?.email || '';
   const fullName = user?.fullName || '';
   const username = user?.username || (userEmail ? `@${userEmail.split('@')[0]}` : '');
   const userDisplayName = fullName || username || userEmail.split('@')[0] || 'Kudi User';
 
   const rawTier = user?.kycTier;
-  const kycTierNum = rawTier === '2' || rawTier === 'TIER_2' ? 2 : rawTier === '1' || rawTier === 'TIER_1' || user?.kycStatus === 'VERIFIED' ? 1 : 0;
-  const kycTierLabel = kycTierNum === 2 ? 'Tier 2 (Pro)' : kycTierNum === 1 ? 'Tier 1 (Basic)' : 'Unverified';
+  const kycTierNum =
+    rawTier === '2' || rawTier === 'TIER_2'
+      ? 2
+      : rawTier === '1' || rawTier === 'TIER_1' || user?.kycStatus === 'VERIFIED'
+        ? 1
+        : 0;
+  const kycVerified = kycTierNum > 0;
+  const kycLabel = kycTierNum === 2 ? 'Tier 2 (Pro)' : kycTierNum === 1 ? 'Tier 1 (Basic)' : 'Unverified';
 
-  const dailyLimitFormatted = kycTierNum === 2 ? '₦5,000,000' : kycTierNum === 1 ? '₦500,000' : '₦0';
-  const referralCode = user?.id ? user.id.slice(-8).toUpperCase() : 'KUDI2026';
-
-  const modal = useAppModal();
-
-  const handleCopy = async (text: string, label: string) => {
-    try {
-      await Clipboard.setStringAsync(text);
-    } catch (err) {
-      console.warn('Clipboard setStringAsync error:', err);
-    }
-    modal.alert('Copied to Clipboard', `${label} copied:\n${text}`, 'success');
-  };
-
-  const handleLogout = () => {
-    modal.show({
-      title: 'Log Out',
-      description: 'Are you sure you want to log out of Kudi?',
-      type: 'warning',
-      primaryText: 'Log Out',
-      onPrimaryPress: () => {
-        modal.hide();
-        logout();
-        router.replace('/(auth)/welcome');
-      },
-      secondaryText: 'Cancel',
-      onSecondaryPress: modal.hide,
-    });
-  };
+  const insetBg = mixColors(palette.bg, palette.text, 0.04);
 
   const handleDeleteAccount = () => {
     modal.show({
       title: 'Delete Account Permanently',
-      description: 'Are you sure you want to delete your Kudi account? All your profile data, local settings, and wallet keys will be permanently erased. This action CANNOT be undone.',
+      description:
+        'Are you sure you want to delete your Kudi account? All your profile data, local settings, and wallet keys will be permanently erased. This action CANNOT be undone.',
       type: 'error',
       primaryText: 'Delete Account',
       onPrimaryPress: async () => {
@@ -89,263 +63,144 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
       {/* Header */}
-      <View style={[styles.header, { borderColor: palette.border }]}>
-        <TouchableOpacity
+      <View style={styles.header}>
+        <Pressable
           onPress={() => router.back()}
-          style={[styles.circularBackBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
-          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibility-label="Go back"
+          hitSlop={12}
+          style={({ pressed }) => [
+            styles.backButton,
+            { backgroundColor: palette.card, borderColor: palette.border },
+            pressed && { opacity: 0.6 }
+          ]}
         >
           <ArrowLeft size={20} color={palette.text} />
-        </TouchableOpacity>
-        <Text style={[Typography.title2, { color: palette.text }]}>Profile</Text>
-        <TouchableOpacity
-          onPress={() => router.push('/settings/edit-profile' as any)}
-          style={[styles.circularBackBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
-          activeOpacity={0.7}
-        >
-          <Edit3 size={20} color={palette.text} />
-        </TouchableOpacity>
+        </Pressable>
+        <Text style={[Typography.title1, { color: palette.text }]}>Profile</Text>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* User Identity Hero Card */}
-        <View style={[styles.identityCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <TouchableOpacity onPress={() => router.push('/settings/edit-profile' as any)} style={styles.avatarWrapper} activeOpacity={0.8}>
-            <View style={[styles.avatarCircle, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0', borderColor: palette.primary }]}>
-              <Avatar avatarUrl={user?.avatarUrl} seed={userAvatarSeed(user)} size={84} />
-            </View>
-            {kycTierNum > 0 && (
-              <View style={styles.verifiedBadge}>
-                <Check size={10} color="#FFFFFF" />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* ── Profile card ── */}
+        <View style={[styles.profileCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          <View style={styles.avatarWrap}>
+            <Avatar avatarUrl={user?.avatarUrl} seed={userAvatarSeed(user)} size={88} />
+            {kycVerified && (
+              <View style={[styles.verifiedBadge, { backgroundColor: palette.success, borderColor: palette.card }]}>
+                <Check size={11} color="#FFFFFF" strokeWidth={3} />
               </View>
             )}
-          </TouchableOpacity>
+          </View>
 
-          <Text style={[Typography.title1, styles.nameText, { color: palette.text }]}>
+          <Text
+            style={[Typography.title1, { color: palette.text, marginTop: 14 }]}
+            numberOfLines={1}
+            accessibilityLabel={`Display name ${userDisplayName}`}
+          >
             {userDisplayName}
           </Text>
+
           {!!username && (
-            <Text style={[Typography.bodyBold, { color: '#3B82F6', fontSize: 13, marginBottom: 2 }]}>
+            <Text
+              style={[Typography.bodyBold, { color: hexToRgba(palette.text, 0.5), fontSize: 13, marginTop: 3 }]}
+              numberOfLines={1}
+            >
               {username}
             </Text>
           )}
-          <Text style={[Typography.subhead, { color: palette.textSecondary }]}>
-            {userEmail}
-          </Text>
 
-          {/* KYC Tier Pill */}
-          <TouchableOpacity
-            style={[
-              styles.tierPill,
-              { backgroundColor: kycTierNum > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)' }
+          {/* KYC status pill */}
+          <Pressable
+            onPress={() => router.push('/kyc')}
+            accessibilityRole="button"
+            accessibilityLabel={`KYC status: ${kycLabel}. Open verification.`}
+            style={({ pressed }) => [
+              styles.kycPill,
+              { backgroundColor: hexToRgba(kycVerified ? palette.success : palette.warning, 0.14) },
+              pressed && { opacity: 0.75 }
             ]}
-            onPress={() => router.push('/kyc')}
-            activeOpacity={0.7}
           >
-            {kycTierNum > 0 ? (
-              <ShieldCheck size={14} color="#10B981" />
+            {kycVerified ? (
+              <ShieldCheck size={14} color={palette.success} />
             ) : (
-              <Shield size={14} color="#F59E0B" />
+              <Shield size={14} color={palette.warning} />
             )}
-            <Text style={[
-              Typography.caption,
-              { color: kycTierNum > 0 ? "#10B981" : "#F59E0B", fontWeight: '700', marginLeft: 4 }
-            ]}>
-              KYC {kycTierLabel}
+            <Text
+              style={[
+                Typography.caption,
+                { color: kycVerified ? palette.success : palette.warning, fontWeight: '800' }
+              ]}
+            >
+              KYC {kycLabel}
             </Text>
-            {kycTierNum < 2 && (
-              <ChevronRight size={12} color={kycTierNum > 0 ? "#10B981" : "#F59E0B"} style={{ marginLeft: 4 }} />
-            )}
-          </TouchableOpacity>
-
-          {/* Deposit Address Strip: Solana Devnet */}
-          <TouchableOpacity
-            onPress={() => handleCopy(solanaAddress, 'Solana Devnet Address')}
-            style={[styles.addressStrip, { backgroundColor: '#9945FF10', borderColor: '#9945FF40' }]}
-            activeOpacity={0.7}
-          >
-            <ChainLogo chain="solana" size={16} />
-            <Text style={[Typography.currencySub, { color: palette.text, fontSize: 11, flex: 1 }]} numberOfLines={1} ellipsizeMode="middle">
-              SOL: {solanaAddress}
-            </Text>
-            <Copy size={14} color="#9945FF" />
-          </TouchableOpacity>
-
-          {/* Deposit Address Strip: Monad Testnet EVM */}
-          <TouchableOpacity
-            onPress={() => handleCopy(monadAddress, 'Monad Testnet Address')}
-            style={[styles.addressStrip, { backgroundColor: '#8352FF10', borderColor: '#8352FF40', marginTop: 8 }]}
-            activeOpacity={0.7}
-          >
-            <ChainLogo chain="monad" size={16} />
-            <Text style={[Typography.currencySub, { color: palette.text, fontSize: 11, flex: 1 }]} numberOfLines={1} ellipsizeMode="middle">
-              MONAD: {monadAddress}
-            </Text>
-            <Copy size={14} color="#8352FF" />
-          </TouchableOpacity>
+            {!kycVerified && <ChevronRight size={12} color={palette.warning} />}
+          </Pressable>
         </View>
 
-        {/* Stats Row */}
-        <View style={styles.statsRow}>
-          <TouchableOpacity
-            style={[styles.statBox, { backgroundColor: palette.card, borderColor: palette.border }]}
-            onPress={() => router.push('/settings/limits')}
-            activeOpacity={0.7}
-          >
-            <Text style={[Typography.caption, { color: palette.textSecondary }]}>DAILY LIMIT</Text>
-            <Text style={[Typography.currencySub, { color: palette.text, fontSize: 15, marginTop: 4, fontWeight: '700' }]}>
-              {dailyLimitFormatted}
-            </Text>
-          </TouchableOpacity>
+        {/* ── Edit profile (primary) ── */}
+        <Pressable
+          onPress={() => router.push('/settings/edit-profile')}
+          accessibilityRole="button"
+          accessibility-label="Edit profile"
+          style={({ pressed }) => [
+            styles.primaryBtn,
+            { backgroundColor: palette.text },
+            pressed && { opacity: 0.9 }
+          ]}
+        >
+          <Edit3 size={18} color={palette.bg} />
+          <Text style={[Typography.currencySub, { color: palette.bg }]}>Edit Profile</Text>
+        </Pressable>
 
-          <TouchableOpacity
-            style={[styles.statBox, { backgroundColor: palette.card, borderColor: palette.border }]}
-            onPress={() => router.push('/settings/security')}
-            activeOpacity={0.7}
-          >
-            <Text style={[Typography.caption, { color: palette.textSecondary }]}>SECURITY</Text>
-            <Text style={[
-              Typography.bodyBold,
-              { color: pin ? '#10B981' : '#F59E0B', marginTop: 4, fontSize: 14 }
-            ]}>
-              {pin ? 'PIN Protected' : 'Setup PIN'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Referral Card */}
-        <View style={[styles.referralCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <View style={[styles.refIconBox, { backgroundColor: '#8B5CF620' }]}>
-            <Gift size={22} color="#8B5CF6" />
-          </View>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={[Typography.caption, { color: palette.textSecondary }]}>REFERRAL CODE</Text>
-            <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 16, marginTop: 2, letterSpacing: 1 }]}>
-              {referralCode}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.copyCodeBtn, { backgroundColor: palette.primary }]}
-            onPress={() => handleCopy(referralCode, 'Referral Code')}
-            activeOpacity={0.8}
-          >
-            <Copy size={14} color={light ? '#FFFFFF' : '#0F172A'} />
-            <Text style={[Typography.caption, { color: light ? '#FFFFFF' : '#0F172A', fontWeight: '700', marginLeft: 4 }]}>
-              Copy
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Account Menu Items */}
-        <View style={[styles.menuCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <TouchableOpacity
-            style={[styles.menuRow, { borderBottomColor: palette.border }]}
-            onPress={() => router.push('/settings/edit-profile' as any)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.menuLeft}>
-              <View style={[styles.iconBox, { backgroundColor: '#10B98118' }]}>
-                <User size={18} color="#10B981" />
-              </View>
-              <View>
-                <Text style={[Typography.bodyBold, { color: palette.text }]}>Edit Profile</Text>
-                <Text style={[Typography.footnote, { color: palette.textSecondary }]}>Update photo, full name & username</Text>
-              </View>
-            </View>
-            <ChevronRight size={18} color={palette.textSecondary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.menuRow, { borderBottomColor: palette.border }]}
-            onPress={() => router.push('/kyc')}
-            activeOpacity={0.7}
-          >
-            <View style={styles.menuLeft}>
-              <View style={[styles.iconBox, { backgroundColor: '#3B82F618' }]}>
-                <ShieldCheck size={18} color="#3B82F6" />
-              </View>
-              <View>
-                <Text style={[Typography.bodyBold, { color: palette.text }]}>KYC Verification</Text>
-                <Text style={[Typography.footnote, { color: palette.textSecondary }]}>Upgrade limits & virtual bank account</Text>
-              </View>
-            </View>
-            <ChevronRight size={18} color={palette.textSecondary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.menuRow, { borderBottomColor: palette.border }]}
-            onPress={() => router.push('/settings/security')}
-            activeOpacity={0.7}
-          >
-            <View style={styles.menuLeft}>
-              <View style={[styles.iconBox, { backgroundColor: '#EF444418' }]}>
-                <Lock size={18} color="#EF4444" />
-              </View>
-              <View>
-                <Text style={[Typography.bodyBold, { color: palette.text }]}>Security & PIN</Text>
-                <Text style={[Typography.footnote, { color: palette.textSecondary }]}>PIN code, biometrics & app lock</Text>
-              </View>
-            </View>
-            <ChevronRight size={18} color={palette.textSecondary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.menuRow, { borderBottomColor: palette.border }]}
-            onPress={() => router.push('/settings/support')}
-            activeOpacity={0.7}
-          >
-            <View style={styles.menuLeft}>
-              <View style={[styles.iconBox, { backgroundColor: '#06B6D418' }]}>
-                <MessageSquare size={18} color="#06B6D4" />
-              </View>
-              <View>
-                <Text style={[Typography.bodyBold, { color: palette.text }]}>Help & Support</Text>
-                <Text style={[Typography.footnote, { color: palette.textSecondary }]}>WhatsApp & email customer service</Text>
-              </View>
-            </View>
-            <ChevronRight size={18} color={palette.textSecondary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.menuRow}
+        {/* ── Settings + Referrals ── */}
+        <View style={styles.actionRow}>
+          <Pressable
             onPress={() => router.push('/settings')}
-            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibility-label="Open settings"
+            style={({ pressed }) => [
+              styles.secondaryBtn,
+              { backgroundColor: insetBg, borderColor: palette.border },
+              pressed && { opacity: 0.7 }
+            ]}
           >
-            <View style={styles.menuLeft}>
-              <View style={[styles.iconBox, { backgroundColor: '#8B5CF618' }]}>
-                <Settings size={18} color="#8B5CF6" />
-              </View>
-              <View>
-                <Text style={[Typography.bodyBold, { color: palette.text }]}>All Settings</Text>
-                <Text style={[Typography.footnote, { color: palette.textSecondary }]}>Appearance, notifications & preferences</Text>
-              </View>
-            </View>
-            <ChevronRight size={18} color={palette.textSecondary} />
-          </TouchableOpacity>
+            <Settings size={17} color={palette.text} />
+            <Text style={[Typography.currencySub, { color: palette.text, fontSize: 14 }]}>Settings</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push('/referral')}
+            accessibilityRole="button"
+            accessibility-label="Open referrals"
+            style={({ pressed }) => [
+              styles.secondaryBtn,
+              { backgroundColor: insetBg, borderColor: palette.border },
+              pressed && { opacity: 0.7 }
+            ]}
+          >
+            <Gift size={17} color={palette.text} />
+            <Text style={[Typography.currencySub, { color: palette.text, fontSize: 14 }]}>Referrals</Text>
+          </Pressable>
         </View>
 
-        {/* Log Out Button */}
-        <TouchableOpacity
-          onPress={handleLogout}
-          style={styles.logoutBtn}
-          activeOpacity={0.8}
-        >
-          <LogOut size={19} color="#EF4444" />
-          <Text style={[Typography.bodyBold, { color: '#EF4444' }]}>Log Out</Text>
-        </TouchableOpacity>
-
-        {/* Delete Account Button */}
-        <TouchableOpacity
+        {/* ── Delete account ── */}
+        <Pressable
           onPress={handleDeleteAccount}
-          style={styles.deleteAccountBtn}
-          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibility-label="Delete account"
+          style={({ pressed }) => [
+            styles.deleteBtn,
+            {
+              backgroundColor: hexToRgba(palette.error, 0.08),
+              borderColor: hexToRgba(palette.error, 0.28)
+            },
+            pressed && { opacity: 0.7 }
+          ]}
         >
-          <Trash2 size={18} color="#F43F5E" />
-          <Text style={[Typography.bodyBold, { color: '#F43F5E' }]}>Delete Account</Text>
-        </TouchableOpacity>
+          <Trash2 size={18} color={palette.error} />
+          <Text style={[styles.deleteText, { color: palette.error }]}>Delete Account</Text>
+        </Pressable>
+
         <AppModal config={modal.config} onClose={modal.hide} />
       </ScrollView>
     </SafeAreaView>
@@ -357,154 +212,88 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1
+    gap: 14,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12
   },
-  circularBackBtn: {
+  backButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center'
   },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
+  content: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: 12,
     paddingBottom: 40,
-    gap: 16
+    gap: 14
   },
-  identityCard: {
+  profileCard: {
     alignItems: 'center',
     padding: 24,
+    paddingBottom: 26,
     borderRadius: 24,
     borderWidth: 1
   },
-  avatarWrapper: {
-    position: 'relative',
-    marginBottom: 12
-  },
-  avatarCircle: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden'
+  avatarWrap: {
+    position: 'relative'
   },
   verifiedBadge: {
     position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#10B981',
+    bottom: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF'
+    borderWidth: 3
   },
-  nameText: {
-    marginBottom: 2
-  },
-  tierPill: {
+  kycPill: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginTop: 14
+  },
+  primaryBtn: {
+    height: 52,
     borderRadius: 14,
-    marginTop: 10
-  },
-  addressStrip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-    marginTop: 16
+    justifyContent: 'center',
+    gap: 8
   },
-  statsRow: {
+  actionRow: {
     flexDirection: 'row',
     gap: 12
   },
-  statBox: {
+  secondaryBtn: {
     flex: 1,
-    padding: 16,
-    borderRadius: 18,
+    height: 52,
+    borderRadius: 14,
     borderWidth: 1,
-    alignItems: 'center'
-  },
-  referralCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 18,
-    borderWidth: 1
-  },
-  refIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  copyCodeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12
-  },
-  menuCard: {
-    borderRadius: 22,
-    borderWidth: 1,
-    overflow: 'hidden'
-  },
-  menuRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth
-  },
-  menuLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12
-  },
-  iconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 18,
-    backgroundColor: 'rgba(239, 68, 68, 0.08)',
-    marginTop: 8
+    gap: 8
   },
-  deleteAccountBtn: {
+  deleteBtn: {
+    marginTop: 10,
+    height: 54,
+    borderRadius: 20,
+    borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(244, 63, 94, 0.3)',
-    backgroundColor: 'rgba(244, 63, 94, 0.05)',
-    marginTop: 4
+    gap: 10
+  },
+  deleteText: {
+    fontFamily: Typography.family.sans,
+    fontSize: 15
   }
 });

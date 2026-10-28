@@ -59,6 +59,9 @@ import { webhooksRoutes } from './modules/webhooks/webhooks.routes';
 import { DepositsController } from './modules/deposits/deposits.controller';
 import { depositsRoutes } from './modules/deposits/deposits.routes';
 
+import { ReferralController } from './modules/referral/referral.controller';
+import { referralRoutes } from './modules/referral/referral.routes';
+
 import { Server as SocketIOServer, Socket } from 'socket.io';
 
 dotenv.config();
@@ -185,6 +188,7 @@ const adminController = new AdminController(custodyManager, paymentRegistry, rat
 const billsController = new BillsController(ledgerService, rateService);
 const webhooksController = new WebhooksController(ledgerService, rateService);
 const depositsController = new DepositsController(depositService, sweepService);
+const referralController = new ReferralController();
 
 async function main() {
   // R6: fail closed on missing/invalid chain config before anything else boots.
@@ -266,6 +270,7 @@ async function main() {
   await billsRoutes(server, billsController);
   await webhooksRoutes(server, webhooksController);
   await depositsRoutes(server, depositsController);
+  await referralRoutes(server, referralController);
 
   server.get('/', async (_request, reply) => {
     return reply.send({

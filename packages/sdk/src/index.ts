@@ -10,6 +10,7 @@ import {
   type NotificationsResponseData,
   type OverrideRateRequest,
   type PayBillRequest,
+  type ReferralOverviewData,
   type ResolveAccountRequest,
   type ResolveAccountResponseData,
   type SendCryptoResponseData,
@@ -174,11 +175,11 @@ export class KudiSDK {
     return this.parseJson<{ email: string; sent: boolean }>(res);
   }
 
-  async verifyPrivyOTP(email: string, code: string): Promise<ApiResponse<AuthResponseData>> {
+  async verifyPrivyOTP(email: string, code: string, referralCode?: string): Promise<ApiResponse<AuthResponseData>> {
     const res = await this.send(`${apiRoutes.auth.privyVerifyOtp}`, {
       method: 'POST',
       headers: this.getHeaders(),
-      body: JSON.stringify({ email, code })
+      body: JSON.stringify({ email, code, ...(referralCode ? { referralCode } : {}) })
     });
     return this.parseJson<AuthResponseData>(res);
   }
@@ -196,13 +197,20 @@ export class KudiSDK {
     return this.parseJson<{ accessToken: string }>(res);
   }
 
-  async registerUser(phoneNumber: string, email: string) {
+  async registerUser(phoneNumber: string, email: string, referralCode?: string) {
     const res = await this.send(`${apiRoutes.users.register}`, {
       method: 'POST',
       headers: this.getHeaders(),
-      body: JSON.stringify({ phoneNumber, email })
+      body: JSON.stringify({ phoneNumber, email, ...(referralCode ? { referralCode } : {}) })
     });
     return this.parseJson(res);
+  }
+
+  async getReferralOverview(): Promise<ApiResponse<ReferralOverviewData>> {
+    const res = await this.send(apiRoutes.referral.overview, {
+      headers: this.getHeaders()
+    });
+    return this.parseJson<ReferralOverviewData>(res);
   }
 
   async getUserProfile(userId: string) {

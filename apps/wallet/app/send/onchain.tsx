@@ -21,7 +21,7 @@ import { useKudiWallet } from '../../src/hooks/useKudiWallet';
 import { useRecipientsStore } from '../../src/store/recipients.store';
 import { ChainLogo } from '../../src/components/ui/ChainLogo';
 import { useAppModal } from '../../src/components/ui/AppModal';
-import { PaymentPinModal } from '../../src/components/wallet/PaymentPinModal';
+import { CustomNumericKeypad } from '../../src/components/ui/CustomNumericKeypad';
 import { TransactionResultModal } from '../../src/components/TransactionResultModal';
 import { SendHeader } from '../../src/components/send/SendHeader';
 import { SummaryCard } from '../../src/components/send/SummaryCard';
@@ -29,6 +29,7 @@ import { AmountKeypad } from '../../src/components/send/AmountKeypad';
 import { SendSheet } from '../../src/components/send/SendSheet';
 import { SwipeToSend } from '../../src/components/send/SwipeToSend';
 import { haptics } from '../../src/lib/haptics';
+import { useSendAuth } from '../../src/hooks/useSendAuth';
 
 type Chain = 'solana' | 'monad';
 
@@ -68,9 +69,90 @@ const fmtNgn = (n: number) =>
 
 const withCommas = (intPart: string) => intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
+/**
+ * Sliding segmented control for picking the destination network.
+ * One inset track, an animated pill that slides Solana ↔ Monad, and two
+ * transparent segments layered above it.
+ */
+function ChainSelector({ value, onChange }: { value: Chain; onChange: (c: Chain) => void }) {
+  const palette = useAppPalette();
+  const [trackWidth, setTrackWidth] = useState(0);
+  const anim = useRef(new Animated.Value(value === 'monad' ? 1 : 0)).current;
+  const pad = 3;
+  const segWidth = trackWidth > 0 ? (trackWidth - pad * 2) / 2 : 0;
+
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: value === 'monad' ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [value, anim]);
+
+  const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [0, segWidth] });
+
+  return (
+    <View
+      style={[styles.chainCtl, { backgroundColor: mixColors(palette.bg, palette.text, 0.04) }]}
+      onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+      accessibilityRole="radiogroup"
+      accessibilityLabel="Network"
+    >
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.chainPill,
+          { backgroundColor: palette.text, width: segWidth || undefined, transform: [{ translateX }] },
+        ]}
+      />
+      <View style={styles.chainSegRow}>
+        {(Object.keys(CHAINS) as Chain[]).map((c) => {
+          const selected = c === value;
+          return (
+            <TouchableOpacity
+              key={c}
+              onPress={() => {
+                if (!selected) onChange(c);
+              }}
+              activeOpacity={0.85}
+              style={styles.chainSeg}
+              accessibilityRole="radio"
+              accessibilityState={{ selected }}
+            >
+              <ChainLogo chain={c} size={16} />
+              <Text
+                numberOfLines={1}
+                style={[
+                  Typography.footnote,
+                  { fontWeight: '700', color: selected ? palette.bg : palette.textSecondary },
+                ]}
+              >
+                {CHAINS[c].short}
+              </Text>
+              <Text
+                style={[
+                  {
+                    fontFamily: Typography.family.mono,
+                    fontSize: 11,
+                    letterSpacing: 0.6,
+                    color: selected ? hexToRgba(palette.bg, 0.7) : hexToRgba(palette.text, 0.4),
+                  },
+                ]}
+              >
+                {CHAINS[c].token}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 export default function SendOnchainScreen() {
   const palette = useAppPalette();
   const modal = useAppModal();
+  const { bioReady, authorize } = useSendAuth();
   const params = useLocalSearchParams<{ address?: string; chain?: string }>();
   const { balanceUSDC, rateNGN, sendCrypto, cryptoSendResult, setCryptoSendResult } = useKudiWallet();
 
@@ -93,7 +175,8 @@ export default function SendOnchainScreen() {
   const [saveAddress, setSaveAddress] = useState(false);
 
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [pinOpen, setPinOpen] = useState(false);
+  const [pinMode, setPinMode] = useState(false);
+  const [enteredPin, setEnteredPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{
@@ -263,11 +346,44 @@ export default function SendOnchainScreen() {
   };
 
   // ── Transfer ──
-  const handleSwipeComplete = () => {
-    // Close the sheet first: stacking two native Modals is unreliable on iOS.
-    setSheetOpen(false);
+  const handleSwipeComplete = async () => {
     setPinError('');
-    setTimeout(() => setPinOpen(true), 300);
+    if (bioReady) {
+      const bioPin = await authorize('Confirm transfer');
+      if (bioPin) {
+        // Biometric approved: send straight from the review sheet — no PIN step.
+        await handleConfirmPin(bioPin);
+        return;
+      }
+      // Cancelled / failed → fall through to the inline PIN pad.
+    }
+    // Show the PIN pad inside the review sheet instead of a second modal.
+    setEnteredPin('');
+    setPinMode(true);
+  };
+
+  const handlePinDigit = (digit: string) => {
+    if (submitting || enteredPin.length >= 4) return;
+    haptics.tap();
+    const next = enteredPin + digit;
+    setEnteredPin(next);
+    setPinError('');
+    if (next.length === 4) void handleConfirmPin(next);
+  };
+
+  const handlePinBackspace = () => {
+    if (submitting || enteredPin.length === 0) return;
+    haptics.tap();
+    setEnteredPin((prev) => prev.slice(0, -1));
+    setPinError('');
+  };
+
+  const handleBiometricInPin = () => {
+    void (async () => {
+      if (submitting) return;
+      const bioPin = await authorize('Confirm transfer');
+      if (bioPin) await handleConfirmPin(bioPin);
+    })();
   };
 
   const handleConfirmPin = async (pin: string) => {
@@ -283,7 +399,12 @@ export default function SendOnchainScreen() {
     try {
       const res = await sendCrypto({ amountUSDC: numericAmount, toAddress: trimmedAddress, chain, pin });
       setSubmitting(false);
-      setPinOpen(false);
+      setPinMode(false);
+      setEnteredPin('');
+
+      // Dismiss the sheet before the result modal, mirroring the old sheet → PIN hand-off.
+      setSheetOpen(false);
+      await new Promise((r) => setTimeout(r, 300));
 
       if (res && ['CONFIRMED', 'PENDING', 'BROADCAST'].includes(res.status)) {
         setCryptoSendResult(res);
@@ -311,6 +432,7 @@ export default function SendOnchainScreen() {
       }
     } catch (err) {
       setSubmitting(false);
+      setEnteredPin('');
       setPinError(err instanceof Error ? err.message : 'Transfer execution failed.');
     }
   };
@@ -513,7 +635,7 @@ export default function SendOnchainScreen() {
               activeOpacity={0.85}
               style={[styles.primaryBtn, { backgroundColor: ctaBg(canContinueAmount) }]}
             >
-              <Text style={[Typography.title3, { color: ctaText(canContinueAmount), fontWeight: '700' }]}>
+              <Text style={[Typography.currencySub, { color: ctaText(canContinueAmount) }]}>
                 Continue
               </Text>
             </TouchableOpacity>
@@ -535,12 +657,15 @@ export default function SendOnchainScreen() {
               accessibilityLabel="Edit amount"
             >
               {amountDisplay}
-              <Text style={[Typography.caption, { color: hexToRgba(palette.text, 0.4) }]}>
+              <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.4), fontSize: 12, textAlign: 'center' }]}>
                 Tap to edit amount
               </Text>
             </TouchableOpacity>
 
-            <View style={[styles.formCard, { borderColor: palette.border, backgroundColor: palette.card }]}>
+            <View style={{ gap: 8 }}>
+              <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45), paddingHorizontal: 0 }]}>
+                Recipient Address
+              </Text>
               <View
                 style={[
                   styles.addressBox,
@@ -558,7 +683,7 @@ export default function SendOnchainScreen() {
                   onBlur={() => setAddressFocused(false)}
                   placeholder="Enter receiving wallet address"
                   placeholderTextColor={hexToRgba(palette.text, 0.4)}
-                  multiline
+                  multiline={false}
                   autoCapitalize="none"
                   autoCorrect={false}
                   spellCheck={false}
@@ -566,7 +691,7 @@ export default function SendOnchainScreen() {
                 />
                 <View style={[styles.inputDivider, { backgroundColor: palette.border }]} />
                 <TouchableOpacity onPress={handlePaste} hitSlop={8} accessibilityLabel="Paste address">
-                  <ClipboardPaste size={22} color={palette.text} />
+                  <ClipboardPaste size={18} color={palette.text} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => {
@@ -576,67 +701,45 @@ export default function SendOnchainScreen() {
                   hitSlop={8}
                   accessibilityLabel="Scan QR code"
                 >
-                  <ScanLine size={22} color={palette.text} />
+                  <ScanLine size={18} color={palette.text} />
                 </TouchableOpacity>
               </View>
 
-              {showAddressError ? (
-                <Text style={[Typography.footnote, { color: palette.error }]}>
-                  Enter a valid {CHAINS[chain].short} address
-                </Text>
-              ) : null}
-
-              <View style={styles.chainRow}>
-                {(Object.keys(CHAINS) as Chain[]).map((c) => {
-                  const selected = c === chain;
-                  return (
-                    <TouchableOpacity
-                      key={c}
-                      onPress={() => {
-                        if (!selected) {
-                          setChain(c);
-                          haptics.tap();
-                        }
-                      }}
-                      activeOpacity={0.8}
-                      style={[
-                        styles.chainSeg,
-                        {
-                          borderColor: selected ? palette.text : palette.border,
-                          backgroundColor: selected ? palette.text : insetBg,
-                        },
-                      ]}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected }}
-                    >
-                      <ChainLogo chain={c} size={18} />
-                      <Text
-                        style={[
-                          Typography.footnote,
-                          { color: selected ? palette.bg : palette.textSecondary, fontWeight: '700' },
-                        ]}
-                      >
-                        {CHAINS[c].short} · {CHAINS[c].token}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+              <View style={styles.addrErrorSlot} accessibilityLiveRegion="polite">
+                {showAddressError ? (
+                  <Text style={[Typography.footnote, { color: palette.error }]}>
+                    Enter a valid {CHAINS[chain].short} address
+                  </Text>
+                ) : null}
               </View>
-
-              <TouchableOpacity
-                disabled={!addressValid}
-                onPress={() => {
-                  setSaveAddress(false);
-                  setSheetOpen(true);
-                }}
-                activeOpacity={0.85}
-                style={[styles.primaryBtn, styles.cardBtn, { backgroundColor: ctaBg(addressValid) }]}
-              >
-                <Text style={[Typography.title3, { color: ctaText(addressValid), fontWeight: '700' }]}>
-                  Continue
-                </Text>
-              </TouchableOpacity>
             </View>
+
+            <View style={{ gap: 8 }}>
+              <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45), paddingHorizontal: 0 }]}>
+                Network
+              </Text>
+              <ChainSelector
+                value={chain}
+                onChange={(c) => {
+                  setChain(c);
+                  haptics.tap();
+                }}
+              />
+            </View>
+
+            <TouchableOpacity
+              disabled={!addressValid}
+              onPress={() => {
+                setSaveAddress(false);
+                setSheetOpen(true);
+              }}
+              activeOpacity={0.85}
+              style={[styles.primaryBtn, styles.cardBtn, { backgroundColor: ctaBg(addressValid) }]}
+            >
+              <Text style={[Typography.currencySub, { color: ctaText(addressValid) }]}>
+                Continue
+              </Text>
+            </TouchableOpacity>
 
             <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45) }]}>
               Saved Addresses{savedCrypto.length > 0 ? ` · ${savedCrypto.length}` : ''}
@@ -688,73 +791,132 @@ export default function SendOnchainScreen() {
       )}
 
       {/* ───────────── REVIEW SHEET ───────────── */}
-      <SendSheet visible={sheetOpen} onClose={() => setSheetOpen(false)}>
-        <Text style={[Typography.caption, { color: hexToRgba(palette.text, 0.45), textAlign: 'center' }]}>
-          You are sending
-        </Text>
-        <Text style={[styles.sheetAmount, { color: palette.text }]}>
-          {numericAmount.toFixed(2)} {token}
-        </Text>
+      <SendSheet
+        visible={sheetOpen}
+        onClose={() => {
+          setSheetOpen(false);
+          setPinMode(false);
+          setEnteredPin('');
+          setPinError('');
+        }}
+        locked={submitting}
+      >
+        {pinMode ? (
+          // ── Inline PIN pad: replaces the old PaymentPinModal ──
+          <>
+            <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.45), textAlign: 'center' }]}>
+              You are sending
+            </Text>
+            <Text style={[styles.sheetAmount, { color: palette.text }]}>
+              {numericAmount.toFixed(2)} {token}
+            </Text>
 
-        <View
-          style={[
-            styles.warning,
-            {
-              backgroundColor: hexToRgba(palette.warning, 0.12),
-              borderColor: hexToRgba(palette.warning, 0.3),
-            },
-          ]}
-        >
-          <AlertTriangle size={20} color={palette.warning} />
-          <Text style={[Typography.body, { color: palette.text, flex: 1 }]}>
-            Ensure you confirm all transaction details. Stablecoin transfers are irreversible
-          </Text>
-        </View>
+            <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45), paddingHorizontal: 0, textAlign: 'center' }]}>
+              Enter your security PIN
+            </Text>
 
-        <SummaryCard
-          rows={[
-            {
-              label: 'Address',
-              value: (
-                <View style={styles.addressValue}>
-                  <Text style={[styles.addressValueText, { color: palette.text }]}>{shortAddress(trimmedAddress)}</Text>
-                  <ChainLogo chain={chain} size={20} />
-                </View>
-              ),
-            },
-            { label: 'Network', value: CHAINS[chain].network },
-            { label: 'Exchange rate', value: `${fmtNgn(rateNGN)} / ${token}` },
-            { label: 'Amount to send', value: `${numericAmount.toFixed(2)} ${token}` },
-            { label: 'Fee', value: `$${ONCHAIN_FEE_USDC}` },
-            { label: 'Total debit', value: fmtNgn(totalNGN), total: true },
-          ]}
-        />
+            <View style={styles.pinDotsRow} accessibilityLiveRegion="polite">
+              {[0, 1, 2, 3].map((idx) => {
+                const filled = idx < enteredPin.length;
+                return (
+                  <View
+                    key={idx}
+                    style={[
+                      styles.pinDot,
+                      {
+                        borderColor: pinError ? palette.error : filled ? palette.primary : palette.border,
+                        backgroundColor: filled ? palette.primary : 'transparent',
+                      },
+                    ]}
+                  />
+                );
+              })}
+            </View>
 
-        <View style={styles.toggleRow}>
-          <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 15 }]}>Save this address for next time</Text>
-          <Switch
-            value={saveAddress}
-            onValueChange={setSaveAddress}
-            trackColor={{ false: hexToRgba(palette.text, 0.16), true: palette.primary }}
-            thumbColor="#FFFFFF"
-          />
-        </View>
+            <View style={styles.sheetErrorSlot} accessibilityLiveRegion="polite">
+              {submitting ? (
+                <Text style={[Typography.footnote, { color: palette.textSecondary, textAlign: 'center' }]}>
+                  Confirming transfer…
+                </Text>
+              ) : pinError ? (
+                <Text style={[Typography.footnote, { color: palette.error, textAlign: 'center' }]}>{pinError}</Text>
+              ) : null}
+            </View>
 
-        <SwipeToSend
-          onComplete={handleSwipeComplete}
-          trailing={<ChainLogo chain={chain} size={40} />}
-        />
+            <CustomNumericKeypad
+              onPressDigit={handlePinDigit}
+              onDelete={handlePinBackspace}
+              disabled={submitting}
+              onBiometricPress={bioReady ? handleBiometricInPin : undefined}
+            />
+          </>
+        ) : (
+          <>
+            <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.45), textAlign: 'center' }]}>
+              You are sending
+            </Text>
+            <Text style={[styles.sheetAmount, { color: palette.text }]}>
+              {numericAmount.toFixed(2)} {token}
+            </Text>
+
+            <View
+              style={[
+                styles.warning,
+                {
+                  backgroundColor: hexToRgba(palette.warning, 0.12),
+                  borderColor: hexToRgba(palette.warning, 0.3),
+                },
+              ]}
+            >
+              <AlertTriangle size={20} color={palette.warning} />
+              <Text style={[Typography.body, { color: palette.text, flex: 1 }]}>
+                Ensure you confirm all transaction details. Stablecoin transfers are irreversible
+              </Text>
+            </View>
+
+            <SummaryCard
+              rows={[
+                {
+                  label: 'Address',
+                  value: (
+                    <View style={styles.addressValue}>
+                      <Text style={[styles.addressValueText, { color: palette.text }]}>{shortAddress(trimmedAddress)}</Text>
+                      <ChainLogo chain={chain} size={20} />
+                    </View>
+                  ),
+                },
+                { label: 'Network', value: CHAINS[chain].network },
+                { label: 'Exchange rate', value: `${fmtNgn(rateNGN)} / ${token}` },
+                { label: 'Amount to send', value: `${numericAmount.toFixed(2)} ${token}` },
+                { label: 'Fee', value: `$${ONCHAIN_FEE_USDC}` },
+                { label: 'Total debit', value: fmtNgn(totalNGN), total: true },
+              ]}
+            />
+
+            <View style={styles.toggleRow}>
+              <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 15 }]}>Save this address for next time</Text>
+              <Switch
+                value={saveAddress}
+                onValueChange={setSaveAddress}
+                trackColor={{ false: hexToRgba(palette.text, 0.16), true: palette.primary }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            <View style={styles.sheetErrorSlot} accessibilityLiveRegion="polite">
+              {pinError ? (
+                <Text style={[Typography.footnote, { color: palette.error, textAlign: 'center' }]}>{pinError}</Text>
+              ) : null}
+            </View>
+
+            <SwipeToSend
+              onComplete={handleSwipeComplete}
+              loading={submitting}
+
+            />
+          </>
+        )}
       </SendSheet>
-
-      <PaymentPinModal
-        visible={pinOpen}
-        onClose={() => setPinOpen(false)}
-        reviewTitle={shortAddress(trimmedAddress)}
-        reviewAmount={`$${numericAmount.toFixed(2)} ${token}`}
-        loading={submitting}
-        error={pinError}
-        onConfirm={handleConfirmPin}
-      />
 
       <TransactionResultModal
         visible={result.visible}
@@ -778,7 +940,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
 
   // Step 1
-  amountTop: { paddingHorizontal: 20, gap: 14, alignItems: 'center' },
+  amountTop: { paddingHorizontal: 30, gap: 10, alignItems: 'center' },
   balancePill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -791,6 +953,7 @@ const styles = StyleSheet.create({
   amountWrap: { minHeight: 84, justifyContent: 'center', alignItems: 'center' },
   amountRow: { textAlign: 'center' },
   errorSlot: {
+
     alignSelf: 'stretch',
     height: 26,
     alignItems: 'center',
@@ -828,38 +991,43 @@ const styles = StyleSheet.create({
   // Step 2
   recipientContent: { paddingHorizontal: 20, paddingBottom: 40, gap: 16 },
   recipientAmount: { alignItems: 'center', paddingVertical: 8 },
-  formCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 16,
-    gap: 14,
-  },
   addressBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    minHeight: 60,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    minHeight: 50,
   },
   addressInput: {
     flex: 1,
-    fontSize: 15,
-    fontFamily: Typography.family.sans,
+    fontSize: 10,
+    fontFamily: Typography.family.mono,
     paddingVertical: 4,
     textAlignVertical: 'center',
   },
-  chainRow: { flexDirection: 'row', gap: 10 },
+  addrErrorSlot: { height: 16, justifyContent: 'center' },
+  chainCtl: {
+    position: 'relative',
+    borderRadius: 14,
+    padding: 3,
+  },
+  chainPill: {
+    position: 'absolute',
+    left: 3,
+    top: 3,
+    bottom: 3,
+    borderRadius: 11,
+  },
+  chainSegRow: { flexDirection: 'row' },
   chainSeg: {
     flex: 1,
+    height: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    height: 46,
-    borderRadius: 12,
-    borderWidth: 1,
   },
   inputDivider: { width: 1, height: 28 },
   cardBtn: { marginHorizontal: 0 },
@@ -890,10 +1058,10 @@ const styles = StyleSheet.create({
 
   // Sheet
   sheetAmount: {
-    fontFamily: Typography.family.mono,
+    fontFamily: Typography.currencySub.fontFamily,
     fontSize: 32,
     lineHeight: 38,
-    fontWeight: '700',
+
     textAlign: 'center',
     marginTop: 4,
     marginBottom: 16,
@@ -919,5 +1087,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginVertical: 18,
+  },
+  sheetErrorSlot: { minHeight: 18, justifyContent: 'center', marginBottom: 8 },
+  pinDotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 14,
+    marginVertical: 8,
+  },
+  pinDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
   },
 });

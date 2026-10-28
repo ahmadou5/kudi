@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Fingerprint, Delete } from 'lucide-react-native';
 import { useAppPalette } from '../../lib/theme';
+import { Typography } from '../../constants/typography';
 
 export interface CustomNumericKeypadProps {
   onPressDigit: (digit: string) => void;
@@ -67,7 +68,7 @@ export const CustomNumericKeypad: React.FC<CustomNumericKeypadProps> = ({
                 style={[styles.keyButton, { backgroundColor: palette.card, borderColor: palette.border }]}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.digitText, { color: palette.text }]}>{item}</Text>
+                <Text style={[Typography.currencySub, { color: palette.text, fontSize: 18 }]}>{item}</Text>
               </TouchableOpacity>
             );
           })}

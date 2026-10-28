@@ -13,6 +13,7 @@ import { ArrowLeft, Building2, Smartphone } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAppPalette } from '../../src/lib/theme';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
+import { useSendAuth } from '../../src/hooks/useSendAuth';
 import { Typography } from '../../src/constants/typography';
 import { Spacing } from '../../src/constants/spacing';
 import { useAppModal } from '../../src/components/ui/AppModal';
@@ -45,6 +46,7 @@ export default function SpendTab() {
   const { balanceUSDC, rateNGN, resolveAccount, spendToBank, sendCrypto, cryptoSendResult, setCryptoSendResult } = useKudiWallet();
   const params = useLocalSearchParams<{ address?: string }>();
   const modal = useAppModal();
+  const { bioReady, authorize } = useSendAuth();
 
   // Root Spend Selection & Step State
   const [spendType, setSpendType] = useState<SpendType>('select');
@@ -337,7 +339,32 @@ export default function SpendTab() {
     } catch (err) {
       setIsSubmitting(false);
       setPinError(err instanceof Error ? err.message : 'Transfer execution failed.');
+      // Biometric path has no visible error surface — surface it in the PIN modal.
+      setPinModalOpen(true);
     }
+  };
+
+  // Biometric first, PIN modal as fallback.
+  const handleOpenAuth = () => {
+    void (async () => {
+      if (isSubmitting) return;
+      if (bioReady) {
+        const bioPin = await authorize('Confirm transfer');
+        if (bioPin) {
+          await handleExecuteTransfer(bioPin);
+          return;
+        }
+      }
+      setPinModalOpen(true);
+    })();
+  };
+
+  const handleBiometricInPinModal = () => {
+    void (async () => {
+      if (isSubmitting) return;
+      const bioPin = await authorize('Confirm transfer');
+      if (bioPin) await handleExecuteTransfer(bioPin);
+    })();
   };
 
   // Dynamically update result modal when background polling confirms transaction status
@@ -561,7 +588,7 @@ export default function SpendTab() {
                 activeRecipientName={activeRecipientName}
                 numericAmount={numericAmount}
                 rateNGN={rateNGN}
-                onOpenPinModal={() => setPinModalOpen(true)}
+                onOpenPinModal={handleOpenAuth}
               />
             ) : null}
           </View>
@@ -589,6 +616,7 @@ export default function SpendTab() {
           loading={isSubmitting}
           error={pinError}
           onConfirm={handleExecuteTransfer}
+          onBiometricPress={bioReady ? handleBiometricInPinModal : undefined}
         />
 
         <TransactionResultModal

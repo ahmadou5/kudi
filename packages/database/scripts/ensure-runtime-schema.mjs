@@ -211,7 +211,24 @@ const statements = [
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE INDEX IF NOT EXISTS "GasDrip_walletAddress_createdAt_idx" ON "GasDrip" ("walletAddress", "createdAt")`,
-  `CREATE INDEX IF NOT EXISTS "GasDrip_chain_createdAt_idx" ON "GasDrip" (chain, "createdAt")`
+  `CREATE INDEX IF NOT EXISTS "GasDrip_chain_createdAt_idx" ON "GasDrip" (chain, "createdAt")`,
+  `CREATE TABLE IF NOT EXISTS "ReferralCode" (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    "userId" TEXT NOT NULL,
+    code TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ReferralCode_userId_key" ON "ReferralCode" ("userId")`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ReferralCode_code_key" ON "ReferralCode" (code)`,
+  `CREATE TABLE IF NOT EXISTS "Referral" (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    code TEXT NOT NULL,
+    "referrerId" TEXT NOT NULL,
+    "inviteeId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "Referral_inviteeId_key" ON "Referral" ("inviteeId")`,
+  `CREATE INDEX IF NOT EXISTS "Referral_referrerId_createdAt_idx" ON "Referral" ("referrerId", "createdAt")`
 ];
 
 try {

@@ -1,31 +1,28 @@
 import React, { useState } from 'react';
 import {
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  TextInput,
-  ScrollView,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, Camera, User, AtSign, Mail, Lock, Phone } from 'lucide-react-native';
+import { ArrowLeft, AtSign, Camera, Lock, Mail, Phone, User } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { useAppPalette, isLight } from '../../src/lib/theme';
+import { useAppPalette, hexToRgba } from '../../src/lib/theme';
 import { useAuthStore, AuthState } from '../../src/store/auth.store';
 import { Typography } from '../../src/constants/typography';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Spacing } from '../../src/constants/spacing';
 import { AppModal, useAppModal } from '../../src/components/ui/AppModal';
 import { Avatar, userAvatarSeed } from '../../src/components/Avatar';
 
 export default function EditProfileScreen() {
   const palette = useAppPalette();
-  const insets = useSafeAreaInsets();
-  const light = isLight(palette.bg);
   const user = useAuthStore((s: AuthState) => s.user);
   const updateProfile = useAuthStore((s: AuthState) => s.updateProfile);
 
@@ -33,9 +30,11 @@ export default function EditProfileScreen() {
   const [username, setUsername] = useState(user?.username || '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
   const [isSaving, setIsSaving] = useState(false);
+  const [nameFocused, setNameFocused] = useState(false);
+  const [usernameFocused, setUsernameFocused] = useState(false);
 
   const userEmail = user?.email || 'authenticated.user@kudi.app';
-  const userPhone = user?.phoneNumber || '+234 800 000 0000';
+  const userPhone = user?.phoneNumber || 'Not added yet';
 
   const modal = useAppModal();
 
@@ -43,7 +42,11 @@ export default function EditProfileScreen() {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
-        modal.alert('Permission Required', 'Please allow access to your photo library to choose a profile picture.', 'warning');
+        modal.alert(
+          'Permission Required',
+          'Please allow access to your photo library to choose a profile picture.',
+          'warning'
+        );
         return;
       }
 
@@ -63,8 +66,7 @@ export default function EditProfileScreen() {
         }
         setAvatarUrl(newAvatarUri);
       }
-    } catch (err: any) {
-      console.warn('Avatar picker error:', err);
+    } catch {
       modal.alert('Error', 'Could not select photo. Please try again.', 'error');
     }
   };
@@ -91,10 +93,10 @@ export default function EditProfileScreen() {
 
     if (result.success) {
       modal.show({
-        title: 'Success! 🎉',
+        title: 'Profile updated',
         description: 'Your profile details have been updated successfully.',
         type: 'success',
-        primaryText: 'OK',
+        primaryText: 'Done',
         onPrimaryPress: () => {
           modal.hide();
           router.back();
@@ -105,117 +107,158 @@ export default function EditProfileScreen() {
     }
   };
 
+  const labelStyle = { color: hexToRgba(palette.text, 0.45) };
+  const inputBorder = (focused: boolean) =>
+    focused ? { borderWidth: 1.5, borderColor: palette.text } : { borderWidth: 1, borderColor: palette.border };
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
-      {/* Top Header */}
-      <View style={[styles.header, { borderColor: palette.border }]}>
-        <TouchableOpacity
+      {/* Header */}
+      <View style={styles.header}>
+        <Pressable
           onPress={() => router.back()}
-          style={[styles.circularBackBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
-          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibility-label="Go back"
+          hitSlop={12}
+          style={({ pressed }) => [
+            styles.backButton,
+            { backgroundColor: palette.card, borderColor: palette.border },
+            pressed && { opacity: 0.6 }
+          ]}
         >
           <ArrowLeft size={20} color={palette.text} />
-        </TouchableOpacity>
-        <Text style={[Typography.title2, { color: palette.text }]}>Edit Profile</Text>
-        <TouchableOpacity
-          onPress={handleSave}
-          disabled={isSaving}
-          style={styles.saveHeaderBtn}
-          activeOpacity={0.7}
-        >
-          {isSaving ? (
-            <ActivityIndicator size="small" color="#3B82F6" />
-          ) : (
-            <Text style={[Typography.bodyBold, { color: '#3B82F6' }]}>Save</Text>
-          )}
-        </TouchableOpacity>
+        </Pressable>
+        <Text style={[Typography.title1, { color: palette.text }]}>Edit Profile</Text>
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {/* Avatar Card */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* ── Avatar ── */}
           <View style={[styles.avatarCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <TouchableOpacity onPress={handlePickAvatar} style={styles.avatarWrapper} activeOpacity={0.8}>
-              <View style={[styles.avatarCircle, { backgroundColor: light ? '#E2E8F0' : '#1E293B', borderColor: '#34D399' }]}>
-                <Avatar avatarUrl={avatarUrl} seed={userAvatarSeed(user)} size={96} />
+            <Pressable onPress={handlePickAvatar} style={styles.avatarWrapper} accessibilityLabel="Change profile photo">
+              <Avatar avatarUrl={avatarUrl} seed={userAvatarSeed(user)} size={96} />
+              <View style={[styles.cameraBadge, { backgroundColor: palette.primary, borderColor: palette.card }]}>
+                <Camera size={14} color={palette.bg} strokeWidth={2.2} />
               </View>
-              <View style={[styles.cameraBadge, { backgroundColor: '#3B82F6', borderColor: palette.card }]}>
-                <Camera size={14} color="#FFFFFF" />
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handlePickAvatar} activeOpacity={0.7}>
-              <Text style={[Typography.bodyBold, { color: '#3B82F6', marginTop: 10 }]}>Change Profile Photo</Text>
-            </TouchableOpacity>
+            </Pressable>
+            <Pressable onPress={handlePickAvatar}>
+              <Text style={[Typography.bodyBold, { color: palette.primary, marginTop: 12 }]}>
+                Change Profile Photo
+              </Text>
+            </Pressable>
           </View>
 
-          {/* Inputs Group */}
-          <View style={[styles.inputGroup, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            {/* Full Name */}
-            <View style={styles.inputField}>
-              <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>FULL NAME</Text>
-              <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-                <User size={18} color={palette.textSecondary} />
-                <TextInput
-                  style={[Typography.body, styles.textInput, { color: palette.text }]}
-                  value={fullName}
-                  onChangeText={setFullName}
-                  placeholder="e.g. Ahmadou Sow"
-                  placeholderTextColor={palette.textSecondary}
-                  autoCapitalize="words"
-                />
+          {/* ── Profile details ── */}
+          <View style={styles.group}>
+            <Text style={[styles.groupLabel, labelStyle]}>PROFILE</Text>
+            <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <View style={styles.field}>
+                <Text style={[styles.fieldLabel, labelStyle]}>FULL NAME</Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    { backgroundColor: palette.bg },
+                    inputBorder(nameFocused)
+                  ]}
+                >
+                  <User size={18} color={nameFocused ? palette.text : palette.textSecondary} />
+                  <TextInput
+                    style={[Typography.body, styles.textInput, { color: palette.text }]}
+                    value={fullName}
+                    onChangeText={setFullName}
+                    onFocus={() => setNameFocused(true)}
+                    onBlur={() => setNameFocused(false)}
+                    placeholder="e.g. Ahmadou Sow"
+                    placeholderTextColor={hexToRgba(palette.text, 0.35)}
+                    autoCapitalize="words"
+                  />
+                </View>
               </View>
-            </View>
 
-            {/* Username */}
-            <View style={styles.inputField}>
-              <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>USERNAME</Text>
-              <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-                <AtSign size={18} color={palette.textSecondary} />
-                <TextInput
-                  style={[Typography.body, styles.textInput, { color: palette.text }]}
-                  value={username}
-                  onChangeText={setUsername}
-                  placeholder="e.g. @ahmadou"
-                  placeholderTextColor={palette.textSecondary}
-                  autoCapitalize="none"
-                />
-              </View>
-            </View>
-
-            {/* Email (Readonly) */}
-            <View style={styles.inputField}>
-              <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>EMAIL ADDRESS</Text>
-              <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border, opacity: 0.7 }]}>
-                <Mail size={18} color={palette.textSecondary} />
-                <Text style={[Typography.body, { color: palette.textSecondary, flex: 1 }]}>{userEmail}</Text>
-                <Lock size={14} color={palette.textSecondary} />
-              </View>
-            </View>
-
-            {/* Phone (Readonly) */}
-            <View style={styles.inputField}>
-              <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>PHONE NUMBER</Text>
-              <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border, opacity: 0.7 }]}>
-                <Phone size={18} color={palette.textSecondary} />
-                <Text style={[Typography.body, { color: palette.textSecondary, flex: 1 }]}>{userPhone}</Text>
-                <Lock size={14} color={palette.textSecondary} />
+              <View style={styles.field}>
+                <Text style={[styles.fieldLabel, labelStyle]}>USERNAME</Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    { backgroundColor: palette.bg },
+                    inputBorder(usernameFocused)
+                  ]}
+                >
+                  <AtSign
+                    size={18}
+                    color={usernameFocused ? palette.text : palette.textSecondary}
+                  />
+                  <TextInput
+                    style={[Typography.body, styles.textInput, { color: palette.text }]}
+                    value={username}
+                    onChangeText={(t) => setUsername(t.replace(/\s/g, ''))}
+                    onFocus={() => setUsernameFocused(true)}
+                    onBlur={() => setUsernameFocused(false)}
+                    placeholder="e.g. @ahmadou"
+                    placeholderTextColor={hexToRgba(palette.text, 0.35)}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
               </View>
             </View>
           </View>
 
-          {/* Save Button */}
-          <TouchableOpacity
+          {/* ── Contact (read-only) ── */}
+          <View style={styles.group}>
+            <Text style={[styles.groupLabel, labelStyle]}>CONTACT</Text>
+            <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <View style={[styles.readonlyRow, { borderBottomColor: palette.border }]}>
+                <View style={[styles.readonlyIcon, { backgroundColor: hexToRgba(palette.text, 0.07) }]}>
+                  <Mail size={17} color={palette.textSecondary} strokeWidth={1.9} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.fieldLabel, labelStyle]}>EMAIL ADDRESS</Text>
+                  <Text style={[Typography.body, { color: palette.text }]} numberOfLines={1}>
+                    {userEmail}
+                  </Text>
+                </View>
+                <Lock size={14} color={hexToRgba(palette.text, 0.35)} />
+              </View>
+
+              <View style={styles.readonlyRow}>
+                <View style={[styles.readonlyIcon, { backgroundColor: hexToRgba(palette.text, 0.07) }]}>
+                  <Phone size={17} color={palette.textSecondary} strokeWidth={1.9} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.fieldLabel, labelStyle]}>PHONE NUMBER</Text>
+                  <Text style={[Typography.body, { color: palette.text }]} numberOfLines={1}>
+                    {userPhone}
+                  </Text>
+                </View>
+                <Lock size={14} color={hexToRgba(palette.text, 0.35)} />
+              </View>
+            </View>
+          </View>
+
+          {/* ── Save (primary CTA) ── */}
+          <Pressable
             onPress={handleSave}
             disabled={isSaving}
-            style={[styles.saveBtn, { backgroundColor: '#3B82F6' }]}
-            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibility-label="Save profile"
+            style={({ pressed }) => [
+              styles.primaryBtn,
+              { backgroundColor: palette.text },
+              (isSaving || pressed) && { opacity: 0.9 }
+            ]}
           >
             {isSaving ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color={palette.bg} />
             ) : (
-              <Text style={[Typography.bodyBold, { color: '#FFFFFF', fontSize: 16 }]}>Save Profile</Text>
+              <Text style={[Typography.currencySub, { color: palette.bg }]}>Save Profile</Text>
             )}
-          </TouchableOpacity>
+          </Pressable>
+
           <AppModal config={modal.config} onClose={modal.hide} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -228,66 +271,64 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1
+    gap: 14,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12
   },
-  circularBackBtn: {
+  backButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center'
   },
-  saveHeaderBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
+  content: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: 12,
     paddingBottom: 40,
     gap: 16
   },
   avatarCard: {
     alignItems: 'center',
     padding: 24,
-    borderRadius: 22,
+    borderRadius: 24,
     borderWidth: 1
   },
   avatarWrapper: {
     position: 'relative'
   },
-  avatarCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden'
-  },
   cameraBadge: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    bottom: -2,
+    right: -2,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2
+    borderWidth: 3
   },
-  inputGroup: {
-    padding: 20,
-    borderRadius: 22,
+  group: { gap: 8 },
+  groupLabel: {
+    fontFamily: Typography.family.mono,
+    fontSize: 11,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    paddingHorizontal: 4
+  },
+  groupCard: {
+    borderRadius: 20,
     borderWidth: 1,
+    padding: 18,
     gap: 16
   },
-  inputField: {
-    gap: 2
+  field: { gap: 8 },
+  fieldLabel: {
+    fontFamily: Typography.family.mono,
+    fontSize: 10,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase'
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -295,18 +336,32 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 1
+    borderRadius: 14
   },
   textInput: {
     flex: 1,
     padding: 0
   },
-  saveBtn: {
-    paddingVertical: 16,
-    borderRadius: 18,
+  readonlyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 4,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth
+  },
+  readonlyIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  primaryBtn: {
+    height: 52,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8
+    marginTop: 6
   }
 });

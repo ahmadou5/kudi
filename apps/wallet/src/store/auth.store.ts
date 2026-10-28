@@ -38,13 +38,14 @@ export interface AuthState {
 
   hydrate: () => Promise<void>;
   sendPrivyOTP: (email: string) => Promise<{ success: boolean; error?: string }>;
-  verifyPrivyOTP: (email: string, code: string) => Promise<{ success: boolean; error?: string }>;
+  verifyPrivyOTP: (email: string, code: string, referralCode?: string) => Promise<{ success: boolean; error?: string }>;
   loginWithPrivy: (privyPayload: {
     privyToken?: string;
     privyUserId: string;
     email?: string;
     phoneNumber?: string;
     name?: string;
+    referralCode?: string;
   }) => Promise<{ success: boolean; error?: string }>;
   updateProfile: (data: {
     fullName?: string;
@@ -187,11 +188,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     }
   },
 
-  verifyPrivyOTP: async (email: string, code: string) => {
+  verifyPrivyOTP: async (email: string, code: string, referralCode?: string) => {
     try {
       set({ isLoading: true });
       console.log('[AuthStore] Verifying Privy OTP for:', email);
-      const response = await sdk.verifyPrivyOTP(email, code);
+      const response = await sdk.verifyPrivyOTP(email, code, referralCode || undefined);
       console.log('[AuthStore] Verify OTP response:', response);
 
       if (response && response.success && response.data) {

@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   Bell,
   ChevronRight,
+  FileQuestion,
   Gauge,
   Lock,
   LogOut,
@@ -58,17 +59,11 @@ export default function SettingsScreen() {
   const kycBadge = kycTier === 2 ? 'Tier 2 Pro' : kycTier === 1 ? 'Tier 1' : 'Unverified';
 
   const ACCOUNT_ITEMS: MenuItem[] = [
-    {
-      id: 'profile',
-      title: 'Profile',
-      subtitle: 'Name, photo & personal identity',
-      href: '/profile',
-      Icon: User
-    },
+
     {
       id: 'kyc',
-      title: 'Identity & KYC',
-      subtitle: 'Verification level and limits',
+      title: 'KYC',
+      subtitle: 'Verification Status',
       href: '/kyc',
       Icon: ShieldCheck,
       badge: kycBadge,
@@ -77,7 +72,7 @@ export default function SettingsScreen() {
     {
       id: 'limits',
       title: 'Spending limits',
-      subtitle: 'Daily and per-transaction caps',
+      subtitle: 'Transaction Limits.',
       href: '/settings/limits',
       Icon: Gauge
     }
@@ -86,15 +81,15 @@ export default function SettingsScreen() {
   const PREFERENCE_ITEMS: MenuItem[] = [
     {
       id: 'appearance',
-      title: 'Appearance',
-      subtitle: 'Light, dark or system theme',
+      title: 'Theme Preferences',
+      subtitle: 'Customize your view.',
       href: '/settings/appearance',
       Icon: Palette
     },
     {
       id: 'notifications',
       title: 'Notifications',
-      subtitle: 'Push alerts and deposit triggers',
+      subtitle: 'Push notifications',
       href: '/settings/notifications',
       Icon: Bell
     }
@@ -103,8 +98,8 @@ export default function SettingsScreen() {
   const ACTIVITY_ITEMS: MenuItem[] = [
     {
       id: 'transactions',
-      title: 'Activities',
-      subtitle: 'USDC deposit & spend ledger',
+      title: 'Transactions',
+      subtitle: 'Transaction History',
       href: '/(tabs)/history',
       Icon: Receipt
     }
@@ -114,7 +109,7 @@ export default function SettingsScreen() {
     {
       id: 'security',
       title: 'Security',
-      subtitle: 'PIN, biometrics & app lock',
+      subtitle: 'Biometrics and Security',
       href: '/settings/security',
       Icon: Lock
     },
@@ -135,7 +130,7 @@ export default function SettingsScreen() {
 
   const userName = user?.fullName || user?.username || 'Kudi User';
   const userHandle =
-    user?.username ? `@${user.username}` : user?.email || 'Authenticated session';
+    user?.username ? `${user.username}` : user?.email || 'Authenticated session';
 
   const tileTint = hexToRgba(palette.text, 0.07);
 
@@ -165,13 +160,13 @@ export default function SettingsScreen() {
 
                 <View style={styles.rowCopy}>
                   <Text
-                    style={[styles.rowTitle, { color: palette.text }]}
+                    style={[Typography.currencySub, { color: palette.text }]}
                     numberOfLines={1}
                   >
                     {item.title}
                   </Text>
                   <Text
-                    style={[styles.rowSubtitle, { color: hexToRgba(palette.text, 0.5) }]}
+                    style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.5), fontSize: 10 }]}
                     numberOfLines={1}
                   >
                     {item.subtitle}
@@ -185,7 +180,7 @@ export default function SettingsScreen() {
                       { backgroundColor: hexToRgba(badgeColor, 0.14) }
                     ]}
                   >
-                    <Text style={[styles.badgeText, { color: badgeColor }]}>{item.badge}</Text>
+                    <Text style={[Typography.currencySub, { color: badgeColor, fontSize: 10 }]}>{item.badge}</Text>
                   </View>
                 )}
 
@@ -233,11 +228,11 @@ export default function SettingsScreen() {
         >
           <Avatar avatarUrl={user?.avatarUrl} seed={userAvatarSeed(user)} size={52} />
           <View style={styles.identityCopy}>
-            <Text style={[styles.identityName, { color: palette.text }]} numberOfLines={1}>
+            <Text style={[Typography.currencySub, { color: palette.text, fontSize: 18 }]} numberOfLines={1}>
               {userName}
             </Text>
             <Text
-              style={[styles.identityHandle, { color: hexToRgba(palette.text, 0.5) }]}
+              style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.5), fontSize: 14 }]}
               numberOfLines={1}
             >
               {userHandle}
@@ -268,8 +263,7 @@ export default function SettingsScreen() {
             pressed && { opacity: 0.7 }
           ]}
         >
-          <LogOut size={19} color={palette.error} />
-          <Text style={[styles.logoutText, { color: palette.error }]}>Log out</Text>
+          <Text style={[Typography.currencySub, { color: palette.error }]}>Log out</Text>
         </Pressable>
 
         <AppVersionFooter />
@@ -287,10 +281,10 @@ export default function SettingsScreen() {
           <View style={[styles.sheet, { backgroundColor: palette.card, borderColor: palette.border }]}>
             <View style={[styles.grabber, { backgroundColor: hexToRgba(palette.text, 0.18) }]} />
             <View style={[styles.sheetIcon, { backgroundColor: hexToRgba(palette.error, 0.14) }]}>
-              <LogOut size={22} color={palette.error} />
+              <FileQuestion size={22} color={palette.error} />
             </View>
-            <Text style={[styles.sheetTitle, { color: palette.text }]}>Log out of Kudi?</Text>
-            <Text style={[styles.sheetText, { color: hexToRgba(palette.text, 0.55) }]}>
+            <Text style={[Typography.currencySub, { color: palette.text, textAlign: 'center', fontSize: 20 }]}>Log out of Kudi?</Text>
+            <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.55), textAlign: 'center' }]}>
               You will need to verify your session again to sign back in.
             </Text>
 
@@ -303,7 +297,7 @@ export default function SettingsScreen() {
                   pressed && { opacity: 0.7 }
                 ]}
               >
-                <Text style={[styles.sheetButtonText, { color: palette.text }]}>Stay signed in</Text>
+                <Text style={[Typography.currencySub, { color: palette.text, fontSize: 12 }]}>Stay signed in</Text>
               </Pressable>
 
               <Pressable
@@ -314,7 +308,7 @@ export default function SettingsScreen() {
                   pressed && { opacity: 0.8 }
                 ]}
               >
-                <Text style={[styles.sheetButtonText, { color: '#FFFFFF' }]}>Log out</Text>
+                <Text style={[Typography.currencySub, { color: '#FFFFFF', fontSize: 12 }]}>Log out</Text>
               </Pressable>
             </View>
           </View>

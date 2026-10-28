@@ -10,6 +10,7 @@ import { getAuthenticatedUser } from '../../utils/authGuards';
 
 import { sendOTPEmail } from '../../services/emailService';
 import { sendPushNotification } from '../../lib/notifications';
+import { attributeReferral } from '../referral/referral.controller';
 
 type PublicUser = Omit<UserRecord, 'pinHash' | 'passwordHash'> & { hasPin: boolean };
 
@@ -53,7 +54,7 @@ export class AuthController {
   };
 
   public verifyPrivyOTP = async (request: FastifyRequest, reply: FastifyReply) => {
-    const { email, code } = request.body as { email: string; code: string };
+    const { email, code, referralCode } = request.body as { email: string; code: string; referralCode?: string };
     if (!email || !code || code.trim().length < 4) {
       return reply.status(400).send(errorResponse('INVALID_OTP_PAYLOAD', 'Email and valid OTP code are required'));
     }
@@ -82,6 +83,7 @@ export class AuthController {
 
     if (!user) {
       user = this.ledgerService.registerUser(userId, undefined, cleanEmail, privyUserId);
+      if (referralCode) void attributeReferral(referralCode, user.id);
     }
 
     let userWallets = user.wallets && user.wallets.length > 0 ? user.wallets : null;
@@ -107,11 +109,12 @@ export class AuthController {
   };
 
   public authenticatePrivy = async (request: FastifyRequest, reply: FastifyReply) => {
-    const { privyToken, privyUserId, email, phoneNumber } = request.body as {
+    const { privyToken, privyUserId, email, phoneNumber, referralCode } = request.body as {
       privyToken?: string;
       privyUserId: string;
       email?: string;
       phoneNumber?: string;
+      referralCode?: string;
     };
 
     if (!privyUserId && !email && !phoneNumber) {
@@ -124,6 +127,7 @@ export class AuthController {
 
     if (!user) {
       user = this.ledgerService.registerUser(userId, phoneNumber, email, privyUserId);
+      if (referralCode) void attributeReferral(referralCode, user.id);
     }
 
     // Ensure wallets are generated once per user and reused on re-login
@@ -170,7 +174,7 @@ export class AuthController {
   };
 
   public registerUser = async (request: FastifyRequest, reply: FastifyReply) => {
-    const { phoneNumber, email } = request.body as { phoneNumber: string; email: string };
+    const { phoneNumber, email, referralCode } = request.body as { phoneNumber: string; email: string; referralCode?: string };
     const cleanEmail = email ? email.trim().toLowerCase() : undefined;
     const cleanPhone = phoneNumber ? phoneNumber.trim() : undefined;
 
@@ -180,6 +184,7 @@ export class AuthController {
     if (!user) {
       const userId = `usr_${Date.now()}`;
       user = this.ledgerService.registerUser(userId, cleanPhone, cleanEmail);
+      if (referralCode) void attributeReferral(referralCode, user.id);
 
       const custodyProvider = this.custodyManager.getActiveProvider();
       const solanaWallet = await custodyProvider.generateWallet(user.id, 'solana');

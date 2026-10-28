@@ -12,7 +12,7 @@ import {
   Easing
 } from 'react-native';
 import { router } from 'expo-router';
-import { Wifi, ArrowLeft, AlertCircle, Mail, XCircle, ArrowRight, CheckCircle2 } from 'lucide-react-native';
+import { Wifi, ArrowLeft, AlertCircle, Mail, XCircle, ArrowRight, CheckCircle2, Gift } from 'lucide-react-native';
 import { Typography } from '../../src/constants/typography';
 import { useAppPalette } from '../../src/lib/theme';
 import { useAuthStore, AuthState } from '../../src/store/auth.store';
@@ -138,6 +138,8 @@ export default function WelcomeScreen() {
   const [email, setEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [isFocused, setIsFocused] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
+  const [referralFocused, setReferralFocused] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [resendTimer, setResendTimer] = useState(0);
@@ -228,7 +230,8 @@ export default function WelcomeScreen() {
 
         const authRes = await loginWithPrivy({
           privyUserId,
-          email: email.trim().toLowerCase()
+          email: email.trim().toLowerCase(),
+          referralCode: referralCode || undefined
         });
 
         setIsLoading(false);
@@ -241,7 +244,7 @@ export default function WelcomeScreen() {
       console.warn('[Privy SDK Verification Warning]', err?.message);
     }
 
-    const res = await verifyPrivyOTP(email, code);
+    const res = await verifyPrivyOTP(email, code, referralCode || undefined);
     setIsLoading(false);
 
     if (res.success) {
@@ -366,6 +369,45 @@ export default function WelcomeScreen() {
               />
               {email.length > 0 && (
                 <TouchableOpacity onPress={() => setEmail('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <XCircle size={18} color={palette.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Optional Referral Code */}
+            <View
+              style={[
+                styles.inputWrapper,
+                {
+                  backgroundColor: palette.card,
+                  borderColor: referralFocused ? palette.text : palette.border,
+                  borderWidth: referralFocused ? 1.5 : 1
+                }
+              ]}
+            >
+              <Gift
+                size={20}
+                color={referralFocused ? palette.text : palette.textSecondary}
+                style={{ marginRight: 10 }}
+              />
+              <TextInput
+                placeholder="Referral code (optional)"
+                placeholderTextColor={`${palette.textSecondary}60`}
+                value={referralCode}
+                onChangeText={(val) =>
+                  setReferralCode(val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12))
+                }
+                onFocus={() => setReferralFocused(true)}
+                onBlur={() => setReferralFocused(false)}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                style={[Typography.body, styles.inputField, { color: palette.text }]}
+              />
+              {referralCode.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => setReferralCode('')}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
                   <XCircle size={18} color={palette.textSecondary} />
                 </TouchableOpacity>
               )}

@@ -46,8 +46,31 @@ model User {
   transfers       Transfer[]
   transferMetadata TransferMetadata[]
   spendLimitEntries SpendLimitEntry[]
+  referralCode     ReferralCode?
+  referralInvites  Referral[]        @relation("ReferralInvites")
+  referredBy       Referral?         @relation("ReferralJoined")
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
+}
+
+model ReferralCode {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code      String   @unique
+  createdAt DateTime @default(now())
+}
+
+model Referral {
+  id        String   @id @default(uuid())
+  code      String
+  referrerId String
+  referrer  User     @relation("ReferralInvites", fields: [referrerId], references: [id], onDelete: Cascade)
+  inviteeId String   @unique
+  invitee   User     @relation("ReferralJoined", fields: [inviteeId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([referrerId, createdAt])
 }
 
 model VirtualAccount {

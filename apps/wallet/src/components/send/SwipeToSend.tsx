@@ -8,9 +8,10 @@ import {
   Text,
   View,
 } from 'react-native';
-import { ChevronsRight } from 'lucide-react-native';
+import { ChevronRight, ChevronsRight } from 'lucide-react-native';
 import { haptics } from '../../lib/haptics';
 import { useAppPalette } from '../../lib/theme';
+import { Typography } from '../../constants/typography';
 
 const KNOB = 48;
 const PADDING = 4;
@@ -28,7 +29,7 @@ interface SwipeToSendProps {
 }
 
 export const SwipeToSend: React.FC<SwipeToSendProps> = ({
-  label = 'Swipe to send',
+  label = 'Swipe',
   onComplete,
   disabled = false,
   loading = false,
@@ -92,13 +93,13 @@ export const SwipeToSend: React.FC<SwipeToSendProps> = ({
       accessibilityRole="adjustable"
       accessibilityLabel={label}
     >
-      <Animated.Text style={[styles.label, { color: palette.bg, opacity: labelOpacity }]} numberOfLines={1}>
+      <Animated.Text style={[Typography.currencySub, styles.label, { color: palette.bg, opacity: labelOpacity }]} numberOfLines={1}>
         {loading ? 'Sending…' : label}
       </Animated.Text>
 
       {!loading && (
         <Animated.View style={[styles.chevrons, { opacity: labelOpacity }]} pointerEvents="none">
-          <ChevronsRight size={16} color={palette.bg} />
+
         </Animated.View>
       )}
 
@@ -108,7 +109,7 @@ export const SwipeToSend: React.FC<SwipeToSendProps> = ({
         {...panResponder.panHandlers}
         style={[styles.knob, { backgroundColor: palette.bg, transform: [{ translateX }] }]}
       >
-        {loading ? <ActivityIndicator color={palette.text} /> : knobIcon ?? <ChevronsRight size={22} color={palette.text} />}
+        {loading ? <ActivityIndicator color={palette.text} /> : knobIcon ?? <ChevronRight size={22} color={palette.text} />}
       </Animated.View>
     </View>
   );
