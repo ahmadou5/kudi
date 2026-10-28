@@ -17,7 +17,7 @@ import Animated, {
     useReducedMotion,
     Easing
 } from 'react-native-reanimated';
-import { Home, CreditCard, Clock, LucideIcon, Settings } from 'lucide-react-native';
+import { Home, CreditCard, Clock, LucideIcon, Settings, BarChart3 } from 'lucide-react-native';
 // npx expo install expo-glass-effect — official Expo wrapper around iOS 26's Liquid Glass
 // (UIVisualEffectView). GlassView renders the real native glass on iOS 26+ and quietly
 // falls back to a plain View everywhere else (older iOS, Android, web) — no Platform
@@ -43,6 +43,7 @@ interface TabItemConfig {
 const DEFAULT_TABS: TabItemConfig[] = [
     { name: 'index', label: 'Home', Icon: Home },
     { name: 'history', label: 'History', Icon: Clock },
+    { name: 'insights', label: 'Insights', Icon: BarChart3 },
     { name: 'settings', label: 'Settings', Icon: Settings },
 ];
 
@@ -181,7 +182,7 @@ export function FloatingTabBar({
     descriptors,
     navigation,
     tabs = DEFAULT_TABS,
-    width = '60%',
+    width = '72%',
     showLabels = false,
     iconSize = 20,
     containerStyle
@@ -297,7 +298,7 @@ export function FloatingTabBar({
     if (!state || !navigation) return null;
 
     const currentRouteName = state.routes[state.index]?.name;
-    const isAllowedTab = ['index', 'card', 'history'].includes(currentRouteName);
+    const isAllowedTab = ['index', 'card', 'history', 'insights'].includes(currentRouteName);
     if (!isAllowedTab) return null;
 
     const isDark = palette.scheme === 'dark';

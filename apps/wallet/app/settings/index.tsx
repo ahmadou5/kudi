@@ -21,6 +21,7 @@ import {
   Palette,
   Receipt,
   ShieldCheck,
+  TrendingUp,
   User
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -103,6 +104,13 @@ export default function SettingsScreen() {
       subtitle: 'Search, filter & sort',
       href: '/settings/transactions',
       Icon: Receipt
+    },
+    {
+      id: 'rates',
+      title: 'Exchange rates',
+      subtitle: 'Naira to major currencies',
+      href: '/settings/rates',
+      Icon: TrendingUp
     }
   ];
 
