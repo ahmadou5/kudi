@@ -272,9 +272,13 @@ export class KudiSDK {
   }
 
   async markNotificationRead(userId: string, notificationId: string) {
+    // Fastify rejects bodyless PATCH requests that declare
+    // Content-Type: application/json (FST_ERR_CTP_EMPTY_JSON_BODY → 400), so
+    // send an explicit empty JSON object.
     const res = await this.send(`${apiRoutes.users.markNotificationRead(userId, notificationId)}`, {
       method: 'PATCH',
-      headers: this.getHeaders()
+      headers: this.getHeaders(),
+      body: JSON.stringify({})
     });
     return this.parseJson(res);
   }
@@ -282,7 +286,8 @@ export class KudiSDK {
   async markAllNotificationsRead(userId: string) {
     const res = await this.send(`${apiRoutes.users.markNotificationsRead(userId)}`, {
       method: 'PATCH',
-      headers: this.getHeaders()
+      headers: this.getHeaders(),
+      body: JSON.stringify({})
     });
     return this.parseJson(res);
   }

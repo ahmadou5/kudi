@@ -34,6 +34,7 @@ import { Typography } from '../src/constants/typography';
 import { ChainLogo } from '../src/components/ui/ChainLogo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { haptics } from '../src/lib/haptics';
+import { EnterSection } from '../src/lib/animations';
 
 type TransactionDetailsParams = {
     title?: string;
@@ -192,236 +193,244 @@ export default function TransactionDetailsScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 {/* Main Hero Card */}
-                <View style={[styles.heroCard]}>
-                    {/* Dual Token + Chain Badge Avatar */}
-                    <View style={styles.avatarWrapper}>
-                        <View style={[styles.tokenLogoCircle, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: palette.border }]}>
-                            <Image source={tokenLogo} style={styles.tokenLogoImg} resizeMode="contain" />
-                        </View>
+                <EnterSection index={0}>
+                  <View style={[styles.heroCard]}>
+                      {/* Dual Token + Chain Badge Avatar */}
+                      <View style={styles.avatarWrapper}>
+                          <View style={[styles.tokenLogoCircle, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: palette.border }]}>
+                              <Image source={tokenLogo} style={styles.tokenLogoImg} resizeMode="contain" />
+                          </View>
 
-                        {(isMonad || isSolana) && (
-                            <View style={[styles.chainBadgeCircle, { backgroundColor: palette.card, borderColor: palette.card }]}>
-                                <ChainLogo chain={isMonad ? 'monad' : 'solana'} size={20} />
-                            </View>
-                        )}
-                    </View>
+                          {(isMonad || isSolana) && (
+                              <View style={[styles.chainBadgeCircle, { backgroundColor: palette.card, borderColor: palette.card }]}>
+                                  <ChainLogo chain={isMonad ? 'monad' : 'solana'} size={20} />
+                              </View>
+                          )}
+                      </View>
 
-                    {/* Amount Display */}
-                    <Text
-                        style={[
-                            Typography.currencyDisplay,
-                            styles.heroAmount,
-                            { color: isDeposit ? palette.success : palette.text }
-                        ]}
-                    >
-                        {amount}
-                    </Text>
+                      {/* Amount Display */}
+                      <Text
+                          style={[
+                              Typography.currencyDisplay,
+                              styles.heroAmount,
+                              { color: isDeposit ? palette.success : palette.text }
+                          ]}
+                      >
+                          {amount}
+                      </Text>
 
-                    {!!secondaryAmount && (
-                        <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
-                            {secondaryAmount}
-                        </Text>
-                    )}
+                      {!!secondaryAmount && (
+                          <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
+                              {secondaryAmount}
+                          </Text>
+                      )}
 
-                    {/* Status Badge */}
-                    <View style={[styles.statusBadge, { backgroundColor: statusBg, borderColor: statusColor + '40' }]}>
-                        <Text style={[Typography.caption, { color: statusColor }]}>
-                            {status}
-                        </Text>
-                        {isSuccess && (<BadgeCheck size={16} color={statusColor} />)}
-                        {isPending && (<BadgeAlert size={16} color={statusColor} />)}
-                        {!isSuccess && !isPending && (<BadgeX size={16} color={statusColor} />)}
+                      {/* Status Badge */}
+                      <View style={[styles.statusBadge, { backgroundColor: statusBg, borderColor: statusColor + '40' }]}>
+                          <Text style={[Typography.caption, { color: statusColor }]}>
+                              {status}
+                          </Text>
+                          {isSuccess && (<BadgeCheck size={16} color={statusColor} />)}
+                          {isPending && (<BadgeAlert size={16} color={statusColor} />)}
+                          {!isSuccess && !isPending && (<BadgeX size={16} color={statusColor} />)}
 
-                    </View>
-                </View>
+                      </View>
+                  </View>
+                </EnterSection>
 
                 {/* TRANSACTION STATUS TRACKER LINE - Only displayed for spend / outgoing transactions */}
-                {!isDeposit && (
-                    <View style={[styles.trackerCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-                        <View style={styles.trackerHeader}>
-                            <View style={styles.trackerHeaderLeft}>
-                                <View style={[styles.pulseDot, { backgroundColor: statusColor }]} />
-                                <Text style={[Typography.caption, { color: palette.textSecondary, letterSpacing: 0.8, fontSize: 11, fontWeight: '600' }]}>
-                                    TRANSACTION PROGRESS
-                                </Text>
-                            </View>
-                            <View style={[styles.stepCountBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
-                                <Text style={[Typography.caption, { color: statusColor, fontSize: 10, fontWeight: '700' }]}>
-                                    {isSuccess ? 'Completed' : isPending ? 'In Progress' : 'Failed'}
-                                </Text>
-                            </View>
-                        </View>
+                <EnterSection index={1}>
+                  {!isDeposit && (
+                      <View style={[styles.trackerCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                          <View style={styles.trackerHeader}>
+                              <View style={styles.trackerHeaderLeft}>
+                                  <View style={[styles.pulseDot, { backgroundColor: statusColor }]} />
+                                  <Text style={[Typography.caption, { color: palette.textSecondary, letterSpacing: 0.8, fontSize: 11, fontWeight: '600' }]}>
+                                      TRANSACTION PROGRESS
+                                  </Text>
+                              </View>
+                              <View style={[styles.stepCountBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
+                                  <Text style={[Typography.caption, { color: statusColor, fontSize: 10, fontWeight: '700' }]}>
+                                      {isSuccess ? 'Completed' : isPending ? 'In Progress' : 'Failed'}
+                                  </Text>
+                              </View>
+                          </View>
 
-                        <View style={styles.timelineContainer}>
-                            {/* Connector lines behind nodes */}
-                            <View style={styles.trackLineOverlay}>
-                                <View style={[styles.trackSegment, { backgroundColor: statusColor }]} />
-                                <View style={[styles.trackSegment, { backgroundColor: isSuccess ? statusColor : hexToRgba(palette.text, isDark ? 0.25 : 0.15) }]} />
-                            </View>
+                          <View style={styles.timelineContainer}>
+                              {/* Connector lines behind nodes */}
+                              <View style={styles.trackLineOverlay}>
+                                  <View style={[styles.trackSegment, { backgroundColor: statusColor }]} />
+                                  <View style={[styles.trackSegment, { backgroundColor: isSuccess ? statusColor : hexToRgba(palette.text, isDark ? 0.25 : 0.15) }]} />
+                              </View>
 
-                            <View style={styles.timelineRow}>
-                                {/* Stage 1: Requested */}
-                                <View style={styles.stageNode}>
-                                    <View style={[styles.nodeCircle, { backgroundColor: statusColor + '20', borderColor: statusColor }]}>
-                                        <Send size={13} color={statusColor} />
-                                    </View>
-                                    <Text style={[Typography.caption, { color: palette.text, fontWeight: '700', fontSize: 11, marginTop: 6 }]}>
-                                        Requested
-                                    </Text>
-                                    <Text style={[Typography.caption, { color: palette.textSecondary, fontSize: 10 }]}>
-                                        Submitted
-                                    </Text>
-                                </View>
+                              <View style={styles.timelineRow}>
+                                  {/* Stage 1: Requested */}
+                                  <View style={styles.stageNode}>
+                                      <View style={[styles.nodeCircle, { backgroundColor: statusColor + '20', borderColor: statusColor }]}>
+                                          <Send size={13} color={statusColor} />
+                                      </View>
+                                      <Text style={[Typography.caption, { color: palette.text, fontWeight: '700', fontSize: 11, marginTop: 6 }]}>
+                                          Requested
+                                      </Text>
+                                      <Text style={[Typography.caption, { color: palette.textSecondary, fontSize: 10 }]}>
+                                          Submitted
+                                      </Text>
+                                  </View>
 
-                                {/* Stage 2: Processing */}
-                                <View style={styles.stageNode}>
-                                    <View style={[
-                                        styles.nodeCircle,
-                                        {
-                                            backgroundColor: (isPending || isSuccess) ? statusColor + '20' : hexToRgba(palette.text, isDark ? 0.1 : 0.06),
-                                            borderColor: (isPending || isSuccess) ? statusColor : hexToRgba(palette.text, isDark ? 0.25 : 0.2)
-                                        }
-                                    ]}>
-                                        <RefreshCw
-                                            size={13}
-                                            color={(isPending || isSuccess) ? statusColor : palette.textSecondary}
-                                        />
-                                    </View>
-                                    <Text style={[
-                                        Typography.caption,
-                                        {
-                                            color: (isPending || isSuccess) ? palette.text : palette.textSecondary,
-                                            fontWeight: '700',
-                                            fontSize: 11,
-                                            marginTop: 6
-                                        }
-                                    ]}>
-                                        Processing
-                                    </Text>
-                                    <Text style={[Typography.caption, { color: palette.textSecondary, fontSize: 10 }]}>
-                                        Network
-                                    </Text>
-                                </View>
+                                  {/* Stage 2: Processing */}
+                                  <View style={styles.stageNode}>
+                                      <View style={[
+                                          styles.nodeCircle,
+                                          {
+                                              backgroundColor: (isPending || isSuccess) ? statusColor + '20' : hexToRgba(palette.text, isDark ? 0.1 : 0.06),
+                                              borderColor: (isPending || isSuccess) ? statusColor : hexToRgba(palette.text, isDark ? 0.25 : 0.2)
+                                          }
+                                      ]}>
+                                          <RefreshCw
+                                              size={13}
+                                              color={(isPending || isSuccess) ? statusColor : palette.textSecondary}
+                                          />
+                                      </View>
+                                      <Text style={[
+                                          Typography.caption,
+                                          {
+                                              color: (isPending || isSuccess) ? palette.text : palette.textSecondary,
+                                              fontWeight: '700',
+                                              fontSize: 11,
+                                              marginTop: 6
+                                          }
+                                      ]}>
+                                          Processing
+                                      </Text>
+                                      <Text style={[Typography.caption, { color: palette.textSecondary, fontSize: 10 }]}>
+                                          Network
+                                      </Text>
+                                  </View>
 
-                                {/* Stage 3: Completed */}
-                                <View style={styles.stageNode}>
-                                    <View style={[
-                                        styles.nodeCircle,
-                                        {
-                                            backgroundColor: isSuccess ? palette.success + '20' : hexToRgba(palette.text, isDark ? 0.1 : 0.06),
-                                            borderColor: isSuccess ? palette.success : hexToRgba(palette.text, isDark ? 0.25 : 0.2)
-                                        }
-                                    ]}>
-                                        {isSuccess ? (
-                                            <Check size={13} color={palette.success} />
-                                        ) : (
-                                            <Clock size={13} color={palette.textSecondary} />
-                                        )}
-                                    </View>
-                                    <Text style={[
-                                        Typography.caption,
-                                        {
-                                            color: isSuccess ? palette.success : palette.textSecondary,
-                                            fontWeight: '700',
-                                            fontSize: 11,
-                                            marginTop: 6
-                                        }
-                                    ]}>
-                                        {isSuccess ? 'Completed' : 'Pending'}
-                                    </Text>
-                                    <Text style={[Typography.caption, { color: palette.textSecondary, fontSize: 10 }]}>
-                                        {isSuccess ? 'Finalized' : 'Awaiting'}
-                                    </Text>
-                                </View>
-                            </View>
-                        </View>
-                    </View>
-                )}
+                                  {/* Stage 3: Completed */}
+                                  <View style={styles.stageNode}>
+                                      <View style={[
+                                          styles.nodeCircle,
+                                          {
+                                              backgroundColor: isSuccess ? palette.success + '20' : hexToRgba(palette.text, isDark ? 0.1 : 0.06),
+                                              borderColor: isSuccess ? palette.success : hexToRgba(palette.text, isDark ? 0.25 : 0.2)
+                                          }
+                                      ]}>
+                                          {isSuccess ? (
+                                              <Check size={13} color={palette.success} />
+                                          ) : (
+                                              <Clock size={13} color={palette.textSecondary} />
+                                          )}
+                                      </View>
+                                      <Text style={[
+                                          Typography.caption,
+                                          {
+                                              color: isSuccess ? palette.success : palette.textSecondary,
+                                              fontWeight: '700',
+                                              fontSize: 11,
+                                              marginTop: 6
+                                          }
+                                      ]}>
+                                          {isSuccess ? 'Completed' : 'Pending'}
+                                      </Text>
+                                      <Text style={[Typography.caption, { color: palette.textSecondary, fontSize: 10 }]}>
+                                          {isSuccess ? 'Finalized' : 'Awaiting'}
+                                      </Text>
+                                  </View>
+                              </View>
+                          </View>
+                      </View>
+                  )}
+                </EnterSection>
 
                 {/* Info Rows Container */}
-                <View style={[styles.detailsContainer, { backgroundColor: palette.card, borderColor: palette.border }]}>
-                    <View style={styles.infoRow}>
-                        <Text style={[Typography.caption, { color: palette.textSecondary }]}>Type</Text>
-                        <Text style={[Typography.bodyBold, { color: palette.text }]}>
-                            {title}
-                        </Text>
-                    </View>
+                <EnterSection index={2}>
+                  <View style={[styles.detailsContainer, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                      <View style={styles.infoRow}>
+                          <Text style={[Typography.caption, { color: palette.textSecondary }]}>Type</Text>
+                          <Text style={[Typography.bodyBold, { color: palette.text }]}>
+                              {title}
+                          </Text>
+                      </View>
 
-                    <View style={[styles.divider, { backgroundColor: palette.border }]} />
+                      <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
-                    <View style={styles.infoRow}>
-                        <Text style={[Typography.caption, { color: palette.textSecondary }]}>Network</Text>
-                        <View style={styles.rowRightGroup}>
-                            {(isMonad || isSolana) && <ChainLogo chain={isMonad ? 'monad' : 'solana'} size={16} />}
-                            <Text style={[Typography.bodyBold, { color: palette.text }]}>
-                                {isMonad ? 'Monad Testnet' : isSolana ? 'Solana Devnet' : 'Bank Payout (NGN)'}
-                            </Text>
-                        </View>
-                    </View>
+                      <View style={styles.infoRow}>
+                          <Text style={[Typography.caption, { color: palette.textSecondary }]}>Network</Text>
+                          <View style={styles.rowRightGroup}>
+                              {(isMonad || isSolana) && <ChainLogo chain={isMonad ? 'monad' : 'solana'} size={16} />}
+                              <Text style={[Typography.bodyBold, { color: palette.text }]}>
+                                  {isMonad ? 'Monad Testnet' : isSolana ? 'Solana Devnet' : 'Bank Payout (NGN)'}
+                              </Text>
+                          </View>
+                      </View>
 
-                    <View style={[styles.divider, { backgroundColor: palette.border }]} />
+                      <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
-                    <View style={styles.infoRow}>
-                        <Text style={[Typography.caption, { color: palette.textSecondary }]}>Asset</Text>
-                        <Text style={[Typography.bodyBold, { color: palette.text }]}>
-                            {tokenSymbol}
-                        </Text>
-                    </View>
+                      <View style={styles.infoRow}>
+                          <Text style={[Typography.caption, { color: palette.textSecondary }]}>Asset</Text>
+                          <Text style={[Typography.bodyBold, { color: palette.text }]}>
+                              {tokenSymbol}
+                          </Text>
+                      </View>
 
-                    <View style={[styles.divider, { backgroundColor: palette.border }]} />
+                      <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
-                    <View style={styles.infoRow}>
-                        <Text style={[Typography.caption, { color: palette.textSecondary }]}>Date & Time</Text>
-                        <Text style={[Typography.bodyBold, { color: palette.text }]}>
-                            {date}
-                        </Text>
-                    </View>
+                      <View style={styles.infoRow}>
+                          <Text style={[Typography.caption, { color: palette.textSecondary }]}>Date & Time</Text>
+                          <Text style={[Typography.bodyBold, { color: palette.text }]}>
+                              {date}
+                          </Text>
+                      </View>
 
-                    <View style={[styles.divider, { backgroundColor: palette.border }]} />
+                      <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
-                    {/* Reference Row with Copy Button */}
-                    <View style={styles.infoRowVertical}>
-                        <View style={styles.refHeaderRow}>
-                            <Text style={[Typography.caption, { color: palette.textSecondary }]}>Reference</Text>
-                            <TouchableOpacity
-                                onPress={handleCopyRef}
-                                activeOpacity={0.7}
-                                style={styles.copyBtn}
-                                accessibilityRole="button"
-                                accessibilityLabel={copied ? 'Reference copied' : 'Copy reference'}
-                            >
-                                {copied ? (
-                                    <CheckCircle2 size={14} color={palette.success} />
-                                ) : (
-                                    <Copy size={14} color={palette.textSecondary} />
-                                )}
-                                <Text style={[Typography.caption, { color: copied ? palette.success : palette.textSecondary, fontWeight: '600' }]}>
-                                    {copied ? 'Copied!' : 'Copy'}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
+                      {/* Reference Row with Copy Button */}
+                      <View style={styles.infoRowVertical}>
+                          <View style={styles.refHeaderRow}>
+                              <Text style={[Typography.caption, { color: palette.textSecondary }]}>Reference</Text>
+                              <TouchableOpacity
+                                  onPress={handleCopyRef}
+                                  activeOpacity={0.7}
+                                  style={styles.copyBtn}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={copied ? 'Reference copied' : 'Copy reference'}
+                              >
+                                  {copied ? (
+                                      <CheckCircle2 size={14} color={palette.success} />
+                                  ) : (
+                                      <Copy size={14} color={palette.textSecondary} />
+                                  )}
+                                  <Text style={[Typography.caption, { color: copied ? palette.success : palette.textSecondary, fontWeight: '600' }]}>
+                                      {copied ? 'Copied!' : 'Copy'}
+                                  </Text>
+                              </TouchableOpacity>
+                          </View>
 
-                        <Text style={[Typography.footnote, styles.refText, { color: palette.text }]}>
-                            {ref}
-                        </Text>
-                    </View>
-                </View>
+                          <Text style={[Typography.footnote, styles.refText, { color: palette.text }]}>
+                              {ref}
+                          </Text>
+                      </View>
+                  </View>
+                </EnterSection>
 
                 {/* Action Button: View on Block Explorer */}
-                {!!explorerUrl && (
-                    <TouchableOpacity
-                        onPress={handleOpenExplorer}
-                        style={[styles.explorerBtn, { backgroundColor: palette.text }]}
-                        activeOpacity={0.8}
-                        accessibilityRole="button"
-                        accessibilityLabel={`View on ${isMonad ? 'Monad Explorer' : 'Solana Explorer'}`}
-                    >
-                        <ExternalLink size={18} color={palette.bg} />
-                        <Text style={[Typography.bodyBold, { color: palette.bg }]}>
-                            View on {isMonad ? 'Monad Explorer' : 'Solana Explorer'}
-                        </Text>
-                    </TouchableOpacity>
-                )}
+                <EnterSection index={3}>
+                  {!!explorerUrl && (
+                      <TouchableOpacity
+                          onPress={handleOpenExplorer}
+                          style={[styles.explorerBtn, { backgroundColor: palette.text }]}
+                          activeOpacity={0.8}
+                          accessibilityRole="button"
+                          accessibilityLabel={`View on ${isMonad ? 'Monad Explorer' : 'Solana Explorer'}`}
+                      >
+                          <ExternalLink size={18} color={palette.bg} />
+                          <Text style={[Typography.bodyBold, { color: palette.bg }]}>
+                              View on {isMonad ? 'Monad Explorer' : 'Solana Explorer'}
+                          </Text>
+                      </TouchableOpacity>
+                  )}
+                </EnterSection>
             </ScrollView>
         </View>
     );

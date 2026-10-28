@@ -322,7 +322,7 @@ export class AuthController {
 
   public getUserNotifications = async (request: FastifyRequest, reply: FastifyReply) => {
     const { userId } = request.params as { userId: string };
-    const notifications = this.ledgerService.getUserNotifications(userId);
+    const notifications = await this.ledgerService.getUserNotifications(userId);
     const unreadCount = notifications.filter(n => !n.read).length;
     return successResponse({
       data: notifications,
@@ -332,13 +332,13 @@ export class AuthController {
 
   public markNotificationRead = async (request: FastifyRequest, reply: FastifyReply) => {
     const { userId, notificationId } = request.params as { userId: string; notificationId: string };
-    const updated = this.ledgerService.markNotificationRead(userId, notificationId);
+    const updated = await this.ledgerService.markNotificationRead(userId, notificationId);
     return successResponse({ updated }, 'Notification marked read');
   };
 
   public markAllNotificationsRead = async (request: FastifyRequest, reply: FastifyReply) => {
     const { userId } = request.params as { userId: string };
-    const count = this.ledgerService.markAllNotificationsRead(userId);
+    const count = await this.ledgerService.markAllNotificationsRead(userId);
     return successResponse({ updated: count }, 'All notifications marked read');
   };
 

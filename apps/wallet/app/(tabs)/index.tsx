@@ -20,6 +20,7 @@ import { ActivityEmptyState } from '../../src/components/ActivityEmptyState';
 import { useDepositRequestStore } from '../../src/store/deposit-request.store';
 import { SecurityPromptCards } from '../../src/components/SecurityPromptCards';
 import { useLoader } from '../../src/store/loader.store';
+import { EnterSection } from '../../src/lib/animations';
 
 export default function HomeTab() {
   const palette = useAppPalette();
@@ -97,24 +98,30 @@ export default function HomeTab() {
       {/* Fixed Top Section: Header + Balance Carousel + Activity Header */}
       <View style={styles.fixedHeaderSection}>
         <Header onOpenScanner={() => router.push('/qr-scanner')} />
-        <BalanceCarousel balanceUSDC={balanceUSDC} rateNGN={rateNGN} depositNotification={depositNotification} isLoading={isBalanceLoading && parseFloat(balanceUSDC) === 0} />
-        <View style={{ paddingHorizontal: 14 }}>
-          <SecurityPromptCards />
-        </View>
-        <View style={[styles.activityHeaderRow, { paddingHorizontal: 14 }]}>
-          <Text style={[Typography.title2, { color: palette.text }]}>
-            Recent Activity
-          </Text>
-          <TouchableOpacity
-            onPress={() => router.push('/(tabs)/history')}
-            style={styles.viewAllBtn}
-            activeOpacity={0.7}
-          >
-            <Text style={[Typography.bodyBold, { color: palette.textSecondary }]}>
-              View All
+        <EnterSection index={0}>
+          <BalanceCarousel balanceUSDC={balanceUSDC} rateNGN={rateNGN} depositNotification={depositNotification} isLoading={isBalanceLoading && parseFloat(balanceUSDC) === 0} />
+        </EnterSection>
+        <EnterSection index={1}>
+          <View style={{ paddingHorizontal: 14 }}>
+            <SecurityPromptCards />
+          </View>
+        </EnterSection>
+        <EnterSection index={2}>
+          <View style={[styles.activityHeaderRow, { paddingHorizontal: 14 }]}>
+            <Text style={[Typography.title2, { color: palette.text }]}>
+              Recent Activity
             </Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/history')}
+              style={styles.viewAllBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={[Typography.bodyBold, { color: palette.textSecondary }]}>
+                View All
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </EnterSection>
       </View>
 
       {/* Scrollable Transaction Cards List Only */}

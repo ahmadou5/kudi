@@ -19,6 +19,7 @@ import { Typography } from '../src/constants/typography';
 import { Spacing } from '../src/constants/spacing';
 import { AppModal, useAppModal } from '../src/components/ui/AppModal';
 import { Avatar, userAvatarSeed } from '../src/components/Avatar';
+import { EnterSection } from '../src/lib/animations';
 
 export default function ProfileScreen() {
   const palette = useAppPalette();
@@ -82,124 +83,132 @@ export default function ProfileScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* ── Profile card ── */}
-        <View style={[styles.profileCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <View style={styles.avatarWrap}>
-            <Avatar avatarUrl={user?.avatarUrl} seed={userAvatarSeed(user)} size={88} />
-            {kycVerified && (
-              <View style={[styles.verifiedBadge, { backgroundColor: palette.success, borderColor: palette.card }]}>
-                <Check size={11} color="#FFFFFF" strokeWidth={3} />
-              </View>
-            )}
-          </View>
+        <EnterSection index={0}>
+          <View style={[styles.profileCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <View style={styles.avatarWrap}>
+              <Avatar avatarUrl={user?.avatarUrl} seed={userAvatarSeed(user)} size={88} />
+              {kycVerified && (
+                <View style={[styles.verifiedBadge, { backgroundColor: palette.success, borderColor: palette.card }]}>
+                  <Check size={11} color="#FFFFFF" strokeWidth={3} />
+                </View>
+              )}
+            </View>
 
-          <Text
-            style={[Typography.title1, { color: palette.text, marginTop: 14 }]}
-            numberOfLines={1}
-            accessibilityLabel={`Display name ${userDisplayName}`}
-          >
-            {userDisplayName}
-          </Text>
-
-          {!!username && (
             <Text
-              style={[Typography.bodyBold, { color: hexToRgba(palette.text, 0.5), fontSize: 13, marginTop: 3 }]}
+              style={[Typography.title1, { color: palette.text, marginTop: 14 }]}
               numberOfLines={1}
+              accessibilityLabel={`Display name ${userDisplayName}`}
             >
-              {username}
+              {userDisplayName}
             </Text>
-          )}
 
-          {/* KYC status pill */}
-          <Pressable
-            onPress={() => router.push('/kyc')}
-            accessibilityRole="button"
-            accessibilityLabel={`KYC status: ${kycLabel}. Open verification.`}
-            style={({ pressed }) => [
-              styles.kycPill,
-              { backgroundColor: hexToRgba(kycVerified ? palette.success : palette.warning, 0.14) },
-              pressed && { opacity: 0.75 }
-            ]}
-          >
-            {kycVerified ? (
-              <ShieldCheck size={14} color={palette.success} />
-            ) : (
-              <Shield size={14} color={palette.warning} />
+            {!!username && (
+              <Text
+                style={[Typography.bodyBold, { color: hexToRgba(palette.text, 0.5), fontSize: 13, marginTop: 3 }]}
+                numberOfLines={1}
+              >
+                {username}
+              </Text>
             )}
-            <Text
-              style={[
-                Typography.caption,
-                { color: kycVerified ? palette.success : palette.warning, fontWeight: '800' }
+
+            {/* KYC status pill */}
+            <Pressable
+              onPress={() => router.push('/kyc')}
+              accessibilityRole="button"
+              accessibilityLabel={`KYC status: ${kycLabel}. Open verification.`}
+              style={({ pressed }) => [
+                styles.kycPill,
+                { backgroundColor: hexToRgba(kycVerified ? palette.success : palette.warning, 0.14) },
+                pressed && { opacity: 0.75 }
               ]}
             >
-              KYC {kycLabel}
-            </Text>
-            {!kycVerified && <ChevronRight size={12} color={palette.warning} />}
-          </Pressable>
-        </View>
+              {kycVerified ? (
+                <ShieldCheck size={14} color={palette.success} />
+              ) : (
+                <Shield size={14} color={palette.warning} />
+              )}
+              <Text
+                style={[
+                  Typography.caption,
+                  { color: kycVerified ? palette.success : palette.warning, fontWeight: '800' }
+                ]}
+              >
+                KYC {kycLabel}
+              </Text>
+              {!kycVerified && <ChevronRight size={12} color={palette.warning} />}
+            </Pressable>
+          </View>
+        </EnterSection>
 
         {/* ── Edit profile (primary) ── */}
-        <Pressable
-          onPress={() => router.push('/settings/edit-profile')}
-          accessibilityRole="button"
-          accessibility-label="Edit profile"
-          style={({ pressed }) => [
-            styles.primaryBtn,
-            { backgroundColor: palette.text },
-            pressed && { opacity: 0.9 }
-          ]}
-        >
-          <Edit3 size={18} color={palette.bg} />
-          <Text style={[Typography.currencySub, { color: palette.bg }]}>Edit Profile</Text>
-        </Pressable>
+        <EnterSection index={1}>
+          <Pressable
+            onPress={() => router.push('/settings/edit-profile')}
+            accessibilityRole="button"
+            accessibility-label="Edit profile"
+            style={({ pressed }) => [
+              styles.primaryBtn,
+              { backgroundColor: palette.text },
+              pressed && { opacity: 0.9 }
+            ]}
+          >
+            <Edit3 size={18} color={palette.bg} />
+            <Text style={[Typography.currencySub, { color: palette.bg }]}>Edit Profile</Text>
+          </Pressable>
+        </EnterSection>
 
         {/* ── Settings + Referrals ── */}
-        <View style={styles.actionRow}>
-          <Pressable
-            onPress={() => router.push('/settings')}
-            accessibilityRole="button"
-            accessibility-label="Open settings"
-            style={({ pressed }) => [
-              styles.secondaryBtn,
-              { backgroundColor: insetBg, borderColor: palette.border },
-              pressed && { opacity: 0.7 }
-            ]}
-          >
-            <Settings size={17} color={palette.text} />
-            <Text style={[Typography.currencySub, { color: palette.text, fontSize: 14 }]}>Settings</Text>
-          </Pressable>
+        <EnterSection index={2}>
+          <View style={styles.actionRow}>
+            <Pressable
+              onPress={() => router.push('/settings')}
+              accessibilityRole="button"
+              accessibility-label="Open settings"
+              style={({ pressed }) => [
+                styles.secondaryBtn,
+                { backgroundColor: insetBg, borderColor: palette.border },
+                pressed && { opacity: 0.7 }
+              ]}
+            >
+              <Settings size={17} color={palette.text} />
+              <Text style={[Typography.currencySub, { color: palette.text, fontSize: 14 }]}>Settings</Text>
+            </Pressable>
 
-          <Pressable
-            onPress={() => router.push('/referral')}
-            accessibilityRole="button"
-            accessibility-label="Open referrals"
-            style={({ pressed }) => [
-              styles.secondaryBtn,
-              { backgroundColor: insetBg, borderColor: palette.border },
-              pressed && { opacity: 0.7 }
-            ]}
-          >
-            <Gift size={17} color={palette.text} />
-            <Text style={[Typography.currencySub, { color: palette.text, fontSize: 14 }]}>Referrals</Text>
-          </Pressable>
-        </View>
+            <Pressable
+              onPress={() => router.push('/referral')}
+              accessibilityRole="button"
+              accessibility-label="Open referrals"
+              style={({ pressed }) => [
+                styles.secondaryBtn,
+                { backgroundColor: insetBg, borderColor: palette.border },
+                pressed && { opacity: 0.7 }
+              ]}
+            >
+              <Gift size={17} color={palette.text} />
+              <Text style={[Typography.currencySub, { color: palette.text, fontSize: 14 }]}>Referrals</Text>
+            </Pressable>
+          </View>
+        </EnterSection>
 
         {/* ── Delete account ── */}
-        <Pressable
-          onPress={handleDeleteAccount}
-          accessibilityRole="button"
-          accessibility-label="Delete account"
-          style={({ pressed }) => [
-            styles.deleteBtn,
-            {
-              backgroundColor: hexToRgba(palette.error, 0.08),
-              borderColor: hexToRgba(palette.error, 0.28)
-            },
-            pressed && { opacity: 0.7 }
-          ]}
-        >
-          <Trash2 size={18} color={palette.error} />
-          <Text style={[styles.deleteText, { color: palette.error }]}>Delete Account</Text>
-        </Pressable>
+        <EnterSection index={3}>
+          <Pressable
+            onPress={handleDeleteAccount}
+            accessibilityRole="button"
+            accessibility-label="Delete account"
+            style={({ pressed }) => [
+              styles.deleteBtn,
+              {
+                backgroundColor: hexToRgba(palette.error, 0.08),
+                borderColor: hexToRgba(palette.error, 0.28)
+              },
+              pressed && { opacity: 0.7 }
+            ]}
+          >
+            <Trash2 size={18} color={palette.error} />
+            <Text style={[styles.deleteText, { color: palette.error }]}>Delete Account</Text>
+          </Pressable>
+        </EnterSection>
 
         <AppModal config={modal.config} onClose={modal.hide} />
       </ScrollView>

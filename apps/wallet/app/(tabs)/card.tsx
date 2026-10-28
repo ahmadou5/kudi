@@ -4,6 +4,7 @@ import { Wifi, Clock, Sparkles, ShieldCheck, Zap } from 'lucide-react-native';
 import { useAppPalette, hexToRgba } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { EnterSection } from '../../src/lib/animations';
 
 function AnimatedStackedCards({ activeTab }: { activeTab: 0 | 1 }) {
   const floatY1 = useRef(new Animated.Value(0)).current;
@@ -186,57 +187,65 @@ export default function CardTab() {
       showsVerticalScrollIndicator={false}
     >
       {/* Header Title */}
-      <View style={styles.headerRow}>
-        <View>
-          <Text style={[Typography.title1, { color: palette.text }]}>Cards</Text>
+      <EnterSection index={0}>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={[Typography.title1, { color: palette.text }]}>Cards</Text>
+          </View>
         </View>
-      </View>
+      </EnterSection>
 
       {/* Card Selector Tabs */}
-      <View style={styles.cardSelectorRow}>
-        {cards.map((card, idx) => (
-          <TouchableOpacity
-            key={card.id}
-            onPress={() => setSelectedCard(idx as 0 | 1)}
-            activeOpacity={0.8}
-            style={[
-              styles.cardSelectTab,
-              {
-                backgroundColor: selectedCard === idx
-                  ? hexToRgba(palette.text, isDark ? 0.15 : 0.09)
-                  : palette.card,
-                borderColor: palette.border
-              }
-            ]}
-          >
-            <Text
+      <EnterSection index={1}>
+        <View style={styles.cardSelectorRow}>
+          {cards.map((card, idx) => (
+            <TouchableOpacity
+              key={card.id}
+              onPress={() => setSelectedCard(idx as 0 | 1)}
+              activeOpacity={0.8}
               style={[
-                Typography.footnote,
+                styles.cardSelectTab,
                 {
-                  color: selectedCard === idx ? palette.text : palette.textSecondary,
-                  fontWeight: selectedCard === idx ? '700' : '500'
+                  backgroundColor: selectedCard === idx
+                    ? hexToRgba(palette.text, isDark ? 0.15 : 0.09)
+                    : palette.card,
+                  borderColor: palette.border
                 }
               ]}
             >
-              {card.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+              <Text
+                style={[
+                  Typography.footnote,
+                  {
+                    color: selectedCard === idx ? palette.text : palette.textSecondary,
+                    fontWeight: selectedCard === idx ? '700' : '500'
+                  }
+                ]}
+              >
+                {card.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </EnterSection>
 
       {/* Onboarding-Style Animated Stacked Cards Visual */}
-      <View style={[styles.cardsWrapper, { marginTop: insets.top }]}>
-        <AnimatedStackedCards activeTab={selectedCard} />
-      </View>
+      <EnterSection index={2}>
+        <View style={[styles.cardsWrapper, { marginTop: insets.top }]}>
+          <AnimatedStackedCards activeTab={selectedCard} />
+        </View>
+      </EnterSection>
 
       {/* Coming Soon Center Banner */}
-      <View style={[styles.comingSoonBanner, { marginTop: insets.top }]}>
-        <Clock size={20} color={palette.textSecondary} />
-        <Text style={[Typography.currencyDisplay, { color: palette.text, marginTop: 8, textAlign: 'center' }]}>
-          Cards are Coming Soon!
-        </Text>
+      <EnterSection index={3}>
+        <View style={[styles.comingSoonBanner, { marginTop: insets.top }]}>
+          <Clock size={20} color={palette.textSecondary} />
+          <Text style={[Typography.currencyDisplay, { color: palette.text, marginTop: 8, textAlign: 'center' }]}>
+            Cards are Coming Soon!
+          </Text>
 
-      </View>
+        </View>
+      </EnterSection>
 
 
     </ScrollView>

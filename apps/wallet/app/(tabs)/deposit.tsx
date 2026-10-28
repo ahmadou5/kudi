@@ -18,6 +18,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useVirtualAccounts } from '../../src/hooks/useVirtualAccounts';
 import { useAuthStore } from '../../src/store/auth.store';
 import { API_BASE_URL } from '../../src/lib/sdk';
+import { EnterSection } from '../../src/lib/animations';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -202,52 +203,55 @@ export default function DepositTab() {
 
   const renderTokenSelector = () => (
     <View style={styles.stack}>
-      <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 8, letterSpacing: 0.8 }]}>
-        SELECT TOKEN TO DEPOSIT
-      </Text>
+      <EnterSection index={0}>
+        <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 8, letterSpacing: 0.8 }]}>
+          SELECT TOKEN TO DEPOSIT
+        </Text>
+      </EnterSection>
 
-      {TOKENS.map(token => (
-        <TouchableOpacity
-          key={token.id}
-          onPress={() => handleSelectToken(token)}
-          activeOpacity={0.85}
-          style={[styles.tokenCard, { backgroundColor: palette.card, borderColor: palette.border }]}
-        >
-          {renderBgPattern(token.color)}
+      {TOKENS.map((token, idx) => (
+        <EnterSection key={token.id} index={idx + 1}>
+          <TouchableOpacity
+            onPress={() => handleSelectToken(token)}
+            activeOpacity={0.85}
+            style={[styles.tokenCard, { backgroundColor: palette.card, borderColor: palette.border }]}
+          >
+            {renderBgPattern(token.color)}
 
-          <View style={styles.tokenCardRow}>
-            <View style={[styles.tokenLogoWrap, { backgroundColor: token.color + '18', borderColor: token.color + '40' }]}>
-              <Image source={token.logo} style={styles.tokenLogo} />
-            </View>
-
-            <View style={{ flex: 1 }}>
-              <View style={styles.tokenNameRow}>
-                <Text style={[Typography.bodyBold, { color: palette.text }]}>{token.id}</Text>
-                <Text style={[Typography.caption, { color: palette.textSecondary, marginLeft: 6 }]}>{token.name}</Text>
+            <View style={styles.tokenCardRow}>
+              <View style={[styles.tokenLogoWrap, { backgroundColor: token.color + '18', borderColor: token.color + '40' }]}>
+                <Image source={token.logo} style={styles.tokenLogo} />
               </View>
-              <Text style={[Typography.footnote, { color: palette.textSecondary, marginTop: 2 }]}>
-                {token.description}
-              </Text>
 
-              {/* Chain availability pills */}
-              <View style={styles.chainPillsRow}>
-                {token.chains.map(cid => (
-                  <View
-                    key={cid}
-                    style={[styles.chainPill, { backgroundColor: CHAINS[cid].color + '22', borderColor: CHAINS[cid].color + '55' }]}
-                  >
-                    <ChainLogo chain={cid} size={11} />
-                    <Text style={[Typography.caption, { color: CHAINS[cid].color, fontWeight: '700', fontSize: 10 }]}>
-                      {CHAINS[cid].shortName}
-                    </Text>
-                  </View>
-                ))}
+              <View style={{ flex: 1 }}>
+                <View style={styles.tokenNameRow}>
+                  <Text style={[Typography.bodyBold, { color: palette.text }]}>{token.id}</Text>
+                  <Text style={[Typography.caption, { color: palette.textSecondary, marginLeft: 6 }]}>{token.name}</Text>
+                </View>
+                <Text style={[Typography.footnote, { color: palette.textSecondary, marginTop: 2 }]}>
+                  {token.description}
+                </Text>
+
+                {/* Chain availability pills */}
+                <View style={styles.chainPillsRow}>
+                  {token.chains.map(cid => (
+                    <View
+                      key={cid}
+                      style={[styles.chainPill, { backgroundColor: CHAINS[cid].color + '22', borderColor: CHAINS[cid].color + '55' }]}
+                    >
+                      <ChainLogo chain={cid} size={11} />
+                      <Text style={[Typography.caption, { color: CHAINS[cid].color, fontWeight: '700', fontSize: 10 }]}>
+                        {CHAINS[cid].shortName}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
               </View>
-            </View>
 
-            <ChevronRight size={18} color={palette.textSecondary} />
-          </View>
-        </TouchableOpacity>
+              <ChevronRight size={18} color={palette.textSecondary} />
+            </View>
+          </TouchableOpacity>
+        </EnterSection>
       ))}
     </View>
   );
@@ -261,150 +265,160 @@ export default function DepositTab() {
     return (
       <View style={styles.stack}>
         {/* Token summary pill */}
-        <View style={[styles.selectedTokenBanner, { backgroundColor: tokenDef.color + '18', borderColor: tokenDef.color + '40' }]}>
-          <Image source={tokenDef.logo} style={styles.bannerLogo} />
-          <Text style={[Typography.bodyBold, { color: tokenDef.color }]}>{tokenDef.id}</Text>
-          <Text style={[Typography.footnote, { color: palette.textSecondary, marginLeft: 4 }]}>{tokenDef.name}</Text>
-          <TouchableOpacity
-            onPress={() => setSelectedToken(null)}
-            style={[styles.changePill, { backgroundColor: hexToRgba(palette.text, 0.15) }]}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={[Typography.caption, { color: palette.textSecondary }]}>Change</Text>
-          </TouchableOpacity>
-        </View>
+        <EnterSection index={0}>
+          <View style={[styles.selectedTokenBanner, { backgroundColor: tokenDef.color + '18', borderColor: tokenDef.color + '40' }]}>
+            <Image source={tokenDef.logo} style={styles.bannerLogo} />
+            <Text style={[Typography.bodyBold, { color: tokenDef.color }]}>{tokenDef.id}</Text>
+            <Text style={[Typography.footnote, { color: palette.textSecondary, marginLeft: 4 }]}>{tokenDef.name}</Text>
+            <TouchableOpacity
+              onPress={() => setSelectedToken(null)}
+              style={[styles.changePill, { backgroundColor: hexToRgba(palette.text, 0.15) }]}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={[Typography.caption, { color: palette.textSecondary }]}>Change</Text>
+            </TouchableOpacity>
+          </View>
+        </EnterSection>
 
         {/* Chain tabs — only if token has multiple chains */}
-        {availableChains.length > 1 ? (
-          <>
-            <Text style={[Typography.caption, { color: palette.textSecondary, letterSpacing: 0.8, marginBottom: 4 }]}>
-              SELECT NETWORK
-            </Text>
-            <View style={styles.chainTabRow}>
-              {availableChains.map(chain => {
-                const active = selectedChain === chain.id;
-                return (
-                  <TouchableOpacity
-                    key={chain.id}
-                    onPress={() => setSelectedChain(chain.id)}
-                    activeOpacity={0.8}
-                    style={[
-                      styles.chainTab,
-                      {
-                        backgroundColor: active ? palette.text : palette.card,
-                        borderColor: active ? chain.color : palette.border
-                      }
-                    ]}
-                  >
-                    <ChainLogo chain={chain.id} size={16} />
-                    <Text style={[Typography.footnote, { color: active ? '#FFF' : palette.textSecondary, fontWeight: active ? '700' : '500' }]}>
-                      {chain.name}
-                    </Text>
-                    {active && (
-                      <View style={[styles.activeDot, { backgroundColor: chain.color }]} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </>
-        ) : (
-          // Single chain — just show it as info, no choice needed
-          <View style={[styles.singleChainInfo, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <ChainLogo chain={availableChains[0].id} size={18} />
-            <View>
-              <Text style={[Typography.bodyBold, { color: palette.text }]}>{availableChains[0].name}</Text>
-              <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
-                {tokenDef.id} is only available on {availableChains[0].shortName}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Address Card */}
-        <View style={[styles.addressCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          {renderBgPattern(chainDef.color)}
-
-          {/* QR placeholder */}
-          <View style={[styles.qrFrame, { borderColor: hexToRgba(palette.text, isDark ? 0.12 : 0.1) }]}>
-            <QrCode size={120} color={palette.text} />
-            <View style={[styles.qrBadge, { backgroundColor: tokenDef.color }]}>
-              <Image source={tokenDef.logo} style={{ width: 18, height: 18, borderRadius: 9 }} />
-            </View>
-          </View>
-
-          <Text style={[Typography.title2, { color: palette.text, marginTop: 10, marginBottom: 4 }]}>
-            {tokenDef.id} · {chainDef.shortName}
-          </Text>
-          <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 14 }]}>
-            Send only {tokenDef.id} on {chainDef.name}
-          </Text>
-
-          {/* Address box */}
-          {depositAddress ? (
+        <EnterSection index={1}>
+          {availableChains.length > 1 ? (
             <>
-              <View style={[styles.addrBox, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-                <Text style={[styles.addrText, { color: palette.textSecondary }]} numberOfLines={2} selectable>
-                  {depositAddress}
-                </Text>
+              <Text style={[Typography.caption, { color: palette.textSecondary, letterSpacing: 0.8, marginBottom: 4 }]}>
+                SELECT NETWORK
+              </Text>
+              <View style={styles.chainTabRow}>
+                {availableChains.map(chain => {
+                  const active = selectedChain === chain.id;
+                  return (
+                    <TouchableOpacity
+                      key={chain.id}
+                      onPress={() => setSelectedChain(chain.id)}
+                      activeOpacity={0.8}
+                      style={[
+                        styles.chainTab,
+                        {
+                          backgroundColor: active ? palette.text : palette.card,
+                          borderColor: active ? chain.color : palette.border
+                        }
+                      ]}
+                    >
+                      <ChainLogo chain={chain.id} size={16} />
+                      <Text style={[Typography.footnote, { color: active ? '#FFF' : palette.textSecondary, fontWeight: active ? '700' : '500' }]}>
+                        {chain.name}
+                      </Text>
+                      {active && (
+                        <View style={[styles.activeDot, { backgroundColor: chain.color }]} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-              <TouchableOpacity
-                style={[styles.copyBtn, { backgroundColor: palette.text }]}
-                onPress={() => handleCopy(depositAddress, `${tokenDef.id} ${chainDef.shortName} Address`)}
-                activeOpacity={0.8}
-              >
-                <Copy size={16} color={palette.bg} />
-                <Text style={[Typography.bodyBold, { color: palette.bg }]}>
-                  Copy {chainDef.shortName} Address
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.copyBtn, { backgroundColor: palette.card, borderWidth: 1, borderColor: palette.border, marginTop: 8 }]}
-                onPress={handleTriggerRescan}
-                activeOpacity={0.8}
-                disabled={isScanning}
-              >
-                <RotateCw size={16} color={palette.text} />
-                <Text style={[Typography.bodyBold, { color: palette.text }]}>
-                  {isScanning ? 'Scanning Monad Chain...' : 'Check Deposit Status'}
-                </Text>
-              </TouchableOpacity>
             </>
           ) : (
-            <View style={[styles.addrBox, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-              <Text style={[Typography.caption, { color: palette.textSecondary, textAlign: 'center' }]}>
-                Wallet address not available. Please log out and back in.
-              </Text>
+            // Single chain — just show it as info, no choice needed
+            <View style={[styles.singleChainInfo, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <ChainLogo chain={availableChains[0].id} size={18} />
+              <View>
+                <Text style={[Typography.bodyBold, { color: palette.text }]}>{availableChains[0].name}</Text>
+                <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
+                  {tokenDef.id} is only available on {availableChains[0].shortName}
+                </Text>
+              </View>
             </View>
           )}
-        </View>
+        </EnterSection>
+
+        {/* Address Card */}
+        <EnterSection index={2}>
+          <View style={[styles.addressCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            {renderBgPattern(chainDef.color)}
+
+            {/* QR placeholder */}
+            <View style={[styles.qrFrame, { borderColor: hexToRgba(palette.text, isDark ? 0.12 : 0.1) }]}>
+              <QrCode size={120} color={palette.text} />
+              <View style={[styles.qrBadge, { backgroundColor: tokenDef.color }]}>
+                <Image source={tokenDef.logo} style={{ width: 18, height: 18, borderRadius: 9 }} />
+              </View>
+            </View>
+
+            <Text style={[Typography.title2, { color: palette.text, marginTop: 10, marginBottom: 4 }]}>
+              {tokenDef.id} · {chainDef.shortName}
+            </Text>
+            <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 14 }]}>
+              Send only {tokenDef.id} on {chainDef.name}
+            </Text>
+
+            {/* Address box */}
+            {depositAddress ? (
+              <>
+                <View style={[styles.addrBox, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+                  <Text style={[styles.addrText, { color: palette.textSecondary }]} numberOfLines={2} selectable>
+                    {depositAddress}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.copyBtn, { backgroundColor: palette.text }]}
+                  onPress={() => handleCopy(depositAddress, `${tokenDef.id} ${chainDef.shortName} Address`)}
+                  activeOpacity={0.8}
+                >
+                  <Copy size={16} color={palette.bg} />
+                  <Text style={[Typography.bodyBold, { color: palette.bg }]}>
+                    Copy {chainDef.shortName} Address
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.copyBtn, { backgroundColor: palette.card, borderWidth: 1, borderColor: palette.border, marginTop: 8 }]}
+                  onPress={handleTriggerRescan}
+                  activeOpacity={0.8}
+                  disabled={isScanning}
+                >
+                  <RotateCw size={16} color={palette.text} />
+                  <Text style={[Typography.bodyBold, { color: palette.text }]}>
+                    {isScanning ? 'Scanning Monad Chain...' : 'Check Deposit Status'}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={[styles.addrBox, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+                <Text style={[Typography.caption, { color: palette.textSecondary, textAlign: 'center' }]}>
+                  Wallet address not available. Please log out and back in.
+                </Text>
+              </View>
+            )}
+          </View>
+        </EnterSection>
 
         {/* Info pills */}
-        <View style={styles.infoRow}>
-          <View style={[styles.infoBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <Zap size={16} color={palette.success} />
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 2 }]}>SPEED</Text>
-            <Text style={[Typography.bodyBold, { color: palette.success }]}>{chainDef.speed}</Text>
+        <EnterSection index={3}>
+          <View style={styles.infoRow}>
+            <View style={[styles.infoBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <Zap size={16} color={palette.success} />
+              <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 2 }]}>SPEED</Text>
+              <Text style={[Typography.bodyBold, { color: palette.success }]}>{chainDef.speed}</Text>
+            </View>
+            <View style={[styles.infoBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <ArrowDownCircle size={16} color={palette.text} />
+              <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 2 }]}>MIN DEPOSIT</Text>
+              <Text style={[Typography.bodyBold, { color: palette.text }]}>{chainDef.minDeposit} {tokenDef.id}</Text>
+            </View>
+            <View style={[styles.infoBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <ShieldCheck size={16} color={palette.warning} />
+              <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 2 }]}>NETWORK FEE</Text>
+              <Text style={[Typography.bodyBold, { color: palette.warning }]}>Free</Text>
+            </View>
           </View>
-          <View style={[styles.infoBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <ArrowDownCircle size={16} color={palette.text} />
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 2 }]}>MIN DEPOSIT</Text>
-            <Text style={[Typography.bodyBold, { color: palette.text }]}>{chainDef.minDeposit} {tokenDef.id}</Text>
-          </View>
-          <View style={[styles.infoBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <ShieldCheck size={16} color={palette.warning} />
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 2 }]}>NETWORK FEE</Text>
-            <Text style={[Typography.bodyBold, { color: palette.warning }]}>Free</Text>
-          </View>
-        </View>
+        </EnterSection>
 
         {/* Warning banner */}
-        <View style={[styles.warningBanner, { backgroundColor: hexToRgba(palette.warning, 0.1), borderColor: hexToRgba(palette.warning, 0.3) }]}>
-          <AlertTriangle size={18} color={palette.warning} />
-          <Text style={[Typography.footnote, { color: palette.text, flex: 1, lineHeight: 18 }]}>
-            Only send <Text style={{ fontWeight: '700', color: tokenDef.color }}>{tokenDef.id}</Text> to this address on {chainDef.name}. Sending any other token will result in permanent loss of funds.
-          </Text>
-        </View>
+        <EnterSection index={4}>
+          <View style={[styles.warningBanner, { backgroundColor: hexToRgba(palette.warning, 0.1), borderColor: hexToRgba(palette.warning, 0.3) }]}>
+            <AlertTriangle size={18} color={palette.warning} />
+            <Text style={[Typography.footnote, { color: palette.text, flex: 1, lineHeight: 18 }]}>
+              Only send <Text style={{ fontWeight: '700', color: tokenDef.color }}>{tokenDef.id}</Text> to this address on {chainDef.name}. Sending any other token will result in permanent loss of funds.
+            </Text>
+          </View>
+        </EnterSection>
       </View>
     );
   };
@@ -414,82 +428,88 @@ export default function DepositTab() {
   const renderOffchain = () => (
     <View style={styles.stack}>
       {/* Tab switcher */}
-      <View style={styles.chainTabRow}>
-        {virtualAccounts.map(acc => {
-          const active = selectedOffchainAcc === acc.id;
-          return (
-            <TouchableOpacity
-              key={acc.id}
-              onPress={() => setSelectedOffchainAcc(acc.id)}
-              activeOpacity={0.8}
-              style={[
-                styles.chainTab,
-                {
-                  backgroundColor: active ? palette.text : palette.card,
-                  borderColor: active ? acc.accentColor : palette.border
-                }
-              ]}
-            >
-              <Text style={[Typography.bodyBold, { color: active ? acc.accentColor : palette.textSecondary }]}>
-                {acc.id === 'ngn' ? '₦' : '$'}
-              </Text>
-              <Text style={[Typography.footnote, { color: active ? '#FFF' : palette.textSecondary, fontWeight: active ? '700' : '500' }]}>
-                {acc.currency} Account
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <EnterSection index={0}>
+        <View style={styles.chainTabRow}>
+          {virtualAccounts.map(acc => {
+            const active = selectedOffchainAcc === acc.id;
+            return (
+              <TouchableOpacity
+                key={acc.id}
+                onPress={() => setSelectedOffchainAcc(acc.id)}
+                activeOpacity={0.8}
+                style={[
+                  styles.chainTab,
+                  {
+                    backgroundColor: active ? palette.text : palette.card,
+                    borderColor: active ? acc.accentColor : palette.border
+                  }
+                ]}
+              >
+                <Text style={[Typography.bodyBold, { color: active ? acc.accentColor : palette.textSecondary }]}>
+                  {acc.id === 'ngn' ? '₦' : '$'}
+                </Text>
+                <Text style={[Typography.footnote, { color: active ? '#FFF' : palette.textSecondary, fontWeight: active ? '700' : '500' }]}>
+                  {acc.currency} Account
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </EnterSection>
 
       {/* Account card */}
-      <View style={[styles.virtualCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-        {renderBgPattern(currentVA.accentColor)}
+      <EnterSection index={1}>
+        <View style={[styles.virtualCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          {renderBgPattern(currentVA.accentColor)}
 
-        <View style={styles.vaHeaderRow}>
-          <Text style={[Typography.caption, { color: currentVA.accentColor, fontWeight: '800' }]}>{currentVA.type}</Text>
-          <View style={[styles.currencyPill, { backgroundColor: currentVA.accentColor + '22' }]}>
-            <Text style={[Typography.caption, { color: currentVA.accentColor, fontWeight: '800' }]}>{currentVA.currency}</Text>
-          </View>
-        </View>
-
-        <Text style={[Typography.title2, { color: palette.text, marginTop: 10 }]}>{currentVA.bankName}</Text>
-
-        <View style={[styles.accNumRow, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-          <View>
-            <Text style={[Typography.caption, { color: palette.textSecondary }]}>ACCOUNT NUMBER</Text>
-            <Text style={[Typography.currencyDisplay, { color: palette.text, fontSize: 24, letterSpacing: 1 }]}>
-              {currentVA.accountNumber}
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={() => handleCopy(currentVA.accountNumber, `${currentVA.bankName} Account Number`)}
-            style={[styles.miniCopy, { backgroundColor: palette.text }]}
-            activeOpacity={0.8}
-          >
-            <Copy size={15} color={palette.bg} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.accMetaRow}>
-          <View>
-            <Text style={[Typography.caption, { color: palette.textSecondary }]}>BENEFICIARY</Text>
-            <Text style={[Typography.bodyBold, { color: palette.text }]}>{currentVA.accountName}</Text>
-          </View>
-          {!!(currentVA as any).routingNumber && (
-            <View>
-              <Text style={[Typography.caption, { color: palette.textSecondary }]}>ROUTING</Text>
-              <Text style={[Typography.bodyBold, { color: palette.text }]}>{(currentVA as any).routingNumber}</Text>
+          <View style={styles.vaHeaderRow}>
+            <Text style={[Typography.caption, { color: currentVA.accentColor, fontWeight: '800' }]}>{currentVA.type}</Text>
+            <View style={[styles.currencyPill, { backgroundColor: currentVA.accentColor + '22' }]}>
+              <Text style={[Typography.caption, { color: currentVA.accentColor, fontWeight: '800' }]}>{currentVA.currency}</Text>
             </View>
-          )}
-        </View>
-      </View>
+          </View>
 
-      <View style={[styles.noticeCard, { backgroundColor: hexToRgba(palette.success, 0.1), borderColor: hexToRgba(palette.success, 0.3) }]}>
-        <Clock size={18} color={palette.success} />
-        <Text style={[Typography.footnote, { color: palette.text, flex: 1, lineHeight: 18 }]}>
-          Bank transfers are credited to your Kudi balance automatically within 30 seconds of receipt.
-        </Text>
-      </View>
+          <Text style={[Typography.title2, { color: palette.text, marginTop: 10 }]}>{currentVA.bankName}</Text>
+
+          <View style={[styles.accNumRow, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+            <View>
+              <Text style={[Typography.caption, { color: palette.textSecondary }]}>ACCOUNT NUMBER</Text>
+              <Text style={[Typography.currencyDisplay, { color: palette.text, fontSize: 24, letterSpacing: 1 }]}>
+                {currentVA.accountNumber}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => handleCopy(currentVA.accountNumber, `${currentVA.bankName} Account Number`)}
+              style={[styles.miniCopy, { backgroundColor: palette.text }]}
+              activeOpacity={0.8}
+            >
+              <Copy size={15} color={palette.bg} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.accMetaRow}>
+            <View>
+              <Text style={[Typography.caption, { color: palette.textSecondary }]}>BENEFICIARY</Text>
+              <Text style={[Typography.bodyBold, { color: palette.text }]}>{currentVA.accountName}</Text>
+            </View>
+            {!!(currentVA as any).routingNumber && (
+              <View>
+                <Text style={[Typography.caption, { color: palette.textSecondary }]}>ROUTING</Text>
+                <Text style={[Typography.bodyBold, { color: palette.text }]}>{(currentVA as any).routingNumber}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </EnterSection>
+
+      <EnterSection index={2}>
+        <View style={[styles.noticeCard, { backgroundColor: hexToRgba(palette.success, 0.1), borderColor: hexToRgba(palette.success, 0.3) }]}>
+          <Clock size={18} color={palette.success} />
+          <Text style={[Typography.footnote, { color: palette.text, flex: 1, lineHeight: 18 }]}>
+            Bank transfers are credited to your Kudi balance automatically within 30 seconds of receipt.
+          </Text>
+        </View>
+      </EnterSection>
     </View>
   );
 
@@ -497,56 +517,60 @@ export default function DepositTab() {
 
   const renderSelect = () => (
     <View style={styles.stack}>
-      <TouchableOpacity
-        onPress={() => setViewMode('onchain')}
-        activeOpacity={0.85}
-        style={[styles.choiceCard, { backgroundColor: palette.card, borderColor: palette.border }]}
-      >
-        {renderBgPattern('#9945FF')}
-        <View style={styles.choiceTop}>
-          <View style={styles.choiceBadgesRow}>
-            <View style={[styles.assetBadge, { backgroundColor: hexToRgba(palette.text, isDark ? 0.08 : 0.06) }]}>
-              <Image source={require('../../assets/logos/usdc.png')} style={styles.miniLogo} />
-              <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>USDC</Text>
-            </View>
-            <View style={[styles.assetBadge, { backgroundColor: hexToRgba(palette.text, isDark ? 0.08 : 0.06) }]}>
-              <Image source={require('../../assets/logos/ausd.png')} style={styles.miniLogo} />
-              <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>AUSD</Text>
-            </View>
-            <View style={[styles.assetBadge, { backgroundColor: hexToRgba(palette.text, isDark ? 0.08 : 0.06) }]}>
-              <Image source={require('../../assets/logos/ngnc.png')} style={styles.miniLogo} />
-              <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>NGNC</Text>
-            </View>
-          </View>
-          <ChevronRight size={20} color={palette.textSecondary} />
-        </View>
-        <Text style={[Typography.title2, { color: palette.text, marginTop: 14 }]}>On-Chain Deposit</Text>
-        <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 4, lineHeight: 18 }]}>
-          Deposit USDC, AUSD or NGNC via Solana or Monad. Select your token and get the right address instantly.
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        onPress={() => setViewMode('offchain')}
-        activeOpacity={0.85}
-        style={[styles.choiceCard, { backgroundColor: palette.card, borderColor: palette.border }]}
-      >
-        {renderBgPattern('#34D399')}
-        <View style={styles.choiceTop}>
-          <View style={styles.choiceBadgesRow}>
-            {['₦', '$', '€'].map(sym => (
-              <View key={sym} style={[styles.assetBadge, { backgroundColor: hexToRgba(palette.text, isDark ? 0.08 : 0.06) }]}>
-                <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 13 }]}>{sym}</Text>
+      <EnterSection index={0}>
+        <TouchableOpacity
+          onPress={() => setViewMode('onchain')}
+          activeOpacity={0.85}
+          style={[styles.choiceCard, { backgroundColor: palette.card, borderColor: palette.border }]}
+        >
+          {renderBgPattern('#9945FF')}
+          <View style={styles.choiceTop}>
+            <View style={styles.choiceBadgesRow}>
+              <View style={[styles.assetBadge, { backgroundColor: hexToRgba(palette.text, isDark ? 0.08 : 0.06) }]}>
+                <Image source={require('../../assets/logos/usdc.png')} style={styles.miniLogo} />
+                <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>USDC</Text>
               </View>
-            ))}
+              <View style={[styles.assetBadge, { backgroundColor: hexToRgba(palette.text, isDark ? 0.08 : 0.06) }]}>
+                <Image source={require('../../assets/logos/ausd.png')} style={styles.miniLogo} />
+                <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>AUSD</Text>
+              </View>
+              <View style={[styles.assetBadge, { backgroundColor: hexToRgba(palette.text, isDark ? 0.08 : 0.06) }]}>
+                <Image source={require('../../assets/logos/ngnc.png')} style={styles.miniLogo} />
+                <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>NGNC</Text>
+              </View>
+            </View>
+            <ChevronRight size={20} color={palette.textSecondary} />
           </View>
-          <ChevronRight size={20} color={palette.textSecondary} />
-        </View>
-        <Text style={[Typography.title2, { color: palette.text, marginTop: 14 }]}>Bank Transfer</Text>
-        <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 4, lineHeight: 18 }]}>
-          Deposit NGN or USD via local bank transfer to your dedicated virtual account.
-        </Text>
-      </TouchableOpacity>
+          <Text style={[Typography.title2, { color: palette.text, marginTop: 14 }]}>On-Chain Deposit</Text>
+          <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 4, lineHeight: 18 }]}>
+            Deposit USDC, AUSD or NGNC via Solana or Monad. Select your token and get the right address instantly.
+          </Text>
+        </TouchableOpacity>
+      </EnterSection>
+
+      <EnterSection index={1}>
+        <TouchableOpacity
+          onPress={() => setViewMode('offchain')}
+          activeOpacity={0.85}
+          style={[styles.choiceCard, { backgroundColor: palette.card, borderColor: palette.border }]}
+        >
+          {renderBgPattern('#34D399')}
+          <View style={styles.choiceTop}>
+            <View style={styles.choiceBadgesRow}>
+              {['₦', '$', '€'].map(sym => (
+                <View key={sym} style={[styles.assetBadge, { backgroundColor: hexToRgba(palette.text, isDark ? 0.08 : 0.06) }]}>
+                  <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 13 }]}>{sym}</Text>
+                </View>
+              ))}
+            </View>
+            <ChevronRight size={20} color={palette.textSecondary} />
+          </View>
+          <Text style={[Typography.title2, { color: palette.text, marginTop: 14 }]}>Bank Transfer</Text>
+          <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 4, lineHeight: 18 }]}>
+            Deposit NGN or USD via local bank transfer to your dedicated virtual account.
+          </Text>
+        </TouchableOpacity>
+      </EnterSection>
     </View>
   );
 

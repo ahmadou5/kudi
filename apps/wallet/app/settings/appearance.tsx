@@ -18,6 +18,7 @@ import { Typography } from '../../src/constants/typography';
 import { Spacing } from '../../src/constants/spacing';
 import { IconTile } from '../../src/components/ui/IconTile';
 import { haptics } from '../../src/lib/haptics';
+import { EnterSection } from '../../src/lib/animations';
 
 const MODE_OPTIONS: Array<{ mode: ThemeMode; title: string; glyph: string }> = [
   { mode: 'light', title: 'Light', glyph: 'white-balance-sunny' },
@@ -126,116 +127,204 @@ export default function AppearanceScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Compact live preview */}
-        <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <MiniScreen scheme={scheme} accentId={accentId} cardTint={cardTint} style={styles.previewMini} />
-          <View style={styles.previewCopy}>
-            <Text style={[styles.summary, { color: hexToRgba(palette.text, 0.55) }]} numberOfLines={2}>
-              {summary}
-            </Text>
-          </View>
-          {isCustom && (
-            <View style={[styles.customChip, { backgroundColor: hexToRgba(palette.primary, 0.16) }]}>
-              <Text style={[styles.customChipText, { color: palette.primary }]}>Custom</Text>
+        <EnterSection index={0}>
+          <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <MiniScreen scheme={scheme} accentId={accentId} cardTint={cardTint} style={styles.previewMini} />
+            <View style={styles.previewCopy}>
+              <Text style={[styles.summary, { color: hexToRgba(palette.text, 0.55) }]} numberOfLines={2}>
+                {summary}
+              </Text>
             </View>
-          )}
-        </View>
+            {isCustom && (
+              <View style={[styles.customChip, { backgroundColor: hexToRgba(palette.primary, 0.16) }]}>
+                <Text style={[styles.customChipText, { color: palette.primary }]}>Custom</Text>
+              </View>
+            )}
+          </View>
+        </EnterSection>
 
         {/* Mode */}
-        <View style={styles.group}>
-          <GroupLabel color={labelColor}>Mode</GroupLabel>
-          <View style={styles.modeRow}>
-            {MODE_OPTIONS.map((option) => {
-              const isSelected = themeMode === option.mode;
-              return (
-                <Pressable
-                  key={option.mode}
-                  onPress={() => {
-                    tap();
-                    setThemeMode(option.mode);
-                  }}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: isSelected }}
-                  style={({ pressed }) => [
-                    styles.modeTile,
-                    {
-                      backgroundColor: palette.card,
-                      borderColor: isSelected ? palette.primary : palette.border
-                    },
-                    pressed && { opacity: 0.8 }
-                  ]}
-                >
-                  {option.mode === 'system' ? (
-                    <View style={styles.miniSplit}>
-                      <MiniScreen scheme="light" accentId={accentId} cardTint={cardTint} style={styles.miniHalf} />
-                      <MiniScreen scheme="dark" accentId={accentId} cardTint={cardTint} style={styles.miniHalf} />
-                    </View>
-                  ) : (
-                    <MiniScreen
-                      scheme={option.mode}
-                      accentId={accentId}
-                      cardTint={cardTint}
-                      style={styles.miniFull}
-                    />
-                  )}
-                  <Text
-                    style={[
-                      styles.modeLabel,
-                      { color: isSelected ? palette.text : hexToRgba(palette.text, 0.6) }
+        <EnterSection index={1}>
+          <View style={styles.group}>
+            <GroupLabel color={labelColor}>Mode</GroupLabel>
+            <View style={styles.modeRow}>
+              {MODE_OPTIONS.map((option) => {
+                const isSelected = themeMode === option.mode;
+                return (
+                  <Pressable
+                    key={option.mode}
+                    onPress={() => {
+                      tap();
+                      setThemeMode(option.mode);
+                    }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: isSelected }}
+                    style={({ pressed }) => [
+                      styles.modeTile,
+                      {
+                        backgroundColor: palette.card,
+                        borderColor: isSelected ? palette.primary : palette.border
+                      },
+                      pressed && { opacity: 0.8 }
                     ]}
                   >
-                    {option.title}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                    {option.mode === 'system' ? (
+                      <View style={styles.miniSplit}>
+                        <MiniScreen scheme="light" accentId={accentId} cardTint={cardTint} style={styles.miniHalf} />
+                        <MiniScreen scheme="dark" accentId={accentId} cardTint={cardTint} style={styles.miniHalf} />
+                      </View>
+                    ) : (
+                      <MiniScreen
+                        scheme={option.mode}
+                        accentId={accentId}
+                        cardTint={cardTint}
+                        style={styles.miniFull}
+                      />
+                    )}
+                    <Text
+                      style={[
+                        styles.modeLabel,
+                        { color: isSelected ? palette.text : hexToRgba(palette.text, 0.6) }
+                      ]}
+                    >
+                      {option.title}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
-        </View>
+        </EnterSection>
 
         {/* Accent */}
-        <View style={styles.group}>
-          <GroupLabel color={labelColor} right={activeAccentLabel}>
-            Accent
-          </GroupLabel>
-          <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <View style={styles.swatchRow}>
-              {ACCENTS.map((option) => {
-                const color = option[scheme];
-                const isSelected = accentId === option.id;
+        <EnterSection index={2}>
+          <View style={styles.group}>
+            <GroupLabel color={labelColor} right={activeAccentLabel}>
+              Accent
+            </GroupLabel>
+            <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <View style={styles.swatchRow}>
+                {ACCENTS.map((option) => {
+                  const color = option[scheme];
+                  const isSelected = accentId === option.id;
+                  return (
+                    <Pressable
+                      key={option.id}
+                      onPress={() => {
+                        tap();
+                        setAccent(option.id);
+                      }}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: isSelected }}
+                      accessibilityLabel={`${option.label} accent`}
+                      style={({ pressed }) => [styles.swatchCell, pressed && { opacity: 0.75 }]}
+                    >
+                      <View
+                        style={[
+                          styles.swatchRing,
+                          { borderColor: isSelected ? palette.primary : 'transparent' }
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.swatch,
+                            {
+                              backgroundColor: color,
+                              borderColor: hexToRgba(readableInk(color), 0.18)
+                            }
+                          ]}
+                        >
+                          {isSelected && <Check size={13} color={readableInk(color)} />}
+                        </View>
+                      </View>
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          styles.swatchLabel,
+                          { color: isSelected ? palette.text : hexToRgba(palette.text, 0.55) }
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+        </EnterSection>
+
+        {/* Surface */}
+        <EnterSection index={3}>
+          <View style={styles.group}>
+            <GroupLabel color={labelColor}>Surface</GroupLabel>
+            <View style={styles.segment}>
+              {SURFACES.map((option) => {
+                const entry = option[scheme];
+                const isSelected = surfaceId === option.id;
                 return (
                   <Pressable
                     key={option.id}
                     onPress={() => {
                       tap();
-                      setAccent(option.id);
+                      setSurface(option.id);
                     }}
                     accessibilityRole="radio"
                     accessibilityState={{ selected: isSelected }}
-                    accessibilityLabel={`${option.label} accent`}
-                    style={({ pressed }) => [styles.swatchCell, pressed && { opacity: 0.75 }]}
+                    style={({ pressed }) => [
+                      styles.segmentItem,
+                      isSelected && { backgroundColor: palette.primary },
+                      pressed && { opacity: 0.85 }
+                    ]}
                   >
                     <View
                       style={[
-                        styles.swatchRing,
-                        { borderColor: isSelected ? palette.primary : 'transparent' }
+                        styles.surfaceDot,
+                        { backgroundColor: entry.bg, borderColor: palette.border }
                       ]}
-                    >
-                      <View
-                        style={[
-                          styles.swatch,
-                          {
-                            backgroundColor: color,
-                            borderColor: hexToRgba(readableInk(color), 0.18)
-                          }
-                        ]}
-                      >
-                        {isSelected && <Check size={13} color={readableInk(color)} />}
-                      </View>
-                    </View>
+                    />
                     <Text
                       numberOfLines={1}
                       style={[
-                        styles.swatchLabel,
-                        { color: isSelected ? palette.text : hexToRgba(palette.text, 0.55) }
+                        styles.segmentText,
+                        { color: isSelected ? ink : hexToRgba(palette.text, 0.65) }
+                      ]}
+                    >
+                      {entry.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </EnterSection>
+
+        {/* Card tint */}
+        <EnterSection index={4}>
+          <View style={styles.group}>
+            <GroupLabel color={labelColor}>Card tint</GroupLabel>
+            <View style={styles.segment}>
+              {CARD_TINTS.map((option) => {
+                const isSelected = cardTint === option.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    onPress={() => {
+                      tap();
+                      setCardTint(option.id);
+                    }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: isSelected }}
+                    style={({ pressed }) => [
+                      styles.segmentItem,
+                      isSelected && { backgroundColor: palette.primary },
+                      pressed && { opacity: 0.85 }
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentText,
+                        { color: isSelected ? ink : hexToRgba(palette.text, 0.65) }
                       ]}
                     >
                       {option.label}
@@ -245,85 +334,7 @@ export default function AppearanceScreen() {
               })}
             </View>
           </View>
-        </View>
-
-        {/* Surface */}
-        <View style={styles.group}>
-          <GroupLabel color={labelColor}>Surface</GroupLabel>
-          <View style={styles.segment}>
-            {SURFACES.map((option) => {
-              const entry = option[scheme];
-              const isSelected = surfaceId === option.id;
-              return (
-                <Pressable
-                  key={option.id}
-                  onPress={() => {
-                    tap();
-                    setSurface(option.id);
-                  }}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: isSelected }}
-                  style={({ pressed }) => [
-                    styles.segmentItem,
-                    isSelected && { backgroundColor: palette.primary },
-                    pressed && { opacity: 0.85 }
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.surfaceDot,
-                      { backgroundColor: entry.bg, borderColor: palette.border }
-                    ]}
-                  />
-                  <Text
-                    numberOfLines={1}
-                    style={[
-                      styles.segmentText,
-                      { color: isSelected ? ink : hexToRgba(palette.text, 0.65) }
-                    ]}
-                  >
-                    {entry.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Card tint */}
-        <View style={styles.group}>
-          <GroupLabel color={labelColor}>Card tint</GroupLabel>
-          <View style={styles.segment}>
-            {CARD_TINTS.map((option) => {
-              const isSelected = cardTint === option.id;
-              return (
-                <Pressable
-                  key={option.id}
-                  onPress={() => {
-                    tap();
-                    setCardTint(option.id);
-                  }}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: isSelected }}
-                  style={({ pressed }) => [
-                    styles.segmentItem,
-                    isSelected && { backgroundColor: palette.primary },
-                    pressed && { opacity: 0.85 }
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.segmentText,
-                      { color: isSelected ? ink : hexToRgba(palette.text, 0.65) }
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
+        </EnterSection>
       </ScrollView>
     </SafeAreaView>
   );

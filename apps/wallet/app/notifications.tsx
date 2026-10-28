@@ -30,6 +30,7 @@ import { useNotifications, type AppNotification } from '../src/hooks/useNotifica
 import { haptics } from '../src/lib/haptics';
 import { GorhomBottomSheet } from '../src/components/ui/GorhomBottomSheet';
 import { NotificationEmptyVisual } from '../src/components/NotificationEmptyVisual';
+import { EnterSection } from '../src/lib/animations';
 
 export type { AppNotification };
 
@@ -149,63 +150,68 @@ export default function NotificationsFeedScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />
         }
       >
-        <View style={styles.filterRow}>
-          {filters.map((f) => {
-            const active = f.key === filter;
-            const FilterIcon = f.Icon;
-            return (
-              <Pressable
-                key={f.key}
-                onPress={() => {
-                  haptics.tap();
-                  setFilter(f.key);
-                }}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={f.title}
-                style={({ pressed }) => [
-                  styles.filterChip,
-                  {
-                    backgroundColor: active ? palette.primary : palette.card,
-                    borderColor: active ? palette.primary : palette.border
-                  },
-                  pressed && { opacity: 0.85 }
-                ]}
-              >
-                <FilterIcon
-                  size={17}
-                  strokeWidth={2}
-                  color={active ? ink : palette.textSecondary}
-                />
-              </Pressable>
-            );
-          })}
-        </View>
+        <EnterSection index={0}>
+          <View style={styles.filterRow}>
+            {filters.map((f) => {
+              const active = f.key === filter;
+              const FilterIcon = f.Icon;
+              return (
+                <Pressable
+                  key={f.key}
+                  onPress={() => {
+                    haptics.tap();
+                    setFilter(f.key);
+                  }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={f.title}
+                  style={({ pressed }) => [
+                    styles.filterChip,
+                    {
+                      backgroundColor: active ? palette.primary : palette.card,
+                      borderColor: active ? palette.primary : palette.border
+                    },
+                    pressed && { opacity: 0.85 }
+                  ]}
+                >
+                  <FilterIcon
+                    size={17}
+                    strokeWidth={2}
+                    color={active ? ink : palette.textSecondary}
+                  />
+                </Pressable>
+              );
+            })}
+          </View>
+        </EnterSection>
 
-        <View style={styles.sectionRow}>
-          <Text style={[styles.sectionLabel, { color: labelColor }]}>{sectionLabel}</Text>
-          <Pressable
-            onPress={handleMarkAllRead}
-            disabled={markingAll || unreadCount === 0}
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.markAllBtn,
-              (markingAll || unreadCount === 0) && { opacity: 0.4 },
-              pressed && !markingAll && unreadCount > 0 && { opacity: 0.6 }
-            ]}
-          >
-            {markingAll ? (
-              <ActivityIndicator size="small" color={palette.primary} />
-            ) : (
-              <>
-                <CheckCheck size={14} color={palette.primary} />
-                <Text style={[styles.markAllText, { color: palette.primary }]}>Mark all read</Text>
-              </>
-            )}
-          </Pressable>
-        </View>
+        <EnterSection index={1}>
+          <View style={styles.sectionRow}>
+            <Text style={[styles.sectionLabel, { color: labelColor }]}>{sectionLabel}</Text>
+            <Pressable
+              onPress={handleMarkAllRead}
+              disabled={markingAll || unreadCount === 0}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.markAllBtn,
+                (markingAll || unreadCount === 0) && { opacity: 0.4 },
+                pressed && !markingAll && unreadCount > 0 && { opacity: 0.6 }
+              ]}
+            >
+              {markingAll ? (
+                <ActivityIndicator size="small" color={palette.primary} />
+              ) : (
+                <>
+                  <CheckCheck size={14} color={palette.primary} />
+                  <Text style={[styles.markAllText, { color: palette.primary }]}>Mark all read</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
+        </EnterSection>
 
-        {loading ? (
+        <EnterSection index={2}>
+          {loading ? (
           <View style={[styles.stateCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
             <ActivityIndicator size="large" color={palette.primary} />
             <Text style={[Typography.bodyBold, { color: palette.text, marginTop: 12 }]}>
@@ -334,6 +340,7 @@ export default function NotificationsFeedScreen() {
             </View>
           </View>
         )}
+        </EnterSection>
       </ScrollView>
 
       <GorhomBottomSheet

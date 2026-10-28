@@ -9,6 +9,7 @@ import { TransactionCard, TransactionData } from '../../src/components/Transacti
 import { useTransactions } from '../../src/hooks/useTransactions';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
 import { mapApiTransactions } from '../../src/utils/transactionMapper';
+import { EnterSection } from '../../src/lib/animations';
 
 function ActivitySkeleton({ palette }: { palette: any }) {
   return (
@@ -47,33 +48,37 @@ export default function HistoryTab() {
         />
       }
     >
-      <Text style={[Typography.title1, { color: palette.text }]}>Activities</Text>
+      <EnterSection index={0}>
+        <Text style={[Typography.title1, { color: palette.text }]}>Activities</Text>
+      </EnterSection>
 
-      <View style={[{ gap: 12, marginTop: 16 }, historyItems.length === 0 && { flex: 1 }]}>
-        {isLoading && historyItems.length === 0 ? (
-          <>
-            <ActivitySkeleton palette={palette} />
-            <ActivitySkeleton palette={palette} />
-            <ActivitySkeleton palette={palette} />
-          </>
-        ) : historyItems.length > 0 ? (
-          historyItems.map((item) => (
-            <TransactionCard key={item.id || item.ref} item={item} />
-          ))
-        ) : (
-          <ActivityEmptyState
-            title="Nothing here yet"
-            body="Every deposit, transfer and payout shows up here as soon as it settles."
-            primaryLabel="Deposit"
-            onPrimary={() => {
-              router.push('/(tabs)');
-              requestDeposit();
-            }}
-            secondaryLabel="Refresh"
-            onSecondary={() => refetch()}
-          />
-        )}
-      </View>
+      <EnterSection index={1} style={historyItems.length === 0 ? { flex: 1 } : undefined}>
+        <View style={[{ gap: 12, marginTop: 16 }, historyItems.length === 0 && { flex: 1 }]}>
+          {isLoading && historyItems.length === 0 ? (
+            <>
+              <ActivitySkeleton palette={palette} />
+              <ActivitySkeleton palette={palette} />
+              <ActivitySkeleton palette={palette} />
+            </>
+          ) : historyItems.length > 0 ? (
+            historyItems.map((item) => (
+              <TransactionCard key={item.id || item.ref} item={item} />
+            ))
+          ) : (
+            <ActivityEmptyState
+              title="Nothing here yet"
+              body="Every deposit, transfer and payout shows up here as soon as it settles."
+              primaryLabel="Deposit"
+              onPrimary={() => {
+                router.push('/(tabs)');
+                requestDeposit();
+              }}
+              secondaryLabel="Refresh"
+              onSecondary={() => refetch()}
+            />
+          )}
+        </View>
+      </EnterSection>
     </ScrollView>
   );
 }

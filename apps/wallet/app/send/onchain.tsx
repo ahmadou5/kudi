@@ -30,6 +30,7 @@ import { SendSheet } from '../../src/components/send/SendSheet';
 import { SwipeToSend } from '../../src/components/send/SwipeToSend';
 import { haptics } from '../../src/lib/haptics';
 import { useSendAuth } from '../../src/hooks/useSendAuth';
+import { EnterSection } from '../../src/lib/animations';
 
 type Chain = 'solana' | 'monad';
 
@@ -512,28 +513,32 @@ export default function SendOnchainScreen() {
         // ───────────── STEP 1 · AMOUNT ─────────────
         <View style={styles.flex}>
           <View style={styles.amountTop}>
-            <TouchableOpacity
-              onPress={toggleEntryCurrency}
-              activeOpacity={0.7}
-              style={[styles.balancePill, { borderColor: palette.border, backgroundColor: insetBg }]}
-              accessibilityRole="button"
-              accessibilityLabel={`Balance. Switch amount currency, currently ${entryNgn ? 'Naira' : 'USDC'}`}
-            >
-              <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.5) }]}>Balance</Text>
-              <Text
-                style={[
-                  Typography.currencySub,
-                  { fontFamily: Typography.currencySub.fontFamily, color: palette.text },
-                ]}
+            <EnterSection index={0}>
+              <TouchableOpacity
+                onPress={toggleEntryCurrency}
+                activeOpacity={0.7}
+                style={[styles.balancePill, { borderColor: palette.border, backgroundColor: insetBg }]}
+                accessibilityRole="button"
+                accessibilityLabel={`Balance. Switch amount currency, currently ${entryNgn ? 'Naira' : 'USDC'}`}
               >
-                {entryNgn
-                  ? fmtNgn(balanceNGN).replace(/\.00$/, '')
-                  : `$${numericBalance.toFixed(2)}`}
-              </Text>
-              <ArrowLeftRight size={13} color={hexToRgba(palette.text, 0.4)} />
-            </TouchableOpacity>
+                <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.5) }]}>Balance</Text>
+                <Text
+                  style={[
+                    Typography.currencySub,
+                    { fontFamily: Typography.currencySub.fontFamily, color: palette.text },
+                  ]}
+                >
+                  {entryNgn
+                    ? fmtNgn(balanceNGN).replace(/\.00$/, '')
+                    : `$${numericBalance.toFixed(2)}`}
+                </Text>
+                <ArrowLeftRight size={13} color={hexToRgba(palette.text, 0.4)} />
+              </TouchableOpacity>
+            </EnterSection>
 
-            <View style={styles.amountWrap}>{amountDisplay}</View>
+            <EnterSection index={1}>
+              <View style={styles.amountWrap}>{amountDisplay}</View>
+            </EnterSection>
 
             <View style={styles.errorSlot} pointerEvents="none" accessibilityLiveRegion="polite">
               <Animated.View
@@ -553,78 +558,82 @@ export default function SendOnchainScreen() {
               </Animated.View>
             </View>
 
-            <View style={styles.chipsRow}>
-              {quickAmounts.map((v) => {
-                const active = enteredAmount === v;
-                return (
-                  <TouchableOpacity
-                    key={v}
-                    onPress={() => handleQuickAmount(v)}
-                    style={[
-                      styles.chip,
-                      {
-                        borderColor: active ? palette.text : palette.border,
-                        backgroundColor: active ? palette.text : insetBg,
-                      },
-                    ]}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                  >
-                    <Text
+            <EnterSection index={2}>
+              <View style={styles.chipsRow}>
+                {quickAmounts.map((v) => {
+                  const active = enteredAmount === v;
+                  return (
+                    <TouchableOpacity
+                      key={v}
+                      onPress={() => handleQuickAmount(v)}
                       style={[
-
-                        { color: active ? palette.bg : palette.text, fontFamily: Typography.currencySub.fontFamily, fontSize: 12 },
+                        styles.chip,
+                        {
+                          borderColor: active ? palette.text : palette.border,
+                          backgroundColor: active ? palette.text : insetBg,
+                        },
                       ]}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
                     >
-                      {quickLabel(v)}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-              <TouchableOpacity
-                onPress={handleMax}
-                style={[
-                  styles.chip,
+                      <Text
+                        style={[
+
+                          { color: active ? palette.bg : palette.text, fontFamily: Typography.currencySub.fontFamily, fontSize: 12 },
+                        ]}
+                      >
+                        {quickLabel(v)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                <TouchableOpacity
+                  onPress={handleMax}
+                  style={[
+                    styles.chip,
+                    {
+                      borderColor: maxActive ? palette.text : palette.border,
+                      backgroundColor: maxActive ? palette.text : insetBg,
+                    },
+                  ]}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: maxActive }}
+                >
+                  <Text
+                    style={[
+                      Typography.currencySub,
+                      { color: maxActive ? palette.bg : palette.text },
+                    ]}
+                  >
+                    Max
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </EnterSection>
+
+            <EnterSection index={3} style={{ alignSelf: 'stretch' }}>
+              <SummaryCard
+                style={styles.summary}
+                rows={[
+                  ...(entryNgn
+                    ? [
+
+                      { label: 'You send', value: `${numericAmount.toFixed(2)} ${token}` },
+                    ]
+                    : []),
+                  { label: 'Fee', value: `$${ONCHAIN_FEE_USDC}` },
                   {
-                    borderColor: maxActive ? palette.text : palette.border,
-                    backgroundColor: maxActive ? palette.text : insetBg,
+                    label: 'Total debit',
+                    value: entryNgn
+                      ? fmtNgn(totalNGN).replace(/\.00$/, '')
+                      : `$${totalUSDC.toFixed(2)}`,
+                    total: true,
                   },
                 ]}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityState={{ selected: maxActive }}
-              >
-                <Text
-                  style={[
-                    Typography.currencySub,
-                    { color: maxActive ? palette.bg : palette.text },
-                  ]}
-                >
-                  Max
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <SummaryCard
-              style={styles.summary}
-              rows={[
-                ...(entryNgn
-                  ? [
-
-                    { label: 'You send', value: `${numericAmount.toFixed(2)} ${token}` },
-                  ]
-                  : []),
-                { label: 'Fee', value: `$${ONCHAIN_FEE_USDC}` },
-                {
-                  label: 'Total debit',
-                  value: entryNgn
-                    ? fmtNgn(totalNGN).replace(/\.00$/, '')
-                    : `$${totalUSDC.toFixed(2)}`,
-                  total: true,
-                },
-              ]}
-            />
+              />
+            </EnterSection>
           </View>
 
           <View style={styles.bottom}>
@@ -649,143 +658,153 @@ export default function SendOnchainScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <TouchableOpacity
-              onPress={() => setStep(1)}
-              activeOpacity={0.7}
-              style={styles.recipientAmount}
-              accessibilityRole="button"
-              accessibilityLabel="Edit amount"
-            >
-              {amountDisplay}
-              <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.4), fontSize: 12, textAlign: 'center' }]}>
-                Tap to edit amount
-              </Text>
-            </TouchableOpacity>
-
-            <View style={{ gap: 8 }}>
-              <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45), paddingHorizontal: 0 }]}>
-                Recipient Address
-              </Text>
-              <View
-                style={[
-                  styles.addressBox,
-                  {
-                    backgroundColor: insetBg,
-                    borderColor: showAddressError ? palette.error : addressFocused ? palette.text : palette.border,
-                    borderWidth: addressFocused || showAddressError ? 1.5 : 1,
-                  },
-                ]}
+            <EnterSection index={0}>
+              <TouchableOpacity
+                onPress={() => setStep(1)}
+                activeOpacity={0.7}
+                style={styles.recipientAmount}
+                accessibilityRole="button"
+                accessibilityLabel="Edit amount"
               >
-                <TextInput
-                  value={address}
-                  onChangeText={(t) => setAddress(t.replace(/\s/g, ''))}
-                  onFocus={() => setAddressFocused(true)}
-                  onBlur={() => setAddressFocused(false)}
-                  placeholder="Enter receiving wallet address"
-                  placeholderTextColor={hexToRgba(palette.text, 0.4)}
-                  multiline={false}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  spellCheck={false}
-                  style={[styles.addressInput, { color: palette.text }]}
-                />
-                <View style={[styles.inputDivider, { backgroundColor: palette.border }]} />
-                <TouchableOpacity onPress={handlePaste} hitSlop={8} accessibilityLabel="Paste address">
-                  <ClipboardPaste size={18} color={palette.text} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => {
-                    haptics.tap();
-                    handleScan();
-                  }}
-                  hitSlop={8}
-                  accessibilityLabel="Scan QR code"
-                >
-                  <ScanLine size={18} color={palette.text} />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.addrErrorSlot} accessibilityLiveRegion="polite">
-                {showAddressError ? (
-                  <Text style={[Typography.footnote, { color: palette.error }]}>
-                    Enter a valid {CHAINS[chain].short} address
-                  </Text>
-                ) : null}
-              </View>
-            </View>
-
-            <View style={{ gap: 8 }}>
-              <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45), paddingHorizontal: 0 }]}>
-                Network
-              </Text>
-              <ChainSelector
-                value={chain}
-                onChange={(c) => {
-                  setChain(c);
-                  haptics.tap();
-                }}
-              />
-            </View>
-
-            <TouchableOpacity
-              disabled={!addressValid}
-              onPress={() => {
-                setSaveAddress(false);
-                setSheetOpen(true);
-              }}
-              activeOpacity={0.85}
-              style={[styles.primaryBtn, styles.cardBtn, { backgroundColor: ctaBg(addressValid) }]}
-            >
-              <Text style={[Typography.currencySub, { color: ctaText(addressValid) }]}>
-                Continue
-              </Text>
-            </TouchableOpacity>
-
-            <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45) }]}>
-              Saved Addresses{savedCrypto.length > 0 ? ` · ${savedCrypto.length}` : ''}
-            </Text>
-
-            {savedCrypto.length === 0 ? (
-              <View style={styles.emptyWrap}>
-                <View style={[styles.emptyTile, { backgroundColor: hexToRgba(palette.text, 0.07) }]}>
-                  <Inbox size={24} color={palette.textSecondary} />
-                </View>
-                <Text style={[Typography.body, { color: palette.textSecondary }]}>No saved addresses yet</Text>
-                <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.4) }]}>
-                  Addresses you save after a send show up here
+                {amountDisplay}
+                <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.4), fontSize: 12, textAlign: 'center' }]}>
+                  Tap to edit amount
                 </Text>
+              </TouchableOpacity>
+            </EnterSection>
+
+            <EnterSection index={1}>
+              <View style={{ gap: 8 }}>
+                <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45), paddingHorizontal: 0 }]}>
+                  Recipient Address
+                </Text>
+                <View
+                  style={[
+                    styles.addressBox,
+                    {
+                      backgroundColor: insetBg,
+                      borderColor: showAddressError ? palette.error : addressFocused ? palette.text : palette.border,
+                      borderWidth: addressFocused || showAddressError ? 1.5 : 1,
+                    },
+                  ]}
+                >
+                  <TextInput
+                    value={address}
+                    onChangeText={(t) => setAddress(t.replace(/\s/g, ''))}
+                    onFocus={() => setAddressFocused(true)}
+                    onBlur={() => setAddressFocused(false)}
+                    placeholder="Enter receiving wallet address"
+                    placeholderTextColor={hexToRgba(palette.text, 0.4)}
+                    multiline={false}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    spellCheck={false}
+                    style={[styles.addressInput, { color: palette.text }]}
+                  />
+                  <View style={[styles.inputDivider, { backgroundColor: palette.border }]} />
+                  <TouchableOpacity onPress={handlePaste} hitSlop={8} accessibilityLabel="Paste address">
+                    <ClipboardPaste size={18} color={palette.text} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      haptics.tap();
+                      handleScan();
+                    }}
+                    hitSlop={8}
+                    accessibilityLabel="Scan QR code"
+                  >
+                    <ScanLine size={18} color={palette.text} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.addrErrorSlot} accessibilityLiveRegion="polite">
+                  {showAddressError ? (
+                    <Text style={[Typography.footnote, { color: palette.error }]}>
+                      Enter a valid {CHAINS[chain].short} address
+                    </Text>
+                  ) : null}
+                </View>
               </View>
-            ) : (
-              <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-                {savedCrypto.map((r, index) => (
-                  <React.Fragment key={r.id}>
-                    {index > 0 && <View style={[styles.rowDivider, { backgroundColor: palette.border }]} />}
-                    <TouchableOpacity
-                      onPress={() => handleSelectSaved(r.address, r.chain)}
-                      activeOpacity={0.7}
-                      style={styles.savedRow}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Use saved address ${shortAddress(r.address)}`}
-                    >
-                      <ChainLogo chain={r.chain} size={32} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={[Typography.bodyBold, { color: palette.text }]}>{shortAddress(r.address)}</Text>
-                        <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
-                          {CHAINS[r.chain].label}
-                        </Text>
-                      </View>
+            </EnterSection>
+
+            <EnterSection index={2}>
+              <View style={{ gap: 8 }}>
+                <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45), paddingHorizontal: 0 }]}>
+                  Network
+                </Text>
+                <ChainSelector
+                  value={chain}
+                  onChange={(c) => {
+                    setChain(c);
+                    haptics.tap();
+                  }}
+                />
+              </View>
+            </EnterSection>
+
+            <EnterSection index={3}>
+              <TouchableOpacity
+                disabled={!addressValid}
+                onPress={() => {
+                  setSaveAddress(false);
+                  setSheetOpen(true);
+                }}
+                activeOpacity={0.85}
+                style={[styles.primaryBtn, styles.cardBtn, { backgroundColor: ctaBg(addressValid) }]}
+              >
+                <Text style={[Typography.currencySub, { color: ctaText(addressValid) }]}>
+                  Continue
+                </Text>
+              </TouchableOpacity>
+            </EnterSection>
+
+            <EnterSection index={4}>
+              <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45) }]}>
+                Saved Addresses{savedCrypto.length > 0 ? ` · ${savedCrypto.length}` : ''}
+              </Text>
+
+              {savedCrypto.length === 0 ? (
+                <View style={styles.emptyWrap}>
+                  <View style={[styles.emptyTile, { backgroundColor: hexToRgba(palette.text, 0.07) }]}>
+                    <Inbox size={24} color={palette.textSecondary} />
+                  </View>
+                  <Text style={[Typography.body, { color: palette.textSecondary }]}>No saved addresses yet</Text>
+                  <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.4) }]}>
+                    Addresses you save after a send show up here
+                  </Text>
+                </View>
+              ) : (
+                <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                  {savedCrypto.map((r, index) => (
+                    <React.Fragment key={r.id}>
+                      {index > 0 && <View style={[styles.rowDivider, { backgroundColor: palette.border }]} />}
                       <TouchableOpacity
-                        onPress={() => handleRemoveSaved(r.id, r.address)}
-                        hitSlop={10}
-                        accessibilityLabel="Remove saved address"
+                        onPress={() => handleSelectSaved(r.address, r.chain)}
+                        activeOpacity={0.7}
+                        style={styles.savedRow}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Use saved address ${shortAddress(r.address)}`}
                       >
-                        <Trash2 size={18} color={palette.textSecondary} />
+                        <ChainLogo chain={r.chain} size={32} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[Typography.bodyBold, { color: palette.text }]}>{shortAddress(r.address)}</Text>
+                          <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
+                            {CHAINS[r.chain].label}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => handleRemoveSaved(r.id, r.address)}
+                          hitSlop={10}
+                          accessibilityLabel="Remove saved address"
+                        >
+                          <Trash2 size={18} color={palette.textSecondary} />
+                        </TouchableOpacity>
                       </TouchableOpacity>
-                    </TouchableOpacity>
-                  </React.Fragment>
-                ))}
-              </View>
-            )}
+                    </React.Fragment>
+                  ))}
+                </View>
+              )}
+            </EnterSection>
           </ScrollView>
         </KeyboardAvoidingView>
       )}

@@ -98,6 +98,19 @@ export function useKudiWallet() {
     refetchInterval: 10000
   });
 
+  // Lightweight NGN rate poll (server holds the rate in memory; the worker
+  // owns the upstream polling loop). Keeps the ₦ figures on the balance
+  // cards moving in near-realtime between the slower balance refetches.
+  const rateQuery = useQuery({
+    queryKey: ['fx-rate', 'NGN'],
+    queryFn: async () => {
+      const res = await sdk.getCurrentRates();
+      return res?.data || null;
+    },
+    refetchInterval: 5000,
+    staleTime: 4000
+  });
+
   // Fetch live user transactions activity feed from API
   const transactionsQuery = useQuery({
     queryKey: ['transactions', userId],
@@ -111,7 +124,12 @@ export function useKudiWallet() {
   });
 
   const balanceUSDC = balanceQuery.data?.balanceUSDC || '0.00';
-  const rateNGN = balanceQuery.data?.currentRateNGN || 1585.50;
+  // Prefer the dedicated 5s rate poll; fall back to the balance payload's
+  // rate, then the static default.
+  const rateNGN =
+    (rateQuery.data as any)?.currentRateNGN ||
+    balanceQuery.data?.currentRateNGN ||
+    1585.50;
   const transactions = transactionsQuery.data || [];
 
   const resolveAccount = async (accountNumber: string, bankCode: string): Promise<string> => {
