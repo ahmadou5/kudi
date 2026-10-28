@@ -1,34 +1,43 @@
 import React, { useEffect, useState } from 'react';
 import {
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  ScrollView,
-  Switch,
-  Linking,
   ActivityIndicator,
-  Alert
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, Bell, BellOff, Send, Info } from 'lucide-react-native';
+import { ArrowLeft, Bell, BellOff, Info, Send } from 'lucide-react-native';
 import * as Notifications from 'expo-notifications';
-import { useAppPalette, isLight } from '../../src/lib/theme';
+import { useAppPalette, hexToRgba } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
+import { Spacing } from '../../src/constants/spacing';
 import { registerPushToken, triggerLocalTestNotification } from '../../src/lib/notifications';
 import { API_BASE_URL } from '../../src/lib/sdk';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { usePreferencesStore, PreferencesState } from '../../src/store/preferences.store';
+import { AppModal, useAppModal } from '../../src/components/ui/AppModal';
+import { EnterSection } from '../../src/lib/animations';
+import { haptics } from '../../src/lib/haptics';
 
 export default function NotificationsScreen() {
   const palette = useAppPalette();
-  const light = isLight(palette.bg);
-  const insets = useSafeAreaInsets();
+  const modal = useAppModal();
+
+  const txAlertsEnabled = usePreferencesStore((s: PreferencesState) => s.txAlertsEnabled);
+  const setTxAlertsEnabled = usePreferencesStore((s: PreferencesState) => s.setTxAlertsEnabled);
+  const securityAlertsEnabled = usePreferencesStore(
+    (s: PreferencesState) => s.securityAlertsEnabled
+  );
+  const setSecurityAlertsEnabled = usePreferencesStore(
+    (s: PreferencesState) => s.setSecurityAlertsEnabled
+  );
 
   const [permissionStatus, setPermissionStatus] = useState<Notifications.PermissionStatus | null>(null);
   const [pushAlerts, setPushAlerts] = useState(true);
-  const [transactionAlerts, setTransactionAlerts] = useState(true);
-  const [securityAlerts, setSecurityAlerts] = useState(true);
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
 
@@ -47,7 +56,9 @@ export default function NotificationsScreen() {
         if (active) setPermissionStatus(Notifications.PermissionStatus.UNDETERMINED);
       }
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleTogglePush = async (value: boolean) => {
@@ -58,21 +69,30 @@ export default function NotificationsScreen() {
         if (result.success) {
           setPermissionStatus(Notifications.PermissionStatus.GRANTED);
           setPushAlerts(true);
-          Alert.alert('Notifications Enabled 🎉', 'You will now receive real-time USDC deposit & transaction alerts.');
+          modal.alert(
+            'Notifications Enabled',
+            'You will now receive real-time USDC deposit & transaction alerts.',
+            'success'
+          );
         } else {
           setPushAlerts(false);
-          Alert.alert(
-            'Notifications Blocked ⚠️',
-            result.error || 'Notifications are disabled in system settings.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Open Settings', onPress: () => Linking.openSettings() }
-            ]
-          );
+          modal.show({
+            title: 'Notifications Blocked',
+            description:
+              result.error || 'Notifications are disabled in system settings. Enable them to keep receiving alerts.',
+            type: 'warning',
+            primaryText: 'Open Settings',
+            onPrimaryPress: () => {
+              modal.hide();
+              void Linking.openSettings();
+            },
+            secondaryText: 'Not now',
+            onSecondaryPress: () => modal.hide()
+          });
         }
       } else {
         setPushAlerts(false);
-        Alert.alert('Notifications Paused', 'You can re-enable push notifications at any time.');
+        modal.alert('Notifications Paused', 'You can re-enable push notifications at any time.', 'info');
       }
     } finally {
       setLoading(false);
@@ -80,148 +100,236 @@ export default function NotificationsScreen() {
   };
 
   const handleTestNotification = async () => {
+    haptics.tap();
     setTesting(true);
     try {
       // 1. Local notification
-      await triggerLocalTestNotification('Kudi Push Active 🔔', 'Test notification received! Deposit & spend alerts are working.');
+      await triggerLocalTestNotification(
+        'Kudi Push Active',
+        'Test notification received! Deposit & spend alerts are working.'
+      );
 
       // 2. Server notification test call
       try {
         await fetch(`${API_BASE_URL}/api/v1/auth/test-notification`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: 'Server Push Test 🚀', body: 'Live push notification sent from Kudi API backend.' })
+          body: JSON.stringify({
+            title: 'Server Push Test',
+            body: 'Live push notification sent from Kudi API backend.'
+          })
         });
-      } catch (e) {
-        // Fallback
+      } catch {
+        // Fallback — local notification already delivered
       }
 
-      Alert.alert('Test Notification Sent! 🚀', 'Check your device top banner or notification drawer.');
+      modal.alert(
+        'Test Notification Sent',
+        'Check your device top banner or notification drawer.',
+        'success'
+      );
     } catch (err: any) {
-      Alert.alert('Could Not Send Test', err?.message || 'Please verify device notification permissions.');
+      modal.alert(
+        'Could Not Send Test',
+        err?.message || 'Please verify device notification permissions.',
+        'error'
+      );
     } finally {
       setTesting(false);
     }
   };
 
   const isGranted = permissionStatus === Notifications.PermissionStatus.GRANTED;
+  const tileTint = hexToRgba(palette.text, 0.07);
+  const switchTrack = { false: hexToRgba(palette.text, 0.15), true: palette.success };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
-      <View style={[styles.header, { borderColor: palette.border }]}>
-        <TouchableOpacity
+      {/* Header */}
+      <View style={styles.header}>
+        <Pressable
           onPress={() => router.back()}
-          style={[styles.backBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
-          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibility-label="Go back"
+          hitSlop={12}
+          style={({ pressed }) => [
+            styles.backButton,
+            { backgroundColor: palette.card, borderColor: palette.border },
+            pressed && { opacity: 0.6 }
+          ]}
         >
           <ArrowLeft size={20} color={palette.text} />
-        </TouchableOpacity>
-        <Text style={[Typography.title2, { color: palette.text }]}>Notifications</Text>
-        <View style={{ width: 40 }} />
+        </Pressable>
+        <Text style={[Typography.title1, { color: palette.text }]}>Notifications</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Banner */}
-        <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <View style={styles.heroTop}>
-            <View style={[styles.bellWrap, { backgroundColor: isGranted ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)' }]}>
-              {isGranted ? (
-                <Bell size={24} color="#10B981" />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* ── Status hero ── */}
+        <EnterSection index={0}>
+          <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <View style={styles.heroTop}>
+              <View
+                style={[
+                  styles.iconTile,
+                  {
+                    backgroundColor: hexToRgba(isGranted ? palette.success : palette.error, 0.14)
+                  }
+                ]}
+              >
+                {isGranted ? (
+                  <Bell size={22} color={palette.success} strokeWidth={2} />
+                ) : (
+                  <BellOff size={22} color={palette.error} strokeWidth={2} />
+                )}
+              </View>
+              <View
+                style={[
+                  styles.statusPill,
+                  { backgroundColor: hexToRgba(isGranted ? palette.success : palette.error, 0.14) }
+                ]}
+              >
+                <View
+                  style={[styles.statusDot, { backgroundColor: isGranted ? palette.success : palette.error }]}
+                />
+                <Text
+                  style={[
+                    Typography.footnote,
+                    { color: isGranted ? palette.success : palette.error, fontWeight: '700' }
+                  ]}
+                >
+                  {isGranted ? 'Active' : 'Disabled'}
+                </Text>
+              </View>
+            </View>
+            <Text style={[Typography.title3, { color: palette.text, marginTop: 14 }]}>
+              Real-Time Push Alerts
+            </Text>
+            <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.55), marginTop: 4, lineHeight: 20 }]}>
+              Get instant mobile alerts for incoming Solana/Monad USDC deposits, virtual card
+              spends, and identity verification.
+            </Text>
+          </View>
+        </EnterSection>
+
+        {/* ── Push toggle ── */}
+        <EnterSection index={1}>
+          <View style={styles.group}>
+            <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45) }]}>PUSH</Text>
+            <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <View style={styles.row}>
+                <View style={[styles.rowIcon, { backgroundColor: tileTint }]}>
+                  <Bell size={18} color={palette.textSecondary} strokeWidth={1.9} />
+                </View>
+                <View style={styles.rowCopy}>
+                  <Text style={[Typography.currencySub, { color: palette.text }]}>Push Notifications</Text>
+                  <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.5) }]}>
+                    Allow Kudi to send pop-up alerts on this device
+                  </Text>
+                </View>
+                {loading ? (
+                  <ActivityIndicator size="small" color={palette.success} />
+                ) : (
+                  <Switch
+                    value={pushAlerts}
+                    onValueChange={handleTogglePush}
+                    trackColor={switchTrack}
+                    thumbColor="#FFFFFF"
+                  />
+                )}
+              </View>
+            </View>
+          </View>
+        </EnterSection>
+
+        {/* ── Alert types ── */}
+        <EnterSection index={2}>
+          <View style={styles.group}>
+            <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45) }]}>
+              ALERT TYPES
+            </Text>
+            <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <View style={styles.row}>
+                <View style={styles.rowCopy}>
+                  <Text style={[Typography.currencySub, { color: palette.text }]}>
+                    USDC Deposit & Payout Alerts
+                  </Text>
+                  <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.5) }]}>
+                    Alerts when deposits land on Solana Devnet or payouts settle
+                  </Text>
+                </View>
+                <Switch
+                  value={txAlertsEnabled}
+                  onValueChange={(v) => {
+                    haptics.tap();
+                    setTxAlertsEnabled(v);
+                  }}
+                  trackColor={switchTrack}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+
+              <View style={[styles.divider, { backgroundColor: palette.border }]} />
+
+              <View style={styles.row}>
+                <View style={styles.rowCopy}>
+                  <Text style={[Typography.currencySub, { color: palette.text }]}>Security & PIN Alerts</Text>
+                  <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.5) }]}>
+                    Instant notifications on login attempts and PIN updates
+                  </Text>
+                </View>
+                <Switch
+                  value={securityAlertsEnabled}
+                  onValueChange={(v) => {
+                    haptics.tap();
+                    setSecurityAlertsEnabled(v);
+                  }}
+                  trackColor={switchTrack}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+            </View>
+          </View>
+        </EnterSection>
+
+        {/* ── Test ── */}
+        <EnterSection index={3}>
+          <View style={styles.group}>
+            <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45) }]}>TEST</Text>
+            <Pressable
+              onPress={handleTestNotification}
+              disabled={testing}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                { backgroundColor: palette.text },
+                (testing || pressed) && { opacity: 0.9 }
+              ]}
+            >
+              {testing ? (
+                <ActivityIndicator color={palette.bg} />
               ) : (
-                <BellOff size={24} color="#EF4444" />
+                <>
+                  <Send size={17} color={palette.bg} />
+                  <Text style={[Typography.currencySub, { color: palette.bg }]}>
+                    Send Test Push Notification
+                  </Text>
+                </>
               )}
-            </View>
-            <View style={[styles.statusBadge, { backgroundColor: isGranted ? 'rgba(16,185,129,0.15)' : 'rgba(148,163,184,0.15)' }]}>
-              <View style={[styles.dot, { backgroundColor: isGranted ? '#10B981' : '#64748B' }]} />
-              <Text style={[styles.statusText, { color: isGranted ? '#10B981' : palette.textSecondary }]}>
-                {isGranted ? 'Active' : 'Disabled'}
-              </Text>
-            </View>
+            </Pressable>
           </View>
-          <Text style={[Typography.title3, { color: palette.text, marginTop: 12 }]}>
-            Real-Time Push Alerts
-          </Text>
-          <Text style={[Typography.subhead, { color: palette.textSecondary, marginTop: 4, lineHeight: 20 }]}>
-            Get instant mobile alerts for incoming Solana/Monad USDC deposits, virtual card spends, and identity verification.
-          </Text>
-        </View>
+        </EnterSection>
 
-        {/* Toggle List */}
-        <View style={[styles.cardGroup, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <View style={[styles.rowItem, { borderBottomColor: palette.border }]}>
-            <View style={styles.itemLeft}>
-              <Text style={[Typography.bodyBold, { color: palette.text }]}>Push Notifications</Text>
-              <Text style={[Typography.subhead, { color: palette.textSecondary }]}>
-                Allow Kudi to send pop-up alerts on this device
-              </Text>
-            </View>
-            {loading ? (
-              <ActivityIndicator size="small" color="#10B981" />
-            ) : (
-              <Switch
-                value={pushAlerts}
-                onValueChange={handleTogglePush}
-                trackColor={{ false: light ? '#CBD5E1' : '#3A3A3C', true: '#10B981' }}
-                thumbColor="#FFFFFF"
-              />
-            )}
+        {/* ── System info ── */}
+        <EnterSection index={4}>
+          <View style={[styles.infoRow, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <Info size={17} color={palette.textSecondary} strokeWidth={1.9} />
+            <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.55), flex: 1 }]}>
+              Permission status: {permissionStatus || 'Checking permission state…'}
+            </Text>
           </View>
+        </EnterSection>
 
-          <View style={[styles.rowItem, { borderBottomColor: palette.border }]}>
-            <View style={styles.itemLeft}>
-              <Text style={[Typography.bodyBold, { color: palette.text }]}>USDC Deposit & Payout Alerts</Text>
-              <Text style={[Typography.subhead, { color: palette.textSecondary }]}>
-                Alerts when deposits land on Solana Devnet or payouts settle
-              </Text>
-            </View>
-            <Switch
-              value={transactionAlerts}
-              onValueChange={setTransactionAlerts}
-              trackColor={{ false: light ? '#CBD5E1' : '#3A3A3C', true: '#10B981' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-
-          <View style={styles.rowItem}>
-            <View style={styles.itemLeft}>
-              <Text style={[Typography.bodyBold, { color: palette.text }]}>Security & PIN Alerts</Text>
-              <Text style={[Typography.subhead, { color: palette.textSecondary }]}>
-                Instant notifications on login attempts and PIN updates
-              </Text>
-            </View>
-            <Switch
-              value={securityAlerts}
-              onValueChange={setSecurityAlerts}
-              trackColor={{ false: light ? '#CBD5E1' : '#3A3A3C', true: '#10B981' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-        </View>
-
-        {/* Action Button: Send Test Notification */}
-        <TouchableOpacity
-          onPress={handleTestNotification}
-          disabled={testing}
-          style={[styles.testBtn, { backgroundColor: '#10B981' }]}
-          activeOpacity={0.8}
-        >
-          {testing ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <>
-              <Send size={18} color="#FFFFFF" />
-              <Text style={styles.testBtnText}>Send Test Push Notification</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        {/* System Info */}
-        <View style={[styles.infoCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <Info size={20} color={palette.textSecondary} />
-          <Text style={[styles.infoText, { color: palette.textSecondary }]}>
-            Permission status: {permissionStatus || 'Checking permission state...'}
-          </Text>
-        </View>
+        <AppModal config={modal.config} onClose={modal.hide} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -232,42 +340,42 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1
+    gap: 14,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12
   },
-  backBtn: {
+  backButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center'
   },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 16
+  content: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: 6,
+    paddingBottom: 40,
+    gap: 20
   },
   heroCard: {
+    padding: 20,
     borderRadius: 24,
-    borderWidth: 1,
-    padding: 20
+    borderWidth: 1
   },
   heroTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between'
   },
-  bellWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+  iconTile: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center'
   },
-  statusBadge: {
+  statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -275,56 +383,57 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999
   },
-  dot: {
-    width: 8,
-    height: 8,
+  statusDot: {
+    width: 7,
+    height: 7,
     borderRadius: 4
   },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '700'
+  group: { gap: 8 },
+  groupLabel: {
+    fontFamily: Typography.family.mono,
+    fontSize: 11,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    paddingHorizontal: 4
   },
-  cardGroup: {
+  groupCard: {
     borderRadius: 20,
     borderWidth: 1,
     overflow: 'hidden'
   },
-  rowItem: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13
   },
-  itemLeft: {
-    flex: 1,
-    paddingRight: 16
+  divider: {
+    height: 1,
+    marginLeft: 66
   },
-  testBtn: {
+  rowIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  rowCopy: { flex: 1 },
+  primaryBtn: {
     height: 52,
-    borderRadius: 16,
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginTop: 8
+    gap: 8
   },
-  testBtnText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700'
-  },
-  infoCard: {
+  infoRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+    padding: 14,
     borderRadius: 16,
     borderWidth: 1,
-    padding: 14,
-    marginTop: 4
-  },
-  infoText: {
-    fontSize: 13,
-    flex: 1
+    gap: 10,
+    alignItems: 'center'
   }
 });

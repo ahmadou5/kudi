@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Animated } from 'react-native';
 import { router } from 'expo-router';
-import { useAppPalette } from '../lib/theme';
+import { useAppPalette, hexToRgba } from '../lib/theme';
 import { Typography } from '../constants/typography';
 
 interface BalanceCardProps {
@@ -130,19 +130,19 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
         <View
           style={[
             styles.patternRingOuter,
-            { borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(15, 23, 42, 0.05)' }
+            { borderColor: hexToRgba(palette.text, isDark ? 0.06 : 0.05) }
           ]}
         />
         <View
           style={[
             styles.patternRingInner,
-            { borderColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(15, 23, 42, 0.04)' }
+            { borderColor: hexToRgba(palette.text, isDark ? 0.04 : 0.04) }
           ]}
         />
         <View
           style={[
             styles.patternGlow,
-            { backgroundColor: isDark ? 'rgba(52, 211, 153, 0.05)' : 'rgba(16, 185, 129, 0.04)' }
+            { backgroundColor: hexToRgba(palette.success, isDark ? 0.05 : 0.04) }
           ]}
         />
       </View>
@@ -158,7 +158,7 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
             style={[
               styles.depositBadge,
               {
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                backgroundColor: hexToRgba(palette.success, 0.15),
                 borderColor: palette.success,
                 opacity: badgeOpacityAnim,
                 transform: [{ translateY: badgeYAnim }]

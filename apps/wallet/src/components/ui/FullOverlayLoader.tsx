@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Sparkles, Zap, ShieldCheck } from 'lucide-react-native';
-import { useAppPalette } from '../../lib/theme';
+import { useAppPalette, hexToRgba, readableInk, shade } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { useLoaderStore } from '../../store/loader.store';
 
@@ -29,7 +29,7 @@ export function FullOverlayLoader({
   title: propTitle
 }: FullOverlayLoaderProps) {
   const palette = useAppPalette();
-  const isDark = palette.text === '#FFFFFF';
+  const isDark = palette.scheme === 'dark';
 
   // Global store fallback if props not directly passed
   const storeVisible = useLoaderStore((s) => s.visible);
@@ -135,8 +135,8 @@ export function FullOverlayLoader({
             StyleSheet.absoluteFill,
             {
               backgroundColor: isDark
-                ? 'rgba(10, 14, 26, 0.82)'
-                : 'rgba(248, 250, 252, 0.88)'
+                ? hexToRgba(palette.bg, 0.82)
+                : hexToRgba(palette.bg, 0.88)
             }
           ]}
         />
@@ -146,9 +146,9 @@ export function FullOverlayLoader({
           style={[
             styles.loaderCard,
             {
-              backgroundColor: isDark ? 'rgba(21, 26, 40, 0.92)' : 'rgba(255, 255, 255, 0.95)',
-              borderColor: isDark ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.18)',
-              shadowColor: '#3B82F6'
+              backgroundColor: hexToRgba(palette.card, isDark ? 0.92 : 0.95),
+              borderColor: hexToRgba(palette.primary, isDark ? 0.25 : 0.18),
+              shadowColor: palette.primary
             }
           ]}
         >
@@ -158,7 +158,7 @@ export function FullOverlayLoader({
               styles.glowHalo,
               {
                 transform: [{ scale: pulseAnim }],
-                borderColor: isDark ? 'rgba(59, 130, 246, 0.35)' : 'rgba(59, 130, 246, 0.25)'
+                borderColor: hexToRgba(palette.primary, isDark ? 0.35 : 0.25)
               }
             ]}
           />
@@ -171,9 +171,9 @@ export function FullOverlayLoader({
                 styles.outerRing,
                 {
                   transform: [{ rotate: spinInterpolation }],
-                  borderColor: isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)',
-                  borderTopColor: '#3B82F6',
-                  borderRightColor: '#60A5FA'
+                  borderColor: hexToRgba(palette.primary, isDark ? 0.15 : 0.1),
+                  borderTopColor: palette.primary,
+                  borderRightColor: shade(palette.primary, 0.2)
                 }
               ]}
             />
@@ -184,16 +184,16 @@ export function FullOverlayLoader({
                 styles.innerRing,
                 {
                   transform: [{ rotate: reverseSpinInterpolation }],
-                  borderColor: isDark ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.1)',
-                  borderBottomColor: '#8B5CF6',
-                  borderLeftColor: '#A78BFA'
+                  borderColor: hexToRgba(palette.primaryDark, isDark ? 0.15 : 0.1),
+                  borderBottomColor: palette.primaryDark,
+                  borderLeftColor: shade(palette.primaryDark, 0.2)
                 }
               ]}
             />
 
             {/* Center Brand Emblem */}
-            <View style={styles.brandBadge}>
-              <Text style={styles.brandLetter}>K</Text>
+            <View style={[styles.brandBadge, { backgroundColor: palette.primary, shadowColor: palette.primary }]}>
+              <Text style={[styles.brandLetter, { color: readableInk(palette.primary) }]}>K</Text>
             </View>
           </View>
 
@@ -203,7 +203,7 @@ export function FullOverlayLoader({
               <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 17, letterSpacing: 0.5 }]}>
                 {displayTitle}
               </Text>
-              <Sparkles size={14} color="#3B82F6" style={{ marginLeft: 4 }} />
+              <Sparkles size={14} color={palette.primary} style={{ marginLeft: 4 }} />
             </View>
 
             <Text
@@ -280,17 +280,14 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#3B82F6',
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 4,
-    shadowColor: '#3B82F6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 8
   },
   brandLetter: {
-    color: '#FFFFFF',
     fontSize: 22,
     fontWeight: '900',
     letterSpacing: -0.5

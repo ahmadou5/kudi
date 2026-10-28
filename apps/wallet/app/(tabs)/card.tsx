@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, Easing } from 'react-native';
 import { Wifi, Clock, Sparkles, ShieldCheck, Zap } from 'lucide-react-native';
-import { useAppPalette } from '../../src/lib/theme';
+import { useAppPalette, hexToRgba } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -203,7 +203,7 @@ export default function CardTab() {
               styles.cardSelectTab,
               {
                 backgroundColor: selectedCard === idx
-                  ? (isDark ? 'rgba(255, 255, 255, 0.15)' : '#0F172A')
+                  ? hexToRgba(palette.text, isDark ? 0.15 : 0.09)
                   : palette.card,
                 borderColor: palette.border
               }
@@ -213,7 +213,7 @@ export default function CardTab() {
               style={[
                 Typography.footnote,
                 {
-                  color: selectedCard === idx ? '#FFFFFF' : palette.textSecondary,
+                  color: selectedCard === idx ? palette.text : palette.textSecondary,
                   fontWeight: selectedCard === idx ? '700' : '500'
                 }
               ]}

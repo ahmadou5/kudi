@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: Typography.lg,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
   },
   subtitle: {
     marginTop: 2,
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
   },
   closeText: {
     fontSize: Typography.sm,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
   },
   reviewCard: {
     borderRadius: 18,
@@ -233,11 +233,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.xs,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
   },
   reviewTitle: {
     fontSize: Typography.md,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
   },
   reviewMeta: {
     fontSize: Typography.xs,
@@ -254,11 +254,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.xs,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
   },
   reviewAmountValue: {
     fontSize: 24,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
     marginTop: 2,
   },
   pinDotsContainer: {
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
   errorText: {
     textAlign: 'center',
     fontSize: Typography.xs,
-    fontFamily: Typography.family.semibold,
+    fontFamily: Typography.currencySub.fontFamily,
   },
   confirmButton: {
     flexDirection: 'row',
@@ -288,6 +288,6 @@ const styles = StyleSheet.create({
   },
   confirmText: {
     fontSize: Typography.md,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
   },
 });

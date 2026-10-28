@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { ChevronRight, QrCode, Copy, Zap, ArrowDownCircle, ShieldCheck, AlertTriangle, Clock, ArrowLeft, RotateCw } from 'lucide-react-native';
 import { router } from 'expo-router';
-import { useAppPalette } from '../../src/lib/theme';
+import { useAppPalette, hexToRgba } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
 import { AppModal, useAppModal } from '../../src/components/ui/AppModal';
 import { ChainLogo } from '../../src/components/ui/ChainLogo';
@@ -130,7 +130,7 @@ export default function DepositTab() {
     accountName: va.accountName || 'Verified Account',
     currency: va.currency || 'NGN',
     type: va.currency === 'USD' ? 'ACH & Wire Transfer' : va.currency === 'EUR' ? 'SEPA Instant Transfer' : 'Local Bank Transfer',
-    accentColor: va.currency === 'USD' ? '#60A5FA' : va.currency === 'EUR' ? '#818CF8' : '#34D399'
+    accentColor: va.currency === 'USD' ? '#60A5FA' : va.currency === 'EUR' ? '#818CF8' : palette.success
   }));
 
   // ── Handlers ──
@@ -192,8 +192,8 @@ export default function DepositTab() {
 
   const renderBgPattern = (color: string) => (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <View style={[styles.ring1, { borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.05)' }]} />
-      <View style={[styles.ring2, { borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.04)' }]} />
+      <View style={[styles.ring1, { borderColor: hexToRgba(palette.text, isDark ? 0.07 : 0.05) }]} />
+      <View style={[styles.ring2, { borderColor: hexToRgba(palette.text, isDark ? 0.05 : 0.04) }]} />
       <View style={[styles.glow, { backgroundColor: color, opacity: isDark ? 0.1 : 0.06 }]} />
     </View>
   );
@@ -267,7 +267,7 @@ export default function DepositTab() {
           <Text style={[Typography.footnote, { color: palette.textSecondary, marginLeft: 4 }]}>{tokenDef.name}</Text>
           <TouchableOpacity
             onPress={() => setSelectedToken(null)}
-            style={styles.changePill}
+            style={[styles.changePill, { backgroundColor: hexToRgba(palette.text, 0.15) }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Text style={[Typography.caption, { color: palette.textSecondary }]}>Change</Text>
@@ -291,7 +291,7 @@ export default function DepositTab() {
                     style={[
                       styles.chainTab,
                       {
-                        backgroundColor: active ? (isDark ? '#1E293B' : '#0F172A') : palette.card,
+                        backgroundColor: active ? palette.text : palette.card,
                         borderColor: active ? chain.color : palette.border
                       }
                     ]}
@@ -326,7 +326,7 @@ export default function DepositTab() {
           {renderBgPattern(chainDef.color)}
 
           {/* QR placeholder */}
-          <View style={[styles.qrFrame, { borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.1)' }]}>
+          <View style={[styles.qrFrame, { borderColor: hexToRgba(palette.text, isDark ? 0.12 : 0.1) }]}>
             <QrCode size={120} color={palette.text} />
             <View style={[styles.qrBadge, { backgroundColor: tokenDef.color }]}>
               <Image source={tokenDef.logo} style={{ width: 18, height: 18, borderRadius: 9 }} />
@@ -392,15 +392,15 @@ export default function DepositTab() {
             <Text style={[Typography.bodyBold, { color: palette.text }]}>{chainDef.minDeposit} {tokenDef.id}</Text>
           </View>
           <View style={[styles.infoBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <ShieldCheck size={16} color="#F59E0B" />
+            <ShieldCheck size={16} color={palette.warning} />
             <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 2 }]}>NETWORK FEE</Text>
-            <Text style={[Typography.bodyBold, { color: '#F59E0B' }]}>Free</Text>
+            <Text style={[Typography.bodyBold, { color: palette.warning }]}>Free</Text>
           </View>
         </View>
 
         {/* Warning banner */}
-        <View style={[styles.warningBanner, { backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.3)' }]}>
-          <AlertTriangle size={18} color="#F59E0B" />
+        <View style={[styles.warningBanner, { backgroundColor: hexToRgba(palette.warning, 0.1), borderColor: hexToRgba(palette.warning, 0.3) }]}>
+          <AlertTriangle size={18} color={palette.warning} />
           <Text style={[Typography.footnote, { color: palette.text, flex: 1, lineHeight: 18 }]}>
             Only send <Text style={{ fontWeight: '700', color: tokenDef.color }}>{tokenDef.id}</Text> to this address on {chainDef.name}. Sending any other token will result in permanent loss of funds.
           </Text>
@@ -425,7 +425,7 @@ export default function DepositTab() {
               style={[
                 styles.chainTab,
                 {
-                  backgroundColor: active ? (isDark ? '#1E293B' : '#0F172A') : palette.card,
+                  backgroundColor: active ? palette.text : palette.card,
                   borderColor: active ? acc.accentColor : palette.border
                 }
               ]}
@@ -484,8 +484,8 @@ export default function DepositTab() {
         </View>
       </View>
 
-      <View style={[styles.noticeCard, { backgroundColor: 'rgba(52,211,153,0.1)', borderColor: 'rgba(52,211,153,0.3)' }]}>
-        <Clock size={18} color="#34D399" />
+      <View style={[styles.noticeCard, { backgroundColor: hexToRgba(palette.success, 0.1), borderColor: hexToRgba(palette.success, 0.3) }]}>
+        <Clock size={18} color={palette.success} />
         <Text style={[Typography.footnote, { color: palette.text, flex: 1, lineHeight: 18 }]}>
           Bank transfers are credited to your Kudi balance automatically within 30 seconds of receipt.
         </Text>
@@ -505,15 +505,15 @@ export default function DepositTab() {
         {renderBgPattern('#9945FF')}
         <View style={styles.choiceTop}>
           <View style={styles.choiceBadgesRow}>
-            <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
+            <View style={[styles.assetBadge, { backgroundColor: hexToRgba(palette.text, isDark ? 0.08 : 0.06) }]}>
               <Image source={require('../../assets/logos/usdc.png')} style={styles.miniLogo} />
               <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>USDC</Text>
             </View>
-            <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
+            <View style={[styles.assetBadge, { backgroundColor: hexToRgba(palette.text, isDark ? 0.08 : 0.06) }]}>
               <Image source={require('../../assets/logos/ausd.png')} style={styles.miniLogo} />
               <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>AUSD</Text>
             </View>
-            <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
+            <View style={[styles.assetBadge, { backgroundColor: hexToRgba(palette.text, isDark ? 0.08 : 0.06) }]}>
               <Image source={require('../../assets/logos/ngnc.png')} style={styles.miniLogo} />
               <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>NGNC</Text>
             </View>
@@ -535,7 +535,7 @@ export default function DepositTab() {
         <View style={styles.choiceTop}>
           <View style={styles.choiceBadgesRow}>
             {['₦', '$', '€'].map(sym => (
-              <View key={sym} style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
+              <View key={sym} style={[styles.assetBadge, { backgroundColor: hexToRgba(palette.text, isDark ? 0.08 : 0.06) }]}>
                 <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 13 }]}>{sym}</Text>
               </View>
             ))}
@@ -608,7 +608,7 @@ const styles = StyleSheet.create({
   // Selected token banner
   selectedTokenBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, borderWidth: 1 },
   bannerLogo: { width: 22, height: 22, borderRadius: 11 },
-  changePill: { marginLeft: 'auto' as any, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: 'rgba(148,163,184,0.15)' },
+  changePill: { marginLeft: 'auto' as any, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
 
   // Chain tabs
   chainTabRow: { flexDirection: 'row', gap: 10 },

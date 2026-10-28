@@ -20,7 +20,7 @@ import {
   UserPlus,
 } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
-import { useAppPalette } from '../../lib/theme';
+import { useAppPalette, hexToRgba, readableInk } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
 import { BankLogo, BankItem } from './BankPickerModal';
@@ -90,7 +90,7 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
     <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
       <CardBackgroundPattern />
       <View style={styles.sectionHeader}>
-        <View style={[styles.stepPill, { backgroundColor: 'rgba(10,132,255,0.08)', borderColor: palette.primary }]}>
+        <View style={[styles.stepPill, { backgroundColor: hexToRgba(palette.primary, 0.08), borderColor: palette.primary }]}>
           {spendType === 'offchain' ? (
             offchainMode === 'BANK' ? (
               <Building2 size={16} color={palette.primary} />
@@ -156,7 +156,7 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
               </View>
             ) : accountName ? (
               <View style={{ gap: 8, marginTop: 4 }}>
-                <View style={[styles.statusCard, { backgroundColor: 'rgba(48,209,88,0.12)', borderColor: palette.success }]}>
+                <View style={[styles.statusCard, { backgroundColor: hexToRgba(palette.success, 0.12), borderColor: palette.success }]}>
                   <CheckCircle2 size={20} color={palette.success} />
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.statusTitle, { color: palette.success }]}>{accountName}</Text>
@@ -171,7 +171,7 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
                   style={[
                     styles.confirmRow,
                     {
-                      backgroundColor: bankConfirmed ? 'rgba(48,209,88,0.08)' : palette.bg,
+                      backgroundColor: bankConfirmed ? hexToRgba(palette.success, 0.08) : palette.bg,
                       borderColor: bankConfirmed ? palette.success : palette.border,
                     },
                   ]}
@@ -185,7 +185,7 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
                       },
                     ]}
                   >
-                    {bankConfirmed ? <Check size={14} color="#fff" /> : null}
+                    {bankConfirmed ? <Check size={14} color={readableInk(palette.success)} /> : null}
                   </View>
                   <Text style={[styles.confirmText, { color: palette.text }]}>
                     I confirm this is the correct account
@@ -195,7 +195,7 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
                 {!isSaved && (
                   <TouchableOpacity
                     onPress={onSaveBeneficiary}
-                    style={[styles.saveCardRow, { borderColor: palette.primary, backgroundColor: 'rgba(10,132,255,0.05)' }]}
+                    style={[styles.saveCardRow, { borderColor: palette.primary, backgroundColor: hexToRgba(palette.primary, 0.05) }]}
                   >
                     <CreditCard size={16} color={palette.primary} />
                     <Text style={[styles.saveCardText, { color: palette.primary }]}>Save this bank account</Text>
@@ -203,7 +203,7 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
                 )}
               </View>
             ) : accountNumber.length === 10 ? (
-              <View style={[styles.statusCard, { backgroundColor: 'rgba(255,69,58,0.12)', borderColor: palette.error }]}>
+              <View style={[styles.statusCard, { backgroundColor: hexToRgba(palette.error, 0.12), borderColor: palette.error }]}>
                 <AlertCircle size={20} color={palette.error} />
                 <Text style={[styles.statusTitle, { color: palette.error }]}>Could not resolve bank account details.</Text>
               </View>
@@ -231,14 +231,14 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
               </View>
             ) : resolvedUser ? (
               <View style={{ gap: 8, marginTop: 4 }}>
-                <View style={[styles.statusCard, { backgroundColor: 'rgba(48,209,88,0.12)', borderColor: palette.success }]}>
+                <View style={[styles.statusCard, { backgroundColor: hexToRgba(palette.success, 0.12), borderColor: palette.success }]}>
                   <CheckCircle2 size={20} color={palette.success} />
                   <Text style={[styles.statusTitle, { color: palette.success }]}>{resolvedUser}</Text>
                 </View>
                 {!isSaved && (
                   <TouchableOpacity
                     onPress={onSaveBeneficiary}
-                    style={[styles.saveCardRow, { borderColor: palette.primary, backgroundColor: 'rgba(10,132,255,0.05)' }]}
+                    style={[styles.saveCardRow, { borderColor: palette.primary, backgroundColor: hexToRgba(palette.primary, 0.05) }]}
                   >
                     <UserPlus size={16} color={palette.primary} />
                     <Text style={[styles.saveCardText, { color: palette.primary }]}>Save this contact</Text>
@@ -282,7 +282,7 @@ export const Step1Recipient: React.FC<Step1RecipientProps> = ({
           { backgroundColor: isRecipientReady ? palette.primary : palette.border, marginTop: Spacing.md },
         ]}
       >
-        <Text style={styles.primaryButtonText}>Continue</Text>
+        <Text style={[styles.primaryButtonText, { color: readableInk(isRecipientReady ? palette.primary : palette.border) }]}>Continue</Text>
       </TouchableOpacity>
     </View>
   );
@@ -377,5 +377,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryButtonText: { color: '#fff', fontSize: Typography.md, fontFamily: Typography.family.bold },
+  primaryButtonText: { fontSize: Typography.md, fontFamily: Typography.family.bold },
 });

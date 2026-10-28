@@ -167,7 +167,7 @@ export default function EditProfileScreen() {
                 >
                   <User size={18} color={nameFocused ? palette.text : palette.textSecondary} />
                   <TextInput
-                    style={[Typography.body, styles.textInput, { color: palette.text }]}
+                    style={[Typography.currencySub, styles.textInput, { color: palette.text }]}
                     value={fullName}
                     onChangeText={setFullName}
                     onFocus={() => setNameFocused(true)}
@@ -193,7 +193,7 @@ export default function EditProfileScreen() {
                     color={usernameFocused ? palette.text : palette.textSecondary}
                   />
                   <TextInput
-                    style={[Typography.body, styles.textInput, { color: palette.text }]}
+                    style={[Typography.currencySub, styles.textInput, { color: palette.text }]}
                     value={username}
                     onChangeText={(t) => setUsername(t.replace(/\s/g, ''))}
                     onFocus={() => setUsernameFocused(true)}
@@ -218,7 +218,7 @@ export default function EditProfileScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.fieldLabel, labelStyle]}>EMAIL ADDRESS</Text>
-                  <Text style={[Typography.body, { color: palette.text }]} numberOfLines={1}>
+                  <Text style={[Typography.currencySub, { color: palette.text }]} numberOfLines={1}>
                     {userEmail}
                   </Text>
                 </View>
@@ -231,7 +231,7 @@ export default function EditProfileScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.fieldLabel, labelStyle]}>PHONE NUMBER</Text>
-                  <Text style={[Typography.body, { color: palette.text }]} numberOfLines={1}>
+                  <Text style={[Typography.currencySub, { color: palette.text }]} numberOfLines={1}>
                     {userPhone}
                   </Text>
                 </View>

@@ -127,7 +127,7 @@ export default function HomeTab() {
             refreshing={isRefreshing}
             onRefresh={onRefresh}
             tintColor={palette.text}
-            colors={['#3B82F6']}
+            colors={[palette.primary]}
           />
         }
       >

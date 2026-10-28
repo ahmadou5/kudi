@@ -1,7 +1,7 @@
 import React, { ComponentType } from 'react';
 import { StyleSheet, View, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { readableInk, shade } from '../../lib/theme';
+import { readableInk, shade, hexToRgba } from '../../lib/theme';
 
 export type GlyphComponent = ComponentType<any>;
 
@@ -55,7 +55,7 @@ export function IconTile({
         style
       ]}
     >
-      <View style={[styles.body, { borderRadius: radius }]}>
+      <View style={[styles.body, { borderRadius: radius, backgroundColor: color }]}>
         <LinearGradient
           colors={[shade(color, 0.22), color, shade(color, -0.24)]}
           start={{ x: 0.15, y: 0 }}
@@ -63,7 +63,7 @@ export function IconTile({
           style={[ABSOLUTE_FILL, { borderRadius: radius }]}
         />
         <LinearGradient
-          colors={['rgba(255,255,255,0.42)', 'rgba(255,255,255,0)']}
+          colors={[hexToRgba(shade(color, 0.45), 0.42), hexToRgba(shade(color, 0.45), 0)]}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 0.6 }}
           style={[ABSOLUTE_FILL, { borderRadius: radius }]}
@@ -72,7 +72,7 @@ export function IconTile({
           pointerEvents="none"
           style={[
             styles.rim,
-            { borderRadius: radius, borderColor: 'rgba(255,255,255,0.30)' }
+            { borderRadius: radius, borderColor: hexToRgba(readableInk(color), 0.3) }
           ]}
         />
         <View style={styles.center}>
@@ -92,8 +92,7 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
-    overflow: 'hidden',
-    backgroundColor: '#64748B'
+    overflow: 'hidden'
   },
   rim: {
     ...ABSOLUTE_FILL,

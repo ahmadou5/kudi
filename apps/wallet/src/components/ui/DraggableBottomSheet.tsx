@@ -9,7 +9,7 @@ import {
   Dimensions,
   TouchableWithoutFeedback
 } from 'react-native';
-import { useAppPalette } from '../../lib/theme';
+import { useAppPalette, hexToRgba } from '../../lib/theme';
 import { haptics } from '../../lib/haptics';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -161,7 +161,7 @@ export const DraggableBottomSheet: React.FC<DraggableBottomSheetProps> = ({
             <View
               style={[
                 styles.dragHandle,
-                { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(15, 23, 42, 0.2)' }
+                { backgroundColor: isDark ? hexToRgba(palette.text, 0.25) : hexToRgba(palette.text, 0.2) }
               ]}
             />
           </View>

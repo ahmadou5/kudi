@@ -29,7 +29,7 @@ import {
 import * as Clipboard from 'expo-clipboard';
 // You likely already have this given the haptics system elsewhere in the app —
 // swap this call for your existing wrapper if you have one, just for consistency.
-import { useAppPalette } from '../src/lib/theme';
+import { useAppPalette, hexToRgba } from '../src/lib/theme';
 import { Typography } from '../src/constants/typography';
 import { ChainLogo } from '../src/components/ui/ChainLogo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -53,7 +53,7 @@ type TransactionDetailsParams = {
 export default function TransactionDetailsScreen() {
     const palette = useAppPalette();
     const insets = useSafeAreaInsets();
-    const isDark = palette.text === '#FFFFFF';
+    const isDark = palette.scheme === 'dark';
     const params = useLocalSearchParams<TransactionDetailsParams>();
 
     const [copied, setCopied] = useState(false);
@@ -158,16 +158,16 @@ export default function TransactionDetailsScreen() {
     };
 
     const statusBg = isSuccess
-        ? 'rgba(52, 211, 153, 0.15)'
+        ? hexToRgba(palette.success, 0.15)
         : isPending
-            ? 'rgba(251, 191, 36, 0.15)'
-            : 'rgba(244, 63, 94, 0.15)';
+            ? hexToRgba(palette.warning, 0.15)
+            : hexToRgba(palette.error, 0.15);
 
     const statusColor = isSuccess
-        ? '#34D399'
+        ? palette.success
         : isPending
-            ? '#FBBF24'
-            : '#F43F5E';
+            ? palette.warning
+            : palette.error;
 
     return (
         <View style={[styles.container, { backgroundColor: palette.bg, paddingTop: insets.top }]}>
@@ -200,7 +200,7 @@ export default function TransactionDetailsScreen() {
                         </View>
 
                         {(isMonad || isSolana) && (
-                            <View style={[styles.chainBadgeCircle, { borderColor: palette.card }]}>
+                            <View style={[styles.chainBadgeCircle, { backgroundColor: palette.card, borderColor: palette.card }]}>
                                 <ChainLogo chain={isMonad ? 'monad' : 'solana'} size={20} />
                             </View>
                         )}
@@ -256,7 +256,7 @@ export default function TransactionDetailsScreen() {
                             {/* Connector lines behind nodes */}
                             <View style={styles.trackLineOverlay}>
                                 <View style={[styles.trackSegment, { backgroundColor: statusColor }]} />
-                                <View style={[styles.trackSegment, { backgroundColor: isSuccess ? statusColor : isDark ? '#334155' : '#E2E8F0' }]} />
+                                <View style={[styles.trackSegment, { backgroundColor: isSuccess ? statusColor : hexToRgba(palette.text, isDark ? 0.25 : 0.15) }]} />
                             </View>
 
                             <View style={styles.timelineRow}>
@@ -278,8 +278,8 @@ export default function TransactionDetailsScreen() {
                                     <View style={[
                                         styles.nodeCircle,
                                         {
-                                            backgroundColor: (isPending || isSuccess) ? statusColor + '20' : (isDark ? '#1E293B' : '#F1F5F9'),
-                                            borderColor: (isPending || isSuccess) ? statusColor : (isDark ? '#334155' : '#CBD5E1')
+                                            backgroundColor: (isPending || isSuccess) ? statusColor + '20' : hexToRgba(palette.text, isDark ? 0.1 : 0.06),
+                                            borderColor: (isPending || isSuccess) ? statusColor : hexToRgba(palette.text, isDark ? 0.25 : 0.2)
                                         }
                                     ]}>
                                         <RefreshCw
@@ -308,8 +308,8 @@ export default function TransactionDetailsScreen() {
                                     <View style={[
                                         styles.nodeCircle,
                                         {
-                                            backgroundColor: isSuccess ? palette.success + '20' : (isDark ? '#1E293B' : '#F1F5F9'),
-                                            borderColor: isSuccess ? palette.success : (isDark ? '#334155' : '#CBD5E1')
+                                            backgroundColor: isSuccess ? palette.success + '20' : hexToRgba(palette.text, isDark ? 0.1 : 0.06),
+                                            borderColor: isSuccess ? palette.success : hexToRgba(palette.text, isDark ? 0.25 : 0.2)
                                         }
                                     ]}>
                                         {isSuccess ? (
@@ -499,7 +499,6 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         borderWidth: 2,
         overflow: 'hidden',
-        backgroundColor: '#0F172A',
         alignItems: 'center',
         justifyContent: 'center'
     },

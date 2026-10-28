@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
-import { useAppPalette } from '../../src/lib/theme';
+import { useAppPalette, hexToRgba, readableInk } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
 import { NIGERIAN_BANKS, PHONE_NUMBER_BANK_CODES } from '../../src/constants/banks';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
@@ -50,7 +50,7 @@ type ListTab = 'recent' | 'saved';
 
 export default function SendNgnScreen() {
   const palette = useAppPalette();
-  const isDark = palette.text === '#FFFFFF';
+  const isDark = palette.scheme === 'dark';
   const { bioReady, authorize } = useSendAuth();
   const { balanceUSDC, rateNGN, resolveAccount, spendToBank } = useKudiWallet();
 
@@ -268,12 +268,12 @@ export default function SendNgnScreen() {
   // ── Theme-derived styling ──
   const inputBg = isDark ? palette.bg : '#FFFFFF';
   const cardBg = isDark ? palette.card : '#FFFFFF';
-  const placeholder = isDark ? '#6B7080' : '#9CA3AF';
-  const primaryBtn = isDark ? '#FFFFFF' : '#000000';
-  const primaryBtnText = isDark ? '#000000' : '#FFFFFF';
-  const disabledBtn = isDark ? '#23262F' : '#E8E8EA';
-  const disabledBtnText = isDark ? '#6B7080' : '#FFFFFF';
-  const activeTab = '#1E3A5F';
+  const placeholder = hexToRgba(palette.text, 0.4);
+  const primaryBtn = palette.text;
+  const primaryBtnText = palette.bg;
+  const disabledBtn = hexToRgba(palette.text, 0.1);
+  const disabledBtnText = hexToRgba(palette.text, 0.4);
+  const activeTab = palette.primary;
 
   const accountReady = accountComplete && !!selectedBank && !!accountName && !isResolving;
   const list = listTab === 'recent' ? recentBank : savedBank;
@@ -356,12 +356,12 @@ export default function SendNgnScreen() {
                   style={[
                     styles.nameBox,
                     {
-                      backgroundColor: isDark ? 'rgba(16,185,129,0.12)' : '#E7F5E4',
-                      borderColor: isDark ? 'rgba(16,185,129,0.35)' : '#CDE8C8',
+                      backgroundColor: hexToRgba(palette.success, 0.12),
+                      borderColor: isDark ? hexToRgba(palette.success, 0.35) : hexToRgba(palette.success, 0.22),
                     },
                   ]}
                 >
-                  <Text style={[Typography.body, { color: isDark ? '#6EE7B7' : '#1F5F1B', fontWeight: '600' }]} numberOfLines={1}>
+                  <Text style={[Typography.body, { color: palette.success, fontWeight: '600' }]} numberOfLines={1}>
                     {accountName}
                   </Text>
                 </View>
@@ -399,7 +399,7 @@ export default function SendNgnScreen() {
                           : { backgroundColor: inputBg, borderColor: palette.border },
                       ]}
                     >
-                      <Text style={[Typography.footnote, { color: active ? '#FFFFFF' : palette.text, fontWeight: '600' }]}>
+                      <Text style={[Typography.footnote, { color: active ? readableInk(palette.primary) : palette.text, fontWeight: '600' }]}>
                         {t === 'recent' ? 'Recent' : 'Saved'}
                       </Text>
                     </TouchableOpacity>
@@ -471,9 +471,9 @@ export default function SendNgnScreen() {
               style={[
                 styles.recipientCard,
                 {
-                  backgroundColor: isDark ? 'rgba(59,130,246,0.10)' : '#EAF2FE',
-                  borderColor: isDark ? 'rgba(59,130,246,0.25)' : '#D3E3FA',
-                  borderBottomColor: isDark ? '#3B82F6' : '#1E3A5F',
+                  backgroundColor: hexToRgba(palette.primary, 0.1),
+                  borderColor: isDark ? hexToRgba(palette.primary, 0.25) : hexToRgba(palette.primary, 0.22),
+                  borderBottomColor: palette.primary,
                 },
               ]}
             >
@@ -591,7 +591,7 @@ export default function SendNgnScreen() {
           <Switch
             value={saveBeneficiary}
             onValueChange={setSaveBeneficiary}
-            trackColor={{ false: isDark ? '#2A2D38' : '#E5E7EB', true: '#34C759' }}
+            trackColor={{ false: hexToRgba(palette.text, isDark ? 0.2 : 0.12), true: palette.success }}
             thumbColor="#FFFFFF"
           />
         </View>

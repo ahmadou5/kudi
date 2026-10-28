@@ -12,14 +12,18 @@ export interface PreferencesState {
   cardTint: CardTintId;
   appLockEnabled: boolean;
   biometricsEnabled: boolean;
+  txAlertsEnabled: boolean;
+  securityAlertsEnabled: boolean;
   isLoading: boolean;
   hydrate: () => Promise<void>;
   setThemeMode: (mode: ThemeMode) => void;
   setAccent: (id: AccentId) => void;
   setSurface: (id: SurfaceId) => void;
-  setCardTint: (id: CardTintId) => void;
+  setCardTint: (tint: CardTintId) => void;
   setAppLockEnabled: (enabled: boolean) => void;
   setBiometricsEnabled: (enabled: boolean) => void;
+  setTxAlertsEnabled: (enabled: boolean) => void;
+  setSecurityAlertsEnabled: (enabled: boolean) => void;
 }
 
 const KEYS = {
@@ -28,7 +32,9 @@ const KEYS = {
   theme: 'kudi_pref_theme_mode',
   accent: 'kudi_pref_accent',
   surface: 'kudi_pref_surface',
-  cardTint: 'kudi_pref_card_tint'
+  cardTint: 'kudi_pref_card_tint',
+  txAlerts: 'kudi_pref_tx_alerts',
+  securityAlerts: 'kudi_pref_security_alerts'
 } as const;
 
 const getSecureItem = async (key: string): Promise<string | null> => {
@@ -65,22 +71,28 @@ export const usePreferencesStore = create<PreferencesState>()((set) => ({
   cardTint: 'flat',
   appLockEnabled: true,
   biometricsEnabled: false,
+  txAlertsEnabled: true,
+  securityAlertsEnabled: true,
   isLoading: true,
 
   hydrate: async () => {
     try {
-      const [storedAppLock, storedBiometrics, storedTheme, storedAccent, storedSurface, storedTint] =
+      const [storedAppLock, storedBiometrics, storedTheme, storedAccent, storedSurface, storedTint, storedTxAlerts, storedSecurityAlerts] =
         await Promise.all([
           getSecureItem(KEYS.appLock),
           getSecureItem(KEYS.biometrics),
           getSecureItem(KEYS.theme),
           getSecureItem(KEYS.accent),
           getSecureItem(KEYS.surface),
-          getSecureItem(KEYS.cardTint)
+          getSecureItem(KEYS.cardTint),
+          getSecureItem(KEYS.txAlerts),
+          getSecureItem(KEYS.securityAlerts)
         ]);
       set({
         appLockEnabled: storedAppLock === null ? true : storedAppLock === 'true',
         biometricsEnabled: storedBiometrics === 'true',
+        txAlertsEnabled: storedTxAlerts === null ? true : storedTxAlerts === 'true',
+        securityAlertsEnabled: storedSecurityAlerts === null ? true : storedSecurityAlerts === 'true',
         themeMode: isThemeMode(storedTheme) ? (storedTheme as ThemeMode) : 'dark',
         accentId: ACCENTS.some((option) => option.id === storedAccent)
           ? (storedAccent as AccentId)
@@ -127,5 +139,15 @@ export const usePreferencesStore = create<PreferencesState>()((set) => ({
   setBiometricsEnabled: (biometricsEnabled: boolean) => {
     set({ biometricsEnabled });
     void setSecureItem(KEYS.biometrics, String(biometricsEnabled));
+  },
+
+  setTxAlertsEnabled: (txAlertsEnabled: boolean) => {
+    set({ txAlertsEnabled });
+    void setSecureItem(KEYS.txAlerts, String(txAlertsEnabled));
+  },
+
+  setSecurityAlertsEnabled: (securityAlertsEnabled: boolean) => {
+    set({ securityAlertsEnabled });
+    void setSecureItem(KEYS.securityAlerts, String(securityAlertsEnabled));
   }
 }));

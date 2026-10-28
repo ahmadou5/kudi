@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { CheckCircle2 } from 'lucide-react-native';
-import { useAppPalette } from '../../lib/theme';
+import { useAppPalette, hexToRgba, readableInk } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
 import { BankLogo, BankItem } from './BankPickerModal';
@@ -46,9 +46,9 @@ export const Step3Review: React.FC<Step3ReviewProps> = ({
 
   return (
     <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-      <CardBackgroundPattern glowColor="rgba(48,209,88,0.12)" />
+      <CardBackgroundPattern glowColor={hexToRgba(palette.success, 0.12)} />
       <View style={styles.sectionHeader}>
-        <View style={[styles.stepPill, { backgroundColor: 'rgba(48,209,88,0.12)', borderColor: palette.success }]}>
+        <View style={[styles.stepPill, { backgroundColor: hexToRgba(palette.success, 0.12), borderColor: palette.success }]}>
           <CheckCircle2 size={16} color={palette.success} />
         </View>
         <View style={styles.sectionCopy}>
@@ -63,7 +63,7 @@ export const Step3Review: React.FC<Step3ReviewProps> = ({
             <BankLogo name={selectedBank.name} bankCode={selectedBank.code} size={48} />
           ) : (
             <View style={[styles.reviewAvatarCircle, { backgroundColor: palette.primary }]}>
-              <Text style={styles.reviewAvatarText}>{initialsFromName(activeRecipientName)}</Text>
+              <Text style={[styles.reviewAvatarText, { color: readableInk(palette.primary) }]}>{initialsFromName(activeRecipientName)}</Text>
             </View>
           )}
           <View style={{ flex: 1 }}>
@@ -86,7 +86,7 @@ export const Step3Review: React.FC<Step3ReviewProps> = ({
         onPress={onOpenPinModal}
         style={[styles.primaryButton, { backgroundColor: palette.primary, marginTop: Spacing.md }]}
       >
-        <Text style={styles.primaryButtonText}>Send Money</Text>
+        <Text style={[styles.primaryButtonText, { color: readableInk(palette.primary) }]}>Send Money</Text>
       </TouchableOpacity>
     </View>
   );
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  reviewAvatarText: { color: '#fff', fontSize: Typography.md, fontFamily: Typography.family.bold },
+  reviewAvatarText: { fontSize: Typography.md, fontFamily: Typography.family.bold },
   reviewLabel: { fontSize: 10, fontFamily: Typography.family.bold, letterSpacing: 0.8 },
   reviewTitle: { fontSize: Typography.md, fontFamily: Typography.family.bold },
   reviewAmountBox: {
@@ -148,5 +148,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryButtonText: { color: '#fff', fontSize: Typography.md, fontFamily: Typography.family.bold },
+  primaryButtonText: { fontSize: Typography.md, fontFamily: Typography.family.bold },
 });

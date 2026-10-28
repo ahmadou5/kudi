@@ -105,7 +105,7 @@ export function DobDatePickerModal({
             </Pressable>
             <Text style={[styles.title, { color: palette.text }]}>Date of Birth</Text>
             <Pressable onPress={handleConfirm} hitSlop={12}>
-              <Text style={[styles.btnText, { color: palette.primary, fontFamily: Typography.family.bold }]}>Done</Text>
+              <Text style={[styles.btnText, { color: palette.primary, fontFamily: Typography.currencySub.fontFamily }]}>Done</Text>
             </Pressable>
           </View>
 
@@ -129,7 +129,7 @@ export function DobDatePickerModal({
                         active && { backgroundColor: hexToRgba(palette.primary, 0.14), borderRadius: 10 }
                       ]}
                     >
-                      <Text style={[styles.itemText, { color: active ? palette.primary : palette.text }, active && { fontFamily: Typography.family.bold }]}>
+                      <Text style={[styles.itemText, { color: active ? palette.primary : palette.text }, active && { fontFamily: Typography.currencySub.fontFamily }]}>
                         {item}
                       </Text>
                     </Pressable>
@@ -156,7 +156,7 @@ export function DobDatePickerModal({
                         active && { backgroundColor: hexToRgba(palette.primary, 0.14), borderRadius: 10 }
                       ]}
                     >
-                      <Text style={[styles.itemText, { color: active ? palette.primary : palette.text }, active && { fontFamily: Typography.family.bold }]}>
+                      <Text style={[styles.itemText, { color: active ? palette.primary : palette.text }, active && { fontFamily: Typography.currencySub.fontFamily }]}>
                         {item.label}
                       </Text>
                     </Pressable>
@@ -183,7 +183,7 @@ export function DobDatePickerModal({
                         active && { backgroundColor: hexToRgba(palette.primary, 0.14), borderRadius: 10 }
                       ]}
                     >
-                      <Text style={[styles.itemText, { color: active ? palette.primary : palette.text }, active && { fontFamily: Typography.family.bold }]}>
+                      <Text style={[styles.itemText, { color: active ? palette.primary : palette.text }, active && { fontFamily: Typography.currencySub.fontFamily }]}>
                         {item}
                       </Text>
                     </Pressable>
@@ -223,11 +223,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  title: { fontSize: Typography.md, fontFamily: Typography.family.bold },
+  title: { fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily },
   btnText: { fontSize: Typography.sm },
   pickerContainer: { flexDirection: 'row', gap: Spacing.md, height: 220, marginVertical: 10 },
   column: { flex: 1, alignItems: 'stretch' },
-  columnLabel: { fontSize: Typography.xs, fontFamily: Typography.family.bold, textTransform: 'uppercase', letterSpacing: 0.8, textAlign: 'center', marginBottom: 8 },
+  columnLabel: { fontSize: Typography.xs, fontFamily: Typography.currencySub.fontFamily, textTransform: 'uppercase', letterSpacing: 0.8, textAlign: 'center', marginBottom: 8 },
   list: { flex: 1 },
   itemRow: { height: 40, alignItems: 'center', justifyContent: 'center', marginVertical: 2 },
   itemText: { fontSize: Typography.md },

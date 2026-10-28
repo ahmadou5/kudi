@@ -14,11 +14,12 @@ import {
 import { router } from 'expo-router';
 import { Wifi, ArrowLeft, AlertCircle, Mail, XCircle, ArrowRight, CheckCircle2, Gift } from 'lucide-react-native';
 import { Typography } from '../../src/constants/typography';
-import { useAppPalette } from '../../src/lib/theme';
+import { useAppPalette, hexToRgba } from '../../src/lib/theme';
 import { useAuthStore, AuthState } from '../../src/store/auth.store';
 import { useLoginWithEmail } from '@privy-io/expo';
 
 function AnimatedStackedCards() {
+  const palette = useAppPalette();
   const floatY1 = useRef(new Animated.Value(0)).current;
   const floatY2 = useRef(new Animated.Value(0)).current;
 
@@ -87,7 +88,7 @@ function AnimatedStackedCards() {
         <View style={styles.cardPatternCircle2} />
         <View style={styles.cardHeader}>
           <View style={[styles.emvChip, styles.goldChip]} />
-          <Wifi size={16} color="#64748B" style={{ transform: [{ rotate: '90deg' }] }} />
+          <Wifi size={16} color={hexToRgba(palette.text, 0.55)} style={{ transform: [{ rotate: '90deg' }] }} />
         </View>
         <View style={styles.cardFooter}>
           <Text style={styles.blackCardNumber}>•••• •••• •••• 9012</Text>
@@ -113,7 +114,7 @@ function AnimatedStackedCards() {
         <View style={styles.silverPatternCircle2} />
         <View style={styles.cardHeader}>
           <View style={[styles.emvChip, styles.silverChip]} />
-          <Wifi size={16} color="#475569" style={{ transform: [{ rotate: '90deg' }] }} />
+          <Wifi size={16} color={hexToRgba(palette.text, 0.55)} style={{ transform: [{ rotate: '90deg' }] }} />
         </View>
         <View style={styles.cardFooter}>
           <Text style={styles.silverCardNumber}>•••• •••• •••• 5678</Text>
@@ -322,9 +323,9 @@ export default function WelcomeScreen() {
       {/* Auth Section — Email OTP */}
       <View style={styles.authSection}>
         {errorMsg && (
-          <View style={[styles.errorBanner, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
-            <AlertCircle size={16} color="#EF4444" />
-            <Text style={[Typography.caption, { color: '#EF4444', flex: 1 }]}>
+          <View style={[styles.errorBanner, { backgroundColor: hexToRgba(palette.error, 0.1) }]}>
+            <AlertCircle size={16} color={palette.error} />
+            <Text style={[Typography.caption, { color: palette.error, flex: 1 }]}>
               {errorMsg}
             </Text>
           </View>

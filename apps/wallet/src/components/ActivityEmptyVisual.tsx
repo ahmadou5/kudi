@@ -72,7 +72,7 @@ function StackCard({ index }: StackCardProps) {
           }
         ]}
       >
-        <View style={[styles.shade, { backgroundColor: 'rgba(0,0,0,0.14)' }]} />
+        <View style={[styles.shade, { backgroundColor: hexToRgba(palette.text, 0.14) }]} />
 
         <View style={styles.rowContent}>
           {isFront ? (

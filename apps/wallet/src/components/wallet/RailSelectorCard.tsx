@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, Image } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
-import { useAppPalette } from '../../lib/theme';
+import { useAppPalette, hexToRgba } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 
 interface RailSelectorCardProps {
@@ -18,8 +18,8 @@ export const RailSelectorCard: React.FC<RailSelectorCardProps> = ({
 
   const renderBgPattern = (color: string) => (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <View style={[styles.ring1, { borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.05)' }]} />
-      <View style={[styles.ring2, { borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.04)' }]} />
+      <View style={[styles.ring1, { borderColor: isDark ? hexToRgba(palette.text, 0.07) : hexToRgba(palette.text, 0.05) }]} />
+      <View style={[styles.ring2, { borderColor: isDark ? hexToRgba(palette.text, 0.05) : hexToRgba(palette.text, 0.04) }]} />
       <View style={[styles.glow, { backgroundColor: color, opacity: isDark ? 0.1 : 0.06 }]} />
     </View>
   );
@@ -32,11 +32,11 @@ export const RailSelectorCard: React.FC<RailSelectorCardProps> = ({
         activeOpacity={0.85}
         style={[styles.choiceCard, { backgroundColor: palette.card, borderColor: palette.border }]}
       >
-        {renderBgPattern('#34D399')}
+        {renderBgPattern(palette.success)}
         <View style={styles.choiceTop}>
           <View style={styles.choiceBadgesRow}>
             {['₦', '$', '€'].map((sym) => (
-              <View key={sym} style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
+              <View key={sym} style={[styles.assetBadge, { backgroundColor: hexToRgba(palette.text, 0.08) }]}>
                 <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 13 }]}>{sym}</Text>
               </View>
             ))}
@@ -58,15 +58,15 @@ export const RailSelectorCard: React.FC<RailSelectorCardProps> = ({
         {renderBgPattern('#9945FF')}
         <View style={styles.choiceTop}>
           <View style={styles.choiceBadgesRow}>
-            <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
+            <View style={[styles.assetBadge, { backgroundColor: hexToRgba(palette.text, 0.08) }]}>
               <Image source={require('../../../assets/logos/usdc.png')} style={styles.miniLogo} />
               <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>USDC</Text>
             </View>
-            <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
+            <View style={[styles.assetBadge, { backgroundColor: hexToRgba(palette.text, 0.08) }]}>
               <Image source={require('../../../assets/logos/ausd.png')} style={styles.miniLogo} />
               <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>AUSD</Text>
             </View>
-            <View style={[styles.assetBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
+            <View style={[styles.assetBadge, { backgroundColor: hexToRgba(palette.text, 0.08) }]}>
               <Image source={require('../../../assets/logos/ngnc.png')} style={styles.miniLogo} />
               <Text style={[Typography.caption, { color: palette.text, fontWeight: '700' }]}>NGNC</Text>
             </View>

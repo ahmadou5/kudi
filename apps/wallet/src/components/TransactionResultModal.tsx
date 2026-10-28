@@ -3,7 +3,7 @@ import { Animated, Image, Modal, Pressable, StyleSheet, Text, View } from 'react
 import { CheckCircle2, XCircle, Clock, Check, X } from 'lucide-react-native';
 import { Spacing } from '../constants/spacing';
 import { Typography } from '../constants/typography';
-import { useAppPalette } from '../lib/theme';
+import { useAppPalette, hexToRgba } from '../lib/theme';
 
 interface TransactionResultModalProps {
   visible: boolean;
@@ -62,10 +62,10 @@ export function TransactionResultModal({
 
   const tone =
     type === 'success'
-      ? { backgroundColor: 'rgba(48,209,88,0.12)', iconColor: palette.success, accent: palette.success }
+      ? { backgroundColor: hexToRgba(palette.success, 0.12), iconColor: palette.success, accent: palette.success }
       : type === 'failed'
-        ? { backgroundColor: 'rgba(255,69,58,0.12)', iconColor: palette.error, accent: palette.error }
-        : { backgroundColor: 'rgba(255,159,10,0.12)', iconColor: palette.warning, accent: palette.warning };
+        ? { backgroundColor: hexToRgba(palette.error, 0.12), iconColor: palette.error, accent: palette.error }
+        : { backgroundColor: hexToRgba(palette.warning, 0.12), iconColor: palette.warning, accent: palette.warning };
 
   const iconName = type === 'success' ? 'checkmark-circle' : type === 'failed' ? 'close-circle' : 'time';
 
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   },
   brandText: {
     fontSize: Typography.md,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
     letterSpacing: 0.5,
   },
   iconWrap: {
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: Typography.xl,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
     textAlign: 'center',
   },
   message: {
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   },
   trackHeader: {
     fontSize: Typography.xs,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
     letterSpacing: 0.8,
   },
   trackLineContainer: {
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
   },
   trackStepLabel: {
     fontSize: 10,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
   },
   trackConnector: {
     flex: 1,
@@ -257,11 +257,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.xs,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
   },
   value: {
     fontSize: Typography.sm,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
     flexShrink: 1,
     textAlign: 'right',
   },
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
   primaryText: {
     color: '#fff',
     fontSize: Typography.md,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
   },
   secondaryButton: {
     minHeight: 54,
@@ -285,6 +285,6 @@ const styles = StyleSheet.create({
   },
   secondaryText: {
     fontSize: Typography.md,
-    fontFamily: Typography.family.bold,
+    fontFamily: Typography.currencySub.fontFamily,
   },
 });

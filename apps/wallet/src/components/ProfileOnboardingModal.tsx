@@ -22,7 +22,7 @@ import {
   Smile
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { useAppPalette, hexToRgba } from '../lib/theme';
+import { useAppPalette, hexToRgba, readableInk } from '../lib/theme';
 import { Typography } from '../constants/typography';
 import { useAuthStore, AuthState } from '../store/auth.store';
 import { DobDatePickerModal } from './ui/DobDatePickerModal';
@@ -250,8 +250,8 @@ export function ProfileOnboardingModal() {
               </View>
 
               {errorMsg ? (
-                  <View style={[styles.errorBox, { backgroundColor: hexToRgba('#EF4444', 0.12), borderColor: hexToRgba('#EF4444', 0.3) }]}>
-                    <Text style={[Typography.caption, { color: '#EF4444', fontWeight: '600' }]}>{errorMsg}</Text>
+                  <View style={[styles.errorBox, { backgroundColor: hexToRgba(palette.error, 0.12), borderColor: hexToRgba(palette.error, 0.3) }]}>
+                    <Text style={[Typography.caption, { color: palette.error, fontWeight: '600' }]}>{errorMsg}</Text>
                   </View>
                 ) : null}
 
@@ -303,10 +303,10 @@ export function ProfileOnboardingModal() {
                     <TouchableOpacity
                       onPress={handleNextStep}
                       activeOpacity={0.85}
-                      style={[styles.actionBtn, { backgroundColor: palette.primary }]}
+                      style={[styles.actionBtn, { backgroundColor: palette.primary, shadowColor: palette.primary }]}
                     >
-                      <Text style={[Typography.bodyBold, styles.actionBtnText]}>Next: Choose Handle</Text>
-                      <ArrowRight size={18} color="#FFFFFF" />
+                      <Text style={[Typography.bodyBold, styles.actionBtnText, { color: readableInk(palette.primary) }]}>Next: Choose Handle</Text>
+                      <ArrowRight size={18} color={readableInk(palette.primary)} />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -340,7 +340,7 @@ export function ProfileOnboardingModal() {
                           autoCorrect={false}
                         />
                         {username.trim().length >= 3 && (
-                          <CheckCircle2 size={18} color="#10B981" />
+                          <CheckCircle2 size={18} color={palette.success} />
                         )}
                       </View>
                     </View>
@@ -376,10 +376,10 @@ export function ProfileOnboardingModal() {
                     <TouchableOpacity
                       onPress={handleNextStep}
                       activeOpacity={0.85}
-                      style={[styles.actionBtn, { backgroundColor: palette.primary }]}
+                      style={[styles.actionBtn, { backgroundColor: palette.primary, shadowColor: palette.primary }]}
                     >
-                      <Text style={[Typography.bodyBold, styles.actionBtnText]}>Next: Date of Birth</Text>
-                      <ArrowRight size={18} color="#FFFFFF" />
+                      <Text style={[Typography.bodyBold, styles.actionBtnText, { color: readableInk(palette.primary) }]}>Next: Date of Birth</Text>
+                      <ArrowRight size={18} color={readableInk(palette.primary)} />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -417,10 +417,10 @@ export function ProfileOnboardingModal() {
                     <TouchableOpacity
                       onPress={handleNextStep}
                       activeOpacity={0.85}
-                      style={[styles.actionBtn, { backgroundColor: palette.primary }]}
+                      style={[styles.actionBtn, { backgroundColor: palette.primary, shadowColor: palette.primary }]}
                     >
-                      <Text style={[Typography.bodyBold, styles.actionBtnText]}>Next: Choose Avatar</Text>
-                      <ArrowRight size={18} color="#FFFFFF" />
+                      <Text style={[Typography.bodyBold, styles.actionBtnText, { color: readableInk(palette.primary) }]}>Next: Choose Avatar</Text>
+                      <ArrowRight size={18} color={readableInk(palette.primary)} />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -429,7 +429,7 @@ export function ProfileOnboardingModal() {
                 {step === 4 && (
                   <View style={styles.stepContainer}>
                     <View style={styles.avatarPreviewArea}>
-                      <View style={styles.mainAvatarImg}>
+                      <View style={[styles.mainAvatarImg, { borderColor: palette.primary }]}>
                         {avatarPhoto ? (
                           <Image source={{ uri: avatarPhoto }} style={styles.mainAvatarFill} />
                         ) : (
@@ -441,7 +441,7 @@ export function ProfileOnboardingModal() {
                         style={[styles.customPhotoBadge, { backgroundColor: palette.primary, borderColor: palette.card }]}
                         activeOpacity={0.8}
                       >
-                        <Camera size={16} color="#FFFFFF" />
+                        <Camera size={16} color={readableInk(palette.primary)} />
                       </TouchableOpacity>
                     </View>
 
@@ -472,7 +472,7 @@ export function ProfileOnboardingModal() {
                             <Blobatar name={seed} size={53} />
                             {isSelected && (
                               <View style={[styles.checkBadge, { backgroundColor: palette.primary }]}>
-                                <Check size={12} color="#FFFFFF" />
+                                <Check size={12} color={readableInk(palette.primary)} />
                               </View>
                             )}
                           </TouchableOpacity>
@@ -494,13 +494,13 @@ export function ProfileOnboardingModal() {
                       onPress={handleFinalSubmit}
                       disabled={isSubmitting}
                       activeOpacity={0.85}
-                      style={[styles.actionBtn, { backgroundColor: palette.primary, marginTop: 10 }]}
+                      style={[styles.actionBtn, { backgroundColor: palette.primary, shadowColor: palette.primary, marginTop: 10 }]}
                     >
                       {isSubmitting ? (
-                        <ActivityIndicator color="#FFFFFF" size="small" />
+                        <ActivityIndicator color={readableInk(palette.primary)} size="small" />
                       ) : (
                         <>
-                          <Text style={[Typography.bodyBold, styles.actionBtnText]}>
+                          <Text style={[Typography.bodyBold, styles.actionBtnText, { color: readableInk(palette.primary) }]}>
                             Complete Setup & Get Started ✨
                           </Text>
                         </>
@@ -622,7 +622,6 @@ const styles = StyleSheet.create({
     height: 88,
     borderRadius: 44,
     borderWidth: 3,
-    borderColor: '#3B82F6',
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center'
@@ -687,14 +686,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    shadowColor: '#3B82F6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 4
   },
   actionBtnText: {
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700'
   }

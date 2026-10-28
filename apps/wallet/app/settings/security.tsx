@@ -1,31 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import {
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  ScrollView,
-  Switch
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, KeyRound, ChevronRight, Key, Fingerprint } from 'lucide-react-native';
-import { useAppPalette, isLight } from '../../src/lib/theme';
+import { ArrowLeft, ChevronRight, Fingerprint, Key, KeyRound } from 'lucide-react-native';
+import { useAppPalette, hexToRgba } from '../../src/lib/theme';
 import { usePreferencesStore, PreferencesState } from '../../src/store/preferences.store';
 import { useAuthStore } from '../../src/store/auth.store';
 import { Typography } from '../../src/constants/typography';
-import { AppModal, useAppModal } from '../../src/components/ui/AppModal';
+import { Spacing } from '../../src/constants/spacing';
 import { authenticateBiometric, getBiometricAvailability } from '../../src/lib/localAuthentication';
+import { EnterSection } from '../../src/lib/animations';
 
 export default function SecurityScreen() {
   const palette = useAppPalette();
-  const light = isLight(palette.bg);
   const appLockEnabled = usePreferencesStore((s: PreferencesState) => s.appLockEnabled);
   const setAppLockEnabled = usePreferencesStore((s: PreferencesState) => s.setAppLockEnabled);
   const biometricsEnabled = usePreferencesStore((s: PreferencesState) => s.biometricsEnabled);
   const setBiometricsEnabled = usePreferencesStore((s: PreferencesState) => s.setBiometricsEnabled);
   const hasPin = useAuthStore((s) => s.hasPin);
-  const modal = useAppModal();
   const [bioAvailable, setBioAvailable] = useState(false);
 
   useEffect(() => {
@@ -45,93 +37,108 @@ export default function SecurityScreen() {
     }
   };
 
+  const tileTint = hexToRgba(palette.text, 0.07);
+  const switchTrack = { false: hexToRgba(palette.text, 0.15), true: palette.success };
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.bg }]}>
-      <View style={[styles.header, { borderColor: palette.border }]}>
-        <TouchableOpacity
+      {/* Header */}
+      <View style={styles.header}>
+        <Pressable
           onPress={() => router.back()}
-          style={[styles.backBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
-          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibility-label="Go back"
+          hitSlop={12}
+          style={({ pressed }) => [
+            styles.backButton,
+            { backgroundColor: palette.card, borderColor: palette.border },
+            pressed && { opacity: 0.6 }
+          ]}
         >
           <ArrowLeft size={20} color={palette.text} />
-        </TouchableOpacity>
-        <Text style={[Typography.title2, { color: palette.text }]}>Security</Text>
-        <View style={{ width: 40 }} />
+        </Pressable>
+        <Text style={[Typography.title1, { color: palette.text }]}>Security</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={[Typography.subhead, styles.sectionSubtitle, { color: palette.textSecondary }]}>
-          Protect your account and transactions
-        </Text>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <EnterSection index={0}>
+          <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.5), paddingHorizontal: 4 }]}>
+            Protect your account and transactions
+          </Text>
+        </EnterSection>
 
-        <View style={[styles.cardGroup, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <TouchableOpacity
-            style={[styles.rowItem, { borderBottomColor: palette.border }]}
-            onPress={() => router.push('/settings/set-pin')}
-            activeOpacity={0.7}
-          >
-            <View style={styles.itemLeft}>
-              <View style={[styles.iconBadge, { backgroundColor: light ? '#E2E8F0' : 'rgba(255,255,255,0.08)' }]}>
-                <KeyRound size={18} color={palette.text} />
+        {/* ── Authentication ── */}
+        <EnterSection index={1}>
+          <View style={styles.group}>
+            <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45) }]}>AUTHENTICATION</Text>
+            <View style={[styles.groupCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <Pressable
+                onPress={() => router.push('/settings/set-pin')}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.row, pressed && { backgroundColor: hexToRgba(palette.text, 0.05) }]}
+              >
+                <View style={[styles.iconTile, { backgroundColor: tileTint }]}>
+                  <KeyRound size={19} color={palette.textSecondary} strokeWidth={1.9} />
+                </View>
+                <View style={styles.rowCopy}>
+                  <Text style={[Typography.currencySub, { color: palette.text }]}>
+                    {hasPin ? 'Change 4-Digit PIN' : 'Create 4-Digit PIN'}
+                  </Text>
+                  <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.5) }]}>
+                    {hasPin ? 'Update your transaction PIN' : 'Set a PIN to confirm transactions'}
+                  </Text>
+                </View>
+                <ChevronRight size={17} color={hexToRgba(palette.text, 0.35)} />
+              </Pressable>
+
+              <View style={[styles.divider, { backgroundColor: palette.border }]} />
+
+              <View style={styles.row}>
+                <View style={[styles.iconTile, { backgroundColor: tileTint }]}>
+                  <Fingerprint size={19} color={palette.textSecondary} strokeWidth={1.9} />
+                </View>
+                <View style={styles.rowCopy}>
+                  <Text style={[Typography.currencySub, { color: palette.text }]}>Fingerprint / Face Unlock</Text>
+                  <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.5) }]}>
+                    {!bioAvailable
+                      ? 'Not available on this device'
+                      : !hasPin
+                        ? 'Set a PIN first to use biometrics'
+                        : 'Unlock the app without typing your PIN'}
+                  </Text>
+                </View>
+                <Switch
+                  value={biometricsEnabled}
+                  onValueChange={(v) => void handleBiometricsToggle(v)}
+                  disabled={!bioAvailable || !hasPin}
+                  trackColor={switchTrack}
+                  thumbColor="#FFFFFF"
+                  style={(!bioAvailable || !hasPin) && { opacity: 0.5 }}
+                />
               </View>
-              <View>
-                <Text style={[Typography.bodyBold, { color: palette.text }]}>
-                  {hasPin ? 'Change 4-Digit PIN' : 'Create 4-Digit PIN'}
-                </Text>
-                <Text style={[Typography.subhead, { color: palette.textSecondary }]}>
-                  {hasPin ? 'Update your transaction PIN' : 'Set a PIN to confirm transactions'}
-                </Text>
+
+              <View style={[styles.divider, { backgroundColor: palette.border }]} />
+
+              <View style={styles.row}>
+                <View style={[styles.iconTile, { backgroundColor: tileTint }]}>
+                  <Key size={19} color={palette.textSecondary} strokeWidth={1.9} />
+                </View>
+                <View style={styles.rowCopy}>
+                  <Text style={[Typography.currencySub, { color: palette.text }]}>Require Passcode on Launch</Text>
+                  <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.5) }]}>
+                    Lock app when sent to background
+                  </Text>
+                </View>
+                <Switch
+                  value={appLockEnabled}
+                  onValueChange={setAppLockEnabled}
+                  trackColor={switchTrack}
+                  thumbColor="#FFFFFF"
+                />
               </View>
             </View>
-            <ChevronRight size={18} color={palette.textSecondary} />
-          </TouchableOpacity>
-
-          <View style={[styles.rowItem, { borderBottomColor: palette.border }]}>
-            <View style={styles.itemLeft}>
-              <View style={[styles.iconBadge, { backgroundColor: light ? '#E2E8F0' : 'rgba(255,255,255,0.08)' }]}>
-                <Fingerprint size={18} color={palette.text} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[Typography.bodyBold, { color: palette.text }]}>Fingerprint / Face Unlock</Text>
-                <Text style={[Typography.subhead, { color: palette.textSecondary }]}>
-                  {!bioAvailable
-                    ? 'Not available on this device'
-                    : !hasPin
-                      ? 'Set a PIN first to use biometrics'
-                      : 'Unlock the app without typing your PIN'}
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={biometricsEnabled}
-              onValueChange={(v) => void handleBiometricsToggle(v)}
-              disabled={!bioAvailable || !hasPin}
-              trackColor={{ false: light ? '#CBD5E1' : '#3A3A3C', true: '#10B981' }}
-              thumbColor="#FFFFFF"
-            />
           </View>
-
-          <View style={styles.rowItem}>
-            <View style={styles.itemLeft}>
-              <View style={[styles.iconBadge, { backgroundColor: light ? '#E2E8F0' : 'rgba(255,255,255,0.08)' }]}>
-                <Key size={18} color={palette.text} />
-              </View>
-              <View>
-                <Text style={[Typography.bodyBold, { color: palette.text }]}>Require Passcode on Launch</Text>
-                <Text style={[Typography.subhead, { color: palette.textSecondary }]}>
-                  Lock app when sent to background
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={appLockEnabled}
-              onValueChange={setAppLockEnabled}
-              trackColor={{ false: light ? '#CBD5E1' : '#3A3A3C', true: '#10B981' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-        </View>
-        <AppModal config={modal.config} onClose={modal.hide} />
+        </EnterSection>
       </ScrollView>
     </SafeAreaView>
   );
@@ -142,49 +149,54 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1
+    gap: 14,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12
   },
-  backBtn: {
+  backButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center'
   },
-  scrollContent: {
-    padding: 20
+  content: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: 6,
+    paddingBottom: 40,
+    gap: 20
   },
-  sectionSubtitle: {
-    marginBottom: 16
+  group: { gap: 8 },
+  groupLabel: {
+    fontFamily: Typography.family.mono,
+    fontSize: 11,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    paddingHorizontal: 4
   },
-  cardGroup: {
+  groupCard: {
     borderRadius: 20,
     borderWidth: 1,
     overflow: 'hidden'
   },
-  rowItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16
-  },
-  itemLeft: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    flex: 1,
-    paddingRight: 12
+    paddingHorizontal: 14,
+    paddingVertical: 13
   },
-  iconBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  divider: {
+    height: 1,
+    marginLeft: 66
+  },
+  iconTile: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center'
-  }
+  },
+  rowCopy: { flex: 1 }
 });

@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Bell, Sun, Moon, Scan, Settings } from 'lucide-react-native';
-import { useAppPalette } from '../lib/theme';
+import { useAppPalette, hexToRgba, readableInk } from '../lib/theme';
 import { usePreferencesStore, PreferencesState } from '../store/preferences.store';
 import { Typography } from '../constants/typography';
 
@@ -68,7 +68,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
         style={styles.profileGreetingTouch}
         activeOpacity={0.7}
       >
-        <View style={[styles.avatarBtn, { backgroundColor: isDark ? '#1E293B01' : '#E2E8F001', borderColor: palette.border }]}>
+        <View style={[styles.avatarBtn, { backgroundColor: hexToRgba(palette.text, 0.06), borderColor: palette.border }]}>
           <Avatar avatarUrl={user?.avatarUrl} seed={userAvatarSeed(user)} size={38} />
         </View>
 
@@ -109,8 +109,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
         >
           <Bell size={18} color={palette.text} />
           {unreadCount > 0 && (
-            <View style={[styles.badge, { backgroundColor: '#10B981', borderColor: palette.card }]}>
-              <Text style={styles.badgeText}>
+            <View style={[styles.badge, { backgroundColor: palette.success, borderColor: palette.card }]}>
+              <Text style={[styles.badgeText, { color: readableInk(palette.success) }]}>
                 {unreadCount > 99 ? '99+' : unreadCount}
               </Text>
             </View>
@@ -154,7 +154,6 @@ const styles = StyleSheet.create({
     zIndex: 1
   },
   badgeText: {
-    color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.2

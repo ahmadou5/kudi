@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { ArrowLeft, Building2, Smartphone } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useAppPalette } from '../../src/lib/theme';
+import { useAppPalette, hexToRgba } from '../../src/lib/theme';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
 import { useSendAuth } from '../../src/hooks/useSendAuth';
 import { Typography } from '../../src/constants/typography';
@@ -460,7 +460,7 @@ export default function SpendTab() {
                   style={[
                     styles.chainTab,
                     {
-                      backgroundColor: offchainMode === 'BANK' ? (palette.text === '#FFFFFF' ? '#1E293B' : '#0F172A') : palette.card,
+                      backgroundColor: offchainMode === 'BANK' ? hexToRgba(palette.text, 0.12) : palette.card,
                       borderColor: offchainMode === 'BANK' ? palette.primary : palette.border
                     }
                   ]}
@@ -478,7 +478,7 @@ export default function SpendTab() {
                   style={[
                     styles.chainTab,
                     {
-                      backgroundColor: offchainMode === 'INTERAPP' ? (palette.text === '#FFFFFF' ? '#1E293B' : '#0F172A') : palette.card,
+                      backgroundColor: offchainMode === 'INTERAPP' ? hexToRgba(palette.text, 0.12) : palette.card,
                       borderColor: offchainMode === 'INTERAPP' ? palette.primary : palette.border
                     }
                   ]}
@@ -498,7 +498,7 @@ export default function SpendTab() {
                   style={[
                     styles.chainTab,
                     {
-                      backgroundColor: onchainChain === 'solana' ? (palette.text === '#FFFFFF' ? '#1E293B' : '#0F172A') : palette.card,
+                      backgroundColor: onchainChain === 'solana' ? hexToRgba(palette.text, 0.12) : palette.card,
                       borderColor: onchainChain === 'solana' ? '#9945FF' : palette.border
                     }
                   ]}
@@ -514,7 +514,7 @@ export default function SpendTab() {
                   style={[
                     styles.chainTab,
                     {
-                      backgroundColor: onchainChain === 'monad' ? (palette.text === '#FFFFFF' ? '#1E293B' : '#0F172A') : palette.card,
+                      backgroundColor: onchainChain === 'monad' ? hexToRgba(palette.text, 0.12) : palette.card,
                       borderColor: onchainChain === 'monad' ? '#836EF9' : palette.border
                     }
                   ]}
