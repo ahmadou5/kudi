@@ -27,6 +27,7 @@ import { SendHeader } from '../../src/components/send/SendHeader';
 import { SummaryCard } from '../../src/components/send/SummaryCard';
 import { SendSheet } from '../../src/components/send/SendSheet';
 import { haptics } from '../../src/lib/haptics';
+import { useSendAuth } from '../../src/hooks/useSendAuth';
 
 /** Flat fee shown to the user and added on top of the amount (matches the API's ₦20 payout fee). */
 const NGN_FEE = 20;
@@ -50,6 +51,7 @@ type ListTab = 'recent' | 'saved';
 export default function SendNgnScreen() {
   const palette = useAppPalette();
   const isDark = palette.text === '#FFFFFF';
+  const { bioReady, authorize } = useSendAuth();
   const { balanceUSDC, rateNGN, resolveAccount, spendToBank } = useKudiWallet();
 
   const recentBank = useRecipientsStore((s) => s.recentBank);
@@ -181,10 +183,19 @@ export default function SendNgnScreen() {
     setSheetOpen(true);
   };
 
-  const handleConfirmTransfer = () => {
+  const handleConfirmTransfer = async () => {
+    setPinError('');
+    if (bioReady) {
+      const bioPin = await authorize('Confirm transfer');
+      if (bioPin) {
+        // Biometric approved: send straight from the review sheet — no PIN modal.
+        await handleConfirmPin(bioPin);
+        return;
+      }
+      // Cancelled / failed → fall through to the PIN modal.
+    }
     // Close the sheet first: stacking two native Modals is unreliable on iOS.
     setSheetOpen(false);
-    setPinError('');
     setTimeout(() => setPinOpen(true), 300);
   };
 
@@ -207,6 +218,13 @@ export default function SendNgnScreen() {
       const res = await spendToBank(amountUSDC, selectedBank.code, cleanAccount, accountName, pin, note.trim() || undefined);
       setSubmitting(false);
       setPinOpen(false);
+
+      if (sheetOpen) {
+        // Biometric path: the review sheet is still up — dismiss it before the
+        // result modal, mirroring the sheet → PIN hand-off above.
+        setSheetOpen(false);
+        await new Promise((r) => setTimeout(r, 300));
+      }
 
       if (res.success) {
         const recipient = {
@@ -541,7 +559,7 @@ export default function SendNgnScreen() {
       )}
 
       {/* ───────────── CONFIRM SHEET ───────────── */}
-      <SendSheet visible={sheetOpen} onClose={() => setSheetOpen(false)}>
+      <SendSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} locked={submitting}>
         <Text style={[styles.sheetAmount, { color: palette.text }]}>{fmtNgn(numericAmount)}</Text>
         <Text style={[Typography.body, styles.sheetWords, { color: palette.textSecondary }]}>
           {nairaInWords(numericAmount)}
@@ -578,12 +596,26 @@ export default function SendNgnScreen() {
           />
         </View>
 
+        <View style={styles.sheetErrorSlot} accessibilityLiveRegion="polite">
+          {pinError ? (
+            <Text style={[Typography.footnote, { color: palette.error, textAlign: 'center' }]}>{pinError}</Text>
+          ) : null}
+        </View>
+
         <TouchableOpacity
           onPress={handleConfirmTransfer}
+          disabled={submitting}
           activeOpacity={0.85}
-          style={[styles.primaryBtn, { backgroundColor: primaryBtn, marginHorizontal: 0 }]}
+          style={[
+            styles.primaryBtn,
+            { backgroundColor: submitting ? disabledBtn : primaryBtn, marginHorizontal: 0, opacity: submitting ? 0.85 : 1 },
+          ]}
         >
-          <Text style={[Typography.title3, { color: primaryBtnText, fontWeight: '600' }]}>Confirm Transfer</Text>
+          {submitting ? (
+            <ActivityIndicator color={primaryBtnText} />
+          ) : (
+            <Text style={[Typography.title3, { color: primaryBtnText, fontWeight: '600' }]}>Confirm Transfer</Text>
+          )}
         </TouchableOpacity>
       </SendSheet>
 
@@ -604,6 +636,16 @@ export default function SendNgnScreen() {
         loading={submitting}
         error={pinError}
         onConfirm={handleConfirmPin}
+        onBiometricPress={
+          bioReady
+            ? () => {
+                void (async () => {
+                  const bioPin = await authorize('Confirm transfer');
+                  if (bioPin) await handleConfirmPin(bioPin);
+                })();
+              }
+            : undefined
+        }
       />
 
       <TransactionResultModal
@@ -724,4 +766,5 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginVertical: 18,
   },
+  sheetErrorSlot: { minHeight: 18, justifyContent: 'center', marginBottom: 8 },
 });

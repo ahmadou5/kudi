@@ -57,6 +57,9 @@ export const apiRoutes = {
   },
   bills: {
     pay: '/api/v1/bills/pay'
+  },
+  referral: {
+    overview: '/api/v1/referral/overview'
   }
 } as const;
 
@@ -225,6 +228,7 @@ export type AuthenticatePrivyRequest = {
   email?: string;
   phoneNumber?: string;
   name?: string;
+  referralCode?: string;
 };
 
 export type SendPrivyOtpRequest = {
@@ -234,6 +238,7 @@ export type SendPrivyOtpRequest = {
 export type VerifyPrivyOtpRequest = {
   email: string;
   code: string;
+  referralCode?: string;
 };
 
 export type RefreshTokenRequest = {
@@ -243,6 +248,7 @@ export type RefreshTokenRequest = {
 export type RegisterUserRequest = {
   phoneNumber?: string;
   email?: string;
+  referralCode?: string;
 };
 
 export type UpdateUserProfileRequest = {
@@ -342,4 +348,22 @@ export type SetMaintenanceConfigRequest = {
   message?: string;
   estimatedMinutes?: number | null;
 };
+
+// ==========================================
+// Referral Types
+// ==========================================
+
+export interface ReferralInvitedUser {
+  id: string;
+  name: string;
+  username?: string;
+  avatarUrl?: string;
+  joinedAt: string;
+}
+
+export interface ReferralOverviewData {
+  code: string;
+  invitedCount: number;
+  invited: ReferralInvitedUser[];
+}
 
