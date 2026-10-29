@@ -9,7 +9,14 @@ import Animated, {
 } from 'react-native-reanimated';
 import React, { useCallback, useEffect, useRef } from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
-import { NavigationContext } from '@react-navigation/native';
+// Expo Router vendors its own React Navigation fork. Screens are wrapped with
+// *these* contexts — the standalone @react-navigation/native package is a
+// different module graph, so importing NavigationContext from there always
+// returns undefined and focus tracking silently dies.
+import { NavigationContext as ExpoNavigationContext } from 'expo-router/build/react-navigation/core/NavigationContext';
+import { IsFocusedContext } from 'expo-router/build/react-navigation/core/useIsFocused';
+// Fallback for hosts that aren't Expo Router (unit tests, Storybook).
+import { NavigationContext as StandaloneNavigationContext } from '@react-navigation/native';
 
 /**
  * Storyboard:
@@ -39,15 +46,22 @@ const SPRING = {
 } as const;
 
 /**
- * Safe drop-in for `useIsFocused`.
+ * Safe drop-in for React Navigation's `useIsFocused`.
  *
- * Outside any navigator (custom modals, portals, unit tests) it returns `true`
- * so entrance animations still run on mount. Inside a navigator it tracks the
- * screen's focus via the same focus/blur subscription React Navigation uses.
+ * Prefers `IsFocusedContext` (the precise per-screen boolean Expo Router's
+ * NavigationProvider publishes). Falls back to focus/blur subscriptions on the
+ * nearest navigation object, and finally to `true` when there is no navigator
+ * at all (custom modals, portals, tests) so entrances still run on mount.
  */
 function useSafeIsFocused(): boolean {
-  const navigation = React.useContext(NavigationContext);
+  // 1. Best path — context-driven, no event subscription needed.
+  const focusedFromContext = React.useContext(IsFocusedContext);
+  const expoNavigation = React.useContext(ExpoNavigationContext);
+  const standaloneNavigation = React.useContext(StandaloneNavigationContext);
+  const navigation = expoNavigation ?? standaloneNavigation;
 
+  // IsFocusedContext is only provided inside a navigator's NavigationProvider.
+  // When present it already accounts for the whole ancestor tree.
   const subscribe = useCallback(
     (onChange: () => void) => {
       if (!navigation) return () => {};
@@ -66,7 +80,9 @@ function useSafeIsFocused(): boolean {
     [navigation]
   );
 
-  return React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const focusedFromEvents = React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+  return focusedFromContext ?? focusedFromEvents;
 }
 
 /**
