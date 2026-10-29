@@ -92,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
           )}
         </TouchableOpacity>
 
-       
+
         <TouchableOpacity
           onPress={handleScanner}
           style={[styles.iconBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
@@ -109,8 +109,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScanner, onOpenProfile }) 
         >
           <Bell size={18} color={palette.text} />
           {unreadCount > 0 && (
-            <View style={[styles.badge, { backgroundColor: palette.success, borderColor: palette.card }]}>
-              <Text style={[styles.badgeText, { color: readableInk(palette.success) }]}>
+            <View style={[styles.badge, { backgroundColor: palette.primary + 94, borderColor: palette.card }]}>
+              <Text style={[styles.badgeText, { color: readableInk(palette.primary) }]}>
                 {unreadCount > 99 ? '99+' : unreadCount}
               </Text>
             </View>

@@ -1,9 +1,23 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { CheckCircle2, XCircle, Clock, Check, X } from 'lucide-react-native';
-import { Spacing } from '../constants/spacing';
+import React, { useEffect, useState } from 'react';
+import { Image, Modal, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { CheckCircle2, Clock, X, XCircle } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  Easing,
+  Extrapolation,
+  interpolate,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withDelay,
+  withSpring,
+  withTiming
+} from 'react-native-reanimated';
 import { Typography } from '../constants/typography';
-import { useAppPalette, hexToRgba } from '../lib/theme';
+import { useAppPalette, hexToRgba, readableInk } from '../lib/theme';
+import { haptics } from '../lib/haptics';
+import { CardBackgroundPattern } from './ui/CardBackgroundPattern';
+import { TransactionTrack } from './ui/TransactionTrack';
 
 interface TransactionResultModalProps {
   visible: boolean;
@@ -19,8 +33,51 @@ interface TransactionResultModalProps {
 function formatTimestamp(value: Date) {
   return new Intl.DateTimeFormat('en-NG', {
     dateStyle: 'medium',
-    timeStyle: 'short',
+    timeStyle: 'short'
   }).format(value);
+}
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+function PressableScale({
+  children,
+  onPress,
+  style,
+  accessibilityLabel
+}: {
+  children: React.ReactNode;
+  onPress: () => void;
+  style?: StyleProp<ViewStyle>;
+  accessibilityLabel?: string;
+}) {
+  const scale = useSharedValue(1);
+  const reduced = useReducedMotion();
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }]
+  }));
+
+  return (
+    <AnimatedPressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      onPressIn={() => {
+        if (reduced) return;
+        scale.value = withSpring(0.97, { damping: 20, stiffness: 400 });
+      }}
+      onPressOut={() => {
+        if (reduced) return;
+        scale.value = withSpring(1, { damping: 20, stiffness: 400 });
+      }}
+      onPress={() => {
+        haptics.impact('light');
+        onPress();
+      }}
+      style={[style, animatedStyle]}
+    >
+      {children}
+    </AnimatedPressable>
+  );
 }
 
 export function TransactionResultModal({
@@ -31,49 +88,91 @@ export function TransactionResultModal({
   amount,
   reference,
   onClose,
-  onViewReceipt,
+  onViewReceipt
 }: TransactionResultModalProps) {
   const palette = useAppPalette();
-  const scale = useRef(new Animated.Value(0.92)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
+  const reduced = useReducedMotion();
+  const insets = useSafeAreaInsets();
+  const isDark = palette.scheme === 'dark';
+
+  // One master clock (0 → 1) drives every staggered entrance in the sheet.
+  const entrance = useSharedValue(0);
+  const iconPop = useSharedValue(0.6);
   const [openedAt, setOpenedAt] = useState<Date>(new Date());
 
   useEffect(() => {
     if (!visible) return;
 
     setOpenedAt(new Date());
-    scale.setValue(0.92);
-    opacity.setValue(0);
 
-    Animated.parallel([
-      Animated.spring(scale, {
-        toValue: 1,
-        useNativeDriver: true,
-        friction: 7,
-        tension: 80,
-      }),
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 220,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [opacity, scale, visible]);
+    if (reduced) {
+      entrance.value = 1;
+      iconPop.value = 1;
+      return;
+    }
+
+    entrance.value = 0;
+    iconPop.value = 0.5;
+
+    entrance.value = withDelay(100, withTiming(1, { duration: 640, easing: Easing.out(Easing.cubic) }));
+    iconPop.value = withDelay(140, withSpring(1, { damping: 12, mass: 0.6, stiffness: 180 }));
+  }, [entrance, iconPop, reduced, visible]);
+
+  // Window helper: maps a slice of the master clock to a 0→1 rise with fade.
+  const useRise = (from: number, travel = 22) =>
+    useAnimatedStyle(() => {
+      const p = interpolate(entrance.value, [from, from + 0.3], [0, 1], Extrapolation.CLAMP);
+      return {
+        opacity: p,
+        transform: [{ translateY: (1 - p) * travel }]
+      };
+    });
+
+  const heroStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(entrance.value, [0, 0.3], [0, 1], Extrapolation.CLAMP),
+    transform: [{ scale: iconPop.value }]
+  }));
+
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(entrance.value, [0.05, 0.5], [0, 1], Extrapolation.CLAMP)
+  }));
+
+  const titleStyle = useRise(0.08);
+  const messageStyle = useRise(0.18);
+  const trackStyle = useRise(0.32);
+  const detailsStyle = useRise(0.5);
+  const buttonsStyle = useRise(0.68, 16);
 
   const tone =
     type === 'success'
-      ? { backgroundColor: hexToRgba(palette.success, 0.12), iconColor: palette.success, accent: palette.success }
+      ? {
+          soft: hexToRgba(palette.success, 0.12),
+          ring: hexToRgba(palette.success, 0.2),
+          accent: palette.success
+        }
       : type === 'failed'
-        ? { backgroundColor: hexToRgba(palette.error, 0.12), iconColor: palette.error, accent: palette.error }
-        : { backgroundColor: hexToRgba(palette.warning, 0.12), iconColor: palette.warning, accent: palette.warning };
+        ? {
+            soft: hexToRgba(palette.error, 0.12),
+            ring: hexToRgba(palette.error, 0.2),
+            accent: palette.error
+          }
+        : {
+            soft: hexToRgba(palette.warning, 0.12),
+            ring: hexToRgba(palette.warning, 0.2),
+            accent: palette.warning
+          };
 
-  const iconName = type === 'success' ? 'checkmark-circle' : type === 'failed' ? 'close-circle' : 'time';
+  const detailRows: Array<{ label: string; value: string }> = [];
+  if (amount) detailRows.push({ label: 'Amount', value: amount });
+  if (reference) detailRows.push({ label: 'Reference', value: reference });
+  detailRows.push({ label: 'Timestamp', value: formatTimestamp(openedAt) });
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <Animated.View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border, opacity, transform: [{ scale }] }]}>
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      <View style={[styles.root, { backgroundColor: palette.bg }]}>
+        {/* Top bar: brand + dismiss */}
+        <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
+          <View style={styles.topBarSide} />
           <View style={styles.brandRow}>
             <Image
               source={require('../../assets/logos/usdc.png')}
@@ -82,72 +181,103 @@ export function TransactionResultModal({
             />
             <Text style={[styles.brandText, { color: palette.text }]}>Kudi</Text>
           </View>
-
-          <View style={[styles.iconWrap, { backgroundColor: tone.backgroundColor }]}>
-            {type === 'success' && <CheckCircle2 size={36} color={tone.iconColor} />}
-            {type === 'failed' && <XCircle size={36} color={tone.iconColor} />}
-            {type === 'pending' && <Clock size={36} color={tone.iconColor} />}
+          <View style={styles.topBarSide}>
+            <Pressable
+              onPress={() => {
+                haptics.tap();
+                onClose();
+              }}
+              hitSlop={12}
+              style={({ pressed }) => [
+                styles.closeBtn,
+                { backgroundColor: palette.card, borderColor: palette.border },
+                pressed && { opacity: 0.6 }
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss"
+            >
+              <X size={20} color={palette.text} />
+            </Pressable>
           </View>
+        </View>
 
-          <Text style={[styles.title, { color: palette.text }]}>{title}</Text>
-          <Text style={[styles.message, { color: palette.textSecondary }]}>{message}</Text>
-
-          {/* 3-Stage Visual Status Track Line */}
-          <View style={[styles.trackBox, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-            <Text style={[styles.trackHeader, { color: palette.textSecondary }]}>TRANSFER TRACK</Text>
-            <View style={styles.trackLineContainer}>
-              <View style={styles.trackStep}>
-                <View style={[styles.trackDot, { backgroundColor: palette.primary }]}>
-                  <Check size={12} color="#fff" />
-                </View>
-                <Text style={[styles.trackStepLabel, { color: palette.text }]}>Requested</Text>
-              </View>
-              <View style={[styles.trackConnector, { backgroundColor: type === 'failed' ? palette.error : palette.primary }]} />
-              <View style={styles.trackStep}>
-                <View style={[styles.trackDot, { backgroundColor: type === 'failed' ? palette.error : palette.primary }]}>
-                  <Check size={12} color="#fff" />
-                </View>
-                <Text style={[styles.trackStepLabel, { color: palette.text }]}>Processing</Text>
-              </View>
-              <View style={[styles.trackConnector, { backgroundColor: type === 'success' ? palette.success : type === 'failed' ? palette.error : palette.border }]} />
-              <View style={styles.trackStep}>
-                <View style={[styles.trackDot, { backgroundColor: type === 'success' ? palette.success : type === 'failed' ? palette.error : palette.border }]}>
-                  {type === 'success' ? <Check size={12} color="#fff" /> : type === 'failed' ? <X size={12} color="#fff" /> : <Clock size={12} color={palette.textSecondary} />}
-                </View>
-                <Text style={[styles.trackStepLabel, { color: type === 'success' ? palette.success : type === 'failed' ? palette.error : palette.textSecondary }]}>
-                  {type === 'success' ? 'Completed' : type === 'failed' ? 'Failed' : 'Pending'}
-                </Text>
-              </View>
+        {/* Compact centered content — no scroll, fits the screen */}
+        <View style={styles.content}>
+          {/* Hero status block */}
+          <Animated.View style={[styles.hero, heroStyle]}>
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.heroGlow, { backgroundColor: hexToRgba(tone.accent, 0.16) }, glowStyle]}
+            />
+            <View
+              style={[
+                styles.iconWrap,
+                { backgroundColor: tone.soft, borderColor: tone.ring }
+              ]}
+            >
+              {type === 'success' && <CheckCircle2 size={38} color={tone.accent} />}
+              {type === 'failed' && <XCircle size={38} color={tone.accent} />}
+              {type === 'pending' && <Clock size={36} color={tone.accent} />}
             </View>
-          </View>
+          </Animated.View>
 
-          <View style={styles.rows}>
-            {amount ? (
-              <View style={[styles.row, { borderColor: palette.border }] }>
-                <Text style={[styles.label, { color: palette.textSecondary }]}>Amount</Text>
-                <Text style={[styles.value, { color: palette.text }]}>{amount}</Text>
-              </View>
-            ) : null}
-            {reference ? (
-              <View style={[styles.row, { borderColor: palette.border }] }>
-                <Text style={[styles.label, { color: palette.textSecondary }]}>Reference</Text>
-                <Text style={[styles.value, { color: palette.text }]}>{reference}</Text>
-              </View>
-            ) : null}
-            <View style={[styles.row, { borderColor: palette.border }] }>
-              <Text style={[styles.label, { color: palette.textSecondary }]}>Timestamp</Text>
-              <Text style={[styles.value, { color: palette.text }]}>{formatTimestamp(openedAt)}</Text>
+          <Animated.View style={[styles.textBlock, titleStyle]}>
+            <Text style={[Typography.title2, { color: palette.text, textAlign: 'center' }]}>{title}</Text>
+          </Animated.View>
+
+          <Animated.View style={[styles.textBlock, messageStyle]}>
+            <Text style={[styles.message, { color: palette.textSecondary }]} numberOfLines={2}>{message}</Text>
+          </Animated.View>
+
+          {/* Animated transfer track */}
+          <Animated.View style={[styles.section, trackStyle]}>
+            <View style={[styles.trackCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <CardBackgroundPattern
+                glowColor={hexToRgba(tone.accent, isDark ? 0.1 : 0.07)}
+                isDarkOverride={isDark}
+              />
+              <TransactionTrack type={type} active={visible} />
             </View>
-          </View>
+          </Animated.View>
 
-          <Pressable onPress={onClose} style={[styles.primaryButton, { backgroundColor: tone.accent }]}>
-            <Text style={styles.primaryText}>Done</Text>
-          </Pressable>
+          {/* Receipt-style detail rows */}
+          <Animated.View style={[styles.section, detailsStyle]}>
+            <View style={[styles.detailsCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              {detailRows.map((row, index) => (
+                <React.Fragment key={row.label}>
+                  {index > 0 && <View style={[styles.divider, { backgroundColor: palette.border }]} />}
+                  <View style={styles.row}>
+                    <Text style={[Typography.caption, { color: palette.textSecondary, letterSpacing: 0.8 }]}>
+                      {row.label}
+                    </Text>
+                    <Text style={[styles.rowValue, { color: palette.text }]} numberOfLines={1}>
+                      {row.value}
+                    </Text>
+                  </View>
+                </React.Fragment>
+              ))}
+            </View>
+          </Animated.View>
+        </View>
+
+        {/* Actions pinned to the bottom */}
+        <Animated.View style={[styles.buttons, { paddingBottom: insets.bottom + 16 }, buttonsStyle]}>
+          <PressableScale
+            onPress={onClose}
+            accessibilityLabel="Done"
+            style={[styles.primaryButton, { backgroundColor: tone.accent }]}
+          >
+            <Text style={[Typography.bodyBold, { color: readableInk(tone.accent), fontSize: 15 }]}>Done</Text>
+          </PressableScale>
 
           {onViewReceipt ? (
-            <Pressable onPress={onViewReceipt} style={[styles.secondaryButton, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-              <Text style={[styles.secondaryText, { color: palette.text }]}>View Receipt</Text>
-            </Pressable>
+            <PressableScale
+              onPress={onViewReceipt}
+              accessibilityLabel="View receipt"
+              style={[styles.secondaryButton, { backgroundColor: palette.card, borderColor: palette.border }]}
+            >
+              <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 15 }]}>View Receipt</Text>
+            </PressableScale>
           ) : null}
         </Animated.View>
       </View>
@@ -156,135 +286,126 @@ export function TransactionResultModal({
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.50)',
-    justifyContent: 'center',
-    padding: Spacing.lg,
+  root: {
+    flex: 1
   },
-  card: {
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 8
+  },
+  topBarSide: {
+    width: 40,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
     borderWidth: 1,
-    borderRadius: 28,
-    padding: Spacing.lg,
-    gap: Spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 4,
+    gap: 8
   },
   brandLogo: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 6
   },
   brandText: {
     fontSize: Typography.md,
-    fontFamily: Typography.currencySub.fontFamily,
-    letterSpacing: 0.5,
+    fontFamily: Typography.family.mono,
+    letterSpacing: 0.5
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    gap: 14
+  },
+  hero: {
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  heroGlow: {
+    position: 'absolute',
+    width: 160,
+    height: 160,
+    borderRadius: 80
   },
   iconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 22,
+    width: 84,
+    height: 84,
+    borderRadius: 28,
+    borderWidth: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
+    justifyContent: 'center'
   },
-  title: {
-    fontSize: Typography.xl,
-    fontFamily: Typography.currencySub.fontFamily,
-    textAlign: 'center',
+  textBlock: {
+    alignItems: 'center',
+    gap: 6
   },
   message: {
     fontSize: Typography.sm,
     lineHeight: 20,
     textAlign: 'center',
+    fontFamily: Typography.family.mono,
+    maxWidth: 320
   },
-  trackBox: {
+  section: {
+    width: '100%'
+  },
+  trackCard: {
+    borderRadius: 24,
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 12,
-    gap: 8,
+    padding: 16,
+    overflow: 'hidden'
   },
-  trackHeader: {
-    fontSize: Typography.xs,
-    fontFamily: Typography.currencySub.fontFamily,
-    letterSpacing: 0.8,
+  detailsCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 2
   },
-  trackLineContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-  },
-  trackStep: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  trackDot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  trackStepLabel: {
-    fontSize: 10,
-    fontFamily: Typography.currencySub.fontFamily,
-  },
-  trackConnector: {
-    flex: 1,
-    height: 2,
-    marginBottom: 14,
-    marginHorizontal: 4,
-  },
-  rows: {
-    gap: 10,
+  divider: {
+    height: StyleSheet.hairlineWidth
   },
   row: {
-    borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 16,
+    paddingVertical: 11
   },
-  label: {
-    fontSize: Typography.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    fontFamily: Typography.currencySub.fontFamily,
-  },
-  value: {
+  rowValue: {
     fontSize: Typography.sm,
-    fontFamily: Typography.currencySub.fontFamily,
+    fontFamily: Typography.family.mono,
     flexShrink: 1,
-    textAlign: 'right',
+    textAlign: 'right'
+  },
+  buttons: {
+    width: '100%',
+    paddingHorizontal: 24,
+    gap: 10
   },
   primaryButton: {
-    minHeight: 54,
+    minHeight: 52,
     borderRadius: 16,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryText: {
-    color: '#fff',
-    fontSize: Typography.md,
-    fontFamily: Typography.currencySub.fontFamily,
+    justifyContent: 'center'
   },
   secondaryButton: {
-    minHeight: 54,
+    minHeight: 52,
     borderRadius: 16,
     borderWidth: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryText: {
-    fontSize: Typography.md,
-    fontFamily: Typography.currencySub.fontFamily,
-  },
+    justifyContent: 'center'
+  }
 });

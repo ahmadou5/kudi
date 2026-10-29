@@ -29,6 +29,7 @@ import { BalanceCardSkeleton } from './ui/AnimatedSkeleton';
 import { AnimatedAmount, formatNaira, formatUsd } from './ui/AnimatedAmount';
 import { sdk } from '../lib/sdk';
 import { haptics } from '../lib/haptics';
+import { CardBackgroundPattern } from './ui/CardBackgroundPattern';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CONTAINER_PADDING = 14;
@@ -380,7 +381,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
             style={[
               styles.glowOverlay,
               {
-                backgroundColor: palette.success,
+                backgroundColor: palette.accent,
                 opacity: glowAnim.interpolate({
                   inputRange: [0, 1],
                   outputRange: [0, 0.18]
@@ -390,8 +391,10 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
             pointerEvents="none"
           />
 
-          <CardPattern hue={cardHues.usdc} />
-
+          <CardBackgroundPattern
+            glowColor={hexToRgba(palette.primary, isDark ? 0.08 : 0.05)}
+            isDarkOverride={isDark}
+          />
           <View style={styles.cardHeaderRow}>
             <View style={styles.badgeRow}>
 
@@ -479,7 +482,11 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
             }
           ]}
         >
-          <CardPattern hue={cardHues.ngn} />
+          <CardBackgroundPattern
+            glowColor={hexToRgba(palette.primary, isDark ? 0.08 : 0.05)}
+            isDarkOverride={isDark}
+          />
+
 
           <View style={styles.cardHeaderRow}>
             <View style={styles.badgeRow}>
@@ -1046,81 +1053,81 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                     </Text>
                   </View>
                 ) : (
-                <View style={[styles.bankDetailsBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
-                  <View style={styles.sheetDetailRow}>
-                    <View>
-                      <Text style={[Typography.title3, { color: palette.textSecondary }]}>Account name</Text>
-                      <Text style={[Typography.display, { color: palette.text, fontSize: 18, lineHeight: 15 }]}>
-                        {activeBottomSheet.bankData.accountName}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => copyToClipboard(activeBottomSheet.bankData!.accountName, 'sheet_bank_name')}
-                    >
-                      {copiedField === 'sheet_bank_name' ? (
-                        <Check size={20} color={palette.success} />
-                      ) : (
-                        <Copy size={20} color={palette.textSecondary} />
-                      )}
-                    </TouchableOpacity>
-
-                  </View>
-                  <View style={styles.sheetDetailRow}>
-                    <View>
-                      <Text style={[Typography.title3, { color: palette.textSecondary }]}>
-                        {activeBottomSheet.bankData.currency === 'EUR' ? 'IBAN Number' : 'Account Number'}
-                      </Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={[Typography.currencySub, { color: palette.text, fontSize: 18, lineHeight: 15 }]} selectable>
-                          {activeBottomSheet.bankData.accountNumber}
-                        </Text>
-
-                      </View>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => copyToClipboard(activeBottomSheet.bankData!.accountNumber, 'sheet_bank_acc')}
-                    >
-                      {copiedField === 'sheet_bank_acc' ? (
-                        <Check size={20} color={palette.success} />
-                      ) : (
-                        <Copy size={20} color={palette.textSecondary} />
-                      )}
-                    </TouchableOpacity>
-
-                  </View>
-                  <View style={styles.sheetDetailRow}>
-                    <View>
-                      <Text style={[Typography.title3, { color: palette.textSecondary }]}>Bank</Text>
-                      <Text style={[Typography.display, { color: palette.text, fontSize: 18, lineHeight: 17 }]}>
-                        {activeBottomSheet.bankData.bankName}
-                      </Text>
-                    </View>
-
-                  </View>
-
-
-
-                  {activeBottomSheet.bankData.extraDetails && (
+                  <View style={[styles.bankDetailsBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
                     <View style={styles.sheetDetailRow}>
                       <View>
-                        <Text style={[Typography.title3, { color: palette.textSecondary }]}>Code / Routing</Text>
+                        <Text style={[Typography.title3, { color: palette.textSecondary }]}>Account name</Text>
                         <Text style={[Typography.display, { color: palette.text, fontSize: 18, lineHeight: 15 }]}>
-                          {activeBottomSheet.bankData.extraDetails}
+                          {activeBottomSheet.bankData.accountName}
                         </Text>
                       </View>
                       <TouchableOpacity
-                        onPress={() => copyToClipboard(activeBottomSheet.bankData!.extraDetails as string, 'sheet_bank_extra')}
+                        onPress={() => copyToClipboard(activeBottomSheet.bankData!.accountName, 'sheet_bank_name')}
                       >
-                        {copiedField === 'sheet_bank_extra' ? (
+                        {copiedField === 'sheet_bank_name' ? (
                           <Check size={20} color={palette.success} />
                         ) : (
                           <Copy size={20} color={palette.textSecondary} />
                         )}
                       </TouchableOpacity>
-                    </View>
-                  )}
 
-                </View>
+                    </View>
+                    <View style={styles.sheetDetailRow}>
+                      <View>
+                        <Text style={[Typography.title3, { color: palette.textSecondary }]}>
+                          {activeBottomSheet.bankData.currency === 'EUR' ? 'IBAN Number' : 'Account Number'}
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={[Typography.currencySub, { color: palette.text, fontSize: 18, lineHeight: 15 }]} selectable>
+                            {activeBottomSheet.bankData.accountNumber}
+                          </Text>
+
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => copyToClipboard(activeBottomSheet.bankData!.accountNumber, 'sheet_bank_acc')}
+                      >
+                        {copiedField === 'sheet_bank_acc' ? (
+                          <Check size={20} color={palette.success} />
+                        ) : (
+                          <Copy size={20} color={palette.textSecondary} />
+                        )}
+                      </TouchableOpacity>
+
+                    </View>
+                    <View style={styles.sheetDetailRow}>
+                      <View>
+                        <Text style={[Typography.title3, { color: palette.textSecondary }]}>Bank</Text>
+                        <Text style={[Typography.display, { color: palette.text, fontSize: 18, lineHeight: 17 }]}>
+                          {activeBottomSheet.bankData.bankName}
+                        </Text>
+                      </View>
+
+                    </View>
+
+
+
+                    {activeBottomSheet.bankData.extraDetails && (
+                      <View style={styles.sheetDetailRow}>
+                        <View>
+                          <Text style={[Typography.title3, { color: palette.textSecondary }]}>Code / Routing</Text>
+                          <Text style={[Typography.display, { color: palette.text, fontSize: 18, lineHeight: 15 }]}>
+                            {activeBottomSheet.bankData.extraDetails}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => copyToClipboard(activeBottomSheet.bankData!.extraDetails as string, 'sheet_bank_extra')}
+                        >
+                          {copiedField === 'sheet_bank_extra' ? (
+                            <Check size={20} color={palette.success} />
+                          ) : (
+                            <Copy size={20} color={palette.textSecondary} />
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                  </View>
                 )}
 
                 {/* Live Rate Ticker */}

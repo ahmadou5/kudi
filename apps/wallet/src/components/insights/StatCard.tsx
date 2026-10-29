@@ -29,14 +29,14 @@ export function StatCard({ label, value, caption, color, icon: Icon, flex = 1 }:
       <View style={[styles.iconChip, { backgroundColor: hexToRgba(accent, palette.scheme === 'dark' ? 0.16 : 0.12) }]}>
         <Icon size={14} color={accent} strokeWidth={2.2} />
       </View>
-      <Text style={[Typography.caption, { color: hexToRgba(palette.text, 0.5) }]} numberOfLines={1}>
+      <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.5), fontSize: 12 }]} numberOfLines={1}>
         {label}
       </Text>
       <Text style={[Typography.currencySub, { color: accent, fontSize: 15 }]} numberOfLines={1} adjustsFontSizeToFit>
         {value}
       </Text>
       {!!caption && (
-        <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.4), fontSize: 10 }]} numberOfLines={1}>
+        <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.4), fontSize: 10 }]} numberOfLines={1}>
           {caption}
         </Text>
       )}

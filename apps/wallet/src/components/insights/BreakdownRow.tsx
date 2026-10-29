@@ -29,11 +29,11 @@ export function BreakdownRow({ label, subLabel, amountLabel, pct, color, icon: I
             </View>
           )}
           <View style={styles.labelStack}>
-            <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 13 }]} numberOfLines={1}>
+            <Text style={[Typography.currencySub, { color: palette.text, fontSize: 13 }]} numberOfLines={1}>
               {label}
             </Text>
             {!!subLabel && (
-              <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.45) }]} numberOfLines={1}>
+              <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.45), fontSize: 10 }]} numberOfLines={1}>
                 {subLabel}
               </Text>
             )}
@@ -44,7 +44,7 @@ export function BreakdownRow({ label, subLabel, amountLabel, pct, color, icon: I
           <Text style={[Typography.currencySub, { color: palette.text, fontSize: 13 }]} numberOfLines={1}>
             {amountLabel}
           </Text>
-          <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.45) }]}>
+          <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.45), fontSize: 10 }]}>
             {pct >= 1 && pct < 100 ? `${Math.round(pct)}%` : pct >= 100 ? '100%' : '0%'}
           </Text>
         </View>

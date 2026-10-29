@@ -292,10 +292,10 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
               style={[styles.viewDetailsBtn, { backgroundColor: hexToRgba(palette.text, isDark ? 0.08 : 0.04), borderColor: palette.border }]}
               activeOpacity={0.7}
             >
-              <Text style={[Typography.caption, { color: palette.text, fontWeight: '700', fontSize: 12 }]}>
+              <Text style={[Typography.currencySub, { color: palette.text, fontSize: 12 }]}>
                 View Details
               </Text>
-              <ExternalLink size={12} color={palette.textSecondary} />
+
             </TouchableOpacity>
           </View>
         )}
