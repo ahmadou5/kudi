@@ -323,9 +323,7 @@ export class PayoutController {
     }
 
     // 6. Create withdrawal record + optimistic debit.
-    const withdrawalRate = this.rateService.getCurrentRate();
-    const withdrawalTier = user?.kycTier || KYCTier.UNVERIFIED;
-    const withdrawalDailyLimit = { ...buildDailyLimitCheck(withdrawalTier, numAmountUSDC, withdrawalRate), sourceType: 'ONCHAIN_SEND' };
+    // Crypto/onchain sends are exempt from KYC daily limits — only NGN/fiat rails are capped.
     const reference = generateReference('KUDI_ONCHAIN');
     let withdrawal;
     try {
@@ -334,8 +332,7 @@ export class PayoutController {
         userId,
         amountUSDC: numAmountUSDC,
         toAddress,
-        chain,
-        dailyLimit: withdrawalDailyLimit
+        chain
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -344,14 +341,6 @@ export class PayoutController {
         return reply.status(400).send(
           errorResponse('INSUFFICIENT_BALANCE', `Insufficient balance. Available: ${available.toFixed(2)} USDC`, 400)
         );
-      }
-      const limitError = parseDailyLimitError(message);
-      if (limitError) {
-        return reply.status(403).send(errorResponse(
-          'DAILY_LIMIT_EXCEEDED',
-          formatDailyLimitMessage(limitError.amountNGN, limitError.spentTodayNGN, limitError.limitNGN, withdrawalTier),
-          403
-        ));
       }
       return reply.status(500).send(errorResponse('WITHDRAWAL_CREATE_FAILED', message, 500));
     }
