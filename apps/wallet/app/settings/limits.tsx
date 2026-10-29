@@ -33,7 +33,7 @@ export default function SpendingLimitsScreen() {
     {
       level: 1,
       name: 'Tier 1 (Basic)',
-      dailyLimit: '₦500,000',
+      dailyLimit: '₦50,000',
       singleLimit: '₦200,000',
       requirements: 'BVN / NIN Verification'
     },
@@ -97,7 +97,7 @@ export default function SpendingLimitsScreen() {
             <View style={styles.statsRow}>
               <View style={styles.statBox}>
                 <Text style={[styles.fieldLabel, { color: hexToRgba(palette.text, 0.45) }]}>
-                  DAILY LIMIT
+                  NGN DAILY LIMIT
                 </Text>
                 <Text style={[Typography.title3, { color: palette.text, marginTop: 4 }]}>
                   {currentTierInfo.dailyLimit}
@@ -112,6 +112,15 @@ export default function SpendingLimitsScreen() {
                   {currentTierInfo.singleLimit}
                 </Text>
               </View>
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: palette.border }]} />
+
+            <View style={styles.tierDetailRow}>
+              <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.5) }]}>
+                Crypto / On-chain Sends
+              </Text>
+              <Text style={[Typography.currencySub, { color: palette.success }]}>No daily limit</Text>
             </View>
 
             {tier < 2 && (
@@ -139,7 +148,9 @@ export default function SpendingLimitsScreen() {
         {/* ── Tier breakdown ── */}
         <EnterSection index={1}>
           <View style={styles.group}>
-            <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45) }]}>TIER LEVELS</Text>
+            <Text style={[styles.groupLabel, { color: hexToRgba(palette.text, 0.45) }]}>
+              NGN / FIAT TIER LEVELS
+            </Text>
             {tiers.map((t) => {
               const active = t.level === tier;
               return (
@@ -176,7 +187,7 @@ export default function SpendingLimitsScreen() {
 
                   <View style={styles.tierDetailRow}>
                     <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.5) }]}>
-                      Daily Limit
+                      NGN Daily Limit
                     </Text>
                     <Text style={[Typography.currencySub, { color: palette.text }]}>{t.dailyLimit}</Text>
                   </View>
@@ -212,8 +223,10 @@ export default function SpendingLimitsScreen() {
                 { color: hexToRgba(palette.text, 0.55), flex: 1, lineHeight: 18 }
               ]}
             >
-              Spending limits are enforced in accordance with CBN regulatory guidelines to ensure
-              safety and security on all off-ramp bank transfers.
+              NGN spending limits apply to bank transfers, bills, and in-app
+              transfers in accordance with CBN regulatory guidelines. Crypto and
+              on-chain sends are not subject to daily limits — you can spend your
+              crypto balance regardless of verification tier.
             </Text>
           </View>
         </EnterSection>
