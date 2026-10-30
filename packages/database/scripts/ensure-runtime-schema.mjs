@@ -84,6 +84,7 @@ const statements = [
     reference TEXT NOT NULL UNIQUE,
     "userId" TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
     "amountUSDC" DOUBLE PRECISION NOT NULL,
+    "feeUSDC" DOUBLE PRECISION NOT NULL DEFAULT 0.01,
     "toAddress" TEXT NOT NULL,
     chain TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'PENDING',
@@ -186,6 +187,7 @@ const statements = [
   `ALTER TABLE "Wallet" ADD COLUMN IF NOT EXISTS "privyWalletId" TEXT`,
   `ALTER TABLE "Wallet" ADD COLUMN IF NOT EXISTS "custodyType" TEXT NOT NULL DEFAULT 'SERVER_CUSTODY'`,
   `ALTER TABLE "Wallet" ADD COLUMN IF NOT EXISTS metadata TEXT`,
+  `ALTER TABLE "Withdrawal" ADD COLUMN IF NOT EXISTS "feeUSDC" DOUBLE PRECISION NOT NULL DEFAULT 0.01`,
   `UPDATE "Wallet"
    SET "custodyType" = 'UNKNOWN', "privyWalletId" = NULL
    WHERE "privyWalletId" LIKE 'privy_srv_wlet_%'`,
@@ -228,7 +230,30 @@ const statements = [
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "Referral_inviteeId_key" ON "Referral" ("inviteeId")`,
-  `CREATE INDEX IF NOT EXISTS "Referral_referrerId_createdAt_idx" ON "Referral" ("referrerId", "createdAt")`
+  `CREATE INDEX IF NOT EXISTS "Referral_referrerId_createdAt_idx" ON "Referral" ("referrerId", "createdAt")`,
+
+  // SpendTransaction — payout receipts (status lifecycle: PENDING → SUCCESS | REVERSED)
+  `CREATE TABLE IF NOT EXISTS "SpendTransaction" (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    "userId" TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+    reference TEXT NOT NULL UNIQUE,
+    "amountUSDC" DOUBLE PRECISION NOT NULL,
+    "exchangeRateNGN" DOUBLE PRECISION NOT NULL,
+    "amountNGN" DOUBLE PRECISION NOT NULL,
+    "feeNGN" DOUBLE PRECISION NOT NULL,
+    "recipientBankCode" TEXT NOT NULL,
+    "recipientAccountNumber" TEXT NOT NULL,
+    "recipientAccountName" TEXT NOT NULL,
+    "payoutProvider" TEXT NOT NULL,
+    "providerReference" TEXT,
+    status TEXT NOT NULL DEFAULT 'PENDING',
+    "failureReason" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `ALTER TABLE "SpendTransaction" ADD COLUMN IF NOT EXISTS "providerReference" TEXT`,
+  `CREATE INDEX IF NOT EXISTS "SpendTransaction_userId_idx" ON "SpendTransaction" ("userId")`,
+  `CREATE INDEX IF NOT EXISTS "SpendTransaction_status_updatedAt_idx" ON "SpendTransaction" (status, "updatedAt")`
 ];
 
 try {

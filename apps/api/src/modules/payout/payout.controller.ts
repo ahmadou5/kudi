@@ -68,6 +68,9 @@ export class PayoutController {
     const privyWalletId = preferredWallet?.privyWalletId || (preferredWallet?.metadata?.privyWalletId as string | undefined);
 
     let onChainTxHash: string | undefined;
+    // Platform fee is deducted on-chain (user wallet -> treasury) inside sendCrypto.
+    // Only book it in the ledger when that send actually succeeded.
+    let onChainFeeUSDC = 0;
     if (privyWalletId && preferredWallet) {
       const chain = preferredWallet.chain === 'solana' ? 'solana' : 'monad';
       const treasuryAddress = chain === 'solana' ? apiConfig.KUDI_TREASURY_SOLANA_ADDRESS : apiConfig.KUDI_TREASURY_EVM_ADDRESS;
@@ -86,6 +89,7 @@ export class PayoutController {
             feeUSDC: apiConfig.USDC_FEE
           });
           onChainTxHash = sendRes.txHash;
+          onChainFeeUSDC = apiConfig.USDC_FEE ?? 0.01;
           console.log(`[PayoutController] 🏦 On-demand wallet transfer to treasury submitted: ${onChainTxHash} (${amountUSDC} USDC)`);
         } catch (err: unknown) {
           console.warn(`[PayoutController] ⚠️ On-demand wallet transfer to treasury warning/fallback:`, err instanceof Error ? err.message : err);
@@ -97,7 +101,7 @@ export class PayoutController {
     try {
       newBalance = await this.ledgerService.debitBalanceAtomic({
         userId,
-        amountUSDC,
+        amountUSDC: amountUSDC + onChainFeeUSDC,
         reference,
         type: 'SPEND_DEBIT',
         metadata: {
@@ -106,7 +110,8 @@ export class PayoutController {
           amountNGN,
           exchangeRateNGN: currentRate,
           recipientBankCode: bankCode,
-          onChainTxHash
+          onChainTxHash,
+          feeUSDC: onChainFeeUSDC
         },
         dailyLimit
       });
@@ -149,6 +154,7 @@ export class PayoutController {
         recipientAccountNumber: accountNumber,
         recipientAccountName: accountName,
         payoutProvider: transferRes.provider,
+        providerReference: transferRes.providerReference,
         status: transferRes.status,
         onChainTxHash,
         timestamp: new Date().toISOString()
@@ -165,7 +171,7 @@ export class PayoutController {
       await this.ledgerService.releaseSpendLimitEntry(reference, 'PAYOUT_FAILED');
       await this.ledgerService.creditBalanceAtomic({
         userId,
-        amountUSDC,
+        amountUSDC: amountUSDC + onChainFeeUSDC,
         reference: `rev_${reference}`,
         type: 'DEPOSIT_CREDIT',
         metadata: {
@@ -173,7 +179,8 @@ export class PayoutController {
           reason: 'PAYOUT_FAILED',
           type: 'SPEND_REVERSAL',
           title: 'Bank Payout Reversal',
-          subtitle: 'Restored to Balance'
+          subtitle: 'Restored to Balance',
+          feeUSDC: onChainFeeUSDC
         }
       });
       return reply
@@ -325,12 +332,14 @@ export class PayoutController {
     // 6. Create withdrawal record + optimistic debit.
     // Crypto/onchain sends are exempt from KYC daily limits — only NGN/fiat rails are capped.
     const reference = generateReference('KUDI_ONCHAIN');
+    const feeUSDC = apiConfig.USDC_FEE ?? 0.01;
     let withdrawal;
     try {
       withdrawal = await this.ledgerService.createWithdrawal({
         reference,
         userId,
         amountUSDC: numAmountUSDC,
+        feeUSDC,
         toAddress,
         chain
       });
@@ -354,6 +363,8 @@ export class PayoutController {
       chain,
       toAddress,
       amountUSDC: numAmountUSDC.toFixed(2),
+      feeUSDC,
+      totalDebitUSDC: (numAmountUSDC + feeUSDC).toFixed(2),
       newBalanceUSDC: (await this.ledgerService.getBalanceAsync(userId)).toFixed(2),
       message: 'Your crypto send is being broadcast to the network. Check status using the reference.'
     }, 'Crypto send initiated');
@@ -557,7 +568,7 @@ await prisma.transferMetadata.create({
       bankCode?: string;
       accountNumber?: string;
       accountName?: string;
-      payoutProvider?: 'paystack' | 'monnify' | 'squad';
+      payoutProvider?: 'monnify' | 'squad' | 'bachs';
     };
 
     const userId = authUser?.userId;
@@ -661,10 +672,13 @@ await prisma.transferMetadata.create({
         throw new Error(`Cashout transaction not confirmed: ${txHash}`);
       }
 
-      // Deduct from user's USDC balance (amount + estimated gas for TREASURY_FEE_PAYER)
-      const gasEstimateUSDC = gasMode === 'TREASURY_FEE_PAYER' ? 0.001 : 0;
-      const totalDebitUSDC = body.amountUSDC + gasEstimateUSDC;
-      
+      // Deduct amount + platform fee from the user's balance.
+      // sendCrypto always adds a fee transfer (sender -> treasury) regardless of
+      // gas payment mode — the old 0.001 TREASURY_FEE_PAYER-only guess drifted
+      // from the actual fee and left the ledger inflated.
+      const feeUSDC = apiConfig.USDC_FEE ?? 0.01;
+      const totalDebitUSDC = Math.round((body.amountUSDC + feeUSDC) * 1e6) / 1e6;
+
       await this.ledgerService.debitBalanceAtomic({
         userId,
         amountUSDC: totalDebitUSDC,
@@ -676,7 +690,9 @@ await prisma.transferMetadata.create({
           txHash,
           title: 'Cashout to Treasury',
           subtitle: `${chain.toUpperCase()} Network`,
-          status: 'CONFIRMED'
+          status: 'CONFIRMED',
+          feeUSDC,
+          totalDebitUSDC
         }
       });
 
@@ -735,6 +751,7 @@ await prisma.transferMetadata.create({
           recipientAccountNumber: body.accountNumber!,
           recipientAccountName: body.accountName!,
           payoutProvider: transferRes.provider,
+          providerReference: transferRes.providerReference,
           status: 'PENDING'
         });
       }

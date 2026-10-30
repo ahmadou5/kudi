@@ -169,6 +169,7 @@ model Withdrawal {
   userId        String
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   amountUSDC    Float
+  feeUSDC       Float    @default(0.01)
   toAddress     String
   chain         String
   status        String   @default("PENDING")
@@ -197,6 +198,7 @@ model SpendTransaction {
   recipientAccountNumber String
   recipientAccountName   String
   payoutProvider         String
+  providerReference      String?
   status                 String   @default("PENDING")
   failureReason          String?
   createdAt              DateTime @default(now())
@@ -204,6 +206,7 @@ model SpendTransaction {
 
   @@index([userId])
   @@index([reference])
+  @@index([status, updatedAt])
 }
 
 model ChainConfiguration {

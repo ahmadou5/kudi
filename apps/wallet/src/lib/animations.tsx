@@ -55,9 +55,18 @@ const SPRING = {
  */
 function useSafeIsFocused(): boolean {
   // 1. Best path — context-driven, no event subscription needed.
-  const focusedFromContext = React.useContext(IsFocusedContext);
-  const expoNavigation = React.useContext(ExpoNavigationContext);
-  const standaloneNavigation = React.useContext(StandaloneNavigationContext);
+  // Contexts are cast through `unknown`: vendored navigation packages and this
+  // app resolve @types/react from different copies (18 vs 19), so their
+  // Context types are nominally incompatible even though they're identical.
+  const focusedFromContext = React.useContext(
+    IsFocusedContext as unknown as React.Context<boolean | undefined>
+  );
+  const expoNavigation = React.useContext(
+    ExpoNavigationContext as unknown as React.Context<any>
+  );
+  const standaloneNavigation = React.useContext(
+    StandaloneNavigationContext as unknown as React.Context<any>
+  );
   const navigation = expoNavigation ?? standaloneNavigation;
 
   // IsFocusedContext is only provided inside a navigator's NavigationProvider.

@@ -112,12 +112,13 @@ export class LedgerService {
   private async persistWithdrawal(withdrawal: CryptoWithdrawal): Promise<void> {
     try {
       await prisma.$executeRaw`
-        INSERT INTO "Withdrawal" (id, reference, "userId", "amountUSDC", "toAddress", chain, status, "txHash", "blockNumber", "failureReason", "createdAt", "updatedAt")
+        INSERT INTO "Withdrawal" (id, reference, "userId", "amountUSDC", "feeUSDC", "toAddress", chain, status, "txHash", "blockNumber", "failureReason", "createdAt", "updatedAt")
         VALUES (
           ${withdrawal.id},
           ${withdrawal.reference},
           ${withdrawal.userId},
           ${withdrawal.amountUSDC},
+          ${withdrawal.feeUSDC ?? 0.01},
           ${withdrawal.toAddress},
           ${withdrawal.chain},
           ${withdrawal.status},
@@ -145,6 +146,7 @@ export class LedgerService {
       reference: row.reference,
       userId: row.userId,
       amountUSDC: Number(row.amountUSDC),
+      feeUSDC: row.feeUSDC === null || row.feeUSDC === undefined ? undefined : Number(row.feeUSDC),
       toAddress: row.toAddress,
       chain: row.chain,
       txHash: row.txHash || undefined,
@@ -921,7 +923,11 @@ export class LedgerService {
 
     prisma.spendTransaction.upsert({
       where: { reference },
-      update: { status: record.status || 'SUCCESS' },
+      update: {
+        status: record.status || 'PENDING',
+        payoutProvider: record.payoutProvider || undefined,
+        providerReference: record.providerReference || undefined
+      },
       create: {
         userId: record.userId,
         reference,
@@ -932,8 +938,9 @@ export class LedgerService {
         recipientBankCode: record.recipientBankCode || '000',
         recipientAccountNumber: record.recipientAccountNumber || '0000000000',
         recipientAccountName: record.recipientAccountName || 'Unknown',
-        payoutProvider: 'PAYSTACK',
-        status: 'SUCCESS'
+        payoutProvider: record.payoutProvider || 'UNKNOWN',
+        providerReference: record.providerReference || null,
+        status: record.status || 'PENDING'
       }
     }).catch(err => console.warn('[LedgerService] DB spend transaction record warning:', err?.message));
 
@@ -1298,7 +1305,8 @@ export class LedgerService {
         }
       });
     } catch (err: any) {
-      console.warn('[LedgerService] Failed to upsert virtual account into DB:', err?.message || err);
+      console.error('[LedgerService] Failed to upsert virtual account into DB:', err?.message || err);
+      throw err instanceof Error ? err : new Error(String(err));
     }
   }
 
@@ -1523,14 +1531,20 @@ export class LedgerService {
     reference: string;
     userId: string;
     amountUSDC: number;
+    feeUSDC?: number;
     toAddress: string;
     chain: 'solana' | 'monad';
     dailyLimit?: { amountNGN: number; limitNGN: number; sourceType?: string; metadata?: Record<string, any> };
   }): Promise<CryptoWithdrawal> {
     const now = new Date().toISOString();
+    // The platform fee (USDC -> treasury) is deducted on-chain alongside the send
+    // amount, so the ledger debit must include it or the balance drifts upward.
+    const feeUSDC = Number.isFinite(params.feeUSDC) ? Number(params.feeUSDC) : 0.01;
+    const totalDebitUSDC = Math.round((params.amountUSDC + feeUSDC) * 1e6) / 1e6;
     const withdrawal: CryptoWithdrawal = {
       id: `wd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       ...params,
+      feeUSDC,
       status: WithdrawalStatus.PENDING,
       createdAt: now,
       updatedAt: now
@@ -1541,7 +1555,7 @@ export class LedgerService {
 
     const newBalance = await this.debitBalanceAtomic({
       userId: params.userId,
-      amountUSDC: params.amountUSDC,
+      amountUSDC: totalDebitUSDC,
       reference: params.reference,
       type: 'SPEND_DEBIT',
       metadata: {
@@ -1549,7 +1563,9 @@ export class LedgerService {
         type: 'CRYPTO_SEND_DEBIT',
         title: `Send to ${params.chain.toUpperCase()}`,
         subtitle: `${params.toAddress.slice(0, 6)}...${params.toAddress.slice(-4)}`,
-        amountNGN: params.dailyLimit?.amountNGN
+        amountNGN: params.dailyLimit?.amountNGN,
+        feeUSDC,
+        totalDebitUSDC
       },
       dailyLimit: params.dailyLimit
     });
@@ -1601,7 +1617,7 @@ export class LedgerService {
   public async getWithdrawalAsync(reference: string): Promise<CryptoWithdrawal | undefined> {
     try {
       const rows: any[] = await prisma.$queryRaw`
-        SELECT id, reference, "userId", "amountUSDC", "toAddress", chain, status, "txHash", "blockNumber", "failureReason", "createdAt", "updatedAt"
+        SELECT id, reference, "userId", "amountUSDC", "feeUSDC", "toAddress", chain, status, "txHash", "blockNumber", "failureReason", "createdAt", "updatedAt"
         FROM "Withdrawal"
         WHERE reference = ${reference} OR "txHash" = ${reference}
         LIMIT 1

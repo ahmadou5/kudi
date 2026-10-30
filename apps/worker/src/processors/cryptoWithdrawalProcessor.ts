@@ -31,6 +31,7 @@ interface PendingWithdrawalRow {
   reference: string;
   userId: string;
   amountUSDC: number;
+  feeUSDC: number;
   toAddress: string;
   chain: 'solana' | 'monad';
   attemptCount: number;
@@ -60,7 +61,7 @@ function treasuryWalletIdFor(chain: 'solana' | 'monad'): string {
 async function claimPendingWithdrawals(): Promise<PendingWithdrawalRow[]> {
   const rows: any[] = await prisma.$transaction(async (tx) => {
     const claimed: any[] = await tx.$queryRaw`
-      SELECT id, reference, "userId", "amountUSDC", "toAddress", chain, "attemptCount"
+      SELECT id, reference, "userId", "amountUSDC", "feeUSDC", "toAddress", chain, "attemptCount"
       FROM "Withdrawal"
       WHERE status = 'PENDING'
         AND "nextAttemptAt" <= NOW()
@@ -88,6 +89,7 @@ async function claimPendingWithdrawals(): Promise<PendingWithdrawalRow[]> {
     reference: row.reference,
     userId: row.userId,
     amountUSDC: Number(row.amountUSDC),
+    feeUSDC: Number(row.feeUSDC ?? Number(process.env.USDC_FEE || 0.01)),
     toAddress: row.toAddress,
     chain: row.chain,
     attemptCount: Number(row.attemptCount || 0)
@@ -143,9 +145,11 @@ async function recordWithdrawalReversal(job: PendingWithdrawalRow, reason: strin
       return;
     }
 
-    // 2. Matching debit check: ensure a SPEND_DEBIT was actually recorded for this reference
+    // 2. Matching debit check: ensure a SPEND_DEBIT was actually recorded for this reference.
+    //    Read the fee from its metadata so we restore exactly what was debited —
+    //    historical rows (pre fee-recording) have no fee and restore amount only.
     const matchingDebit: any[] = await tx.$queryRaw`
-      SELECT id FROM "LedgerEntry"
+      SELECT id, metadata FROM "LedgerEntry"
       WHERE type = 'SPEND_DEBIT' AND "referenceId" = ${job.reference}
       LIMIT 1
     `;
@@ -153,6 +157,18 @@ async function recordWithdrawalReversal(job: PendingWithdrawalRow, reason: strin
       console.warn(`[Worker CryptoWithdrawalProcessor] ⚠️ Skipping reversal for ${job.reference}: original SPEND_DEBIT was never recorded in LedgerEntry.`);
       return;
     }
+
+    let recordedFeeUSDC = 0;
+    try {
+      const meta = matchingDebit[0].metadata ? JSON.parse(matchingDebit[0].metadata) : null;
+      const parsedFee = Number(meta?.feeUSDC);
+      if (Number.isFinite(parsedFee) && parsedFee > 0) {
+        recordedFeeUSDC = parsedFee;
+      }
+    } catch {
+      // Malformed metadata — restore amount only (same as historical rows).
+    }
+    const restoredAmountUSDC = Math.round((job.amountUSDC + recordedFeeUSDC) * 1e6) / 1e6;
 
     const latest: any[] = await tx.$queryRaw`
       SELECT "resultingBalanceUSDC"
@@ -176,7 +192,7 @@ async function recordWithdrawalReversal(job: PendingWithdrawalRow, reason: strin
       FOR UPDATE
     `;
     const currentBalance = rows.length ? Number(rows[0].availableUSDC) : initialBalance;
-    const restoredBalance = currentBalance + job.amountUSDC;
+    const restoredBalance = currentBalance + restoredAmountUSDC;
 
     await tx.$executeRaw`
       UPDATE "BalanceAccount"
@@ -190,7 +206,7 @@ async function recordWithdrawalReversal(job: PendingWithdrawalRow, reason: strin
         gen_random_uuid(),
         ${job.userId},
         'DEPOSIT_CREDIT',
-        ${job.amountUSDC},
+        ${restoredAmountUSDC},
         ${restoredBalance},
         ${revReference},
         ${JSON.stringify({
@@ -198,7 +214,8 @@ async function recordWithdrawalReversal(job: PendingWithdrawalRow, reason: strin
           reason,
           type: 'CRYPTO_SEND_REVERSAL',
           title: 'Crypto Send Reversal',
-          subtitle: 'Restored to Balance'
+          subtitle: 'Restored to Balance',
+          feeUSDC: recordedFeeUSDC
         })},
         NOW()
       )
@@ -273,7 +290,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
             chain: job.chain,
             gasPaymentMode,
             idempotencyKey: job.reference,
-            feeUSDC: Number(process.env.USDC_FEE || 0.01),
+            feeUSDC: job.feeUSDC,
             feePayerAddress: treasuryAddr
           }, depositWalletAddress);
           primaryTxHash = txHash;
@@ -291,7 +308,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
               chain: job.chain,
               gasPaymentMode,
               idempotencyKey: job.reference,
-              feeUSDC: Number(process.env.USDC_FEE || 0.01),
+              feeUSDC: job.feeUSDC,
               feePayerAddress: treasuryAddr
             }, treasuryAddr || '');
             primaryTxHash = txHash;
@@ -306,7 +323,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
         // 2. Treasury sends remaining shortfall to Recipient on target chain.
         // 3. User's secondary chain wallet sends shortfall amount to Treasury on secondary chain.
 
-        const feeAmountUSDC = Number(process.env.USDC_FEE || 0.01);
+        const feeAmountUSDC = job.feeUSDC;
         // User sends userDirectAmount + fee, so available balance must cover both
         const userDirectAmount = Math.max(0, Math.floor((targetChainBalance - feeAmountUSDC) * 100) / 100);
         const treasuryShortfall = Math.round((job.amountUSDC - userDirectAmount) * 100) / 100;
@@ -325,7 +342,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
               chain: job.chain,
               gasPaymentMode,
               idempotencyKey: `${job.reference}_user_direct`,
-              feeUSDC: Number(process.env.USDC_FEE || 0.01),
+              feeUSDC: job.feeUSDC,
               feePayerAddress: treasuryAddr
             }, userTargetAddress);
             console.log(`[Worker CryptoWithdrawalProcessor] ✅ Step 1 User Direct Send Tx: ${res1.txHash}`);
@@ -344,7 +361,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
           chain: job.chain,
           gasPaymentMode,
           idempotencyKey: `${job.reference}_treasury_cover`,
-          feeUSDC: Number(process.env.USDC_FEE || 0.01),
+          feeUSDC: job.feeUSDC,
           feePayerAddress: treasuryAddr
         });
         primaryTxHash = res2.txHash;
@@ -375,7 +392,7 @@ export async function processCryptoWithdrawals(): Promise<void> {
               chain: secondaryChain as 'solana' | 'monad',
               gasPaymentMode,
               idempotencyKey: `${job.reference}_secondary_netting`,
-              feeUSDC: Number(process.env.USDC_FEE || 0.01)
+              feeUSDC: job.feeUSDC
             }, userSecondaryWallet.address);
             console.log(`[Worker CryptoWithdrawalProcessor] ✅ Step 3 Secondary Wallet Netting Tx: ${res3.txHash} (${treasuryShortfall} USDC on ${secondaryChain})`);
           } catch (e3) {

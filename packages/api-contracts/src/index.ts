@@ -200,6 +200,8 @@ export interface SendCryptoResponseData {
   chain: string;
   toAddress: string;
   amountUSDC: number;
+  feeUSDC?: number;
+  totalDebitUSDC?: string;
   newBalanceUSDC: string;
 }
 
@@ -317,7 +319,7 @@ export type CashoutRequest = {
   bankCode?: string;
   accountNumber?: string;
   accountName?: string;
-  payoutProvider?: 'paystack' | 'monnify' | 'squad';
+  payoutProvider?: 'monnify' | 'squad' | 'bachs';
 };
 
 export type OverrideRateRequest = {

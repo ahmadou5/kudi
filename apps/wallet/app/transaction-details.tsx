@@ -36,7 +36,7 @@ import { haptics } from '../src/lib/haptics';
 import { EnterSection } from '../src/lib/animations';
 import { truncateHash } from '../src/utils/AddressUtils';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable as any);
 
 type TransactionDetailsParams = {
     title?: string;

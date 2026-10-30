@@ -37,7 +37,7 @@ function formatTimestamp(value: Date) {
   }).format(value);
 }
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable as any);
 
 function PressableScale({
   children,

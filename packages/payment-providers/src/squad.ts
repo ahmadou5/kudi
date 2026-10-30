@@ -76,12 +76,13 @@ export class SquadProvider implements PaymentProvider {
       };
     }
 
+    // Squad settles asynchronously — confirm via transfer_successful / transfer_failed webhooks
     return {
       reference: request.reference,
       transferCode: data.data.transaction_reference,
-      status: 'success',
+      status: 'pending',
       provider: this.id,
-      providerReference: data.data.squad_ref
+      providerReference: data.data.squad_ref || data.data.transaction_reference
     };
   }
 

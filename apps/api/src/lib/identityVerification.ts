@@ -1,9 +1,11 @@
 import axios from 'axios';
+import { apiConfig } from '@kudi/config';
 import { createMonnifyReservedAccount } from './monnify';
 import { createSquadVirtualAccount } from './squad';
 import { createBachsVirtualAccount, isBachsConfigured } from './bachs';
 import { verifyBVNWithNibss, isNibssConfigured } from './nibss';
 import { resolvePaystackBvn, isPaystackConfigured } from './paystack';
+import { isRealCredential } from './placeholders';
 
 type IdentityProviderName = 'NIBSS' | 'PAYSTACK' | 'SMILE' | 'DOJAH' | 'PREMBLY' | 'NONE';
 type IdentityCheckType = 'NIN' | 'BVN';
@@ -44,7 +46,8 @@ function normalizeIdentityProvider(value?: string | null): IdentityProviderName 
 }
 
 function isSimulatedAllowed() {
-  return process.env.NODE_ENV !== 'production' || process.env.IDENTITY_SIMULATE === 'true';
+  if (apiConfig.NODE_ENV === 'production') return false;
+  return true;
 }
 
 function tokensOf(value?: string | null): string[] {
@@ -266,22 +269,22 @@ async function provisionVirtualAccount(params: {
   userId: string;
   email?: string;
   phone?: string;
-  checkType: IdentityCheckType;
-  idNumber: string;
+  checkType?: IdentityCheckType;
+  idNumber?: string;
   fullName: string;
   firstName?: string;
   lastName?: string;
   dob?: string;
 }): Promise<NonNullable<VerificationResult['virtualAccount']>> {
-  const preferredProvider = (process.env.ACTIVE_PAYMENT_PROVIDER || 'MONNIFY').toUpperCase();
+  const preferredProvider = (apiConfig.ACTIVE_PAYMENT_PROVIDER || 'BACHS').toUpperCase();
   const customerEmail = params.email || `user_${params.userId}@kudi.app`;
 
   try {
     if (preferredProvider === 'MONNIFY') {
-      if (!process.env.MONNIFY_API_KEY || !process.env.MONNIFY_SECRET_KEY) {
+      if (!isRealCredential(apiConfig.MONNIFY_API_KEY) || !isRealCredential(apiConfig.MONNIFY_SECRET_KEY)) {
         throw new VaProvisioningError('Monnify is the active provider but MONNIFY_API_KEY/MONNIFY_SECRET_KEY are not configured');
       }
-      const monnifyAcc = await createMonnifyReservedAccount(`KUDI_VA_${params.userId}`, params.fullName, customerEmail, params.idNumber);
+      const monnifyAcc = await createMonnifyReservedAccount(`KUDI_VA_${params.userId}`, params.fullName, customerEmail, params.idNumber || undefined);
       return {
         accountNumber: monnifyAcc.accountNumber,
         accountName: monnifyAcc.accountName,
@@ -292,7 +295,7 @@ async function provisionVirtualAccount(params: {
     }
 
     if (preferredProvider === 'SQUAD') {
-      if (!process.env.SQUAD_SECRET_KEY) {
+      if (!isRealCredential(apiConfig.SQUAD_SECRET_KEY)) {
         throw new VaProvisioningError('Squad is the active provider but SQUAD_SECRET_KEY is not configured');
       }
       const squadAcc = await createSquadVirtualAccount({
@@ -300,7 +303,7 @@ async function provisionVirtualAccount(params: {
         firstName: params.firstName || 'Kudi',
         lastName: params.lastName || 'User',
         mobileNum: params.phone || '08000000000',
-        bvn: params.checkType === 'BVN' ? params.idNumber : undefined,
+        bvn: params.checkType === 'BVN' && params.idNumber ? params.idNumber : undefined,
         dob: params.dob,
         email: customerEmail,
         address: 'Victoria Island, Lagos, Nigeria'
@@ -342,6 +345,24 @@ async function provisionVirtualAccount(params: {
   }
 }
 
+function hasConfiguredProvider(): boolean {
+  return (
+    (isRealCredential(apiConfig.MONNIFY_API_KEY) && isRealCredential(apiConfig.MONNIFY_SECRET_KEY)) ||
+    isRealCredential(apiConfig.SQUAD_SECRET_KEY) ||
+    isBachsConfigured()
+  );
+}
+
+function simulatedVirtualAccount(fullName: string): NonNullable<VerificationResult['virtualAccount']> {
+  return {
+    accountNumber: `99${Math.floor(10000000 + Math.random() * 90000000)}`,
+    accountName: `KUDI / ${fullName}`,
+    bankName: 'Kudi Sandbox Bank (Simulated)',
+    bankCode: '000',
+    provider: 'BACHS'
+  };
+}
+
 export async function verifyIdentityAndProvisionVirtualAccount(params: {
   userId: string;
   email?: string;
@@ -376,20 +397,9 @@ export async function verifyIdentityAndProvisionVirtualAccount(params: {
   const fullName = verificationResult.name || `${params.firstName ?? ''} ${params.lastName ?? ''}`.trim() || 'Kudi User';
 
   // 3. Provision a real virtual account — failure aborts the whole request
-  const hasRealProvider =
-    Boolean(process.env.MONNIFY_API_KEY && process.env.MONNIFY_SECRET_KEY) ||
-    Boolean(process.env.SQUAD_SECRET_KEY) ||
-    isBachsConfigured();
-
-  if (!hasRealProvider && isSimulatedAllowed()) {
+  if (!hasConfiguredProvider() && isSimulatedAllowed()) {
     // Explicit dev sandbox: no payment provider keys at all
-    verificationResult.virtualAccount = {
-      accountNumber: `99${Math.floor(10000000 + Math.random() * 90000000)}`,
-      accountName: `KUDI / ${fullName}`,
-      bankName: 'Kudi Sandbox Bank (Simulated)',
-      bankCode: '000',
-      provider: 'BACHS'
-    };
+    verificationResult.virtualAccount = simulatedVirtualAccount(fullName);
     verificationResult.message = `${verificationResult.message ?? 'Verified'}; sandbox virtual account issued (dev only)`;
     return verificationResult;
   }
@@ -407,4 +417,39 @@ export async function verifyIdentityAndProvisionVirtualAccount(params: {
   });
 
   return verificationResult;
+}
+
+/**
+ * Provisions a virtual account for an already-verified user (KYC retry flow).
+ * No ID number is required — the identity check already happened. Throws
+ * VaProvisioningError on failure; never fabricates an account number outside
+ * the explicit dev sandbox.
+ */
+export async function provisionVirtualAccountForExistingKyc(params: {
+  userId: string;
+  email?: string;
+  phone?: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  dob?: string;
+}): Promise<NonNullable<VerificationResult['virtualAccount']>> {
+  const fullName =
+    params.fullName?.trim() ||
+    `${params.firstName ?? ''} ${params.lastName ?? ''}`.trim() ||
+    'Kudi User';
+
+  if (!hasConfiguredProvider() && isSimulatedAllowed()) {
+    return simulatedVirtualAccount(fullName);
+  }
+
+  return provisionVirtualAccount({
+    userId: params.userId,
+    email: params.email,
+    phone: params.phone,
+    fullName,
+    firstName: params.firstName,
+    lastName: params.lastName,
+    dob: params.dob
+  });
 }

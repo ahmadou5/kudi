@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { apiConfig } from '@kudi/config';
+import { isRealCredential } from './placeholders';
 
 type BachsVirtualAccount = {
   accountNumber: string;
@@ -34,7 +35,7 @@ function bachsError(error: unknown, fallback: string): Error {
 }
 
 export function isBachsConfigured(): boolean {
-  return Boolean(apiConfig.BACHS_SECRET_KEY);
+  return isRealCredential(apiConfig.BACHS_SECRET_KEY);
 }
 
 function authHeaders(accountId?: string): Record<string, string> {

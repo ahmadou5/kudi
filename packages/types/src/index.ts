@@ -143,6 +143,7 @@ export interface CryptoWithdrawal {
   reference: string;
   userId: string;
   amountUSDC: number;
+  feeUSDC?: number;
   toAddress: string;
   chain: 'solana' | 'monad';
   txHash?: string;

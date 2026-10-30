@@ -1,16 +1,13 @@
 import { PaymentProvider, PaymentProviderId } from '@kudi/types';
-import { PaystackProvider } from './paystack';
 import { MonnifyProvider } from './monnify';
 import { SquadProvider } from './squad';
 import { BachsProvider } from './bachs';
 
-export * from './paystack';
 export * from './monnify';
 export * from './squad';
 export * from './bachs';
 
 export interface PaymentProviderRegistryConfig {
-  paystackSecretKey?: string;
   monnifyApiKey?: string;
   monnifySecretKey?: string;
   monnifyBaseUrl?: string;

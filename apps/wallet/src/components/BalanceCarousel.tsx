@@ -11,7 +11,9 @@ import {
   Pressable,
   NativeSyntheticEvent,
   NativeScrollEvent,
-  Share
+  Share,
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
@@ -20,7 +22,7 @@ import { Rect } from 'react-native-svg';
 import { Copy, Check, ShieldCheck, Sparkles, Building2, Globe2, ArrowRight, X, QrCode, Share2, CheckCircle2, ChevronDown, ChevronUp, CopyIcon, LucideShare } from 'lucide-react-native';
 import { useAppPalette, isLight, hexToRgba, mixColors, cardHue } from '../lib/theme';
 import { Typography } from '../constants/typography';
-import { useVirtualAccounts, VirtualAccount } from '../hooks/useVirtualAccounts';
+import { useVirtualAccounts, useProvisionVirtualAccount, VirtualAccount } from '../hooks/useVirtualAccounts';
 import { useAuthStore } from '../store/auth.store';
 import { useDepositRequestStore } from '../store/deposit-request.store';
 import { ChainLogo } from './ui/ChainLogo';
@@ -66,6 +68,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
   const user = useAuthStore(s => s.user);
   const wallets = useAuthStore(s => s.wallets);
   const { data: virtualAccounts = [] } = useVirtualAccounts();
+  const provisionAccount = useProvisionVirtualAccount();
 
   const cardHues = useMemo(
     () => ({
@@ -162,6 +165,29 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
       : rawTier === '1' || rawTier === 'TIER_1' || user?.kycStatus === 'VERIFIED'
         ? 1
         : 0;
+
+  const handleGenerateAccount = () => {
+    if (kycTierNum < 1) {
+      router.push('/settings/limits');
+      return;
+    }
+    if (!user?.id) {
+      Alert.alert('Sign in required', 'Please sign in again and retry.');
+      return;
+    }
+    provisionAccount.mutate(undefined, {
+      onSuccess: (accounts) => {
+        haptics.notify('success');
+        if (accounts.length === 0) {
+          Alert.alert('Request received', 'Your account is being prepared and should appear shortly.');
+        }
+      },
+      onError: (err) => {
+        haptics.notify('error');
+        Alert.alert('Could not generate account', err?.message || 'Please try again shortly.');
+      }
+    });
+  };
 
   // On-Chain balance calculations & deposit pulse animation
   const numericBalance = parseFloat(balanceUSDC) || 0;
@@ -564,15 +590,27 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
               </View>
 
               <TouchableOpacity
-                onPress={() => router.push('/settings/limits')}
-                style={[styles.kycCtaBtn, { backgroundColor: palette.text }]}
+                onPress={handleGenerateAccount}
+                disabled={provisionAccount.isPending}
+                style={[
+                  styles.kycCtaBtn,
+                  { backgroundColor: palette.text, opacity: provisionAccount.isPending ? 0.7 : 1 }
+                ]}
                 activeOpacity={0.85}
               >
-                <ShieldCheck size={18} color={palette.bg} />
+                {provisionAccount.isPending ? (
+                  <ActivityIndicator size="small" color={palette.bg} />
+                ) : (
+                  <ShieldCheck size={18} color={palette.bg} />
+                )}
                 <Text style={[Typography.bodyBold, { color: palette.bg }]}>
-                  {kycTierNum >= 1 ? 'Generate Account' : 'Complete Tier 1 KYC'}
+                  {kycTierNum >= 1
+                    ? provisionAccount.isPending
+                      ? 'Generating…'
+                      : 'Generate Account'
+                    : 'Complete Tier 1 KYC'}
                 </Text>
-                <ArrowRight size={16} color={palette.bg} />
+                {!provisionAccount.isPending && <ArrowRight size={16} color={palette.bg} />}
               </TouchableOpacity>
             </View>
           )}
