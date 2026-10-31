@@ -29,7 +29,10 @@ export const apiRoutes = {
     pushToken: '/api/v1/users/push-token'
   },
   kyc: {
-    verifyId: '/api/v1/kyc/verify-id'
+    verifyId: '/api/v1/kyc/verify-id',
+    session: '/api/v1/kyc/session',
+    sessionStatus: '/api/v1/kyc/session/status',
+    websdk: '/api/v1/kyc/session/websdk'
   },
   payout: {
     resolveAccount: '/api/v1/payout/resolve-account',
@@ -281,6 +284,40 @@ export type VerifyKycIdRequest = {
   accountNumber?: string;
   bankCode?: string;
   address?: string;
+};
+
+export type StartKycSessionRequest = {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+};
+
+export type KycSessionProvider = 'DOJAH' | 'SUMSUB' | 'SIMULATED';
+
+export type KycSessionData = {
+  provider: KycSessionProvider;
+  /** Absolute URL of the provider-hosted verification flow (null in simulated mode). */
+  url: string | null;
+  expiresAt?: string;
+};
+
+export type KycSessionStatusValue = 'none' | 'pending' | 'approved' | 'rejected' | 'abandoned';
+
+export type KycSessionStatusData = {
+  status: KycSessionStatusValue;
+  provider?: KycSessionProvider;
+  message?: string;
+  name?: string | null;
+  tier?: string;
+  virtualAccount?: {
+    accountNumber: string;
+    accountName: string;
+    bankName: string;
+    bankCode: string;
+    provider: string;
+  } | null;
+  vaProvisioningFailed?: boolean;
 };
 
 export type SpendToBankRequest = {

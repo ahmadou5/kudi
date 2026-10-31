@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -11,14 +11,16 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { WebView } from 'react-native-webview';
 import {
   AlertCircle,
   BadgeInfo,
   ArrowLeft,
+  Camera,
   CheckCircle2,
-  ChevronDown,
   Copy,
   CreditCard,
+  RefreshCw,
   ShieldCheck,
   Zap,
   X,
@@ -31,30 +33,8 @@ import { useAuthStore } from '../src/store/auth.store';
 import { useUserProfile } from '../src/hooks/useUserProfile';
 import { sdk } from '../src/lib/sdk';
 import { AppModal, useAppModal } from '../src/components/ui/AppModal';
-import { DobDatePickerModal } from '../src/components/ui/DobDatePickerModal';
-import { BankPickerModal, BankLogo, BankItem } from '../src/components/wallet/BankPickerModal';
-import { NIGERIAN_BANKS } from '../src/constants/banks';
-import { useBanks } from '../src/hooks/useBanks';
-import { FlowProgressDots } from '../src/components/wallet/WalletFlowProgress';
 import { AnimatedSkeleton } from '../src/components/ui/AnimatedSkeleton';
 import { EnterSection } from '../src/lib/animations';
-
-function isOfAge(dateString: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return false;
-  const birthDate = new Date(dateString);
-  if (Number.isNaN(birthDate.getTime())) return false;
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  return age >= 18;
-}
-
-function isValidIdInput(value: string, expectedLength: number) {
-  return new RegExp(`^\\d{${expectedLength}}$`).test(value.trim());
-}
 
 function splitFullName(fullName: string) {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -65,7 +45,26 @@ function splitFullName(fullName: string) {
   };
 }
 
-type KycStep = 1 | 2 | 3;
+type KycFlowPhase = 'intro' | 'webview' | 'polling';
+
+type SessionStatusResponse = {
+  status: 'none' | 'pending' | 'approved' | 'rejected' | 'abandoned';
+  provider?: string;
+  message?: string;
+  name?: string | null;
+  tier?: string;
+  virtualAccount?: {
+    accountNumber: string;
+    accountName: string;
+    bankName: string;
+    bankCode: string;
+    provider: string;
+  } | null;
+  vaProvisioningFailed?: boolean;
+  vaMessage?: string;
+};
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export default function KYCScreen() {
   const palette = useAppPalette();
@@ -75,45 +74,43 @@ export default function KYCScreen() {
   const inkPill = hexToRgba(ink, 0.2);
   const modal = useAppModal();
   const user = useAuthStore((s) => s.user);
-  const updateUserStore = useAuthStore((s) => s.updateProfile);
   const { data: profileData, isLoading: profileLoading, refetch: refetchProfile } = useUserProfile();
 
-  const [step, setStep] = useState<KycStep>(1);
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [address, setAddress] = useState('');
-  const [dateOfBirth, setDateOfBirth] = useState('');
-  const [bvn, setBvn] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [bankCode, setBankCode] = useState(NIGERIAN_BANKS[0]?.code || '058');
-  const [bankPickerOpen, setBankPickerOpen] = useState(false);
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  // Hosted verification flow state
+  const [flowPhase, setFlowPhase] = useState<KycFlowPhase>('intro');
+  const [sessionUrl, setSessionUrl] = useState<string | null>(null);
+  const [sessionProvider, setSessionProvider] = useState<string | null>(null);
+  const [webviewKey, setWebviewKey] = useState(0);
+  const [webviewLoading, setWebviewLoading] = useState(true);
+  const [webviewError, setWebviewError] = useState<string | null>(null);
+  const [startingSession, setStartingSession] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [checkTimedOut, setCheckTimedOut] = useState(false);
+  const [statusHint, setStatusHint] = useState<string | null>(null);
   const [consent, setConsent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
 
-  // Dynamic bank list (fetched from active payment provider, falls back to static)
-  const { banks, loading: banksLoading } = useBanks();
+  const firstName = splitFullName(user?.fullName || '').firstName;
+  const lastName = splitFullName(user?.fullName || '').lastName;
 
-  // NIN Upgrade modal state
+  // NIN Upgrade modal state (typed NIN fast-path for already-verified users)
   const [nin, setNin] = useState('');
   const [ninSubmitting, setNinSubmitting] = useState(false);
   const [upgradeModalVisible, setUpgradeModalVisible] = useState(false);
   const [forceEdit, setForceEdit] = useState(false);
+
+  // Loop guards
+  const pollCancelRef = useRef(false);
+  const pollRunningRef = useRef(false);
 
   // Animations
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
-  // Derive initial values from profile / store
-  useEffect(() => {
-    if (user?.fullName) {
-      const parsed = splitFullName(user.fullName);
-      setFirstName(parsed.firstName);
-      setLastName(parsed.lastName);
-    }
-  }, [user?.fullName]);
+  useEffect(() => () => {
+    pollCancelRef.current = true;
+  }, []);
 
   // Prefer fresh profile data over the auth store — the store is only
   // refreshed at login, so after a successful verification it stays stale.
@@ -131,12 +128,6 @@ export default function KYCScreen() {
     if (!current) return;
     useAuthStore.setState({ user: { ...current, ...kyc } });
   };
-
-  // Selected bank item
-  const selectedBank = useMemo(
-    () => banks.find((b) => b.code === bankCode) || banks[0] || NIGERIAN_BANKS[0],
-    [bankCode, banks]
-  );
 
   // Auto-polling when pending
   useEffect(() => {
@@ -202,21 +193,6 @@ export default function KYCScreen() {
     }
   }, [verificationPending, pulseAnim, rotateAnim]);
 
-  // Form validity checks
-  const personalInfoComplete =
-    firstName.trim().length >= 1 &&
-    lastName.trim().length >= 1 &&
-    address.trim().length >= 5 &&
-    isOfAge(dateOfBirth);
-
-  const identityComplete =
-    isValidIdInput(bvn, 11) &&
-    isValidIdInput(accountNumber, 10) &&
-    Boolean(bankCode) &&
-    consent;
-
-  const canSubmit = personalInfoComplete && identityComplete && !submitting;
-
   const copyToClipboard = async (text: string, label: string) => {
     try {
       const Clipboard = await import('expo-clipboard');
@@ -227,77 +203,218 @@ export default function KYCScreen() {
     }
   };
 
-  const handleNext = () => {
-    if (step === 1 && personalInfoComplete) {
-      setStep(2);
-    } else if (step === 2 && identityComplete) {
-      setStep(3);
-    }
-  };
+  const providerLabel = (provider?: string | null) =>
+    provider === 'SUMSUB' ? 'Sumsub' : provider === 'DOJAH' ? 'Dojah' : null;
 
-  const headerBack = () => {
-    if (step > 1) {
-      setStep((curr) => (curr - 1) as KycStep);
-      return;
-    }
-    router.back();
-  };
+  async function finalizeApproved(data: SessionStatusResponse) {
+    syncUserKyc({ kycStatus: 'VERIFIED', kycTier: data.tier || 'TIER_2' });
+    setSubmitted(false);
+    setSessionUrl(null);
+    setFlowPhase('intro');
+    await refetchProfile();
+    const label = providerLabel(data.provider);
+    const accountPart = data.virtualAccount
+      ? 'Your Tier 2 limits and dedicated NGN account are now active.'
+      : 'Your dedicated NGN account is being provisioned and will appear in a moment.';
+    modal.show({
+      title: 'Verification Complete! 🎉',
+      description: `${label ? `Your identity has been verified via ${label}. ` : 'Your identity has been verified. '}${accountPart}`,
+      type: 'success',
+      primaryText: 'View Account',
+      onPrimaryPress: () => {
+        modal.hide();
+      },
+    });
+  }
 
-  const submitKyc = async () => {
-    if (!canSubmit) {
-      modal.alert(
-        'Complete all required fields',
-        'Please enter your full name, address, date of birth, 11-digit BVN, account number, bank, and consent.',
-        'warning'
-      );
-      return;
-    }
-
-    setSubmitting(true);
+  /**
+   * Polls the backend until it confirms the hosted-flow result with the
+   * provider. The provider decides — the app only waits and reacts.
+   */
+  async function runPollingLoop(maxAttempts = 10, delayMs = 2500) {
+    if (pollRunningRef.current) return;
+    pollRunningRef.current = true;
+    pollCancelRef.current = false;
+    setChecking(true);
+    setCheckTimedOut(false);
     try {
-      const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
-      await updateUserStore({ fullName });
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        if (pollCancelRef.current) return;
+        try {
+          const res = await sdk.getKycSessionStatus();
+          if (pollCancelRef.current) return;
+          if (res?.success && res.data) {
+            const data = res.data as SessionStatusResponse;
+            if (data.status === 'approved') {
+              await finalizeApproved(data);
+              return;
+            }
+            if (data.status === 'rejected') {
+              setFlowPhase('intro');
+              modal.alert('Verification Failed', data.message || 'Your identity could not be verified. Please try again.', 'error');
+              return;
+            }
+            if (data.status === 'abandoned') {
+              setFlowPhase('intro');
+              modal.alert('Verification Exited', data.message || 'You left the verification before finishing. Start again when you are ready.', 'info');
+              return;
+            }
+            if (data.status === 'none') {
+              setFlowPhase('intro');
+              return;
+            }
+            setStatusHint(data.message || null);
+          }
+        } catch {
+          // transient network/API error — keep polling
+        }
+        await sleep(delayMs);
+      }
+      if (!pollCancelRef.current) {
+        setCheckTimedOut(true);
+        setFlowPhase('polling');
+      }
+    } finally {
+      pollRunningRef.current = false;
+      if (!pollCancelRef.current) setChecking(false);
+    }
+  }
 
-      const res = await sdk.verifyKYCID({
-        userId: user?.id || '',
-        idNumber: bvn.trim(),
-        idType: 'BVN',
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        dob: dateOfBirth.trim(),
-        accountNumber: accountNumber.trim(),
-        bankCode,
-        address: address.trim(),
+  const startVerification = async () => {
+    if (!consent) {
+      modal.alert('Consent required', 'Please tick the consent box to start verification.', 'warning');
+      return;
+    }
+    setStartingSession(true);
+    setWebviewError(null);
+    setCheckTimedOut(false);
+    setStatusHint(null);
+    try {
+      const res = await sdk.startKycSession({
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
+        email: profileData?.user?.email || user?.email || undefined,
+        phone: profileData?.user?.phoneNumber || undefined,
       });
-
-      setSubmitting(false);
-      if (res && res.success) {
-        // Backend verifies synchronously — tier/status/VA are live on success
-        syncUserKyc({ kycStatus: 'VERIFIED', kycTier: res.data?.tier || 'TIER_2' });
-        setSubmitted(false);
-        await refetchProfile();
-        const providerLabel =
-          res.data?.provider === 'SUMSUB' ? 'Sumsub' : res.data?.provider === 'DOJAH' ? 'Dojah' : null;
-        modal.show({
-          title: 'Verification Complete! 🎉',
-          description: providerLabel
-            ? `Your identity has been verified via ${providerLabel}. Your Tier 2 limits and dedicated NGN account are now active.`
-            : 'Your identity has been verified. Your Tier 2 limits and dedicated NGN account are now active.',
-          type: 'success',
-          primaryText: 'View Account',
-          onPrimaryPress: () => {
-            modal.hide();
-          },
-        });
+      const data = res?.data as { provider?: string; url?: string | null } | undefined;
+      if (!res?.success || !data) {
+        modal.alert(
+          'Could not start verification',
+          res?.error?.message || res?.message || 'Please try again in a moment.',
+          'error'
+        );
+        return;
+      }
+      setSessionProvider(data.provider || null);
+      if (data.url) {
+        setSessionUrl(data.url);
+        setWebviewKey((k) => k + 1);
+        setWebviewLoading(true);
+        setFlowPhase('webview');
       } else {
-        const errorMsg = res?.error?.message || res?.message || 'Verification submission failed';
-        modal.alert('Verification Failed', errorMsg, 'error');
+        setFlowPhase('polling');
+        void runPollingLoop();
       }
     } catch (err: any) {
-      setSubmitting(false);
-      modal.alert('Connection Error', err?.message || 'Failed to submit verification.', 'error');
+      modal.alert('Connection Error', err?.message || 'Failed to start verification.', 'error');
+    } finally {
+      setStartingSession(false);
     }
   };
+
+  const closeWebviewToPolling = () => {
+    setFlowPhase('polling');
+    void runPollingLoop(8, 2000);
+  };
+
+  const handleWebviewMessage = (event: any) => {
+    try {
+      const msg = JSON.parse(event?.nativeEvent?.data ?? 'null');
+      if (!msg?.type) return;
+      if (msg.type === 'approved' || msg.type === 'declined' || msg.type === 'error') {
+        if (typeof msg.message === 'string' && msg.message) setStatusHint(msg.message);
+        // Backend confirmation is the source of truth — close and poll.
+        closeWebviewToPolling();
+      }
+    } catch {
+      // non-JSON messages are ignored
+    }
+  };
+
+  // While the WebView is open, quietly confirm with the backend so hosted
+  // flows that report out-of-band (Dojah) auto-complete without extra taps.
+  useEffect(() => {
+    if (flowPhase !== 'webview') return;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const res = await sdk.getKycSessionStatus();
+        if (cancelled || flowPhase !== 'webview' || !res?.success || !res.data) return;
+        const data = res.data as SessionStatusResponse;
+        if (data.status === 'approved') {
+          setFlowPhase('polling');
+          await finalizeApproved(data);
+        } else if (data.status === 'rejected') {
+          setFlowPhase('intro');
+          modal.alert('Verification Failed', data.message || 'Your identity could not be verified.', 'error');
+        } else if (data.status === 'abandoned') {
+          setFlowPhase('intro');
+          modal.alert('Verification Exited', data.message || 'The verification was exited before completion.', 'info');
+        }
+      } catch {
+        // ignore — the explicit polling loop handles hard failures
+      }
+    };
+    const first = setTimeout(() => void check(), 4000);
+    const interval = setInterval(() => void check(), 6000);
+    return () => {
+      cancelled = true;
+      clearTimeout(first);
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flowPhase]);
+
+  // Resume an in-flight session (e.g. app was reopened mid-verification).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await sdk.getKycSessionStatus();
+        if (cancelled || !res?.success || !res.data) return;
+        const data = res.data as SessionStatusResponse;
+        if (data.status === 'approved') {
+          await finalizeApproved(data);
+        } else if (data.status === 'pending') {
+          setSessionProvider(data.provider || null);
+          setFlowPhase('polling');
+          void runPollingLoop();
+        }
+      } catch {
+        // no session / network issue — normal intro screen
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Spinner rotation while the hosted screen loads / result polling runs
+  // (the pending view has its own loop for the same value).
+  useEffect(() => {
+    if (flowPhase !== 'webview' && !checking) return;
+    const rotateLoop = Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 3000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    rotateLoop.start();
+    return () => rotateLoop.stop();
+  }, [flowPhase, checking, rotateAnim]);
 
   const handleNinUpgrade = async () => {
     if (!/^\d{11}$/.test(nin.trim())) {
@@ -312,9 +429,9 @@ export default function KYCScreen() {
         userId: user?.id || '',
         idNumber: nin.trim(),
         idType: 'NIN',
-        firstName: firstName.trim() || parsed.firstName || 'User',
-        lastName: lastName.trim() || parsed.lastName,
-        dob: dateOfBirth.trim(),
+        firstName: firstName || parsed.firstName || 'User',
+        lastName: lastName || parsed.lastName,
+        dob: '',
       });
 
       setNinSubmitting(false);
@@ -578,11 +695,11 @@ export default function KYCScreen() {
               onPress={() => {
                 setForceEdit(true);
                 setSubmitted(false);
-                setStep(1);
+                setFlowPhase('intro');
               }}
               style={({ pressed }) => [styles.secondaryAction, { width: '100%', backgroundColor: palette.bg, borderColor: palette.border, marginBottom: 8 }, pressed && { opacity: 0.85 }]}
             >
-              <Text style={[styles.secondaryActionText, { color: palette.text }]}>Re-enter / Edit Details</Text>
+              <Text style={[styles.secondaryActionText, { color: palette.text }]}>Start New Verification</Text>
             </Pressable>
 
             <Pressable
@@ -599,7 +716,122 @@ export default function KYCScreen() {
     );
   }
 
-  // 3. MULTI-STEP KYC FORM FLOW
+  // 3. HOSTED VERIFICATION FLOW — intro/consent -> provider WebView -> polling
+
+  // --- Result confirmation (server-side check with the provider) ---
+  if (flowPhase === 'polling') {
+    return (
+      <View
+        style={[
+          styles.screen,
+          { backgroundColor: palette.bg, paddingHorizontal: Spacing.lg, paddingTop: 48, paddingBottom: 40 },
+        ]}
+      >
+        <View style={styles.headerRow}>
+          <Pressable
+            style={[styles.backButton, { backgroundColor: palette.card, borderColor: palette.border }]}
+            onPress={() => {
+              pollCancelRef.current = true;
+              setFlowPhase('intro');
+            }}
+          >
+            <ArrowLeft size={20} color={palette.text} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: palette.text }]}>Confirming Result</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+
+        <View style={{ flex: 1, justifyContent: 'center' }}>
+          <View style={[styles.verifiedCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <Animated.View
+              style={[
+                styles.pendingBadgeWrap,
+                {
+                  backgroundColor: hexToRgba(palette.primary, 0.12),
+                  borderColor: palette.primary,
+                  transform: [
+                    { rotate: rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) },
+                  ],
+                },
+              ]}
+            >
+              <RefreshCw size={40} color={palette.primary} />
+            </Animated.View>
+
+            <Text style={[styles.verifiedTitle, { color: palette.text }]}>
+              {checkTimedOut ? 'Still Processing' : 'Confirming your verification\u2026'}
+            </Text>
+            <Text style={[styles.verifiedSub, { color: palette.textSecondary }]}>
+              {statusHint ||
+                (checkTimedOut
+                  ? 'The provider has not returned a final decision yet. Check again — most results land within a minute.'
+                  : 'Checking securely with the verification provider. This only takes a few seconds.')}
+            </Text>
+
+            {checkTimedOut ? (
+              <View style={{ width: '100%', gap: 8 }}>
+                <Pressable
+                  onPress={() => void runPollingLoop(10, 2500)}
+                  disabled={checking}
+                  style={({ pressed }) => [
+                    styles.primaryAction,
+                    { backgroundColor: checking ? palette.border : palette.primary },
+                    pressed && !checking ? { opacity: 0.9 } : null,
+                  ]}
+                >
+                  <Text style={styles.primaryActionText}>{checking ? 'Checking\u2026' : 'Check Again'}</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void startVerification()}
+                  disabled={startingSession}
+                  style={({ pressed }) => [
+                    styles.secondaryAction,
+                    { backgroundColor: palette.bg, borderColor: palette.border },
+                    pressed && { opacity: 0.85 },
+                  ]}
+                >
+                  <Text style={[styles.secondaryActionText, { color: palette.text }]}>
+                    {startingSession ? 'Restarting\u2026' : 'Restart Verification'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    pollCancelRef.current = true;
+                    setFlowPhase('intro');
+                  }}
+                  style={({ pressed }) => [
+                    styles.secondaryAction,
+                    { backgroundColor: palette.bg, borderColor: palette.border },
+                    pressed && { opacity: 0.85 },
+                  ]}
+                >
+                  <Text style={[styles.secondaryActionText, { color: palette.text }]}>Not Now</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                onPress={() => {
+                  pollCancelRef.current = true;
+                  setFlowPhase('intro');
+                }}
+                style={({ pressed }) => [
+                  styles.secondaryAction,
+                  { width: '100%', backgroundColor: palette.bg, borderColor: palette.border },
+                  pressed && { opacity: 0.85 },
+                ]}
+              >
+                <Text style={[styles.secondaryActionText, { color: palette.text }]}>Cancel</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+
+        <AppModal config={modal.config} onClose={modal.hide} />
+      </View>
+    );
+  }
+
+  // --- Intro / consent screen (opens the provider-hosted flow) ---
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: palette.bg }]}
@@ -611,7 +843,7 @@ export default function KYCScreen() {
       <View style={styles.headerRow}>
         <Pressable
           style={[styles.backButton, { backgroundColor: palette.card, borderColor: palette.border }]}
-          onPress={headerBack}
+          onPress={() => router.back()}
         >
           <ArrowLeft size={20} color={palette.text} />
         </Pressable>
@@ -625,182 +857,78 @@ export default function KYCScreen() {
           <View style={{ flex: 1 }}>
             <Text style={[styles.errorTitle, { color: palette.error }]}>Verification Attempt Failed</Text>
             <Text style={[styles.errorSub, { color: palette.text }]}>
-              Please verify your BVN and bank account details carefully before resubmitting.
+              Your previous attempt did not pass. Double-check your details in the secure screen and try again.
             </Text>
           </View>
         </View>
       )}
 
-      {/* Hero Banner with Step Tracker */}
+      {/* Hero Banner */}
       <EnterSection index={0}>
         <View style={[styles.hero, { backgroundColor: palette.primary }]}>
           <View style={styles.heroTop}>
             <View>
               <Text style={[styles.heroLabel, { color: inkSoft }]}>IDENTITY CHECK</Text>
-              <Text style={[styles.heroValue, { color: ink }]}>{`Step ${step} of 3`}</Text>
+              <Text style={[styles.heroValue, { color: ink }]}>One secure step</Text>
             </View>
             <View style={[styles.heroIcon, { backgroundColor: hexToRgba(ink, 0.18) }]}>
               <ShieldCheck size={24} color={ink} />
             </View>
           </View>
           <Text style={[styles.heroBody, { color: inkFaint }]}>
-            Verifying your BVN creates a dedicated bank account in your name for instant deposits and higher daily limits.
+            Verify yourself inside a secure screen hosted by our verification partner. Once approved, your dedicated NGN
+            account and higher daily limits activate automatically.
           </Text>
-          <FlowProgressDots
-            currentStep={step}
-            totalSteps={3}
-            onStepPress={(targetStep) => {
-              if (targetStep < step) setStep(targetStep as KycStep);
-            }}
-          />
         </View>
       </EnterSection>
 
-      {/* STEP 1: Personal Info */}
-      {step === 1 && (
+      {/* What to expect + consent + start */}
+      <EnterSection index={1}>
         <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <View style={styles.sectionHeader}>
             <View style={[styles.stepPill, { backgroundColor: hexToRgba(palette.primary, 0.12), borderColor: palette.primary }]}>
-              <CreditCard size={16} color={palette.primary} />
+              <Camera size={16} color={palette.primary} />
             </View>
             <View style={styles.sectionCopy}>
-              <Text style={[styles.sectionTitle, { color: palette.text }]}>Personal Information</Text>
+              <Text style={[styles.sectionTitle, { color: palette.text }]}>How it works</Text>
               <Text style={[styles.sectionSubtitle, { color: palette.textSecondary }]}>
-                Provide your legal name and residential address as registered with your bank.
+                You will continue in a secure screen managed by the verification provider (Dojah or Sumsub).
               </Text>
             </View>
           </View>
 
-          <View style={styles.nameRow}>
-            <View style={styles.nameField}>
-              <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>First Name</Text>
-              <TextInput
-                value={firstName}
-                onChangeText={setFirstName}
-                placeholder="First name"
-                placeholderTextColor={palette.textSecondary}
-                style={[styles.input, { backgroundColor: palette.bg, color: palette.text, borderColor: palette.border }]}
-              />
-            </View>
-            <View style={styles.nameField}>
-              <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>Last Name</Text>
-              <TextInput
-                value={lastName}
-                onChangeText={setLastName}
-                placeholder="Last name"
-                placeholderTextColor={palette.textSecondary}
-                style={[styles.input, { backgroundColor: palette.bg, color: palette.text, borderColor: palette.border }]}
-              />
-            </View>
-          </View>
-
-          <View>
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>Residential Address</Text>
-            <TextInput
-              value={address}
-              onChangeText={setAddress}
-              placeholder="Full street address"
-              placeholderTextColor={palette.textSecondary}
-              style={[styles.input, { backgroundColor: palette.bg, color: palette.text, borderColor: palette.border }]}
-            />
-          </View>
-
-          <View>
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>Date of Birth</Text>
-            <Pressable onPress={() => setDatePickerOpen(true)}>
-              <View pointerEvents="none">
-                <TextInput
-                  value={dateOfBirth}
-                  placeholder="Select Date of Birth (YYYY-MM-DD)"
-                  placeholderTextColor={palette.textSecondary}
-                  editable={false}
-                  style={[styles.input, { backgroundColor: palette.bg, color: palette.text, borderColor: palette.border }]}
-                />
+          {[
+            {
+              Icon: CreditCard,
+              title: 'BVN or NIN database check',
+              body: 'Your identity is matched against the national registry — no paperwork, no branch visit.',
+            },
+            {
+              Icon: Camera,
+              title: 'Selfie & liveness check',
+              body: 'A quick face scan confirms you are really you.',
+            },
+            {
+              Icon: Zap,
+              title: 'Done in about 2 minutes',
+              body: 'Most decisions are instant, and your dedicated NGN account activates right after.',
+            },
+          ].map(({ Icon, title, body }) => (
+            <View key={title} style={styles.expectRow}>
+              <View
+                style={[
+                  styles.expectIcon,
+                  { backgroundColor: hexToRgba(palette.primary, 0.12), borderColor: hexToRgba(palette.primary, 0.3) },
+                ]}
+              >
+                <Icon size={18} color={palette.primary} />
               </View>
-            </Pressable>
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginTop: 4 }]}>
-              Must be at least 18 years old.
-            </Text>
-          </View>
-
-          <Pressable
-            onPress={handleNext}
-            disabled={!personalInfoComplete}
-            style={({ pressed }) => [
-              styles.primaryAction,
-              { backgroundColor: personalInfoComplete ? palette.primary : palette.border },
-              pressed && personalInfoComplete ? { opacity: 0.9 } : null,
-            ]}
-          >
-            <Text style={styles.primaryActionText}>Continue to Bank & BVN</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {/* STEP 2: Bank & BVN Details */}
-      {step === 2 && (
-        <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.stepPill, { backgroundColor: hexToRgba(palette.primary, 0.12), borderColor: palette.primary }]}>
-              <ShieldCheck size={16} color={palette.primary} />
-            </View>
-            <View style={styles.sectionCopy}>
-              <Text style={[styles.sectionTitle, { color: palette.text }]}>Bank & BVN Details</Text>
-              <Text style={[styles.sectionSubtitle, { color: palette.textSecondary }]}>
-                Enter your 11-digit BVN and your active bank account number.
-              </Text>
-            </View>
-          </View>
-
-          <View style={[styles.summaryMini, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-            <Text style={[styles.summaryMiniLabel, { color: palette.textSecondary }]}>VERIFIED NAME & DOB</Text>
-            <Text style={[styles.summaryMiniValue, { color: palette.text }]}>
-              {`${firstName.trim()} ${lastName.trim()}`.trim() || 'Full name pending'}
-            </Text>
-            <Text style={[styles.summaryMiniMeta, { color: palette.textSecondary }]}>{dateOfBirth || 'DOB pending'}</Text>
-          </View>
-
-          <View>
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>BVN (11 Digits)</Text>
-            <TextInput
-              value={bvn}
-              onChangeText={setBvn}
-              placeholder="Enter 11-digit BVN"
-              placeholderTextColor={palette.textSecondary}
-              keyboardType="number-pad"
-              maxLength={11}
-              style={[styles.input, { backgroundColor: palette.bg, color: palette.text, borderColor: palette.border }]}
-            />
-          </View>
-
-          <View>
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>Select Bank</Text>
-            <Pressable
-              onPress={() => setBankPickerOpen(true)}
-              style={[styles.bankButton, { backgroundColor: palette.bg, borderColor: palette.border }]}
-            >
-              <BankLogo name={selectedBank?.name || 'Bank'} bankCode={selectedBank?.code} slug={selectedBank?.slug} size={36} />
-              <View style={styles.bankButtonCopy}>
-                <Text style={[styles.bankButtonValue, { color: palette.text }]}>
-                  {selectedBank?.name || 'Choose your bank'}
-                </Text>
+              <View style={styles.expectCopy}>
+                <Text style={[styles.expectTitle, { color: palette.text }]}>{title}</Text>
+                <Text style={[styles.expectBody, { color: palette.textSecondary }]}>{body}</Text>
               </View>
-              <ChevronDown size={18} color={palette.textSecondary} />
-            </Pressable>
-          </View>
-
-          <View>
-            <Text style={[Typography.caption, { color: palette.textSecondary, marginBottom: 6 }]}>Account Number (10 Digits)</Text>
-            <TextInput
-              value={accountNumber}
-              onChangeText={setAccountNumber}
-              placeholder="10-digit NUBAN account number"
-              placeholderTextColor={palette.textSecondary}
-              keyboardType="number-pad"
-              maxLength={10}
-              style={[styles.input, { backgroundColor: palette.bg, color: palette.text, borderColor: palette.border }]}
-            />
-          </View>
+            </View>
+          ))}
 
           {/* Consent Checkbox */}
           <Pressable
@@ -827,120 +955,159 @@ export default function KYCScreen() {
             <View style={styles.consentCopy}>
               <Text style={[styles.consentTitle, { color: palette.text }]}>I consent to identity verification</Text>
               <Text style={[styles.consentBody, { color: palette.textSecondary }]}>
-                I authorize Kudi to verify my BVN with my bank and identity verification partners, and to issue a dedicated account number in my name.
+                I authorize Kudi and its verification partner to process my identity data (BVN/NIN details and selfie) to
+                verify me and issue a dedicated account in my name.
               </Text>
             </View>
           </Pressable>
 
-          {/* Actions */}
-          <View style={styles.stepActions}>
-            <Pressable
-              onPress={headerBack}
-              style={[styles.secondary, { backgroundColor: palette.card, borderColor: palette.border }]}
-            >
-              <Text style={[styles.secondaryText, { color: palette.text }]}>Back</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleNext}
-              disabled={!identityComplete}
-              style={({ pressed }) => [
-                styles.primaryAction,
-                styles.stepActionFlex,
-                { backgroundColor: identityComplete ? palette.primary : palette.border },
-                pressed && identityComplete ? { opacity: 0.9 } : null,
-              ]}
-            >
-              <Text style={styles.primaryActionText}>Review Details</Text>
-            </Pressable>
-          </View>
+          <Pressable
+            onPress={() => void startVerification()}
+            disabled={!consent || startingSession}
+            style={({ pressed }) => [
+              styles.primaryAction,
+              { backgroundColor: consent && !startingSession ? palette.primary : palette.border },
+              pressed && consent && !startingSession ? { opacity: 0.9 } : null,
+            ]}
+          >
+            {startingSession ? <RefreshCw size={18} color="#FFF" /> : <ShieldCheck size={18} color="#FFF" />}
+            <Text style={styles.primaryActionText}>
+              {startingSession ? 'Opening secure screen\u2026' : 'Start Verification'}
+            </Text>
+          </Pressable>
+
+          <Text style={[styles.smallPrint, { color: palette.textSecondary }]}>
+            Your data is shared only with the provider running this check and is never sold. You can retry anytime if a
+            check does not pass.
+          </Text>
         </View>
-      )}
-
-      {/* STEP 3: Review & Submit */}
-      {step === 3 && (
-        <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.stepPill, { backgroundColor: 'rgba(48,209,88,0.12)', borderColor: palette.success }]}>
-              <CheckCircle2 size={16} color={palette.success} />
-            </View>
-            <View style={styles.sectionCopy}>
-              <Text style={[styles.sectionTitle, { color: palette.text }]}>Confirm & Submit</Text>
-              <Text style={[styles.sectionSubtitle, { color: palette.textSecondary }]}>
-                Review your information carefully before submitting.
-              </Text>
-            </View>
-          </View>
-
-          <View style={[styles.reviewCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-            <Text style={[styles.reviewGroupLabel, { color: palette.textSecondary }]}>PERSONAL INFORMATION</Text>
-            <ReviewRow label="Full Name" value={`${firstName.trim()} ${lastName.trim()}`.trim()} palette={palette} />
-            <ReviewRow label="Address" value={address.trim()} palette={palette} />
-            <ReviewRow label="Date of Birth" value={dateOfBirth.trim()} palette={palette} />
-          </View>
-
-          <View style={[styles.reviewCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-            <Text style={[styles.reviewGroupLabel, { color: palette.textSecondary }]}>IDENTITY & BANK</Text>
-            <ReviewRow label="BVN" value={bvn.trim()} palette={palette} />
-            <ReviewRow label="Bank" value={selectedBank?.name || '—'} palette={palette} />
-            <ReviewRow label="Account Number" value={accountNumber.trim()} palette={palette} />
-            <ReviewRow label="Consent" value={consent ? 'Authorized' : 'Missing'} palette={palette} />
-          </View>
-
-          <View style={styles.stepActions}>
-            <Pressable
-              onPress={headerBack}
-              style={[styles.secondary, { backgroundColor: palette.card, borderColor: palette.border }]}
-            >
-              <Text style={[styles.secondaryText, { color: palette.text }]}>Back</Text>
-            </Pressable>
-            <Pressable
-              disabled={!canSubmit}
-              onPress={submitKyc}
-              style={({ pressed }) => [
-                styles.primaryAction,
-                styles.stepActionFlex,
-                { backgroundColor: canSubmit ? palette.primary : palette.border },
-                pressed && canSubmit ? { opacity: 0.9 } : null,
-              ]}
-            >
-              <Text style={styles.primaryActionText}>
-                {submitting ? 'Verifying Identity…' : 'Submit Verification'}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      )}
-
-      {/* Bank Picker Modal */}
-      <BankPickerModal
-        visible={bankPickerOpen}
-        onClose={() => setBankPickerOpen(false)}
-        selectedBankCode={bankCode}
-        banks={banks}
-        banksLoading={banksLoading}
-        onSelect={(bank) => setBankCode(bank.code)}
-      />
-
-      {/* Date Picker Modal */}
-      <DobDatePickerModal
-        visible={datePickerOpen}
-        onClose={() => setDatePickerOpen(false)}
-        onSelect={setDateOfBirth}
-        initialValue={dateOfBirth}
-      />
+      </EnterSection>
 
       {/* Global App Modal */}
       <AppModal config={modal.config} onClose={modal.hide} />
-    </ScrollView>
-  );
-}
 
-function ReviewRow({ label, value, palette }: { label: string; value: string; palette: any }) {
-  return (
-    <View style={[styles.reviewRow, { borderBottomColor: palette.border }]}>
-      <Text style={[styles.reviewLabel, { color: palette.textSecondary }]}>{label}</Text>
-      <Text style={[styles.reviewValue, { color: palette.text }]}>{value || '—'}</Text>
-    </View>
+      {/* Provider-hosted verification WebView */}
+      <Modal
+        visible={flowPhase === 'webview'}
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={closeWebviewToPolling}
+      >
+        <View style={[styles.webviewRoot, { backgroundColor: palette.bg }]}>
+          <View style={[styles.webviewHeader, { backgroundColor: palette.card, borderBottomColor: palette.border }]}>
+            <Pressable
+              onPress={closeWebviewToPolling}
+              style={[styles.closeIconButton, { backgroundColor: palette.bg, borderColor: palette.border }]}
+            >
+              <X size={16} color={palette.text} />
+            </Pressable>
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={[styles.webviewTitle, { color: palette.text }]}>
+                {sessionProvider === 'SUMSUB' ? 'Sumsub' : 'Dojah'} Verification
+              </Text>
+              <Text style={[styles.webviewSubtitle, { color: palette.textSecondary }]}>Secure hosted screen</Text>
+            </View>
+            <View style={{ width: 32 }} />
+          </View>
+
+          <View style={{ flex: 1 }}>
+            {sessionUrl ? (
+              <WebView
+                key={webviewKey}
+                source={{ uri: sessionUrl }}
+                originWhitelist={['*']}
+                javaScriptEnabled
+                domStorageEnabled
+                allowsInlineMediaPlayback
+                mediaPlaybackRequiresUserAction={false}
+                mediaCapturePermissionGrantType="grant"
+                setSupportMultipleWindows={false}
+                onLoadStart={() => {
+                  setWebviewLoading(true);
+                  setWebviewError(null);
+                }}
+                onLoadEnd={() => setWebviewLoading(false)}
+                onError={(e) => setWebviewError(e.nativeEvent.description || 'The verification page failed to load.')}
+                onHttpError={(e) =>
+                  setWebviewError(`The verification page returned an error (${e.nativeEvent.statusCode}).`)
+                }
+                onMessage={handleWebviewMessage}
+                style={{ backgroundColor: palette.bg }}
+              />
+            ) : null}
+
+            {webviewLoading && !webviewError && sessionUrl ? (
+              <View style={[styles.webviewOverlay, { backgroundColor: palette.bg }]}>
+                <Animated.View
+                  style={{
+                    transform: [{ rotate: rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }],
+                  }}
+                >
+                  <RefreshCw size={32} color={palette.primary} />
+                </Animated.View>
+                <Text style={[styles.webviewOverlayText, { color: palette.textSecondary }]}>
+                  Opening secure verification…
+                </Text>
+              </View>
+            ) : null}
+
+            {webviewError ? (
+              <View style={[styles.webviewOverlay, { backgroundColor: palette.bg }]}>
+                <AlertCircle size={34} color={palette.error} />
+                <Text style={[styles.webviewOverlayText, { color: palette.text }]}>Verification screen unavailable</Text>
+                <Text style={[styles.webviewOverlaySub, { color: palette.textSecondary }]}>{webviewError}</Text>
+                <Pressable
+                  onPress={() => {
+                    setWebviewError(null);
+                    setWebviewLoading(true);
+                    setWebviewKey((k) => k + 1);
+                  }}
+                  style={({ pressed }) => [
+                    styles.primaryAction,
+                    { backgroundColor: palette.primary, marginTop: 6 },
+                    pressed && { opacity: 0.9 },
+                  ]}
+                >
+                  <Text style={styles.primaryActionText}>Try Again</Text>
+                </Pressable>
+                <Pressable
+                  onPress={closeWebviewToPolling}
+                  style={({ pressed }) => [
+                    styles.secondaryAction,
+                    { backgroundColor: palette.bg, borderColor: palette.border },
+                    pressed && { opacity: 0.85 },
+                  ]}
+                >
+                  <Text style={[styles.secondaryActionText, { color: palette.text }]}>Close</Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={[styles.webviewFooter, { backgroundColor: palette.card, borderTopColor: palette.border }]}>
+            <Text style={[styles.webviewFooterHint, { color: palette.textSecondary }]}>
+              {sessionProvider === 'SUMSUB'
+                ? 'Your result is delivered automatically when you finish — or tap below.'
+                : 'Finished the flow above? Tap below so we can confirm your result.'}
+            </Text>
+            <Pressable
+              onPress={closeWebviewToPolling}
+              disabled={checking}
+              style={({ pressed }) => [
+                styles.primaryAction,
+                { backgroundColor: checking ? palette.border : palette.primary },
+                pressed && !checking ? { opacity: 0.9 } : null,
+              ]}
+            >
+              <CheckCircle2 size={18} color="#FFF" />
+              <Text style={styles.primaryActionText}>
+                {checking ? 'Confirming\u2026' : 'I\u2019ve completed verification'}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    </ScrollView>
   );
 }
 
@@ -1041,4 +1208,19 @@ const styles = StyleSheet.create({
   errorCard: { width: '100%', borderRadius: 18, borderWidth: 1, padding: Spacing.md, flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   errorTitle: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
   errorSub: { fontSize: Typography.xs, lineHeight: 16, marginTop: 2 },
+  expectRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  expectIcon: { width: 38, height: 38, borderRadius: 13, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  expectCopy: { flex: 1, gap: 2 },
+  expectTitle: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
+  expectBody: { fontSize: Typography.xs, lineHeight: 16 },
+  smallPrint: { fontSize: 11, lineHeight: 15, textAlign: 'center' },
+  webviewRoot: { flex: 1 },
+  webviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: Spacing.md, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  webviewTitle: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
+  webviewSubtitle: { fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase', marginTop: 1 },
+  webviewFooter: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, gap: 10, borderTopWidth: StyleSheet.hairlineWidth },
+  webviewFooterHint: { fontSize: Typography.xs, lineHeight: 16, textAlign: 'center' },
+  webviewOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: Spacing.xl, zIndex: 2 },
+  webviewOverlayText: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily, textAlign: 'center' },
+  webviewOverlaySub: { fontSize: Typography.xs, lineHeight: 16, textAlign: 'center' },
 });
