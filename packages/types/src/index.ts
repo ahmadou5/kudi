@@ -39,7 +39,6 @@ export interface CustodyProvider {
 
 export enum PaymentProviderId {
   PAYSTACK = 'paystack',
-  MONNIFY = 'monnify',
   SQUAD = 'squad',
   BACHS = 'bachs'
 }
@@ -143,6 +142,7 @@ export interface CryptoWithdrawal {
   reference: string;
   userId: string;
   amountUSDC: number;
+  feeUSDC?: number;
   toAddress: string;
   chain: 'solana' | 'monad';
   txHash?: string;

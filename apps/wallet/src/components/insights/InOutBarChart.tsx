@@ -64,17 +64,17 @@ export function InOutBarChart({ data, showLabels = true }: InOutBarChartProps) {
     <View style={styles.wrapper}>
       {/* Header: max label + legend */}
       <View style={styles.headerRow}>
-        <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.4) }]}>
+        <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.4), fontSize: 11 }]}>
           Peak {formatUsdCompact(maxValue)}
         </Text>
         <View style={styles.legend}>
           <View style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: palette.success }]} />
-            <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.55) }]}>In</Text>
+            <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.55), fontSize: 10 }]}>In</Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: palette.error }]} />
-            <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.55) }]}>Out</Text>
+            <View style={[styles.legendDot, { backgroundColor: palette.error, }]} />
+            <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.55), fontSize: 10 }]}>Out</Text>
           </View>
         </View>
       </View>
@@ -82,10 +82,10 @@ export function InOutBarChart({ data, showLabels = true }: InOutBarChartProps) {
       {/* Tooltip */}
       {active && (
         <View style={[styles.tooltip, { backgroundColor: palette.text }]}>
-          <Text style={[Typography.footnote, { color: palette.bg, fontWeight: '700' }]} numberOfLines={1}>
+          <Text style={[Typography.currencySub, { color: palette.bg, fontSize: 12 }]} numberOfLines={1}>
             {active.fullLabel}
           </Text>
-          <Text style={[Typography.footnote, { color: palette.bg, opacity: 0.75, fontSize: 10 }]}>
+          <Text style={[Typography.currencySub, { color: palette.bg, opacity: 0.75, fontSize: 10 }]}>
             {active.deposits > 0 ? `In ${formatUsdCompact(active.deposits)}` : ''}
             {active.deposits > 0 && active.withdrawals > 0 ? ' · ' : ''}
             {active.withdrawals > 0 ? `Out ${formatUsdCompact(active.withdrawals)}` : ''}
@@ -98,7 +98,7 @@ export function InOutBarChart({ data, showLabels = true }: InOutBarChartProps) {
       <View style={styles.plotArea} onLayout={onLayout}>
         {!hasAnyVolume ? (
           <View style={styles.emptyPlot}>
-            <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.4) }]}>
+            <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.4) }]}>
               No activity in this range
             </Text>
           </View>

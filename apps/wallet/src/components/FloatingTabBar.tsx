@@ -44,7 +44,7 @@ const DEFAULT_TABS: TabItemConfig[] = [
     { name: 'index', label: 'Home', Icon: Home },
     { name: 'history', label: 'History', Icon: Clock },
     { name: 'insights', label: 'Insights', Icon: BarChart3 },
-    { name: 'settings', label: 'Settings', Icon: Settings },
+
 ];
 
 // Tint laid over the real glass on iOS 26+ — kept light so the native blur still does the
@@ -351,7 +351,7 @@ export function FloatingTabBar({
                     {/* Bright top-edge inner highlight — simulates light catching the glass rim */}
                     <View
                         pointerEvents="none"
-                            style={[
+                        style={[
                             styles.topEdgeHighlight,
                             { backgroundColor: hexToRgba(palette.text, isDark ? 0.09 : 0.6) }
                         ]}

@@ -20,9 +20,11 @@ import { Spacing } from '../src/constants/spacing';
 import { AppModal, useAppModal } from '../src/components/ui/AppModal';
 import { Avatar, userAvatarSeed } from '../src/components/Avatar';
 import { EnterSection } from '../src/lib/animations';
+import { CardBackgroundPattern } from '../src/components/ui/CardBackgroundPattern';
 
 export default function ProfileScreen() {
   const palette = useAppPalette();
+  const isDark = palette.scheme === 'dark';
   const user = useAuthStore((s: AuthState) => s.user);
   const deleteAccount = useAuthStore((s: AuthState) => s.deleteAccount);
   const modal = useAppModal();
@@ -85,6 +87,11 @@ export default function ProfileScreen() {
         {/* ── Profile card ── */}
         <EnterSection index={0}>
           <View style={[styles.profileCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+
+            <CardBackgroundPattern
+              glowColor={hexToRgba(palette.primary, isDark ? 0.08 : 0.05)}
+              isDarkOverride={isDark}
+            />
             <View style={styles.avatarWrap}>
               <Avatar avatarUrl={user?.avatarUrl} seed={userAvatarSeed(user)} size={88} />
               {kycVerified && (
@@ -292,7 +299,7 @@ const styles = StyleSheet.create({
     gap: 8
   },
   deleteBtn: {
-    marginTop: 10,
+    marginTop: 200,
     height: 54,
     borderRadius: 20,
     borderWidth: 1,
@@ -302,7 +309,7 @@ const styles = StyleSheet.create({
     gap: 10
   },
   deleteText: {
-    fontFamily: Typography.family.sans,
+    fontFamily: Typography.currencySub.fontFamily,
     fontSize: 15
   }
 });

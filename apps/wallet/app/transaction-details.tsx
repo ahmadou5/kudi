@@ -4,17 +4,13 @@ import {
     Text,
     View,
     TouchableOpacity,
-    ScrollView,
     Image,
     Linking,
-    Alert
+    Alert,
+    Pressable
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import {
-    Send,
-    RefreshCw,
-    Check,
-    Clock,
     Copy,
     CheckCircle2,
     ExternalLink,
@@ -23,18 +19,24 @@ import {
     BadgeAlert,
     BadgeX
 } from 'lucide-react-native';
-// react-native's built-in Clipboard was split out of core years ago and isn't reliable to
-// import from 'react-native' anymore — expo-clipboard is the maintained replacement.
-// npx expo install expo-clipboard
 import * as Clipboard from 'expo-clipboard';
-// You likely already have this given the haptics system elsewhere in the app —
-// swap this call for your existing wrapper if you have one, just for consistency.
+import Animated, {
+    useAnimatedStyle,
+    useReducedMotion,
+    useSharedValue,
+    withSpring
+} from 'react-native-reanimated';
 import { useAppPalette, hexToRgba } from '../src/lib/theme';
 import { Typography } from '../src/constants/typography';
 import { ChainLogo } from '../src/components/ui/ChainLogo';
+import { CardBackgroundPattern } from '../src/components/ui/CardBackgroundPattern';
+import { TransactionTrack } from '../src/components/ui/TransactionTrack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { haptics } from '../src/lib/haptics';
 import { EnterSection } from '../src/lib/animations';
+import { truncateHash } from '../src/utils/AddressUtils';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable as any);
 
 type TransactionDetailsParams = {
     title?: string;
@@ -59,6 +61,12 @@ export default function TransactionDetailsScreen() {
 
     const [copied, setCopied] = useState(false);
     const copyResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const reducedMotion = useReducedMotion();
+    const explorerScale = useSharedValue(1);
+
+    const explorerBtnStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: explorerScale.value }]
+    }));
 
     useEffect(() => {
         return () => {
@@ -74,18 +82,24 @@ export default function TransactionDetailsScreen() {
         return (
             <View style={[styles.container, { backgroundColor: palette.bg, paddingTop: insets.top }]}>
                 <View style={[styles.header, { borderBottomColor: palette.border }]}>
-                    <TouchableOpacity
-                        onPress={() => router.back()}
-                        style={[styles.closeBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
-                        activeOpacity={0.7}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    <Pressable
+                        onPress={() => {
+                            haptics.tap();
+                            router.back();
+                        }}
+                        hitSlop={12}
+                        style={({ pressed }) => [
+                            styles.closeBtn,
+                            { backgroundColor: palette.card, borderColor: palette.border },
+                            pressed && { opacity: 0.6 }
+                        ]}
                         accessibilityRole="button"
                         accessibilityLabel="Go back"
                     >
-                        <ArrowLeft size={18} color={palette.text} />
-                    </TouchableOpacity>
+                        <ArrowLeft size={20} color={palette.text} />
+                    </Pressable>
                     <Text style={[Typography.title3, { color: palette.text }]}>Transaction Details</Text>
-                    <View style={{ width: 36 }} />
+                    <View style={{ width: 40 }} />
                 </View>
 
                 <View style={styles.notFoundContainer}>
@@ -174,265 +188,216 @@ export default function TransactionDetailsScreen() {
         <View style={[styles.container, { backgroundColor: palette.bg, paddingTop: insets.top }]}>
             {/* Top Header Bar */}
             <View style={[styles.header]}>
-                <TouchableOpacity
-                    onPress={() => router.back()}
-                    style={[styles.closeBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
-                    activeOpacity={0.7}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                <Pressable
+                    onPress={() => {
+                        haptics.tap();
+                        router.back();
+                    }}
+                    hitSlop={12}
+                    style={({ pressed }) => [
+                        styles.closeBtn,
+                        { backgroundColor: palette.card, borderColor: palette.border },
+                        pressed && { opacity: 0.6 }
+                    ]}
                     accessibilityRole="button"
                     accessibilityLabel="Go back"
                 >
-                    <ArrowLeft size={18} color={palette.text} />
-                </TouchableOpacity>
+                    <ArrowLeft size={20} color={palette.text} />
+                </Pressable>
                 <Text style={[Typography.title3, { color: palette.text }]}>Transaction Details</Text>
-                <View style={{ width: 36 }} />
+                <View style={{ width: 40 }} />
             </View>
 
-            <ScrollView
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-            >
+            {/* Compact centered content — no scroll, fits the screen */}
+            <View style={styles.content}>
                 {/* Main Hero Card */}
                 <EnterSection index={0}>
-                  <View style={[styles.heroCard]}>
-                      {/* Dual Token + Chain Badge Avatar */}
-                      <View style={styles.avatarWrapper}>
-                          <View style={[styles.tokenLogoCircle, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: palette.border }]}>
-                              <Image source={tokenLogo} style={styles.tokenLogoImg} resizeMode="contain" />
-                          </View>
+                    <View style={[styles.heroCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                        <CardBackgroundPattern
+                            glowColor={hexToRgba(statusColor, isDark ? 0.12 : 0.08)}
+                            isDarkOverride={isDark}
+                        />
+                        {/* Dual Token + Chain Badge Avatar */}
+                        <View style={styles.avatarWrapper}>
+                            <View style={[styles.tokenLogoCircle, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: palette.border }]}>
+                                <Image source={tokenLogo} style={styles.tokenLogoImg} resizeMode="contain" />
+                            </View>
 
-                          {(isMonad || isSolana) && (
-                              <View style={[styles.chainBadgeCircle, { backgroundColor: palette.card, borderColor: palette.card }]}>
-                                  <ChainLogo chain={isMonad ? 'monad' : 'solana'} size={20} />
-                              </View>
-                          )}
-                      </View>
+                            {(isMonad || isSolana) && (
+                                <View style={[styles.chainBadgeCircle, { backgroundColor: palette.card, borderColor: palette.card }]}>
+                                    <ChainLogo chain={isMonad ? 'monad' : 'solana'} size={20} />
+                                </View>
+                            )}
+                        </View>
 
-                      {/* Amount Display */}
-                      <Text
-                          style={[
-                              Typography.currencyDisplay,
-                              styles.heroAmount,
-                              { color: isDeposit ? palette.success : palette.text }
-                          ]}
-                      >
-                          {amount}
-                      </Text>
+                        {/* Amount Display */}
+                        <Text
+                            style={[
+                                Typography.currencyDisplay,
+                                styles.heroAmount,
+                                { color: isDeposit ? palette.success : palette.text }
+                            ]}
+                        >
+                            {amount}
+                        </Text>
 
-                      {!!secondaryAmount && (
-                          <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
-                              {secondaryAmount}
-                          </Text>
-                      )}
+                        {!!secondaryAmount && (
+                            <Text style={[Typography.currencySub, { color: palette.textSecondary, fontSize: 11 }]}>
+                                {secondaryAmount}
+                            </Text>
+                        )}
 
-                      {/* Status Badge */}
-                      <View style={[styles.statusBadge, { backgroundColor: statusBg, borderColor: statusColor + '40' }]}>
-                          <Text style={[Typography.caption, { color: statusColor }]}>
-                              {status}
-                          </Text>
-                          {isSuccess && (<BadgeCheck size={16} color={statusColor} />)}
-                          {isPending && (<BadgeAlert size={16} color={statusColor} />)}
-                          {!isSuccess && !isPending && (<BadgeX size={16} color={statusColor} />)}
-
-                      </View>
-                  </View>
+                        {/* Status Badge */}
+                        <View style={[styles.statusBadge, { backgroundColor: statusBg, borderColor: hexToRgba(statusColor, 0.35) }]}>
+                            {isSuccess && (<BadgeCheck size={15} color={statusColor} />)}
+                            {isPending && (<BadgeAlert size={15} color={statusColor} />)}
+                            {!isSuccess && !isPending && (<BadgeX size={15} color={statusColor} />)}
+                            <Text style={[Typography.currencySub, { color: statusColor, fontSize: 12, letterSpacing: 0.6 }]}>
+                                {status}
+                            </Text>
+                        </View>
+                    </View>
                 </EnterSection>
 
                 {/* TRANSACTION STATUS TRACKER LINE - Only displayed for spend / outgoing transactions */}
                 <EnterSection index={1}>
-                  {!isDeposit && (
-                      <View style={[styles.trackerCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-                          <View style={styles.trackerHeader}>
-                              <View style={styles.trackerHeaderLeft}>
-                                  <View style={[styles.pulseDot, { backgroundColor: statusColor }]} />
-                                  <Text style={[Typography.caption, { color: palette.textSecondary, letterSpacing: 0.8, fontSize: 11, fontWeight: '600' }]}>
-                                      TRANSACTION PROGRESS
-                                  </Text>
-                              </View>
-                              <View style={[styles.stepCountBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
-                                  <Text style={[Typography.caption, { color: statusColor, fontSize: 10, fontWeight: '700' }]}>
-                                      {isSuccess ? 'Completed' : isPending ? 'In Progress' : 'Failed'}
-                                  </Text>
-                              </View>
-                          </View>
-
-                          <View style={styles.timelineContainer}>
-                              {/* Connector lines behind nodes */}
-                              <View style={styles.trackLineOverlay}>
-                                  <View style={[styles.trackSegment, { backgroundColor: statusColor }]} />
-                                  <View style={[styles.trackSegment, { backgroundColor: isSuccess ? statusColor : hexToRgba(palette.text, isDark ? 0.25 : 0.15) }]} />
-                              </View>
-
-                              <View style={styles.timelineRow}>
-                                  {/* Stage 1: Requested */}
-                                  <View style={styles.stageNode}>
-                                      <View style={[styles.nodeCircle, { backgroundColor: statusColor + '20', borderColor: statusColor }]}>
-                                          <Send size={13} color={statusColor} />
-                                      </View>
-                                      <Text style={[Typography.caption, { color: palette.text, fontWeight: '700', fontSize: 11, marginTop: 6 }]}>
-                                          Requested
-                                      </Text>
-                                      <Text style={[Typography.caption, { color: palette.textSecondary, fontSize: 10 }]}>
-                                          Submitted
-                                      </Text>
-                                  </View>
-
-                                  {/* Stage 2: Processing */}
-                                  <View style={styles.stageNode}>
-                                      <View style={[
-                                          styles.nodeCircle,
-                                          {
-                                              backgroundColor: (isPending || isSuccess) ? statusColor + '20' : hexToRgba(palette.text, isDark ? 0.1 : 0.06),
-                                              borderColor: (isPending || isSuccess) ? statusColor : hexToRgba(palette.text, isDark ? 0.25 : 0.2)
-                                          }
-                                      ]}>
-                                          <RefreshCw
-                                              size={13}
-                                              color={(isPending || isSuccess) ? statusColor : palette.textSecondary}
-                                          />
-                                      </View>
-                                      <Text style={[
-                                          Typography.caption,
-                                          {
-                                              color: (isPending || isSuccess) ? palette.text : palette.textSecondary,
-                                              fontWeight: '700',
-                                              fontSize: 11,
-                                              marginTop: 6
-                                          }
-                                      ]}>
-                                          Processing
-                                      </Text>
-                                      <Text style={[Typography.caption, { color: palette.textSecondary, fontSize: 10 }]}>
-                                          Network
-                                      </Text>
-                                  </View>
-
-                                  {/* Stage 3: Completed */}
-                                  <View style={styles.stageNode}>
-                                      <View style={[
-                                          styles.nodeCircle,
-                                          {
-                                              backgroundColor: isSuccess ? palette.success + '20' : hexToRgba(palette.text, isDark ? 0.1 : 0.06),
-                                              borderColor: isSuccess ? palette.success : hexToRgba(palette.text, isDark ? 0.25 : 0.2)
-                                          }
-                                      ]}>
-                                          {isSuccess ? (
-                                              <Check size={13} color={palette.success} />
-                                          ) : (
-                                              <Clock size={13} color={palette.textSecondary} />
-                                          )}
-                                      </View>
-                                      <Text style={[
-                                          Typography.caption,
-                                          {
-                                              color: isSuccess ? palette.success : palette.textSecondary,
-                                              fontWeight: '700',
-                                              fontSize: 11,
-                                              marginTop: 6
-                                          }
-                                      ]}>
-                                          {isSuccess ? 'Completed' : 'Pending'}
-                                      </Text>
-                                      <Text style={[Typography.caption, { color: palette.textSecondary, fontSize: 10 }]}>
-                                          {isSuccess ? 'Finalized' : 'Awaiting'}
-                                      </Text>
-                                  </View>
-                              </View>
-                          </View>
-                      </View>
-                  )}
+                    {!isDeposit && (
+                        <View style={[styles.trackerCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                            <CardBackgroundPattern
+                                glowColor={hexToRgba(statusColor, isDark ? 0.1 : 0.07)}
+                                isDarkOverride={isDark}
+                            />
+                            <TransactionTrack
+                                type={isSuccess ? 'success' : isPending ? 'pending' : 'failed'}
+                                title="Status"
+                                labels={
+                                    isSuccess
+                                        ? ['Requested', 'Processing', 'Completed']
+                                        : isPending
+                                            ? ['Requested', 'Processing', 'Pending']
+                                            : ['Requested', 'Processing', 'Failed']
+                                }
+                                sublabels={
+                                    isSuccess
+                                        ? ['Submitted', 'Network', 'Finalized']
+                                        : isPending
+                                            ? ['Submitted', 'Network', 'Awaiting']
+                                            : ['Submitted', 'Network', 'Rejected']
+                                }
+                            />
+                        </View>
+                    )}
                 </EnterSection>
 
                 {/* Info Rows Container */}
                 <EnterSection index={2}>
-                  <View style={[styles.detailsContainer, { backgroundColor: palette.card, borderColor: palette.border }]}>
-                      <View style={styles.infoRow}>
-                          <Text style={[Typography.caption, { color: palette.textSecondary }]}>Type</Text>
-                          <Text style={[Typography.bodyBold, { color: palette.text }]}>
-                              {title}
-                          </Text>
-                      </View>
+                    <View style={[styles.detailsContainer, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                        <CardBackgroundPattern
+                            glowColor={hexToRgba(statusColor, isDark ? 0.08 : 0.05)}
+                            isDarkOverride={isDark}
+                        />
+                        <View style={styles.infoRow}>
+                            <Text style={[Typography.currencySub, { color: palette.textSecondary, fontSize: 14 }]}>Type</Text>
+                            <Text style={[Typography.bodyBold, { color: palette.text }]} numberOfLines={1}>
+                                {title}
+                            </Text>
+                        </View>
 
-                      <View style={[styles.divider, { backgroundColor: palette.border }]} />
+                        <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
-                      <View style={styles.infoRow}>
-                          <Text style={[Typography.caption, { color: palette.textSecondary }]}>Network</Text>
-                          <View style={styles.rowRightGroup}>
-                              {(isMonad || isSolana) && <ChainLogo chain={isMonad ? 'monad' : 'solana'} size={16} />}
-                              <Text style={[Typography.bodyBold, { color: palette.text }]}>
-                                  {isMonad ? 'Monad Testnet' : isSolana ? 'Solana Devnet' : 'Bank Payout (NGN)'}
-                              </Text>
-                          </View>
-                      </View>
+                        <View style={styles.infoRow}>
+                            <Text style={[Typography.currencySub, { color: palette.textSecondary, fontSize: 14 }]}>Network</Text>
+                            <View style={styles.rowRightGroup}>
+                                {(isMonad || isSolana) && <ChainLogo chain={isMonad ? 'monad' : 'solana'} size={16} />}
+                                <Text style={[Typography.bodyBold, { color: palette.text }]} numberOfLines={1}>
+                                    {isMonad ? 'Monad Testnet' : isSolana ? 'Solana Devnet' : 'Bank Payout (NGN)'}
+                                </Text>
+                            </View>
+                        </View>
 
-                      <View style={[styles.divider, { backgroundColor: palette.border }]} />
+                        <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
-                      <View style={styles.infoRow}>
-                          <Text style={[Typography.caption, { color: palette.textSecondary }]}>Asset</Text>
-                          <Text style={[Typography.bodyBold, { color: palette.text }]}>
-                              {tokenSymbol}
-                          </Text>
-                      </View>
+                        <View style={styles.infoRow}>
+                            <Text style={[Typography.currencySub, { color: palette.textSecondary, fontSize: 14 }]}>Asset</Text>
+                            <Text style={[Typography.bodyBold, { color: palette.text }]}>
+                                {tokenSymbol}
+                            </Text>
+                        </View>
 
-                      <View style={[styles.divider, { backgroundColor: palette.border }]} />
+                        <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
-                      <View style={styles.infoRow}>
-                          <Text style={[Typography.caption, { color: palette.textSecondary }]}>Date & Time</Text>
-                          <Text style={[Typography.bodyBold, { color: palette.text }]}>
-                              {date}
-                          </Text>
-                      </View>
+                        <View style={styles.infoRow}>
+                            <Text style={[Typography.currencySub, { color: palette.textSecondary, fontSize: 14 }]}>Date & Time</Text>
+                            <Text style={[Typography.bodyBold, { color: palette.text }]} numberOfLines={1}>
+                                {date}
+                            </Text>
+                        </View>
 
-                      <View style={[styles.divider, { backgroundColor: palette.border }]} />
+                        <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
-                      {/* Reference Row with Copy Button */}
-                      <View style={styles.infoRowVertical}>
-                          <View style={styles.refHeaderRow}>
-                              <Text style={[Typography.caption, { color: palette.textSecondary }]}>Reference</Text>
-                              <TouchableOpacity
-                                  onPress={handleCopyRef}
-                                  activeOpacity={0.7}
-                                  style={styles.copyBtn}
-                                  accessibilityRole="button"
-                                  accessibilityLabel={copied ? 'Reference copied' : 'Copy reference'}
-                              >
-                                  {copied ? (
-                                      <CheckCircle2 size={14} color={palette.success} />
-                                  ) : (
-                                      <Copy size={14} color={palette.textSecondary} />
-                                  )}
-                                  <Text style={[Typography.caption, { color: copied ? palette.success : palette.textSecondary, fontWeight: '600' }]}>
-                                      {copied ? 'Copied!' : 'Copy'}
-                                  </Text>
-                              </TouchableOpacity>
-                          </View>
+                        {/* Reference Row with Copy Button */}
+                        <View style={styles.infoRowVertical}>
+                            <View style={styles.refHeaderRow}>
+                                <Text style={[Typography.currencySub, { color: palette.textSecondary, fontSize: 14 }]}>Reference</Text>
+                                <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                                    <Text style={[styles.refText, { color: palette.text }]} numberOfLines={1}>
+                                        {truncateHash(ref)}
+                                    </Text>
+                                    <TouchableOpacity
+                                        onPress={handleCopyRef}
+                                        activeOpacity={0.7}
+                                        style={styles.copyBtn}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={copied ? 'Reference copied' : 'Copy reference'}
+                                    >
+                                        {copied ? (
+                                            <CheckCircle2 size={14} color={palette.success} />
+                                        ) : (
+                                            <Copy size={14} color={palette.textSecondary} />
+                                        )}
+                                        <Text style={[Typography.caption, { color: copied ? palette.success : palette.textSecondary, fontWeight: '600' }]}>
+                                            {copied ? '' : ''}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
 
-                          <Text style={[Typography.footnote, styles.refText, { color: palette.text }]}>
-                              {ref}
-                          </Text>
-                      </View>
-                  </View>
+                            </View>
+
+
+                        </View>
+                    </View>
                 </EnterSection>
+            </View >
 
-                {/* Action Button: View on Block Explorer */}
-                <EnterSection index={3}>
-                  {!!explorerUrl && (
-                      <TouchableOpacity
-                          onPress={handleOpenExplorer}
-                          style={[styles.explorerBtn, { backgroundColor: palette.text }]}
-                          activeOpacity={0.8}
-                          accessibilityRole="button"
-                          accessibilityLabel={`View on ${isMonad ? 'Monad Explorer' : 'Solana Explorer'}`}
-                      >
-                          <ExternalLink size={18} color={palette.bg} />
-                          <Text style={[Typography.bodyBold, { color: palette.bg }]}>
-                              View on {isMonad ? 'Monad Explorer' : 'Solana Explorer'}
-                          </Text>
-                      </TouchableOpacity>
-                  )}
-                </EnterSection>
-            </ScrollView>
-        </View>
+            {/* Action Button: View on Block Explorer — pinned to the bottom */}
+            {
+                !!explorerUrl && (
+                    <EnterSection index={3}>
+                        <View style={[styles.explorerWrap, { paddingBottom: insets.bottom + 16 }]}>
+                            <AnimatedPressable
+                                onPress={handleOpenExplorer}
+                                onPressIn={() => {
+                                    if (reducedMotion) return;
+                                    explorerScale.value = withSpring(0.97, { damping: 20, stiffness: 400 });
+                                }}
+                                onPressOut={() => {
+                                    if (reducedMotion) return;
+                                    explorerScale.value = withSpring(1, { damping: 20, stiffness: 400 });
+                                }}
+                                style={[styles.explorerBtn, { backgroundColor: palette.text }, explorerBtnStyle]}
+                                accessibilityRole="button"
+                                accessibilityLabel={`View on ${isMonad ? 'Monad Explorer' : 'Solana Explorer'}`}
+                            >
+                                <ExternalLink size={18} color={palette.bg} />
+                                <Text style={[Typography.bodyBold, { color: palette.bg }]}>
+                                    View on {isMonad ? 'Monad Explorer' : 'Solana Explorer'}
+                                </Text>
+                            </AnimatedPressable>
+                        </View>
+                    </EnterSection>
+                )
+            }
+        </View >
     );
 }
 
@@ -449,9 +414,9 @@ const styles = StyleSheet.create({
         borderBottomWidth: 0
     },
     closeBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        width: 40,
+        height: 40,
+        borderRadius: 14,
         borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center'
@@ -470,16 +435,19 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center'
     },
-    scrollContent: {
-        padding: 20,
-        gap: 16
+    content: {
+        flex: 1,
+        justifyContent: 'center',
+        paddingHorizontal: 20,
+        gap: 14
     },
     heroCard: {
         borderRadius: 24,
-
-        padding: 24,
+        borderWidth: 1,
+        padding: 20,
         alignItems: 'center',
-        gap: 10
+        gap: 8,
+        overflow: 'hidden'
     },
     avatarWrapper: {
         position: 'relative',
@@ -518,79 +486,24 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        paddingHorizontal: 2,
-        paddingVertical: 2,
-        borderRadius: 20,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 999,
         borderWidth: 1,
-        marginTop: 4
+        marginTop: 6
     },
     trackerCard: {
-        borderRadius: 20,
+        borderRadius: 24,
         borderWidth: 1,
-        padding: 18,
-        gap: 16
-    },
-    trackerHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between'
-    },
-    trackerHeaderLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8
-    },
-    pulseDot: {
-        width: 7,
-        height: 7,
-        borderRadius: 3.5
-    },
-    stepCountBadge: {
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 12
-    },
-    timelineContainer: {
-        position: 'relative',
-        paddingHorizontal: 8
-    },
-    trackLineOverlay: {
-        position: 'absolute',
-        top: 15,
-        left: 44,
-        right: 44,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        zIndex: 1
-    },
-    trackSegment: {
-        flex: 1,
-        height: 2,
-        marginHorizontal: 4
-    },
-    timelineRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        justifyContent: 'space-between',
-        zIndex: 2
-    },
-    stageNode: {
-        alignItems: 'center',
-        width: 72
-    },
-    nodeCircle: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        borderWidth: 1.5,
-        alignItems: 'center',
-        justifyContent: 'center'
+        padding: 16,
+        overflow: 'hidden'
     },
     detailsContainer: {
-        borderRadius: 20,
+        borderRadius: 24,
         borderWidth: 1,
-        padding: 18,
-        gap: 12
+        padding: 16,
+        gap: 10,
+        overflow: 'hidden'
     },
     infoRow: {
         flexDirection: 'row',
@@ -620,7 +533,11 @@ const styles = StyleSheet.create({
     },
     refText: {
         fontFamily: 'SpaceMono_400Regular',
-        fontSize: 12
+        fontSize: 11,
+        lineHeight: 15
+    },
+    explorerWrap: {
+        paddingHorizontal: 20
     },
     explorerBtn: {
         height: 52,
@@ -628,8 +545,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
-        marginTop: 8
+        gap: 8
     }
 });
 

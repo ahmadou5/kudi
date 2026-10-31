@@ -122,20 +122,28 @@ test('sweep gas policy: strictly enforces TREASURY_FEE_PAYER and rejects PRIVY_S
   assert.notEqual(preserved.gasPaymentMode, undefined);
 });
 
-test('sweep gas policy: resolves effective gas payment mode with TREASURY_FEE_PAYER required', async () => {
+test('cashout gas payment mode: stored value wins, env fallback, PRIVY_SPONSOR default', async () => {
   const { resolveGasPaymentMode } = await import('../../../packages/chains/dist/index.mjs');
-  assert.equal(resolveGasPaymentMode('TREASURY_FEE_PAYER'), 'TREASURY_FEE_PAYER');
-  assert.throws(
-    () => resolveGasPaymentMode(undefined),
-    { message: /GAS_PAYMENT_MODE must be explicitly set to "TREASURY_FEE_PAYER"/ }
-  );
-  assert.throws(
-    () => resolveGasPaymentMode('PRIVY_SPONSOR'),
-    { message: /GAS_PAYMENT_MODE must be explicitly set to "TREASURY_FEE_PAYER"/ }
-  );
-  assert.throws(
-    () => resolveGasPaymentMode('unknown_mode'),
-    { message: /GAS_PAYMENT_MODE must be explicitly set to "TREASURY_FEE_PAYER"/ }
-  );
+  const savedEnv = process.env.GAS_PAYMENT_MODE;
+  try {
+    delete process.env.GAS_PAYMENT_MODE;
+
+    // Valid stored (DB) values win
+    assert.equal(resolveGasPaymentMode('TREASURY_FEE_PAYER'), 'TREASURY_FEE_PAYER');
+    assert.equal(resolveGasPaymentMode('USER_PAYS'), 'USER_PAYS');
+    assert.equal(resolveGasPaymentMode('PRIVY_SPONSOR'), 'PRIVY_SPONSOR');
+
+    // Unknown/missing stored value falls back to env, then PRIVY_SPONSOR
+    assert.equal(resolveGasPaymentMode(undefined), 'PRIVY_SPONSOR');
+    assert.equal(resolveGasPaymentMode('unknown_mode'), 'PRIVY_SPONSOR');
+
+    // Explicit env is honored when set
+    process.env.GAS_PAYMENT_MODE = 'TREASURY_FEE_PAYER';
+    assert.equal(resolveGasPaymentMode(undefined), 'TREASURY_FEE_PAYER');
+    assert.equal(resolveGasPaymentMode('unknown_mode'), 'TREASURY_FEE_PAYER');
+  } finally {
+    if (savedEnv === undefined) delete process.env.GAS_PAYMENT_MODE;
+    else process.env.GAS_PAYMENT_MODE = savedEnv;
+  }
 });
 

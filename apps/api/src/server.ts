@@ -28,6 +28,7 @@ import { prisma } from './lib/prisma';
 import { initSentry } from './lib/sentry';
 import { RateService } from './services/rateService';
 import { LedgerService } from './services/ledgerService';
+import { PayoutReconcilerService } from './services/payoutReconcilerService';
 import { DepositService } from './services/depositService';
 import { SweepService } from './services/sweepService';
 import { MaintenanceService } from './services/maintenanceService';
@@ -162,11 +163,6 @@ server.decorate('providers', {
 });
 
 const paymentRegistry = new PaymentProviderRegistry({
-  paystackSecretKey: apiConfig.PAYSTACK_SECRET_KEY!,
-  monnifyApiKey: apiConfig.MONNIFY_API_KEY!,
-  monnifySecretKey: apiConfig.MONNIFY_SECRET_KEY!,
-  monnifyBaseUrl: apiConfig.MONNIFY_BASE_URL,
-  monnifySourceAccountNumber: apiConfig.MONNIFY_SOURCE_ACCOUNT!,
   squadSecretKey: apiConfig.SQUAD_SECRET_KEY!,
   squadBaseUrl: apiConfig.SQUAD_BASE_URL,
   bachsSecretKey: apiConfig.BACHS_SECRET_KEY,
@@ -174,6 +170,7 @@ const paymentRegistry = new PaymentProviderRegistry({
 });
 const rateService = new RateService();
 const ledgerService = new LedgerService();
+const payoutReconciler = new PayoutReconcilerService(ledgerService, paymentRegistry);
 const depositService = new DepositService(ledgerService, io);
 const sweepService = new SweepService(ledgerService);
 const maintenanceService = new MaintenanceService(io);
@@ -286,6 +283,11 @@ async function main() {
 
   const port = apiConfig.PORT;
   await server.listen({ port, host: '0.0.0.0' });
+
+  payoutReconciler.start();
+  server.addHook('onClose', async () => {
+    payoutReconciler.stop();
+  });
 
   rateService.onRateUpdate((rateState) => {
     io.emit('rate:updated', rateState);

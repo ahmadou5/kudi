@@ -51,7 +51,7 @@ export class DepositsController {
   /**
    * GET /api/v1/deposits/treasury
    * Returns the current USDC balance in Kudi's treasury wallet.
-   * This is the float that backs all NGN payouts via Paystack/Monnify.
+   * This is the float that backs all NGN payouts via Squad/Bachs.
    */
   public getTreasuryBalance = async (_request: FastifyRequest, reply: FastifyReply) => {
     try {

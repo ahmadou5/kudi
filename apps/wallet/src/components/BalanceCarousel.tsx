@@ -11,7 +11,9 @@ import {
   Pressable,
   NativeSyntheticEvent,
   NativeScrollEvent,
-  Share
+  Share,
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
@@ -20,7 +22,7 @@ import { Rect } from 'react-native-svg';
 import { Copy, Check, ShieldCheck, Sparkles, Building2, Globe2, ArrowRight, X, QrCode, Share2, CheckCircle2, ChevronDown, ChevronUp, CopyIcon, LucideShare } from 'lucide-react-native';
 import { useAppPalette, isLight, hexToRgba, mixColors, cardHue } from '../lib/theme';
 import { Typography } from '../constants/typography';
-import { useVirtualAccounts, VirtualAccount } from '../hooks/useVirtualAccounts';
+import { useVirtualAccounts, useProvisionVirtualAccount, VirtualAccount } from '../hooks/useVirtualAccounts';
 import { useAuthStore } from '../store/auth.store';
 import { useDepositRequestStore } from '../store/deposit-request.store';
 import { ChainLogo } from './ui/ChainLogo';
@@ -29,6 +31,7 @@ import { BalanceCardSkeleton } from './ui/AnimatedSkeleton';
 import { AnimatedAmount, formatNaira, formatUsd } from './ui/AnimatedAmount';
 import { sdk } from '../lib/sdk';
 import { haptics } from '../lib/haptics';
+import { CardBackgroundPattern } from './ui/CardBackgroundPattern';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CONTAINER_PADDING = 14;
@@ -65,6 +68,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
   const user = useAuthStore(s => s.user);
   const wallets = useAuthStore(s => s.wallets);
   const { data: virtualAccounts = [] } = useVirtualAccounts();
+  const provisionAccount = useProvisionVirtualAccount();
 
   const cardHues = useMemo(
     () => ({
@@ -161,6 +165,29 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
       : rawTier === '1' || rawTier === 'TIER_1' || user?.kycStatus === 'VERIFIED'
         ? 1
         : 0;
+
+  const handleGenerateAccount = () => {
+    if (kycTierNum < 1) {
+      router.push('/settings/limits');
+      return;
+    }
+    if (!user?.id) {
+      Alert.alert('Sign in required', 'Please sign in again and retry.');
+      return;
+    }
+    provisionAccount.mutate(undefined, {
+      onSuccess: (accounts) => {
+        haptics.notify('success');
+        if (accounts.length === 0) {
+          Alert.alert('Request received', 'Your account is being prepared and should appear shortly.');
+        }
+      },
+      onError: (err) => {
+        haptics.notify('error');
+        Alert.alert('Could not generate account', err?.message || 'Please try again shortly.');
+      }
+    });
+  };
 
   // On-Chain balance calculations & deposit pulse animation
   const numericBalance = parseFloat(balanceUSDC) || 0;
@@ -380,7 +407,7 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
             style={[
               styles.glowOverlay,
               {
-                backgroundColor: palette.success,
+                backgroundColor: palette.accent,
                 opacity: glowAnim.interpolate({
                   inputRange: [0, 1],
                   outputRange: [0, 0.18]
@@ -390,8 +417,10 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
             pointerEvents="none"
           />
 
-          <CardPattern hue={cardHues.usdc} />
-
+          <CardBackgroundPattern
+            glowColor={hexToRgba(palette.primary, isDark ? 0.08 : 0.05)}
+            isDarkOverride={isDark}
+          />
           <View style={styles.cardHeaderRow}>
             <View style={styles.badgeRow}>
 
@@ -479,7 +508,11 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
             }
           ]}
         >
-          <CardPattern hue={cardHues.ngn} />
+          <CardBackgroundPattern
+            glowColor={hexToRgba(palette.primary, isDark ? 0.08 : 0.05)}
+            isDarkOverride={isDark}
+          />
+
 
           <View style={styles.cardHeaderRow}>
             <View style={styles.badgeRow}>
@@ -557,15 +590,27 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
               </View>
 
               <TouchableOpacity
-                onPress={() => router.push('/settings/limits')}
-                style={[styles.kycCtaBtn, { backgroundColor: palette.text }]}
+                onPress={handleGenerateAccount}
+                disabled={provisionAccount.isPending}
+                style={[
+                  styles.kycCtaBtn,
+                  { backgroundColor: palette.text, opacity: provisionAccount.isPending ? 0.7 : 1 }
+                ]}
                 activeOpacity={0.85}
               >
-                <ShieldCheck size={18} color={palette.bg} />
+                {provisionAccount.isPending ? (
+                  <ActivityIndicator size="small" color={palette.bg} />
+                ) : (
+                  <ShieldCheck size={18} color={palette.bg} />
+                )}
                 <Text style={[Typography.bodyBold, { color: palette.bg }]}>
-                  {kycTierNum >= 1 ? 'Generate Account' : 'Complete Tier 1 KYC'}
+                  {kycTierNum >= 1
+                    ? provisionAccount.isPending
+                      ? 'Generating…'
+                      : 'Generate Account'
+                    : 'Complete Tier 1 KYC'}
                 </Text>
-                <ArrowRight size={16} color={palette.bg} />
+                {!provisionAccount.isPending && <ArrowRight size={16} color={palette.bg} />}
               </TouchableOpacity>
             </View>
           )}
@@ -1046,81 +1091,81 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                     </Text>
                   </View>
                 ) : (
-                <View style={[styles.bankDetailsBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
-                  <View style={styles.sheetDetailRow}>
-                    <View>
-                      <Text style={[Typography.title3, { color: palette.textSecondary }]}>Account name</Text>
-                      <Text style={[Typography.display, { color: palette.text, fontSize: 18, lineHeight: 15 }]}>
-                        {activeBottomSheet.bankData.accountName}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => copyToClipboard(activeBottomSheet.bankData!.accountName, 'sheet_bank_name')}
-                    >
-                      {copiedField === 'sheet_bank_name' ? (
-                        <Check size={20} color={palette.success} />
-                      ) : (
-                        <Copy size={20} color={palette.textSecondary} />
-                      )}
-                    </TouchableOpacity>
-
-                  </View>
-                  <View style={styles.sheetDetailRow}>
-                    <View>
-                      <Text style={[Typography.title3, { color: palette.textSecondary }]}>
-                        {activeBottomSheet.bankData.currency === 'EUR' ? 'IBAN Number' : 'Account Number'}
-                      </Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={[Typography.currencySub, { color: palette.text, fontSize: 18, lineHeight: 15 }]} selectable>
-                          {activeBottomSheet.bankData.accountNumber}
-                        </Text>
-
-                      </View>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => copyToClipboard(activeBottomSheet.bankData!.accountNumber, 'sheet_bank_acc')}
-                    >
-                      {copiedField === 'sheet_bank_acc' ? (
-                        <Check size={20} color={palette.success} />
-                      ) : (
-                        <Copy size={20} color={palette.textSecondary} />
-                      )}
-                    </TouchableOpacity>
-
-                  </View>
-                  <View style={styles.sheetDetailRow}>
-                    <View>
-                      <Text style={[Typography.title3, { color: palette.textSecondary }]}>Bank</Text>
-                      <Text style={[Typography.display, { color: palette.text, fontSize: 18, lineHeight: 17 }]}>
-                        {activeBottomSheet.bankData.bankName}
-                      </Text>
-                    </View>
-
-                  </View>
-
-
-
-                  {activeBottomSheet.bankData.extraDetails && (
+                  <View style={[styles.bankDetailsBox, { backgroundColor: palette.card, borderColor: palette.border }]}>
                     <View style={styles.sheetDetailRow}>
                       <View>
-                        <Text style={[Typography.title3, { color: palette.textSecondary }]}>Code / Routing</Text>
+                        <Text style={[Typography.title3, { color: palette.textSecondary }]}>Account name</Text>
                         <Text style={[Typography.display, { color: palette.text, fontSize: 18, lineHeight: 15 }]}>
-                          {activeBottomSheet.bankData.extraDetails}
+                          {activeBottomSheet.bankData.accountName}
                         </Text>
                       </View>
                       <TouchableOpacity
-                        onPress={() => copyToClipboard(activeBottomSheet.bankData!.extraDetails as string, 'sheet_bank_extra')}
+                        onPress={() => copyToClipboard(activeBottomSheet.bankData!.accountName, 'sheet_bank_name')}
                       >
-                        {copiedField === 'sheet_bank_extra' ? (
+                        {copiedField === 'sheet_bank_name' ? (
                           <Check size={20} color={palette.success} />
                         ) : (
                           <Copy size={20} color={palette.textSecondary} />
                         )}
                       </TouchableOpacity>
-                    </View>
-                  )}
 
-                </View>
+                    </View>
+                    <View style={styles.sheetDetailRow}>
+                      <View>
+                        <Text style={[Typography.title3, { color: palette.textSecondary }]}>
+                          {activeBottomSheet.bankData.currency === 'EUR' ? 'IBAN Number' : 'Account Number'}
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={[Typography.currencySub, { color: palette.text, fontSize: 18, lineHeight: 15 }]} selectable>
+                            {activeBottomSheet.bankData.accountNumber}
+                          </Text>
+
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => copyToClipboard(activeBottomSheet.bankData!.accountNumber, 'sheet_bank_acc')}
+                      >
+                        {copiedField === 'sheet_bank_acc' ? (
+                          <Check size={20} color={palette.success} />
+                        ) : (
+                          <Copy size={20} color={palette.textSecondary} />
+                        )}
+                      </TouchableOpacity>
+
+                    </View>
+                    <View style={styles.sheetDetailRow}>
+                      <View>
+                        <Text style={[Typography.title3, { color: palette.textSecondary }]}>Bank</Text>
+                        <Text style={[Typography.display, { color: palette.text, fontSize: 18, lineHeight: 17 }]}>
+                          {activeBottomSheet.bankData.bankName}
+                        </Text>
+                      </View>
+
+                    </View>
+
+
+
+                    {activeBottomSheet.bankData.extraDetails && (
+                      <View style={styles.sheetDetailRow}>
+                        <View>
+                          <Text style={[Typography.title3, { color: palette.textSecondary }]}>Code / Routing</Text>
+                          <Text style={[Typography.display, { color: palette.text, fontSize: 18, lineHeight: 15 }]}>
+                            {activeBottomSheet.bankData.extraDetails}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => copyToClipboard(activeBottomSheet.bankData!.extraDetails as string, 'sheet_bank_extra')}
+                        >
+                          {copiedField === 'sheet_bank_extra' ? (
+                            <Check size={20} color={palette.success} />
+                          ) : (
+                            <Copy size={20} color={palette.textSecondary} />
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                  </View>
                 )}
 
                 {/* Live Rate Ticker */}

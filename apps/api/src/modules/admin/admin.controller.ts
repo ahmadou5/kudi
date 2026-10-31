@@ -8,6 +8,7 @@ import { prisma } from '@kudi/database';
 import { getAuthenticatedUser } from '../../utils/authGuards';
 import { MaintenanceService } from '../../services/maintenanceService';
 import { LedgerService } from '../../services/ledgerService';
+import { getIdentityProviderStatus, IDENTITY_PROVIDER_CONFIG_KEY } from '../../lib/identityVerification';
 
 export class AdminController {
   constructor(
@@ -221,6 +222,87 @@ export class AdminController {
     });
 
     return successResponse(updated, 'Maintenance mode updated');
+  };
+
+  /**
+   * GET /api/v1/admin/config/identity-provider — active identity verification
+   * provider (Dojah / Sumsub) plus per-provider credential status.
+   */
+  public getIdentityProviderConfig = async (_request: FastifyRequest, _reply: FastifyReply) => {
+    try {
+      const status = await getIdentityProviderStatus();
+      return successResponse(
+        {
+          provider: status.effective,
+          selected: status.selected,
+          source: status.source,
+          configured: status.configured,
+          updatedAt: status.updatedAt
+        },
+        'Identity verification provider config retrieved'
+      );
+    } catch (err: any) {
+      console.warn('[AdminController] Failed to fetch identity provider config:', err?.message || err);
+      return successResponse(
+        { provider: null, selected: null, source: 'none', configured: { DOJAH: false, SUMSUB: false }, updatedAt: null },
+        'Identity verification provider config retrieved'
+      );
+    }
+  };
+
+  /**
+   * POST /api/v1/admin/config/identity-provider — switch the identity
+   * verification provider used for all new KYC checks (Dojah | Sumsub).
+   * Persisted in AppConfig and written to the admin audit log.
+   */
+  public setIdentityProviderConfig = async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = request.body as { provider?: string };
+    const provider = typeof body?.provider === 'string' ? body.provider.trim().toUpperCase() : '';
+    if (provider !== 'DOJAH' && provider !== 'SUMSUB') {
+      return reply
+        .status(400)
+        .send(errorResponse('INVALID_BODY', 'Field "provider" must be one of: DOJAH, SUMSUB', 400));
+    }
+
+    const previous = await getIdentityProviderStatus();
+    const payload = { provider, updatedAt: new Date().toISOString() };
+    const configValue = JSON.stringify(payload);
+
+    try {
+      await prisma.appConfig.upsert({
+        where: { key: IDENTITY_PROVIDER_CONFIG_KEY },
+        update: { value: configValue },
+        create: { key: IDENTITY_PROVIDER_CONFIG_KEY, value: configValue }
+      });
+    } catch (err: any) {
+      console.warn('[AdminController] Failed to persist identity provider config:', err?.message || err);
+      return reply.status(500).send(errorResponse('CONFIG_PERSIST_FAILED', 'Could not persist identity provider config', 500));
+    }
+
+    const auditId = await this.recordAdminAudit(request, {
+      action: 'IDENTITY_PROVIDER_UPDATE',
+      targetType: 'SYSTEM_CONFIG',
+      targetId: IDENTITY_PROVIDER_CONFIG_KEY,
+      details: { provider, previous: previous.selected ?? null }
+    });
+
+    const status = await getIdentityProviderStatus();
+    const configured = status.configured[provider as keyof typeof status.configured];
+
+    return successResponse(
+      {
+        provider: status.effective,
+        selected: status.selected,
+        source: status.source,
+        configured: status.configured,
+        updatedAt: payload.updatedAt,
+        auditId,
+        warning: configured
+          ? null
+          : `${provider} is now selected but its credentials are not configured — verification will fall back until keys are added`
+      },
+      `Identity verification provider switched to ${provider}`
+    );
   };
 
   public getSweepConfig = async (_request: FastifyRequest, _reply: FastifyReply) => {
@@ -542,26 +624,8 @@ export class AdminController {
   };
 
   public getPayoutRails = async (_request: FastifyRequest, _reply: FastifyReply) => {
-    const activeId = this.paymentRegistry.getActiveProviderId(); // 'paystack', 'monnify', 'squad', 'bachs'
+    const activeId = this.paymentRegistry.getActiveProviderId(); // 'squad', 'bachs'
     const rails = [
-      {
-        id: 'PAYSTACK',
-        name: 'Paystack Transfers API',
-        active: activeId === 'paystack',
-        balanceNGN: 84500000,
-        latencyMs: 310,
-        successRate: 99.8,
-        supportedRails: ['NIP Instant Transfer', 'Direct Debit', 'Dedicated Virtual Accounts']
-      },
-      {
-        id: 'MONNIFY',
-        name: 'Monnify Direct Payout',
-        active: activeId === 'monnify',
-        balanceNGN: 42300000,
-        latencyMs: 420,
-        successRate: 99.4,
-        supportedRails: ['NIP Transfer', 'Sub-accounts', 'Reserved Accounts']
-      },
       {
         id: 'SQUAD',
         name: 'Squad GTCO Payout',
@@ -924,9 +988,8 @@ export class AdminController {
     const rate = rateState.currentRateNGN;
     const activeId = this.paymentRegistry.getActiveProviderId();
     const payoutRails = [
-      { id: 'PAYSTACK', name: 'Paystack Transfers API', active: activeId === 'paystack', balanceNGN: 0, latencyMs: 0, successRate: 0, supportedRails: ['NIP Instant Transfer'] },
-      { id: 'MONNIFY', name: 'Monnify Direct Payout', active: activeId === 'monnify', balanceNGN: 0, latencyMs: 0, successRate: 0, supportedRails: ['NIP Transfer'] },
-      { id: 'SQUAD', name: 'Squad GTCO Payout', active: activeId === 'squad', balanceNGN: 0, latencyMs: 0, successRate: 0, supportedRails: ['NIP Interbank'] }
+      { id: 'SQUAD', name: 'Squad GTCO Payout', active: activeId === 'squad', balanceNGN: 0, latencyMs: 0, successRate: 0, supportedRails: ['NIP Interbank'] },
+      { id: 'BACHS', name: 'Bachs Virtual Accounts', active: activeId === 'bachs', balanceNGN: 0, latencyMs: 0, successRate: 0, supportedRails: ['Virtual Accounts'] }
     ];
 
     const [userStats, balanceStats, depositStats, recentDeposits, recentTransactions] = await Promise.all([

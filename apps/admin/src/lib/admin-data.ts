@@ -97,7 +97,7 @@ export type AdminKycQueueItem = {
 };
 
 export type AdminPayoutRail = {
-  id: 'PAYSTACK' | 'MONNIFY' | 'SQUAD';
+  id: 'SQUAD' | 'BACHS';
   name: string;
   active: boolean;
   balanceNGN: number;
@@ -218,7 +218,7 @@ const fallbackKpis: KpiCard[] = [
   { label: '24h Processed Volume', value: '₦48,250,000', delta: '+18.4%', tone: 'primary', description: '$30,441 USDC disbursed to NGN' },
   { label: 'Active Custody Wallets', value: '1,428', delta: '+12.1%', tone: 'success', description: 'Monad Metropolis + Solana SPL' },
   { label: 'Live Exchange Rate', value: '₦1,585.50', delta: '+0.4%', tone: 'warning', description: 'Blended Binance & Bybit P2P' },
-  { label: 'Active Payout Rail', value: 'Paystack NIP', delta: '99.8%', tone: 'muted', description: 'Failover: Monnify → Squad' }
+  { label: 'Active Payout Rail', value: 'Bachs VA', delta: '99.5%', tone: 'muted', description: 'Failover: Squad → Bachs' }
 ];
 
 const fallbackVolumeChart = [
@@ -264,7 +264,7 @@ const fallbackTransactions: AdminSpendTransaction[] = [
     recipientBankCode: '058',
     recipientAccountNumber: '0129876543',
     recipientAccountName: 'Amina Hadiza Bello',
-    payoutProvider: 'MONNIFY',
+    payoutProvider: 'SQUAD',
     status: 'SUCCESS',
     createdAt: '2026-09-12 02:18:22'
   },
@@ -490,7 +490,7 @@ const fallbackKycQueue: AdminKycQueueItem[] = [
     requestedTier: 'TIER_1',
     status: 'PENDING',
     livenessConfidenceScore: 98.6,
-    documentType: 'NIN Slip & Smile Selfie Liveness',
+    documentType: 'NIN Slip & BVN Verification',
     submittedAt: '2026-09-12 01:20:00'
   },
   {
@@ -510,22 +510,13 @@ const fallbackKycQueue: AdminKycQueueItem[] = [
 
 const fallbackPayoutRails: AdminPayoutRail[] = [
   {
-    id: 'PAYSTACK',
-    name: 'Paystack Transfers API',
+    id: 'BACHS',
+    name: 'Bachs Virtual Accounts',
     active: true,
-    balanceNGN: 84500000,
-    latencyMs: 310,
-    successRate: 99.8,
-    supportedRails: ['NIP Instant Transfer', 'Direct Debit', 'Virtual Accounts']
-  },
-  {
-    id: 'MONNIFY',
-    name: 'Monnify Direct Payout',
-    active: false,
-    balanceNGN: 42300000,
-    latencyMs: 420,
-    successRate: 99.4,
-    supportedRails: ['NIP Transfer', 'Sub-accounts', 'Dynamic VA']
+    balanceNGN: 15000000,
+    latencyMs: 250,
+    successRate: 99.5,
+    supportedRails: ['Virtual Accounts', 'Bank Transfer', 'Local Payment Methods']
   },
   {
     id: 'SQUAD',
@@ -534,7 +525,7 @@ const fallbackPayoutRails: AdminPayoutRail[] = [
     balanceNGN: 25100000,
     latencyMs: 510,
     successRate: 98.9,
-    supportedRails: ['GTCO Priority Rail', 'NIP Interbank']
+    supportedRails: ['GTCO Priority Rail', 'NIP Interbank', 'Dedicated Virtual Accounts']
   }
 ];
 
@@ -597,7 +588,7 @@ const fallbackNotifications: AdminNotification[] = [
   {
     id: 'nt_02',
     title: 'Instant Tier 2 KYC Enabled',
-    body: 'Upgrade your KYC via Smile Identity BVN verification to unlock ₦10,000,000 daily spend limits.',
+    body: 'Upgrade your KYC with BVN verification to unlock ₦10,000,000 daily spend limits.',
     channel: 'IN_APP',
     audience: 'ALL',
     sentAt: '2026-09-10 09:30',
@@ -633,7 +624,7 @@ const fallbackSettings: AdminSettings = {
       id: 'aud_02',
       adminEmail: 'admin@kudi.app',
       action: 'FAILOVER_SWITCH',
-      details: 'Confirmed Paystack as primary rail. Monnify on hot standby.',
+      details: 'Confirmed Bachs as primary rail. Squad on hot standby.',
       timestamp: '2026-09-11 18:30:12'
     },
     {
@@ -919,6 +910,47 @@ export async function updateMaintenanceConfig(config: {
     return json?.data ?? json;
   } catch (err) {
     console.error('Failed to update maintenance config', err);
+    return null;
+  }
+}
+
+export type AdminIdentityProviderConfig = {
+  /** Provider actually used for new KYC checks (null = none configured). */
+  provider: 'DOJAH' | 'SUMSUB' | null;
+  /** Provider chosen via admin/env selection (may differ from `provider` if unconfigured). */
+  selected: 'DOJAH' | 'SUMSUB' | null;
+  source: 'admin' | 'env' | 'auto' | 'none' | string;
+  configured: { DOJAH: boolean; SUMSUB: boolean };
+  updatedAt?: string | null;
+  warning?: string | null;
+};
+
+export async function loadIdentityProviderConfig(): Promise<AdminIdentityProviderConfig> {
+  const fallback: AdminIdentityProviderConfig = {
+    provider: null,
+    selected: null,
+    source: 'none',
+    configured: { DOJAH: false, SUMSUB: false },
+    updatedAt: null
+  };
+  return adminFetch<AdminIdentityProviderConfig>('/config/identity-provider', fallback);
+}
+
+export async function updateIdentityProviderConfig(
+  provider: 'DOJAH' | 'SUMSUB'
+): Promise<AdminIdentityProviderConfig | null> {
+  try {
+    const res = await fetch('/api/admin/config/identity-provider', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider })
+    });
+    const json = await res.json();
+    if (res.ok) return json?.data ?? json;
+    console.error('Failed to update identity provider config:', json?.message || res.status);
+    return null;
+  } catch (err) {
+    console.error('Failed to update identity provider config', err);
     return null;
   }
 }

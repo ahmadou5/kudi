@@ -264,6 +264,15 @@ export class KudiSDK {
     return this.parseJson<VirtualAccountsResponseData>(res);
   }
 
+  async provisionVirtualAccount(userId: string): Promise<ApiResponse<VirtualAccountsResponseData>> {
+    const res = await this.send(`${apiRoutes.users.virtualAccounts(userId)}`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({})
+    });
+    return this.parseJson<VirtualAccountsResponseData>(res);
+  }
+
   async getNotifications(userId: string): Promise<ApiResponse<NotificationsResponseData>> {
     const res = await this.send(`${apiRoutes.users.notifications(userId)}`, {
       headers: this.getHeaders()

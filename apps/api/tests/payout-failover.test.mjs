@@ -35,24 +35,22 @@ test('payout-failover: enforces Tier 1 vs Tier 2 daily NGN spending limits', () 
   assert.equal(checkKycLimit('TIER_2', 1000000, 2000000), true);
 });
 
-test('payout-failover: automatically fails over from Paystack to Monnify when Paystack is down', async () => {
+test('payout-failover: automatically fails over from Squad to Bachs when Squad is down', async () => {
   const providers = [
-    { name: 'PAYSTACK', shouldSucceed: false },
-    { name: 'MONNIFY', shouldSucceed: true },
-    { name: 'SQUAD', shouldSucceed: true }
+    { name: 'SQUAD', shouldSucceed: false },
+    { name: 'BACHS', shouldSucceed: true }
   ];
 
   const res = await simulateFailoverPayout({ amount: 10000 }, providers);
   assert.equal(res.status, 'SUCCESS');
-  assert.equal(res.provider, 'MONNIFY');
-  assert.deepEqual(res.logs, ['Attempting PAYSTACK', 'Attempting MONNIFY']);
+  assert.equal(res.provider, 'BACHS');
+  assert.deepEqual(res.logs, ['Attempting SQUAD', 'Attempting BACHS']);
 });
 
 test('payout-failover: throws error when all payment providers fail', async () => {
   const providers = [
-    { name: 'PAYSTACK', shouldSucceed: false },
-    { name: 'MONNIFY', shouldSucceed: false },
-    { name: 'SQUAD', shouldSucceed: false }
+    { name: 'SQUAD', shouldSucceed: false },
+    { name: 'BACHS', shouldSucceed: false }
   ];
 
   await assert.rejects(async () => {

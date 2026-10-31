@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { loadKycQueue, AdminKycQueueItem } from '@/lib/admin-data';
+import { loadKycQueue, loadIdentityProviderConfig, AdminKycQueueItem } from '@/lib/admin-data';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,11 +12,17 @@ export default function KycReviewPage() {
   const [queue, setQueue] = useState<AdminKycQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [identityProvider, setIdentityProvider] = useState<string | null>(null);
+  const [identityReady, setIdentityReady] = useState(false);
 
   useEffect(() => {
     loadKycQueue().then((data) => {
       setQueue(data);
       setLoading(false);
+    });
+    loadIdentityProviderConfig().then((cfg) => {
+      setIdentityProvider(cfg?.provider ?? null);
+      setIdentityReady(true);
     });
   }, []);
 
@@ -36,16 +42,23 @@ export default function KycReviewPage() {
           <div>
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-emerald-400" />
-              <h3 className="font-display text-xl font-bold text-foreground">Smile Identity Compliance Queue</h3>
+              <h3 className="font-display text-xl font-bold text-foreground">Identity Verification Compliance Queue</h3>
             </div>
             <p className="text-xs text-muted-foreground mt-1 max-w-2xl leading-relaxed">
-              Automated BVN/NIN verification combined with biometric selfie liveness detection. High-confidence applications
-              are auto-cleared; flagged or manual-review submissions appear in this desk.
+              BVN and NIN verification runs through the active provider (Dojah or Sumsub, switchable from Settings).
+              High-confidence applications are auto-cleared; flagged or manual-review submissions appear in this desk.
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Badge variant="success" className="font-mono text-xs px-3 py-1">
-              Smile Identity Sandbox: OK
+            <Badge
+              variant={identityProvider ? 'success' : identityReady ? 'warning' : 'secondary'}
+              className="font-mono text-xs px-3 py-1"
+            >
+              {identityReady
+                ? identityProvider
+                  ? `Active provider: ${identityProvider}`
+                  : 'No provider configured'
+                : 'Loading provider...'}
             </Badge>
           </div>
         </div>

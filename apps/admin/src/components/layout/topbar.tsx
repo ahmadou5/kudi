@@ -75,11 +75,11 @@ export function Topbar() {
     },
     '/kyc': {
       title: 'KYC Compliance Desk',
-      subtitle: 'Smile Identity BVN/NIN identity verification and biometric selfie liveness queue',
+      subtitle: 'Dojah / Sumsub BVN & NIN identity verification review queue',
     },
     '/wallet': {
       title: 'Payout Rails & Failover',
-      subtitle: 'Configure primary payout rail (Paystack, Monnify, Squad) and treasury liquidity',
+      subtitle: 'Configure primary payout rail (Bachs, Squad) and treasury liquidity',
     },
     '/rates': {
       title: 'Rate Engine & Spreads',

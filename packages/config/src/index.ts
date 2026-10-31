@@ -60,20 +60,18 @@ const apiEnvSchema = z
     ALCHEMY_GAS_POLICY_ID: z.string().optional(),
 
     // Fiat payout providers (NGN off-ramp)
-    PAYSTACK_SECRET_KEY: z.string().optional(),
-    MONNIFY_API_KEY: z.string().optional(),
-    MONNIFY_SECRET_KEY: z.string().optional(),
-    MONNIFY_BASE_URL: z.string().url().default('https://api.monnify.com'),
-    MONNIFY_SOURCE_ACCOUNT: z.string().optional(),
     SQUAD_SECRET_KEY: z.string().optional(),
     SQUAD_BASE_URL: z.string().url().default('https://api-d.squadco.com'),
+    SQUAD_BENEFICIARY_ACCOUNT: z.string().optional(),
     BACHS_SECRET_KEY: z.string().optional(),
     BACHS_BASE_URL: z.string().url().default('https://sandbox-api.bachs.io'),
+    BACHS_WEBHOOK_SIGNING_SECRET: z.string().optional(),
 
-    // Identity verification (direct NIBSS BVN validation)
-    NIBSS_BASE_URL: z.string().url().default('https://nibss-plc.com.ng/WebPortalBVNManagementService'),
-    NIBSS_ORG_CODE: z.string().optional(),
-    NIBSS_API_KEY: z.string().optional(),
+    // Virtual-account provisioning provider (SQUAD | BACHS)
+    ACTIVE_PAYMENT_PROVIDER: z.string().optional().default('BACHS'),
+
+    // Identity verification simulation (never enable in production)
+    IDENTITY_SIMULATE: z.string().optional(),
 
     // Token config
     EIP712_TOKEN_NAME: z.string().default('USDC'),
@@ -147,6 +145,9 @@ const apiEnvSchema = z
       }
       if (!env.AUSD_TOKEN_ADDRESS) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AUSD_TOKEN_ADDRESS'], message: 'AUSD_TOKEN_ADDRESS is required in production' });
+      }
+      if (env.IDENTITY_SIMULATE === 'true') {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['IDENTITY_SIMULATE'], message: 'IDENTITY_SIMULATE must not be enabled in production' });
       }
     }
   });

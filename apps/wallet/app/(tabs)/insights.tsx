@@ -130,7 +130,7 @@ export default function InsightsTab() {
     >
       <EnterSection index={0}>
         <Text style={[Typography.title1, { color: palette.text }]}>Insights</Text>
-        <Text style={[Typography.subhead, { color: hexToRgba(palette.text, 0.5), marginTop: 2 }]}>
+        <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.5), marginTop: 2, fontSize: 10 }]}>
           Your money flow, over time
         </Text>
       </EnterSection>
@@ -217,7 +217,7 @@ export default function InsightsTab() {
           {/* Flow chart */}
           <EnterSection index={3} style={{ marginTop: 12 }}>
             <SectionCard title="Money flow">
-              <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.45), marginBottom: 10 }]}>
+              <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.45), fontSize: 12, marginBottom: 10 }]}>
                 {stats.emptyInRange
                   ? `No transactions in the last ${rangeLabel}`
                   : `Deposits vs withdrawals · last ${rangeLabel}`}
@@ -294,7 +294,7 @@ export default function InsightsTab() {
                         <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 13 }]} numberOfLines={1}>
                           {day.label}
                         </Text>
-                        <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.45) }]}>
+                        <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.45), fontSize: 11 }]}>
                           {day.count} tx{day.count === 1 ? '' : 's'}
                           {day.deposits > 0 ? ` · +${formatUsdCompact(day.deposits)}` : ''}
                           {day.withdrawals > 0 ? ` · -${formatUsdCompact(day.withdrawals)}` : ''}
@@ -318,7 +318,7 @@ export default function InsightsTab() {
               ) : (
                 <TrendingDown size={13} color={palette.error} />
               )}
-              <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.55), flex: 1 }]}>
+              <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.55), flex: 1, fontSize: 12 }]}>
                 {stats.emptyInRange
                   ? 'No settled activity in this window.'
                   : `Avg ${formatUsd(stats.summary.avgPerTx)} per tx · Net ${net >= 0 ? '+' : '-'}${formatUsd(net)} over ${rangeLabel}`}

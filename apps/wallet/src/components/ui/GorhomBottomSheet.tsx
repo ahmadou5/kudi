@@ -9,6 +9,7 @@ import BottomSheet, {
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useAppPalette, hexToRgba } from '../../lib/theme';
 import { haptics } from '../../lib/haptics';
+import { CardBackgroundPattern } from './CardBackgroundPattern';
 
 interface GorhomBottomSheetProps {
   visible: boolean;
@@ -84,6 +85,7 @@ export const GorhomBottomSheet: React.FC<GorhomBottomSheetProps> = ({
       statusBarTranslucent
     >
       <GestureHandlerRootView style={styles.modalRoot}>
+
         <BottomSheet
           ref={bottomSheetRef}
           index={0}
@@ -106,6 +108,10 @@ export const GorhomBottomSheet: React.FC<GorhomBottomSheetProps> = ({
             { backgroundColor: isDark ? hexToRgba(palette.text, 0.3) : hexToRgba(palette.text, 0.25) }
           ]}
         >
+          <CardBackgroundPattern
+            glowColor={hexToRgba(palette.success, isDark ? 0.08 : 0.05)}
+            isDarkOverride={isDark}
+          />
           {scrollable ? (
             <BottomSheetScrollView
               contentContainerStyle={[styles.contentContainer, contentContainerStyle]}

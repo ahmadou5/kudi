@@ -3,19 +3,23 @@ import assert from 'node:assert/strict';
 import { PaymentProviderRegistry } from '../dist/index.js';
 import { PaymentProviderId } from '@kudi/types';
 
-test('payment-providers: registry initializes with default active provider (Paystack)', () => {
+test('payment-providers: registry initializes with default active provider (Bachs)', () => {
   const registry = new PaymentProviderRegistry();
-  assert.equal(registry.getActiveProviderId(), PaymentProviderId.PAYSTACK);
+  assert.equal(registry.getActiveProviderId(), PaymentProviderId.BACHS);
   assert.ok(registry.getActiveProvider());
 });
 
 test('payment-providers: switcher changes active provider and validates invalid id', () => {
   const registry = new PaymentProviderRegistry();
-  registry.setActiveProvider('monnify');
-  assert.equal(registry.getActiveProviderId(), PaymentProviderId.MONNIFY);
-
   registry.setActiveProvider('squad');
   assert.equal(registry.getActiveProviderId(), PaymentProviderId.SQUAD);
+
+  registry.setActiveProvider('bachs');
+  assert.equal(registry.getActiveProviderId(), PaymentProviderId.BACHS);
+
+  assert.throws(() => {
+    registry.setActiveProvider('monnify');
+  }, /unregistered id/);
 
   assert.throws(() => {
     registry.setActiveProvider('non_existent_provider');
@@ -24,7 +28,7 @@ test('payment-providers: switcher changes active provider and validates invalid 
 
 test('payment-providers: failover order configuration works', () => {
   const registry = new PaymentProviderRegistry();
-  const customOrder = [PaymentProviderId.SQUAD, PaymentProviderId.MONNIFY, PaymentProviderId.PAYSTACK];
+  const customOrder = [PaymentProviderId.SQUAD, PaymentProviderId.BACHS];
   registry.setFailoverOrder(customOrder);
   assert.deepEqual(registry.getFailoverOrder(), customOrder);
 });

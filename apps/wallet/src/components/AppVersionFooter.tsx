@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 11,
-    fontFamily: Typography.family.medium,
+    fontFamily: Typography.currencySub.fontFamily,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     textAlign: 'center',
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
   },
   updateText: {
     fontSize: 12,
-    fontFamily: Typography.family.medium,
+    fontFamily: Typography.currencySub.fontFamily,
     textAlign: 'center',
   },
   underline: {

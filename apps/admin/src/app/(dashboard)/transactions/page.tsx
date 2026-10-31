@@ -105,9 +105,8 @@ export default function TransactionsPage() {
             className="rounded-lg border border-border/80 bg-card px-2.5 py-1 text-xs text-foreground focus:outline-none"
           >
             <option value="ALL">All Providers</option>
-            <option value="PAYSTACK">Paystack</option>
-            <option value="MONNIFY">Monnify</option>
             <option value="SQUAD">Squad</option>
+            <option value="BACHS">Bachs</option>
           </select>
         </div>
       </div>

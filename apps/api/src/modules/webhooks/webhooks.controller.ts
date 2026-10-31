@@ -11,13 +11,24 @@ export class WebhooksController {
     private rateService?: RateService
   ) {}
 
+  private timingSafeEquals(a: string, b: string): boolean {
+    const bufA = Buffer.from(a, 'utf-8');
+    const bufB = Buffer.from(b, 'utf-8');
+    if (bufA.length !== bufB.length) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
+  }
+
   private verifyHmacSignature(
     payload: string,
     signatureHeader: string | undefined,
-    secretKey: string
+    secretKey: string,
+    algorithm: 'sha512' | 'sha256' = 'sha512'
   ): boolean {
     if (!secretKey) {
-      // In dev mode without secret key, log warning and allow request
+      if (process.env.NODE_ENV === 'production') {
+        console.error('Webhook secret not configured - rejecting webhook in production');
+        return false;
+      }
       console.warn('⚠️ Webhook Secret Key not configured in env - operating in Development Verification Mode');
       return true;
     }
@@ -25,14 +36,66 @@ export class WebhooksController {
       return false;
     }
     const computedSignature = crypto
-      .createHmac('sha512', secretKey)
+      .createHmac(algorithm, secretKey)
       .update(payload)
       .digest('hex');
 
-    return crypto.timingSafeEqual(
-      Buffer.from(computedSignature, 'utf-8'),
-      Buffer.from(signatureHeader, 'utf-8')
-    );
+    return this.timingSafeEquals(computedSignature, signatureHeader);
+  }
+
+  /**
+   * Bachs webhook verification (docs.bachs.io/guides/webhooks):
+   * HMAC-SHA256 of "{timestamp}.{raw_body}".
+   * Prefer X-Bachs-Signature-V2 (`t={ts},v1={sig}[,v1={sig}...]` — accepts any
+   * valid v1 so secret rotation stays safe); fall back to X-Bachs-Signature +
+   * X-Bachs-Timestamp. 300s replay tolerance.
+   */
+  private verifyBachsSignature(request: FastifyRequest, rawBody: string, secret: string): boolean {
+    if (!secret) {
+      if (process.env.NODE_ENV === 'production') {
+        console.error('BACHS_WEBHOOK_SIGNING_SECRET not configured - rejecting Bachs webhook in production');
+        return false;
+      }
+      console.warn('⚠️ BACHS_WEBHOOK_SIGNING_SECRET not configured - operating in Development Verification Mode');
+      return true;
+    }
+    if (!rawBody) {
+      return false;
+    }
+
+    const v2 = request.headers['x-bachs-signature-v2'] as string | undefined;
+    const legacySignature = request.headers['x-bachs-signature'] as string | undefined;
+    const timestampHeader = request.headers['x-bachs-timestamp'] as string | undefined;
+
+    let timestamp: number;
+    let candidates: string[];
+
+    if (v2) {
+      const parts = v2.split(',').map((p) => p.trim()).filter(Boolean);
+      const tPart = parts.find((p) => p.startsWith('t='));
+      if (!tPart) return false;
+      timestamp = parseInt(tPart.slice(2), 10);
+      candidates = parts.filter((p) => p.startsWith('v1=')).map((p) => p.slice(3));
+    } else if (legacySignature && timestampHeader) {
+      timestamp = parseInt(timestampHeader, 10);
+      candidates = [legacySignature];
+    } else {
+      return false;
+    }
+
+    if (!Number.isFinite(timestamp) || candidates.length === 0) return false;
+    if (Math.abs(Date.now() / 1000 - timestamp) > 300) return false;
+
+    const expected = crypto
+      .createHmac('sha256', secret)
+      .update(`${timestamp}.${rawBody}`, 'utf-8')
+      .digest('hex');
+
+    return candidates.some((c) => this.timingSafeEquals(expected, c));
+  }
+
+  private getRawBody(request: FastifyRequest): string {
+    return request.rawBody ?? JSON.stringify(request.body);
   }
 
   private async reserveWebhookEvent(
@@ -68,7 +131,7 @@ export class WebhooksController {
   }
 
   public handleSquadWebhook = async (request: FastifyRequest, reply: FastifyReply) => {
-    const rawBody = JSON.stringify(request.body);
+    const rawBody = this.getRawBody(request);
     const signature = (request.headers['x-squad-signature'] || request.headers['x-squad-encrypted-body']) as string | undefined;
     const secretKey = process.env.SQUAD_SECRET_KEY || '';
 
@@ -174,163 +237,8 @@ export class WebhooksController {
     return successResponse({ received: true }, 'Squad webhook processed successfully');
   };
 
-  public handleMonnifyWebhook = async (request: FastifyRequest, reply: FastifyReply) => {
-    const rawBody = JSON.stringify(request.body);
-    const signature = request.headers['monnify-signature'] as string | undefined;
-    const secretKey = process.env.MONNIFY_SECRET_KEY || '';
-
-    if (!this.verifyHmacSignature(rawBody, signature, secretKey)) {
-      return reply.status(401).send(errorResponse('UNAUTHORIZED_WEBHOOK', 'Invalid Monnify Signature'));
-    }
-
-    const body = request.body as any;
-    const eventType = body.eventType;
-    const eventData = body.eventData || {};
-
-    console.log(`📥 Received Monnify Webhook Event: ${eventType}`, eventData);
-
-    const reference = eventData.transactionReference;
-    const accepted = await this.reserveWebhookEvent('monnify', reference, eventType, body);
-    if (!accepted) {
-      return successResponse({ received: true, duplicate: true }, 'Duplicate Monnify webhook skipped');
-    }
-
-    if (eventType === 'SUCCESSFUL_TRANSACTION') {
-      const destinationAccount = eventData.destinationAccountInformation?.accountNumber;
-      const amountNGN = parseFloat(String(eventData.amountPaid || '0'));
-
-      let targetUserId: string | undefined;
-      const accRef = eventData.accountReference || eventData.product?.reference;
-      if (accRef && typeof accRef === 'string' && accRef.startsWith('KUDI_VA_')) {
-        targetUserId = accRef.replace('KUDI_VA_', '');
-      }
-
-      if (!targetUserId && destinationAccount) {
-        const va = await prisma.virtualAccount.findFirst({
-          where: { accountNumber: destinationAccount }
-        });
-        if (va) targetUserId = va.userId;
-      }
-
-      if (targetUserId && amountNGN > 0) {
-        const rate = this.rateService?.getCurrentRate() || 1500;
-        const amountUSDC = amountNGN / rate;
-
-        this.ledgerService.creditUserBalance(
-          targetUserId,
-          amountUSDC,
-          `MNF_WH_${reference}`,
-          {
-            type: 'NGN_VIRTUAL_ACCOUNT_DEPOSIT',
-            provider: 'MONNIFY',
-            accountNumber: destinationAccount,
-            amountNGN,
-            rateNGN: rate,
-            payerName: eventData.paymentDescription || eventData.customer?.name
-          }
-        );
-        console.log(`✅ [Monnify Webhook] Credited user ${targetUserId} with ${amountUSDC.toFixed(2)} USDC (₦${amountNGN}) via Monnify VA ${destinationAccount}`);
-      } else if (destinationAccount && reference) {
-        this.ledgerService.recordTransaction({
-          fromUserId: 'monnify_gateway',
-          toUserId: targetUserId || `user_acc_${destinationAccount}`,
-          amount: amountNGN || 0,
-          currency: 'NGN',
-          reference: `MNF_WH_${reference}`
-        });
-      }
-    } else if (eventType === 'DISBURSEMENT_SUCCESSFUL') {
-      console.log(`✅ [Monnify Webhook] Outbound transfer confirmed: ${reference}`);
-      await this.ledgerService.confirmSpendTransaction(reference);
-    } else if (eventType === 'DISBURSEMENT_FAILED') {
-      const reason = eventData.responseMessage || eventData.comment || 'Monnify disbursement rejected by banking network';
-      console.warn(`⚠️ [Monnify Webhook] Outbound transfer failed for ${reference}: ${reason}. Triggering balance reversal.`);
-      await this.ledgerService.reverseSpendTransaction(reference, reason);
-    }
-
-    return successResponse({ received: true }, 'Monnify webhook processed successfully');
-  };
-
-  public handlePaystackWebhook = async (request: FastifyRequest, reply: FastifyReply) => {
-    const rawBody = JSON.stringify(request.body);
-    const signature = request.headers['x-paystack-signature'] as string | undefined;
-    const secretKey = process.env.PAYSTACK_SECRET_KEY || '';
-
-    if (!this.verifyHmacSignature(rawBody, signature, secretKey)) {
-      return reply.status(401).send(errorResponse('UNAUTHORIZED_WEBHOOK', 'Invalid Paystack Signature'));
-    }
-
-    const body = request.body as any;
-    const event = body.event;
-    const data = body.data || {};
-
-    console.log(`📥 Received Paystack Webhook Event: ${event}`, data);
-
-    const reference = data.reference;
-    const accepted = await this.reserveWebhookEvent('paystack', reference, event, body);
-    if (!accepted) {
-      return successResponse({ received: true, duplicate: true }, 'Duplicate Paystack webhook skipped');
-    }
-
-    if (event === 'charge.success') {
-      const amountNGN = data.amount ? Number(data.amount) / 100 : 0;
-      const customerEmail = data.customer?.email;
-      const accountNumber = data.authorization?.account_number || data.dedicated_account?.account_number;
-
-      let targetUserId: string | undefined;
-      if (accountNumber) {
-        const va = await prisma.virtualAccount.findFirst({
-          where: { accountNumber }
-        });
-        if (va) targetUserId = va.userId;
-      }
-
-      if (!targetUserId && customerEmail) {
-        const user = this.ledgerService.findUserByPrivyOrEmail(undefined, customerEmail);
-        if (user) targetUserId = user.id;
-      }
-
-      if (targetUserId && amountNGN > 0) {
-        const rate = this.rateService?.getCurrentRate() || 1500;
-        const amountUSDC = amountNGN / rate;
-
-        this.ledgerService.creditUserBalance(
-          targetUserId,
-          amountUSDC,
-          `PST_WH_${reference}`,
-          {
-            type: 'NGN_VIRTUAL_ACCOUNT_DEPOSIT',
-            provider: 'PAYSTACK',
-            accountNumber,
-            amountNGN,
-            rateNGN: rate,
-            customerEmail
-          }
-        );
-        console.log(`✅ [Paystack Webhook] Credited user ${targetUserId} with ${amountUSDC.toFixed(2)} USDC (₦${amountNGN}) via Paystack`);
-      } else if (customerEmail && reference) {
-        this.ledgerService.recordTransaction({
-          fromUserId: 'paystack_gateway',
-          toUserId: targetUserId || `user_email_${customerEmail}`,
-          amount: amountNGN || 0,
-          currency: 'NGN',
-          reference: `PST_WH_${reference}`
-        });
-      }
-    } else if (event === 'transfer.success') {
-      console.log(`✅ [Paystack Webhook] Outbound transfer confirmed: ${reference}`);
-      await this.ledgerService.confirmSpendTransaction(reference);
-    } else if (event === 'transfer.failed' || event === 'transfer.reversed') {
-      const reason = data.reason || data.gateway_response || 'Paystack transfer rejected by banking network';
-      console.warn(`⚠️ [Paystack Webhook] Outbound transfer failed for ${reference}: ${reason}. Triggering balance reversal.`);
-      await this.ledgerService.reverseSpendTransaction(reference, reason);
-    }
-
-    return successResponse({ received: true }, 'Paystack webhook processed successfully');
-  };
-
   public handleKorapayWebhook = async (request: FastifyRequest, reply: FastifyReply) => {
-    const rawBody = JSON.stringify(request.body);
+    const rawBody = this.getRawBody(request);
     const signature = request.headers['x-korapay-signature'] as string | undefined;
     const secretKey = process.env.KORAPAY_SECRET_KEY || '';
 
@@ -368,11 +276,10 @@ export class WebhooksController {
   };
 
   public handleBachsWebhook = async (request: FastifyRequest, reply: FastifyReply) => {
-    const rawBody = JSON.stringify(request.body);
-    const signature = request.headers['bachs-signature'] as string | undefined;
-    const secretKey = process.env.BACHS_SECRET_KEY || '';
+    const rawBody = this.getRawBody(request);
+    const signingSecret = process.env.BACHS_WEBHOOK_SIGNING_SECRET || '';
 
-    if (!this.verifyHmacSignature(rawBody, signature, secretKey)) {
+    if (!this.verifyBachsSignature(request, rawBody, signingSecret)) {
       return reply.status(401).send(errorResponse('UNAUTHORIZED_WEBHOOK', 'Invalid Bachs Signature'));
     }
 
@@ -382,13 +289,13 @@ export class WebhooksController {
 
     console.log(`📥 Received Bachs Webhook Event: ${event}`, data);
 
-    const reference = data.id;
-    const accepted = await this.reserveWebhookEvent('bachs', reference, event, body);
+    const accepted = await this.reserveWebhookEvent('bachs', body.id, event, body);
     if (!accepted) {
       return successResponse({ received: true, duplicate: true }, 'Duplicate Bachs webhook skipped');
     }
 
     if (event === 'collection.succeeded') {
+      const reference = data.id;
       const amountNGN = data.amount ? String(data.amount) : '0.00';
       const currency = data.currency || 'NGN';
       const settlementAmount = data.settlement_amount || '0.00';
@@ -405,14 +312,9 @@ export class WebhooksController {
       const vaId = virtualAccount?.id;
 
       let targetUserId: string | undefined;
-      const custId = data.organization_id || body.organization_id;
 
-      // Try to resolve user by organization_id (connected account) or account
-      if (custId && typeof custId === 'string' && custId.startsWith('KUDI_VA_')) {
-        targetUserId = custId.replace('KUDI_VA_', '');
-      }
-
-      if (!targetUserId && vaAccountNumber) {
+      // Resolve user by the virtual account number (VA belongs to a Kudi user)
+      if (vaAccountNumber) {
         const va = await prisma.virtualAccount.findFirst({
           where: { accountNumber: vaAccountNumber }
         });
@@ -466,6 +368,17 @@ export class WebhooksController {
           reference: `BACHS_WH_${reference}`
         });
       }
+    } else if (event === 'payout.created') {
+      console.log(`📥 [Bachs Webhook] Payout created: ${data.reference || data.id} (status: ${data.status})`);
+    } else if (event === 'payout.paid') {
+      const payoutRef = data.reference || data.id;
+      console.log(`✅ [Bachs Webhook] Payout paid: ${payoutRef}`);
+      await this.ledgerService.confirmSpendTransaction(payoutRef);
+    } else if (event === 'payout.failed') {
+      const payoutRef = data.reference || data.id;
+      const reason = data.failure_reason || 'Bachs payout could not be delivered';
+      console.warn(`⚠️ [Bachs Webhook] Payout failed for ${payoutRef}: ${reason}. Triggering balance reversal.`);
+      await this.ledgerService.reverseSpendTransaction(payoutRef, reason);
     } else if (event === 'capability.updated') {
       console.log(`📥 [Bachs Webhook] Capability updated: ${data.status}`);
     }
