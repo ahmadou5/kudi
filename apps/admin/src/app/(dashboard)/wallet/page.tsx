@@ -56,7 +56,7 @@ export default function WalletRailsPage() {
           </div>
           <p className="text-xs text-muted-foreground mt-1 max-w-2xl leading-relaxed">
             Transfers are routed via the primary active provider. If timeouts or gateway downtime occurs, the registry
-            automatically fails over through the configured sequence: Paystack → Monnify → Squad.
+            automatically fails over through the configured sequence: Bachs → Squad.
           </p>
         </div>
         <Button variant="primary" onClick={exportCSV} className="gap-2 shrink-0 text-xs font-semibold">
@@ -155,7 +155,7 @@ export default function WalletRailsPage() {
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-card border border-border font-bold">1</div>
             <div>
-              <span className="font-semibold text-foreground text-sm">Paystack Transfers</span>
+              <span className="font-semibold text-foreground text-sm">Bachs Virtual Accounts</span>
               <p className="text-[11px] text-muted-foreground">Primary Rail (Priority 1)</p>
             </div>
           </div>
@@ -163,16 +163,8 @@ export default function WalletRailsPage() {
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-card border border-border font-bold">2</div>
             <div>
-              <span className="font-semibold text-foreground text-sm">Monnify Direct</span>
-              <p className="text-[11px] text-muted-foreground">Secondary Hot Standby (Priority 2)</p>
-            </div>
-          </div>
-          <ArrowRight className="h-5 w-5 text-muted-foreground hidden md:block" />
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-xl bg-card border border-border font-bold">3</div>
-            <div>
               <span className="font-semibold text-foreground text-sm">Squad GTCO</span>
-              <p className="text-[11px] text-muted-foreground">Tertiary Fallback (Priority 3)</p>
+              <p className="text-[11px] text-muted-foreground">Hot Standby (Priority 2)</p>
             </div>
           </div>
         </div>

@@ -52,6 +52,7 @@ export const apiRoutes = {
     rateOverride: '/api/v1/admin/rate-override',
     config: '/api/v1/admin/config',
     maintenance: '/api/v1/admin/config/maintenance',
+    identityProvider: '/api/v1/admin/config/identity-provider',
     setActiveProvider: '/api/v1/admin/set-active-provider',
     exportReconciliationCsv: '/api/v1/admin/reconciliation/export-csv'
   },
@@ -280,8 +281,6 @@ export type VerifyKycIdRequest = {
   accountNumber?: string;
   bankCode?: string;
   address?: string;
-  /** NIBSS Consent Hub retrieval token proving customer consent for the BVN lookup */
-  retrievalToken?: string;
 };
 
 export type SpendToBankRequest = {
@@ -319,7 +318,7 @@ export type CashoutRequest = {
   bankCode?: string;
   accountNumber?: string;
   accountName?: string;
-  payoutProvider?: 'monnify' | 'squad' | 'bachs';
+  payoutProvider?: 'squad' | 'bachs';
 };
 
 export type OverrideRateRequest = {

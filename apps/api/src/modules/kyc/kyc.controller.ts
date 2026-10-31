@@ -15,7 +15,7 @@ export class KYCController {
 
   public verifyID = async (request: FastifyRequest, reply: FastifyReply) => {
     const authUser = getAuthenticatedUser(request);
-    const { idNumber, idType, firstName, lastName, dob, email, phone, retrievalToken } = request.body as {
+    const { idNumber, idType, firstName, lastName, dob, email, phone } = request.body as {
       userId?: string;
       idNumber: string;
       idType: 'BVN' | 'NIN';
@@ -24,7 +24,6 @@ export class KYCController {
       dob?: string;
       email?: string;
       phone?: string;
-      retrievalToken?: string;
     };
 
     const userId = authUser?.userId;
@@ -42,7 +41,6 @@ export class KYCController {
         firstName,
         lastName,
         dob,
-        retrievalToken,
       });
 
       if (!verification.verified) {
@@ -76,6 +74,7 @@ export class KYCController {
         name: verification.name,
         dob: verification.dob,
         photo: verification.photo,
+        provider: verification.provider,
         message: verification.message ?? 'KYC Approved & Virtual Account Active',
         virtualAccount: verification.virtualAccount,
       });

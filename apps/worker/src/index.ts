@@ -91,7 +91,7 @@ if (workerConfig.SOLANA_RPC_URL_FALLBACK) {
 if (workerConfig.MONAD_RPC_URL_FALLBACK) {
   console.log(`🔗 Monad RPC failover configured: ${redactRpcUrl(workerConfig.MONAD_RPC_URL_FALLBACK)}`);
 }
-console.log('📥 Webhook Processor active for Squad, Monnify, Paystack, Korapay, Privy');
+console.log('📥 Webhook Processor active for Squad, Bachs, Paystack, Korapay, Privy');
 console.log('📤 Crypto Withdrawal Processor active');
 console.log('🧾 Reconciliation snapshots active');
 console.log('📥 Chain deposit poller active');

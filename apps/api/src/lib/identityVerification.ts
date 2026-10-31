@@ -1,13 +1,21 @@
 import axios from 'axios';
 import { apiConfig } from '@kudi/config';
-import { createMonnifyReservedAccount } from './monnify';
+import { prisma } from '@kudi/database';
 import { createSquadVirtualAccount } from './squad';
 import { createBachsVirtualAccount, isBachsConfigured } from './bachs';
-import { verifyBVNWithNibss, isNibssConfigured } from './nibss';
-import { resolvePaystackBvn, isPaystackConfigured } from './paystack';
+import { isSumsubConfigured, verifyViaSumsub } from './sumsub';
 import { isRealCredential } from './placeholders';
 
-type IdentityProviderName = 'NIBSS' | 'PAYSTACK' | 'SMILE' | 'DOJAH' | 'PREMBLY' | 'NONE';
+/**
+ * Supported identity verification providers (exactly two):
+ *  - DOJAH  — GET https://api.dojah.io/api/v1/kyc/{bvn|nin}
+ *  - SUMSUB — Nigeria Non-Doc (E-KYC) via https://api.sumsub.com
+ *
+ * The active provider is selected from the admin dashboard
+ * (AppConfig key `identity_provider`), falling back to the
+ * IDENTITY_PROVIDER env var, then to whichever provider is configured.
+ */
+export type IdentityProviderName = 'DOJAH' | 'SUMSUB';
 type IdentityCheckType = 'NIN' | 'BVN';
 
 type VerificationResult = {
@@ -16,12 +24,14 @@ type VerificationResult = {
   dob: string | null;
   photo: string | null;
   message?: string;
+  /** Which provider produced this result (SIMULATED = dev-only fake pass). */
+  provider?: IdentityProviderName | 'SIMULATED';
   virtualAccount?: {
     accountNumber: string;
     accountName: string;
     bankName: string;
     bankCode: string;
-    provider: 'MONNIFY' | 'SQUAD' | 'BACHS';
+    provider: 'SQUAD' | 'BACHS';
   };
 };
 
@@ -39,10 +49,84 @@ export class VaProvisioningError extends Error {
   }
 }
 
-function normalizeIdentityProvider(value?: string | null): IdentityProviderName {
+function normalizeIdentityProvider(value?: string | null): IdentityProviderName | null {
   const upper = value?.trim().toUpperCase();
-  if (upper === 'NIBSS' || upper === 'PAYSTACK' || upper === 'SMILE' || upper === 'DOJAH' || upper === 'PREMBLY') return upper;
-  return 'NONE';
+  if (upper === 'DOJAH' || upper === 'SUMSUB') return upper;
+  return null;
+}
+
+function isDojahConfigured(): boolean {
+  return isRealCredential(process.env.DOJAH_API_KEY) && isRealCredential(process.env.DOJAH_APP_ID);
+}
+
+export const IDENTITY_PROVIDER_CONFIG_KEY = 'identity_provider';
+
+export type IdentityProviderStatus = {
+  /** Provider selected by the admin dashboard or IDENTITY_PROVIDER env (null = nothing selected). */
+  selected: IdentityProviderName | null;
+  /** Provider that will actually run (falls back to the other one if the selection has no credentials). */
+  effective: IdentityProviderName | null;
+  source: 'admin' | 'env' | 'auto' | 'none';
+  configured: Record<IdentityProviderName, boolean>;
+  updatedAt: string | null;
+};
+
+/**
+ * Resolves which identity provider is active:
+ *  1. Admin dashboard selection (AppConfig `identity_provider`)
+ *  2. IDENTITY_PROVIDER env var
+ *  3. Whichever of Dojah/Sumsub has credentials
+ * If the selected provider has no credentials but the other one does, it
+ * falls back (with a warning) instead of blocking user verification.
+ */
+export async function getIdentityProviderStatus(): Promise<IdentityProviderStatus> {
+  const configured: Record<IdentityProviderName, boolean> = {
+    DOJAH: isDojahConfigured(),
+    SUMSUB: isSumsubConfigured()
+  };
+
+  let selected: IdentityProviderName | null = null;
+  let source: IdentityProviderStatus['source'] = 'none';
+  let updatedAt: string | null = null;
+
+  try {
+    const row = await prisma.appConfig.findUnique({ where: { key: IDENTITY_PROVIDER_CONFIG_KEY } });
+    if (row?.value) {
+      const parsed = JSON.parse(row.value) as { provider?: string; updatedAt?: string };
+      selected = normalizeIdentityProvider(parsed.provider);
+      if (selected) {
+        source = 'admin';
+        updatedAt = parsed.updatedAt || row.updatedAt?.toISOString?.() || null;
+      }
+    }
+  } catch {
+    // DB unavailable — fall through to env selection
+  }
+
+  if (!selected) {
+    selected = normalizeIdentityProvider(process.env.IDENTITY_PROVIDER);
+    if (selected) source = 'env';
+  }
+
+  if (!selected) {
+    selected = configured.DOJAH ? 'DOJAH' : configured.SUMSUB ? 'SUMSUB' : null;
+    if (selected) source = 'auto';
+  }
+
+  let effective: IdentityProviderName | null = null;
+  if (selected && configured[selected]) {
+    effective = selected;
+  } else if (selected) {
+    const other: IdentityProviderName = selected === 'DOJAH' ? 'SUMSUB' : 'DOJAH';
+    if (configured[other]) {
+      console.warn(
+        `[IdentityVerification] Selected identity provider ${selected} has no credentials — falling back to ${other}`
+      );
+      effective = other;
+    }
+  }
+
+  return { selected, effective, source, configured, updatedAt };
 }
 
 function isSimulatedAllowed() {
@@ -82,19 +166,34 @@ function formatCheck(idType: IdentityCheckType, idNumber: string): string | null
   return null;
 }
 
-/**
- * BVN verification via Paystack's resolve endpoint. Enforces name and DOB
- * match against the bank-enrolled record.
- */
-async function verifyViaPaystack(params: {
-  bvn: string;
+async function verifyViaDojah(params: {
+  checkType: IdentityCheckType;
+  idNumber: string;
   firstName?: string;
   lastName?: string;
   dob?: string;
 }): Promise<VerificationResult> {
-  const record = await resolvePaystackBvn(params.bvn);
-  const recordName = `${record.first_name ?? ''} ${record.last_name ?? ''}`.trim();
-  const dob = normalizeDob(record.dob);
+  const endpoint = params.checkType === 'BVN' ? '/api/v1/kyc/bvn' : '/api/v1/kyc/nin';
+  const res = await axios.get(`https://api.dojah.io${endpoint}?${params.checkType === 'BVN' ? 'bvn' : 'nin'}=${params.idNumber}`, {
+    headers: { Authorization: process.env.DOJAH_API_KEY, AppId: process.env.DOJAH_APP_ID },
+    validateStatus: () => true,
+    timeout: 20_000
+  });
+  const data = res.data?.entity;
+  if (res.status >= 400 || !data) {
+    const detail = res.data?.message || res.data?.error || `HTTP ${res.status}`;
+    return {
+      verified: false,
+      name: null,
+      dob: null,
+      photo: null,
+      provider: 'DOJAH',
+      message: `Dojah ${params.checkType} lookup failed: ${detail}`
+    };
+  }
+
+  const recordName = `${data.first_name ?? ''} ${data.last_name ?? ''}`.trim();
+  const dob = normalizeDob(data.date_of_birth);
 
   if (params.dob && dob && normalizeDob(params.dob) !== dob) {
     return {
@@ -102,7 +201,8 @@ async function verifyViaPaystack(params: {
       name: recordName,
       dob,
       photo: null,
-      message: 'Date of birth does not match the BVN record'
+      provider: 'DOJAH',
+      message: `Date of birth does not match the ${params.checkType} record`
     };
   }
 
@@ -112,7 +212,8 @@ async function verifyViaPaystack(params: {
       name: recordName,
       dob,
       photo: null,
-      message: 'Name does not match the BVN record'
+      provider: 'DOJAH',
+      message: `Name does not match the ${params.checkType} record`
     };
   }
 
@@ -120,51 +221,9 @@ async function verifyViaPaystack(params: {
     verified: true,
     name: recordName || `${params.firstName ?? ''} ${params.lastName ?? ''}`.trim() || 'Kudi User',
     dob,
-    photo: null,
-    message: 'BVN verified via Paystack'
-  };
-}
-
-async function verifyViaSmile(params: {
-  checkType: IdentityCheckType;
-  idNumber: string;
-  firstName?: string;
-  lastName?: string;
-  dob?: string;
-}): Promise<VerificationResult> {
-  const res = await axios.post('https://api.smileidentity.com/v1/id_verification', {
-    partner_id: process.env.SMILE_IDENTITY_PARTNER_ID,
-    api_key: process.env.SMILE_IDENTITY_API_KEY,
-    id_type: params.checkType,
-    id_number: params.idNumber,
-    first_name: params.firstName,
-    last_name: params.lastName
-  });
-  const data = res.data;
-  return {
-    verified: data.ResultCode === '1012' || data.verified === true,
-    name: data.FullName ?? `${params.firstName ?? ''} ${params.lastName ?? ''}`.trim(),
-    dob: data.DOB ?? params.dob ?? null,
-    photo: data.Photo ?? null,
-    message: data.ResultText ?? 'Verified via Smile Identity'
-  };
-}
-
-async function verifyViaDojah(params: {
-  checkType: IdentityCheckType;
-  idNumber: string;
-}): Promise<VerificationResult> {
-  const endpoint = params.checkType === 'BVN' ? '/api/v1/kyc/bvn' : '/api/v1/kyc/nin';
-  const res = await axios.get(`https://api.dojah.io${endpoint}?${params.checkType === 'BVN' ? 'bvn' : 'nin'}=${params.idNumber}`, {
-    headers: { Authorization: process.env.DOJAH_API_KEY, AppId: process.env.DOJAH_APP_ID }
-  });
-  const data = res.data?.entity;
-  return {
-    verified: Boolean(data),
-    name: `${data?.first_name ?? ''} ${data?.last_name ?? ''}`.trim(),
-    dob: data?.date_of_birth ?? null,
-    photo: data?.image ?? null,
-    message: 'Verified via Dojah'
+    photo: data.image ?? null,
+    provider: 'DOJAH',
+    message: `Verified via Dojah (${params.checkType})`
   };
 }
 
@@ -180,72 +239,48 @@ function simulatedResult(params: {
     name: combinedName,
     dob: params.dob ?? '1995-06-15',
     photo: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
+    provider: 'SIMULATED',
     message: `Verified identity (Simulated/Dev Mode — no ${params.checkType} provider configured)`
   };
 }
 
 /**
- * Runs the identity check through the first *configured* provider. A configured
- * provider that errors or rejects must surface — there is no silent fallthrough
- * to another provider or to simulated mode.
+ * Runs the identity check through the active provider (admin dashboard
+ * selection → env → whichever of Dojah/Sumsub is configured). A configured
+ * provider that errors or rejects must surface — there is no silent
+ * fallthrough to simulated mode.
  */
 async function runIdentityCheck(params: {
+  userId: string;
+  email?: string;
   checkType: IdentityCheckType;
   idNumber: string;
   firstName?: string;
   lastName?: string;
   dob?: string;
-  retrievalToken?: string;
   preferredProvider?: IdentityProviderName;
 }): Promise<VerificationResult> {
-  const preferred = params.preferredProvider ?? normalizeIdentityProvider(process.env.IDENTITY_PROVIDER);
-  const smileConfigured = Boolean(process.env.SMILE_IDENTITY_PARTNER_ID && process.env.SMILE_IDENTITY_API_KEY);
-  const dojahConfigured = Boolean(process.env.DOJAH_API_KEY && process.env.DOJAH_APP_ID);
+  const status = await getIdentityProviderStatus();
+  const provider: IdentityProviderName | null = params.preferredProvider ?? status.effective;
 
-  // 1. NIBSS — primary source for BVN whenever credentials are present
-  if (params.checkType === 'BVN' && (preferred === 'NIBSS' || (preferred === 'NONE' && isNibssConfigured()))) {
-    if (!isNibssConfigured()) {
-      throw new Error('IDENTITY_PROVIDER is NIBSS but NIBSS_ORG_CODE/NIBSS_API_KEY are not configured');
-    }
-    return verifyBVNWithNibss({
-      bvn: params.idNumber,
-      firstName: params.firstName,
-      lastName: params.lastName,
-      dob: params.dob,
-      retrievalToken: params.retrievalToken
-    });
+  if (provider === 'DOJAH') {
+    return verifyViaDojah(params);
   }
 
-  // 2. Paystack — BVN resolve (usually already configured for payouts)
-  if (params.checkType === 'BVN' && (preferred === 'PAYSTACK' || (preferred === 'NONE' && isPaystackConfigured() && !isNibssConfigured()))) {
-    if (!isPaystackConfigured()) {
-      throw new Error('IDENTITY_PROVIDER is PAYSTACK but PAYSTACK_SECRET_KEY is not configured');
-    }
-    return verifyViaPaystack({
-      bvn: params.idNumber,
+  if (provider === 'SUMSUB') {
+    const outcome = await verifyViaSumsub({
+      userId: params.userId,
+      checkType: params.checkType,
+      idNumber: params.idNumber,
+      email: params.email,
       firstName: params.firstName,
       lastName: params.lastName,
       dob: params.dob
     });
+    return { ...outcome, provider: 'SUMSUB' };
   }
 
-  // 3. Smile Identity
-  if (preferred === 'SMILE' || (preferred === 'NONE' && smileConfigured && !isNibssConfigured() && !isPaystackConfigured())) {
-    if (!smileConfigured) {
-      throw new Error('IDENTITY_PROVIDER is SMILE but Smile Identity credentials are not configured');
-    }
-    return verifyViaSmile(params);
-  }
-
-  // 4. Dojah
-  if (preferred === 'DOJAH' || (preferred === 'NONE' && dojahConfigured && !isNibssConfigured() && !isPaystackConfigured() && !smileConfigured)) {
-    if (!dojahConfigured) {
-      throw new Error('IDENTITY_PROVIDER is DOJAH but Dojah credentials are not configured');
-    }
-    return verifyViaDojah(params);
-  }
-
-  // 5. No provider configured — simulated mode only when explicitly allowed
+  // No provider configured — simulated mode only when explicitly allowed (non-prod)
   if (isSimulatedAllowed()) {
     return simulatedResult(params);
   }
@@ -255,7 +290,7 @@ async function runIdentityCheck(params: {
     name: null,
     dob: null,
     photo: null,
-    message: `No ${params.checkType} verification provider configured (set IDENTITY_PROVIDER and its credentials)`
+    message: `No ${params.checkType} verification provider configured (add DOJAH_API_KEY/DOJAH_APP_ID or SUMSUB_APP_TOKEN/SUMSUB_APP_SECRET)`
   };
 }
 
@@ -280,20 +315,6 @@ async function provisionVirtualAccount(params: {
   const customerEmail = params.email || `user_${params.userId}@kudi.app`;
 
   try {
-    if (preferredProvider === 'MONNIFY') {
-      if (!isRealCredential(apiConfig.MONNIFY_API_KEY) || !isRealCredential(apiConfig.MONNIFY_SECRET_KEY)) {
-        throw new VaProvisioningError('Monnify is the active provider but MONNIFY_API_KEY/MONNIFY_SECRET_KEY are not configured');
-      }
-      const monnifyAcc = await createMonnifyReservedAccount(`KUDI_VA_${params.userId}`, params.fullName, customerEmail, params.idNumber || undefined);
-      return {
-        accountNumber: monnifyAcc.accountNumber,
-        accountName: monnifyAcc.accountName,
-        bankName: monnifyAcc.bankName,
-        bankCode: monnifyAcc.bankCode,
-        provider: 'MONNIFY'
-      };
-    }
-
     if (preferredProvider === 'SQUAD') {
       if (!isRealCredential(apiConfig.SQUAD_SECRET_KEY)) {
         throw new VaProvisioningError('Squad is the active provider but SQUAD_SECRET_KEY is not configured');
@@ -346,11 +367,7 @@ async function provisionVirtualAccount(params: {
 }
 
 function hasConfiguredProvider(): boolean {
-  return (
-    (isRealCredential(apiConfig.MONNIFY_API_KEY) && isRealCredential(apiConfig.MONNIFY_SECRET_KEY)) ||
-    isRealCredential(apiConfig.SQUAD_SECRET_KEY) ||
-    isBachsConfigured()
-  );
+  return isRealCredential(apiConfig.SQUAD_SECRET_KEY) || isBachsConfigured();
 }
 
 function simulatedVirtualAccount(fullName: string): NonNullable<VerificationResult['virtualAccount']> {
@@ -372,7 +389,6 @@ export async function verifyIdentityAndProvisionVirtualAccount(params: {
   firstName?: string;
   lastName?: string;
   dob?: string;
-  retrievalToken?: string;
   preferredProvider?: IdentityProviderName;
 }): Promise<VerificationResult> {
   // 1. Format gatekeeper (not a verification step)

@@ -10,7 +10,6 @@ const BATCH_SIZE = 25;
 const MAX_POLLS_PER_ROW = 24;
 
 const KNOWN_PROVIDERS: PaymentProviderId[] = [
-  PaymentProviderId.MONNIFY,
   PaymentProviderId.SQUAD,
   PaymentProviderId.BACHS
 ];

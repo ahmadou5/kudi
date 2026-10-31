@@ -245,7 +245,7 @@ export default function LandingPage() {
 
           <Card mode={mode} title="Multi-Rail Failover Payout Engine">
             <p style={{ fontSize: '14px', color: isLight ? '#475569' : '#94A3B8', lineHeight: 1.6 }}>
-              Direct bank payouts to all Nigerian banks via dynamic failover registry: Paystack → Monnify → Squad. Features real-time NUBAN resolution and immediate transaction reversal safety.
+              Direct bank payouts to all Nigerian banks via dynamic failover registry: Bachs → Squad. Features real-time NUBAN resolution and immediate transaction reversal safety.
             </p>
           </Card>
 

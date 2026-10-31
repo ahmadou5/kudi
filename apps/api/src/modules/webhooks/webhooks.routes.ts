@@ -21,7 +21,6 @@ export async function webhooksRoutes(server: FastifyInstance, controller: Webhoo
     });
 
     instance.post('/api/v1/webhooks/squad', controller.handleSquadWebhook);
-    instance.post('/api/v1/webhooks/monnify', controller.handleMonnifyWebhook);
     instance.post('/api/v1/webhooks/korapay', controller.handleKorapayWebhook);
     instance.post('/api/v1/webhooks/bachs', controller.handleBachsWebhook);
     instance.post('/api/v1/webhooks/privy', controller.handlePrivyWebhook);

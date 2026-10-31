@@ -5,6 +5,8 @@ import {
   loadSystemSettings,
   loadMaintenanceConfig,
   updateMaintenanceConfig,
+  loadIdentityProviderConfig,
+  updateIdentityProviderConfig,
   loadSweepConfig,
   updateSweepConfig,
   loadDrips,
@@ -12,6 +14,7 @@ import {
   loadSweepHealth,
   AdminSettings,
   AdminSweepConfig,
+  AdminIdentityProviderConfig,
   DripLedger,
   TreasurySnapshot,
   SweepHealth
@@ -56,6 +59,18 @@ export default function SettingsPage() {
   const [maintenanceConfirmModal, setMaintenanceConfirmModal] = useState(false);
   const [maintenanceSaving, setMaintenanceSaving] = useState(false);
 
+  // Identity verification provider (Dojah / Sumsub) state
+  const [identityProvider, setIdentityProvider] = useState<'DOJAH' | 'SUMSUB' | null>(null);
+  const [identitySelected, setIdentitySelected] = useState<'DOJAH' | 'SUMSUB' | null>(null);
+  const [identitySource, setIdentitySource] = useState<string>('none');
+  const [identityConfigured, setIdentityConfigured] = useState<{ DOJAH: boolean; SUMSUB: boolean }>({
+    DOJAH: false,
+    SUMSUB: false
+  });
+  const [identityUpdatedAt, setIdentityUpdatedAt] = useState<string | null>(null);
+  const [identityWarning, setIdentityWarning] = useState<string | null>(null);
+  const [identitySaving, setIdentitySaving] = useState(false);
+
   // Operational states
   const [autoFailover, setAutoFailover] = useState(true);
   const [dailyLimit, setDailyLimit] = useState('10000000');
@@ -97,15 +112,34 @@ export default function SettingsPage() {
     setTimeout(() => setCopiedField(null), 2000);
   }
 
+  function applyIdentityConfig(data: AdminIdentityProviderConfig | null) {
+    if (!data) return;
+    if (data.provider === 'DOJAH' || data.provider === 'SUMSUB') setIdentityProvider(data.provider);
+    if (data.selected === 'DOJAH' || data.selected === 'SUMSUB') setIdentitySelected(data.selected);
+    if (data.source) setIdentitySource(data.source);
+    if (data.configured) setIdentityConfigured(data.configured);
+    setIdentityUpdatedAt(data.updatedAt ?? null);
+    setIdentityWarning(data.warning ?? null);
+  }
+
   useEffect(() => {
-    Promise.all([loadSystemSettings(), loadMaintenanceConfig(), loadSweepConfig(), loadTreasury(), loadDrips(), loadSweepHealth()]).then(
-      ([systemData, maintData, sweepData, treasuryData, dripsData, healthData]) => {
+    Promise.all([
+      loadSystemSettings(),
+      loadMaintenanceConfig(),
+      loadSweepConfig(),
+      loadTreasury(),
+      loadDrips(),
+      loadSweepHealth(),
+      loadIdentityProviderConfig()
+    ]).then(
+      ([systemData, maintData, sweepData, treasuryData, dripsData, healthData, identityData]) => {
         setSettings(systemData);
         setAutoFailover(systemData.autoFailoverEnabled);
         setDailyLimit(systemData.maxDailySpendLimitNGN.toString());
         setTreasury(treasuryData);
         setDripLedger(dripsData);
         setSweepHealth(healthData);
+        applyIdentityConfig(identityData);
 
         if (maintData) {
           setMaintenanceEnabled(Boolean(maintData.enabled));
@@ -200,6 +234,42 @@ export default function SettingsPage() {
     }
   };
 
+  const requestIdentityProviderSwitch = (target: 'DOJAH' | 'SUMSUB') => {
+    if (target === identityProvider || identitySaving) return;
+    const label = target === 'DOJAH' ? 'Dojah' : 'Sumsub';
+    const current = identityProvider === 'DOJAH' ? 'Dojah' : identityProvider === 'SUMSUB' ? 'Sumsub' : 'automatic fallback';
+    setConfirmModalConfig({
+      isOpen: true,
+      title: `Switch Identity Verification Provider to ${label}`,
+      description: `Are you sure you want all new KYC verifications (BVN & NIN) to run through ${label}? The previous selection was ${current}. Existing verified users are not affected.`,
+      variant: 'primary',
+      onConfirm: async () => {
+        setIdentitySaving(true);
+        try {
+          const res = await updateIdentityProviderConfig(target);
+          if (res) {
+            applyIdentityConfig(res);
+            setNotice(
+              res.warning
+                ? `Identity provider set to ${target} — warning: ${res.warning}`
+                : `Identity verification provider switched to ${label}. All new KYC checks will use ${label}.`
+            );
+            setTimeout(() => setNotice(null), 6000);
+          } else {
+            setNotice('Failed to switch identity verification provider.');
+            setTimeout(() => setNotice(null), 4000);
+          }
+        } catch (err: any) {
+          setNotice('Failed to switch identity verification provider: ' + (err?.message || err));
+          setTimeout(() => setNotice(null), 5000);
+        } finally {
+          setIdentitySaving(false);
+          setConfirmModalConfig((prev) => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
+  };
+
   const requestSaveCompliance = () => {
     setConfirmModalConfig({
       isOpen: true,
@@ -221,7 +291,7 @@ export default function SettingsPage() {
       title: `${nextState ? 'Enable' : 'Disable'} Automatic Provider Failover`,
       description: `Are you sure you want to ${nextState ? 'enable' : 'disable'} automatic provider failover? ${
         nextState
-          ? 'Payouts will automatically fail over to fallback rails (Monnify/Squad) if Paystack latency degrades.'
+          ? 'Payouts will automatically fail over to fallback rails (Squad) if Bachs latency degrades.'
           : 'Failover is disabled; failed transactions will require manual operator action.'
       }`,
       variant: nextState ? 'primary' : 'warning',
@@ -525,7 +595,7 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/30 p-3.5">
                 <div>
                   <span className="text-xs font-bold text-foreground block">Automatic Provider Failover</span>
-                  <span className="text-[11px] text-muted-foreground">Automatically route to Monnify if Paystack latency spikes</span>
+                  <span className="text-[11px] text-muted-foreground">Automatically route to Squad if Bachs latency spikes</span>
                 </div>
                 <Button
                   size="sm"
@@ -561,6 +631,89 @@ export default function SettingsPage() {
           </Card>
         </div>
       </div>
+
+      {/* IDENTITY VERIFICATION PROVIDER (Dojah / Sumsub) */}
+      <Card
+        title="Identity Verification Provider"
+        subtitle="KYC provider used for BVN & NIN verification on the mobile app"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/30 p-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-foreground block">Active Provider</span>
+                <Badge
+                  variant={identityProvider ? 'success' : 'destructive'}
+                  className="font-mono text-[10px] uppercase font-bold"
+                >
+                  {identityProvider ?? 'NONE CONFIGURED'}
+                </Badge>
+                {identitySelected && identitySelected !== identityProvider && (
+                  <Badge variant="warning" className="font-mono text-[10px] uppercase font-bold">
+                    FALLBACK
+                  </Badge>
+                )}
+              </div>
+              <span className="text-[11px] text-muted-foreground block">
+                {identityProvider
+                  ? `New KYC checks run through ${identityProvider === 'DOJAH' ? 'Dojah' : 'Sumsub'} (source: ${identitySource}).`
+                  : 'No identity provider credentials are configured — verification will fail in production.'}
+                {identityUpdatedAt ? ` Updated ${new Date(identityUpdatedAt).toLocaleString()}.` : ''}
+              </span>
+            </div>
+            <ShieldCheck className="h-5 w-5 text-emerald-400 shrink-0" />
+          </div>
+
+          {(
+            [
+              { id: 'DOJAH', label: 'Dojah', desc: 'Instant BVN / NIN lookup with name & DOB match against the record' },
+              { id: 'SUMSUB', label: 'Sumsub', desc: 'Non-Doc (E-KYC) BVN / NIN database verification with review decision' }
+            ] as const
+          ).map((option) => {
+            const isActive = identityProvider === option.id;
+            const isConfigured = Boolean(identityConfigured[option.id]);
+            return (
+              <div
+                key={option.id}
+                className="rounded-xl border border-border/60 bg-muted/30 p-3.5 flex items-center justify-between gap-3"
+              >
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-foreground">{option.label}</span>
+                    <Badge
+                      variant={isConfigured ? 'success' : 'secondary'}
+                      className="font-mono text-[10px] uppercase font-bold"
+                    >
+                      {isConfigured ? 'KEYS SET' : 'NO KEYS'}
+                    </Badge>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground block">{option.desc}</span>
+                </div>
+                <Button
+                  size="sm"
+                  variant={isActive ? 'primary' : 'outline'}
+                  onClick={() => requestIdentityProviderSwitch(option.id)}
+                  disabled={isActive || identitySaving}
+                  className="text-xs h-8 shrink-0"
+                >
+                  {identitySaving
+                    ? 'Switching...'
+                    : isActive
+                      ? 'ACTIVE'
+                      : `Switch to ${option.label}`}
+                </Button>
+              </div>
+            );
+          })}
+
+          {identityWarning && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-300 font-semibold flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>{identityWarning}</span>
+            </div>
+          )}
+        </div>
+      </Card>
 
       {/* Treasury & Gas Runway */}
       <Card

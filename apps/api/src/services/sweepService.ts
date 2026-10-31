@@ -4,7 +4,7 @@
  * This service handles the critical business logic gap:
  * When a user deposits USDC to their Kudi-assigned address and we credit
  * their ledger balance, we also need to physically move that USDC to Kudi's
- * treasury wallet so Kudi has the funds to pay NGN via Paystack/Monnify.
+ * treasury wallet so Kudi has the funds to pay NGN via Squad/Bachs.
  *
  * Flow:
  *   User deposits USDC → DepositService detects it → LedgerService credits ledger

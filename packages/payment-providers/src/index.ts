@@ -1,17 +1,11 @@
 import { PaymentProvider, PaymentProviderId } from '@kudi/types';
-import { MonnifyProvider } from './monnify';
 import { SquadProvider } from './squad';
 import { BachsProvider } from './bachs';
 
-export * from './monnify';
 export * from './squad';
 export * from './bachs';
 
 export interface PaymentProviderRegistryConfig {
-  monnifyApiKey?: string;
-  monnifySecretKey?: string;
-  monnifyBaseUrl?: string;
-  monnifySourceAccountNumber?: string;
   squadSecretKey?: string;
   squadBaseUrl?: string;
   bachsSecretKey?: string;
@@ -22,13 +16,11 @@ export class PaymentProviderRegistry {
   private providers: Map<PaymentProviderId, PaymentProvider> = new Map();
   private activeProviderId: PaymentProviderId = PaymentProviderId.BACHS;
   private failoverOrder: PaymentProviderId[] = [
-    PaymentProviderId.MONNIFY,
     PaymentProviderId.SQUAD,
     PaymentProviderId.BACHS
   ];
 
   constructor(config: PaymentProviderRegistryConfig = {}) {
-    this.registerProvider(new MonnifyProvider(config.monnifyApiKey, config.monnifySecretKey, config.monnifyBaseUrl, config.monnifySourceAccountNumber));
     this.registerProvider(new SquadProvider(config.squadSecretKey, config.squadBaseUrl));
     this.registerProvider(new BachsProvider(config.bachsSecretKey, config.bachsBaseUrl));
   }

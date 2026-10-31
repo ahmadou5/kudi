@@ -1,5 +1,5 @@
 interface WebhookJobPayload {
-  provider: 'squad' | 'monnify' | 'bachs' | 'korapay' | 'privy';
+  provider: 'squad' | 'bachs' | 'korapay' | 'privy';
   eventId: string;
   eventType: string;
   data: Record<string, any>;
@@ -24,9 +24,6 @@ export class WebhookProcessor {
       case 'squad':
         await this.handleSquadDeposit(job.data);
         break;
-      case 'monnify':
-        await this.handleMonnifyDeposit(job.data);
-        break;
       case 'bachs':
         await this.handleBachsDeposit(job.data);
         break;
@@ -46,10 +43,6 @@ export class WebhookProcessor {
 
   private async handleSquadDeposit(data: Record<string, any>) {
     console.log(`✅ [Worker] Credited Squad Deposit Ref: ${data.reference || data.transaction_ref}`);
-  }
-
-  private async handleMonnifyDeposit(data: Record<string, any>) {
-    console.log(`✅ [Worker] Credited Monnify Deposit Ref: ${data.transactionReference}`);
   }
 
   private async handleBachsDeposit(data: Record<string, any>) {

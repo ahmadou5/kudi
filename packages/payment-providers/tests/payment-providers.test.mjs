@@ -11,14 +11,15 @@ test('payment-providers: registry initializes with default active provider (Bach
 
 test('payment-providers: switcher changes active provider and validates invalid id', () => {
   const registry = new PaymentProviderRegistry();
-  registry.setActiveProvider('monnify');
-  assert.equal(registry.getActiveProviderId(), PaymentProviderId.MONNIFY);
-
   registry.setActiveProvider('squad');
   assert.equal(registry.getActiveProviderId(), PaymentProviderId.SQUAD);
 
   registry.setActiveProvider('bachs');
   assert.equal(registry.getActiveProviderId(), PaymentProviderId.BACHS);
+
+  assert.throws(() => {
+    registry.setActiveProvider('monnify');
+  }, /unregistered id/);
 
   assert.throws(() => {
     registry.setActiveProvider('non_existent_provider');
@@ -27,7 +28,7 @@ test('payment-providers: switcher changes active provider and validates invalid 
 
 test('payment-providers: failover order configuration works', () => {
   const registry = new PaymentProviderRegistry();
-  const customOrder = [PaymentProviderId.SQUAD, PaymentProviderId.MONNIFY, PaymentProviderId.BACHS];
+  const customOrder = [PaymentProviderId.SQUAD, PaymentProviderId.BACHS];
   registry.setFailoverOrder(customOrder);
   assert.deepEqual(registry.getFailoverOrder(), customOrder);
 });

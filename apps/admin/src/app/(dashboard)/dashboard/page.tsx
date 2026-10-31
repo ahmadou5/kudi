@@ -283,7 +283,7 @@ export default function DashboardPage() {
             })}
           </div>
           <div className="mt-4 flex items-center justify-between border-t border-border/40 pt-3 text-[11px] text-muted-foreground font-mono">
-            <span>Failover Sequence: Paystack → Monnify → Squad</span>
+            <span>Failover Sequence: Bachs → Squad</span>
             <Link href="/wallet" className="text-silver-300 hover:text-foreground font-sans text-xs">
               Manage Rails →
             </Link>

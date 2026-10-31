@@ -568,7 +568,7 @@ await prisma.transferMetadata.create({
       bankCode?: string;
       accountNumber?: string;
       accountName?: string;
-      payoutProvider?: 'monnify' | 'squad' | 'bachs';
+      payoutProvider?: 'squad' | 'bachs';
     };
 
     const userId = authUser?.userId;

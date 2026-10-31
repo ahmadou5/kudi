@@ -59,13 +59,7 @@ const apiEnvSchema = z
     ALCHEMY_API_KEY: z.string().optional(),
     ALCHEMY_GAS_POLICY_ID: z.string().optional(),
 
-    // Fiat payout providers (NGN off-ramp) — Paystack is BVN verification only, not a payout rail
-    PAYSTACK_SECRET_KEY: z.string().optional(),
-    MONNIFY_API_KEY: z.string().optional(),
-    MONNIFY_SECRET_KEY: z.string().optional(),
-    MONNIFY_BASE_URL: z.string().url().default('https://api.monnify.com'),
-    MONNIFY_SOURCE_ACCOUNT: z.string().optional(),
-    MONNIFY_CONTRACT_CODE: z.string().optional(),
+    // Fiat payout providers (NGN off-ramp)
     SQUAD_SECRET_KEY: z.string().optional(),
     SQUAD_BASE_URL: z.string().url().default('https://api-d.squadco.com'),
     SQUAD_BENEFICIARY_ACCOUNT: z.string().optional(),
@@ -73,16 +67,11 @@ const apiEnvSchema = z
     BACHS_BASE_URL: z.string().url().default('https://sandbox-api.bachs.io'),
     BACHS_WEBHOOK_SIGNING_SECRET: z.string().optional(),
 
-    // Virtual-account provisioning provider (MONNIFY | SQUAD | BACHS)
+    // Virtual-account provisioning provider (SQUAD | BACHS)
     ACTIVE_PAYMENT_PROVIDER: z.string().optional().default('BACHS'),
 
     // Identity verification simulation (never enable in production)
     IDENTITY_SIMULATE: z.string().optional(),
-
-    // Identity verification (direct NIBSS BVN validation)
-    NIBSS_BASE_URL: z.string().url().default('https://nibss-plc.com.ng/WebPortalBVNManagementService'),
-    NIBSS_ORG_CODE: z.string().optional(),
-    NIBSS_API_KEY: z.string().optional(),
 
     // Token config
     EIP712_TOKEN_NAME: z.string().default('USDC'),

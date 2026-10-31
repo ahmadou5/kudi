@@ -163,10 +163,6 @@ server.decorate('providers', {
 });
 
 const paymentRegistry = new PaymentProviderRegistry({
-  monnifyApiKey: apiConfig.MONNIFY_API_KEY!,
-  monnifySecretKey: apiConfig.MONNIFY_SECRET_KEY!,
-  monnifyBaseUrl: apiConfig.MONNIFY_BASE_URL,
-  monnifySourceAccountNumber: apiConfig.MONNIFY_SOURCE_ACCOUNT!,
   squadSecretKey: apiConfig.SQUAD_SECRET_KEY!,
   squadBaseUrl: apiConfig.SQUAD_BASE_URL,
   bachsSecretKey: apiConfig.BACHS_SECRET_KEY,

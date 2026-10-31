@@ -39,7 +39,6 @@ export interface CustodyProvider {
 
 export enum PaymentProviderId {
   PAYSTACK = 'paystack',
-  MONNIFY = 'monnify',
   SQUAD = 'squad',
   BACHS = 'bachs'
 }

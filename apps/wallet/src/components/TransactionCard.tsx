@@ -6,7 +6,7 @@ import { Typography } from '../constants/typography';
 import { ChainLogo } from './ui/ChainLogo';
 import { router } from 'expo-router';
 
-type BrandProvider = 'usdc' | 'ausd' | 'solana' | 'monad' | 'mtn' | 'airtel' | 'glo' | '9mobile' | 'electricity' | 'gtbank' | 'zenith' | 'paystack' | 'monnify' | 'generic';
+type BrandProvider = 'usdc' | 'ausd' | 'solana' | 'monad' | 'mtn' | 'airtel' | 'glo' | '9mobile' | 'electricity' | 'gtbank' | 'zenith' | 'paystack' | 'generic';
 
 const BRAND_LOGOS: Record<string, ImageSourcePropType> = {
   usdc: require('../../assets/logos/usdc.png'),
@@ -62,7 +62,7 @@ function detectProvider(item: TransactionData): BrandProvider {
   if (text.includes('9mobile') || text.includes('etisalat')) return '9mobile';
   if (text.includes('electricity') || text.includes('ikedc') || text.includes('ekedc')) return 'electricity';
   if (text.includes('gtbank') || text.includes('paystack')) return 'gtbank';
-  if (text.includes('zenith') || text.includes('monnify')) return 'zenith';
+  if (text.includes('zenith')) return 'zenith';
 
   return 'generic';
 }

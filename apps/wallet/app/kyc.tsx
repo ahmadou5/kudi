@@ -276,9 +276,13 @@ export default function KYCScreen() {
         syncUserKyc({ kycStatus: 'VERIFIED', kycTier: res.data?.tier || 'TIER_2' });
         setSubmitted(false);
         await refetchProfile();
+        const providerLabel =
+          res.data?.provider === 'SUMSUB' ? 'Sumsub' : res.data?.provider === 'DOJAH' ? 'Dojah' : null;
         modal.show({
           title: 'Verification Complete! 🎉',
-          description: 'Your identity has been verified. Your Tier 2 limits and dedicated NGN account are now active.',
+          description: providerLabel
+            ? `Your identity has been verified via ${providerLabel}. Your Tier 2 limits and dedicated NGN account are now active.`
+            : 'Your identity has been verified. Your Tier 2 limits and dedicated NGN account are now active.',
           type: 'success',
           primaryText: 'View Account',
           onPrimaryPress: () => {
@@ -319,7 +323,14 @@ export default function KYCScreen() {
         setUpgradeModalVisible(false);
         setNin('');
         await refetchProfile();
-        modal.alert('NIN Verified! 🚀', 'Your account has been upgraded to Tier 2 with a ₦5,000,000 daily transfer limit!', 'success');
+        const ninProvider = res.data?.provider === 'SUMSUB' ? 'Sumsub' : res.data?.provider === 'DOJAH' ? 'Dojah' : null;
+        modal.alert(
+          'NIN Verified! 🚀',
+          ninProvider
+            ? `Your NIN was verified via ${ninProvider}. Your account has been upgraded to Tier 2 with a ₦5,000,000 daily transfer limit!`
+            : 'Your account has been upgraded to Tier 2 with a ₦5,000,000 daily transfer limit!',
+          'success'
+        );
       } else {
         modal.alert('NIN Upgrade Failed', res?.error?.message || 'Could not verify NIN.', 'error');
       }
