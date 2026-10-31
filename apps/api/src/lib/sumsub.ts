@@ -129,6 +129,28 @@ async function ensureApplicant(params: {
   return createApplicant(params);
 }
 
+export { ensureApplicant };
+
+/**
+ * Generates a short-lived WebSDK access token bound to the user's applicant
+ * and verification level. The token is the only credential handed to the
+ * client — it can act on that one applicant and nothing else.
+ * See https://docs.sumsub.com/reference/generate-access-token
+ */
+export async function generateSdkAccessToken(params: {
+  userId: string;
+  email?: string;
+  ttlInSecs?: number;
+}): Promise<{ token: string; userId: string }> {
+  const body: Record<string, unknown> = {
+    userId: params.userId,
+    levelName: sumsubLevelName(),
+    ttlInSecs: params.ttlInSecs ?? 1800
+  };
+  if (params.email) body.applicantIdentifiers = { email: params.email };
+  return sumsubRequest<{ token: string; userId: string }>('POST', '/resources/accessTokens/sdk', body);
+}
+
 type EkycSubmitResponse = {
   status: 'completed' | 'skipped' | 'confirmationRequired' | 'rejected';
   confirmationType?: 'otp' | 'oAuth';
@@ -267,4 +289,57 @@ export async function verifyViaSumsub(params: {
     message: `Verified via Sumsub (${params.checkType})`,
     applicantId: applicant.id
   };
+}
+
+export type ApplicantReviewState = {
+  state: 'pending' | 'approved' | 'rejected';
+  name: string | null;
+  dob: string | null;
+  message?: string;
+};
+
+/**
+ * Reads the applicant's current review decision (WebSDK / hosted flow result).
+ * Returns null when the applicant does not exist yet — nothing was started.
+ * Throws on transport errors so callers surface a real failure.
+ */
+export async function getApplicantReviewState(userId: string): Promise<ApplicantReviewState | null> {
+  const applicant = await findApplicantByExternalUserId(userId);
+  if (!applicant?.id) return null;
+
+  const name = applicantName(applicant);
+  const dob = applicant.info?.dob ?? applicant.fixedInfo?.dob ?? null;
+
+  try {
+    const status = await sumsubRequest<ReviewStatusResponse>(
+      'GET',
+      `/resources/applicants/${applicant.id}/status`
+    );
+    const answer = status.reviewResult?.reviewAnswer;
+    const rejectionMessage = () => {
+      const labels = status.reviewResult?.rejectLabels?.join(', ');
+      return (
+        status.reviewResult?.moderationComment ||
+        status.reviewResult?.clientComment ||
+        (labels ? `Verification rejected: ${labels}` : 'Identity could not be verified with Sumsub')
+      );
+    };
+
+    if (status.reviewStatus === 'completed') {
+      return answer === 'GREEN'
+        ? { state: 'approved', name, dob, message: 'Verified via Sumsub' }
+        : { state: 'rejected', name, dob, message: rejectionMessage() };
+    }
+    if (status.reviewStatus === 'rejected') {
+      return { state: 'rejected', name, dob, message: rejectionMessage() };
+    }
+    if (status.reviewStatus === 'onHold') {
+      return { state: 'pending', name, dob, message: 'Verification is under manual review' };
+    }
+    return { state: 'pending', name, dob };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes('HTTP 404')) return null;
+    throw err;
+  }
 }

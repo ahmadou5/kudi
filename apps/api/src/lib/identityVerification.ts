@@ -55,7 +55,7 @@ function normalizeIdentityProvider(value?: string | null): IdentityProviderName 
   return null;
 }
 
-function isDojahConfigured(): boolean {
+export function isDojahConfigured(): boolean {
   return isRealCredential(process.env.DOJAH_API_KEY) && isRealCredential(process.env.DOJAH_APP_ID);
 }
 
@@ -129,9 +129,15 @@ export async function getIdentityProviderStatus(): Promise<IdentityProviderStatu
   return { selected, effective, source, configured, updatedAt };
 }
 
-function isSimulatedAllowed() {
+/**
+ * Simulated KYC is an explicit opt-in (IDENTITY_SIMULATE=true). Non-production
+ * alone is not enough — shared staging/QA must never auto-approve identity or
+ * provision trusted accounts. Production always hard-fails (config also
+ * rejects IDENTITY_SIMULATE=true at boot).
+ */
+export function isSimulatedAllowed() {
   if (apiConfig.NODE_ENV === 'production') return false;
-  return true;
+  return apiConfig.IDENTITY_SIMULATE === 'true';
 }
 
 function tokensOf(value?: string | null): string[] {

@@ -22,6 +22,9 @@ import {
   type TransactionsResponseData,
   type UpdateUserProfileRequest,
   type VerifyKycIdRequest,
+  type StartKycSessionRequest,
+  type KycSessionData,
+  type KycSessionStatusData,
   type VirtualAccountsResponseData
 } from '@kudi/api-contracts';
 
@@ -308,6 +311,23 @@ export class KudiSDK {
       body: JSON.stringify(payload)
     });
     return this.parseJson(res);
+  }
+
+  async startKycSession(payload: StartKycSessionRequest = {}) {
+    const res = await this.send(`${apiRoutes.kyc.session}`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return this.parseJson<KycSessionData>(res);
+  }
+
+  async getKycSessionStatus() {
+    const res = await this.send(`${apiRoutes.kyc.sessionStatus}`, {
+      method: 'GET',
+      headers: this.getHeaders()
+    });
+    return this.parseJson<KycSessionStatusData>(res);
   }
 
   async setPin(userId: string, pin: string) {

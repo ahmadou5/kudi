@@ -9,6 +9,14 @@ export async function kycRoutes(
 ) {
   server.post(apiRoutes.kyc.verifyId, { preHandler: requireAuth }, controller.verifyID);
   server.post('/api/kyc/verify-id', { preHandler: requireAuth }, controller.verifyID);
+  server.post(apiRoutes.kyc.session, { preHandler: requireAuth }, controller.createKycSession);
+  server.post('/api/kyc/session', { preHandler: requireAuth }, controller.createKycSession);
+  server.get(apiRoutes.kyc.sessionStatus, { preHandler: requireAuth }, controller.kycSessionStatus);
+  server.get('/api/kyc/session/status', { preHandler: requireAuth }, controller.kycSessionStatus);
+  // Host page mints the Sumsub WebSDK token server-side for the authenticated
+  // user only — never accept a token from the query string or serve it unauthenticated.
+  server.get(apiRoutes.kyc.websdk, { preHandler: requireAuth }, controller.serveKycWebSdk);
+  server.get('/api/kyc/session/websdk', { preHandler: requireAuth }, controller.serveKycWebSdk);
   server.post(apiRoutes.users.virtualAccounts(), { preHandler: requireSelfParam('userId') }, controller.retryVirtualAccount);
   server.post('/api/users/:userId/virtual-accounts', { preHandler: requireSelfParam('userId') }, controller.retryVirtualAccount);
 }

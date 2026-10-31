@@ -147,7 +147,7 @@ This document lists all environment variables required or supported across the M
 | Variable | Description | Default / Fallback Mode |
 |---|---|---|
 | `IDENTITY_PROVIDER` | Preferred verification provider (`SMILE` or `DOJAH`) | `SMILE` |
-| `IDENTITY_SIMULATE` | Force simulated KYC in dev mode (`true`/`false`) | `true` (in non-production) |
+| `IDENTITY_SIMULATE` | Explicit opt-in for simulated KYC in dev (`true`/`false`). Non-production alone does **not** enable it. | unset (`false`); hard-blocked in production |
 | `SMILE_IDENTITY_PARTNER_ID` | Smile Identity Partner ID | `partner_id_here` |
 | `SMILE_IDENTITY_API_KEY` | Smile Identity API Key | `api_key_here` |
 | `SMILE_IDENTITY_ENV` | Smile Identity Environment (`0` for sandbox, `1` for live) | `0` |
