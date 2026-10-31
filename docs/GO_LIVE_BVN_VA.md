@@ -36,7 +36,7 @@ pnpm db:sync      # runtime DDL (ensure-runtime-schema.mjs, idempotent)
 ## Step 3 — Real BVN verification (pick ONE provider)
 
 Today: `IDENTITY_PROVIDER` unset, NIBSS/Dojah unset, Paystack/Smile keys are placeholders →
-dev = simulated pass, **production = hard fail** (`KYC_VERIFICATION_FAILED`).
+dev/staging = fail unless `IDENTITY_SIMULATE=true` (explicit opt-in), **production = hard fail** (`KYC_VERIFICATION_FAILED`).
 
 | Option | Env vars to fill | Notes |
 |---|---|---|
@@ -89,6 +89,7 @@ POST /api/v1/webhooks/privy
 ## Step 7 — Production gates (already enforced — just don't fight them)
 
 - [ ] `NODE_ENV=production`: boot **fails** if `IDENTITY_SIMULATE=true` (zod hard error); simulated identity/VA is impossible
+- [ ] Staging/QA: `IDENTITY_SIMULATE` unset or `false` — simulated KYC is explicit opt-in only, never implied by non-production
 - [ ] All placeholder creds must be replaced (or the corresponding provider is treated as not configured)
 - [ ] Prod-required vars present (`JWT_SECRET`, `ADMIN_API_KEY`, Privy set, treasury addresses, RPCs…) — pila fails closed at boot, error names the missing var
 - [ ] Node 20 in CI/prod (engines field); `REDIS_URL` set for the worker

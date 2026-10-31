@@ -129,9 +129,15 @@ export async function getIdentityProviderStatus(): Promise<IdentityProviderStatu
   return { selected, effective, source, configured, updatedAt };
 }
 
+/**
+ * Simulated KYC is an explicit opt-in (IDENTITY_SIMULATE=true). Non-production
+ * alone is not enough — shared staging/QA must never auto-approve identity or
+ * provision trusted accounts. Production always hard-fails (config also
+ * rejects IDENTITY_SIMULATE=true at boot).
+ */
 export function isSimulatedAllowed() {
   if (apiConfig.NODE_ENV === 'production') return false;
-  return true;
+  return apiConfig.IDENTITY_SIMULATE === 'true';
 }
 
 function tokensOf(value?: string | null): string[] {

@@ -256,9 +256,9 @@ export class KYCController {
       } else if (provider === 'SUMSUB') {
         const applicant = await ensureApplicant({ userId, email, firstName, lastName });
         record.applicantId = applicant.id;
-        const { token } = await createSumsubWebSdkSession({ userId, email });
-        const websdkPath = `${apiRoutes.kyc.websdk}?token=${encodeURIComponent(token)}&lang=en`;
-        url = `${requestOrigin(request)}${websdkPath}`;
+        // Token is minted server-side when the authenticated WebView loads the
+        // host page — never placed in a shareable/query-string URL.
+        url = `${requestOrigin(request)}${apiRoutes.kyc.websdk}?lang=en`;
       }
 
       await saveKycSession(userId, record);
@@ -399,24 +399,46 @@ export class KYCController {
   };
 
   /**
-   * Serves the Sumsub WebSDK host page to the wallet WebView. The access
-   * token in the query string is scoped to a single applicant and expires,
-   * so the page itself needs no session cookie or auth header.
+   * Serves the Sumsub WebSDK host page to the wallet WebView. Requires the
+   * authenticated user's JWT (Authorization header from the WebView) and an
+   * active SUMSUB KYC session. The Sumsub access token is minted here
+   * server-side and never appears in the URL.
    */
   public serveKycWebSdk = async (request: FastifyRequest, reply: FastifyReply) => {
-    const { token, lang } = request.query as { token?: string; lang?: string };
-    if (!token) {
-      return reply
-        .status(400)
+    const html = (status: number, body: string) =>
+      reply
+        .status(status)
         .type('text/html; charset=utf-8')
-        .send('<!DOCTYPE html><html><body style="font-family:sans-serif;padding:24px">Missing verification token.</body></html>');
+        .header('Cache-Control', 'no-store')
+        .header('Permissions-Policy', 'camera=(self), microphone=(self)')
+        .send(
+          `<!DOCTYPE html><html><body style="font-family:sans-serif;padding:24px">${body}</body></html>`
+        );
+
+    const authUser = getAuthenticatedUser(request);
+    const userId = authUser?.userId;
+    if (!userId) {
+      return html(401, 'Sign in to start verification.');
     }
     if (!isSumsubConfigured()) {
-      return reply
-        .status(503)
-        .type('text/html; charset=utf-8')
-        .send('<!DOCTYPE html><html><body style="font-family:sans-serif;padding:24px">Verification is temporarily unavailable.</body></html>');
+      return html(503, 'Verification is temporarily unavailable.');
     }
+
+    const session = await loadKycSession(userId);
+    if (!session || session.provider !== 'SUMSUB') {
+      return html(404, 'No active verification session. Start verification from the app first.');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true }
+    });
+    const { token } = await createSumsubWebSdkSession({
+      userId,
+      email: user?.email || undefined
+    });
+
+    const { lang } = request.query as { lang?: string };
     return reply
       .type('text/html; charset=utf-8')
       .header('Cache-Control', 'no-store')

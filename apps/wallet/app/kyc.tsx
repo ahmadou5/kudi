@@ -17,6 +17,7 @@ import {
   BadgeInfo,
   ArrowLeft,
   Camera,
+  Check,
   CheckCircle2,
   Copy,
   CreditCard,
@@ -74,6 +75,7 @@ export default function KYCScreen() {
   const inkPill = hexToRgba(ink, 0.2);
   const modal = useAppModal();
   const user = useAuthStore((s) => s.user);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const { data: profileData, isLoading: profileLoading, refetch: refetchProfile } = useUserProfile();
 
   // Hosted verification flow state
@@ -930,16 +932,10 @@ export default function KYCScreen() {
             </View>
           ))}
 
-          {/* Consent Checkbox */}
+          {/* Consent — compact inline row */}
           <Pressable
             onPress={() => setConsent((c) => !c)}
-            style={[
-              styles.consentRow,
-              {
-                borderColor: consent ? palette.primary : palette.border,
-                backgroundColor: consent ? hexToRgba(palette.primary, 0.08) : palette.bg,
-              },
-            ]}
+            style={[styles.consentRow, { backgroundColor: consent ? hexToRgba(palette.primary, 0.07) : palette.bg }]}
           >
             <View
               style={[
@@ -950,13 +946,12 @@ export default function KYCScreen() {
                 },
               ]}
             >
-              {consent ? <Text style={styles.checkboxMark}>✓</Text> : null}
+              {consent ? <Check size={13} color="#FFF" strokeWidth={3} /> : null}
             </View>
             <View style={styles.consentCopy}>
               <Text style={[styles.consentTitle, { color: palette.text }]}>I consent to identity verification</Text>
               <Text style={[styles.consentBody, { color: palette.textSecondary }]}>
-                I authorize Kudi and its verification partner to process my identity data (BVN/NIN details and selfie) to
-                verify me and issue a dedicated account in my name.
+                Share my BVN/NIN & selfie with the verification partner to verify me and issue my NGN account.
               </Text>
             </View>
           </Pressable>
@@ -977,8 +972,7 @@ export default function KYCScreen() {
           </Pressable>
 
           <Text style={[styles.smallPrint, { color: palette.textSecondary }]}>
-            Your data is shared only with the provider running this check and is never sold. You can retry anytime if a
-            check does not pass.
+            You can retry anytime if a check does not pass.
           </Text>
         </View>
       </EnterSection>
@@ -1014,7 +1008,12 @@ export default function KYCScreen() {
             {sessionUrl ? (
               <WebView
                 key={webviewKey}
-                source={{ uri: sessionUrl }}
+                source={{
+                  uri: sessionUrl,
+                  // Host page requires the authenticated user's JWT — the
+                  // Sumsub token is minted server-side, never in the URL.
+                  headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+                }}
                 originWhitelist={['*']}
                 javaScriptEnabled
                 domStorageEnabled
@@ -1156,12 +1155,11 @@ const styles = StyleSheet.create({
   bankButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 16, paddingHorizontal: 16, minHeight: 60, gap: 10 },
   bankButtonCopy: { flex: 1, gap: 2 },
   bankButtonValue: { fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily },
-  consentRow: { borderRadius: 18, borderWidth: 1, padding: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  checkbox: { width: 24, height: 24, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  checkboxMark: { color: '#FFF', fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
+  consentRow: { borderRadius: 14, paddingVertical: 11, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   consentCopy: { flex: 1, gap: 2 },
-  consentTitle: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
-  consentBody: { fontSize: Typography.xs, lineHeight: 16 },
+  consentTitle: { fontSize: Typography.xs, fontFamily: Typography.currencySub.fontFamily },
+  consentBody: { fontSize: 11, lineHeight: 15 },
   stepActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   stepActionFlex: { flex: 1 },
   primaryAction: { minHeight: 54, borderRadius: 16, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
