@@ -16,18 +16,16 @@ import {
   AlertCircle,
   BadgeInfo,
   ArrowLeft,
-  Camera,
   Check,
   CheckCircle2,
   Copy,
-  CreditCard,
   RefreshCw,
   ShieldCheck,
   Zap,
   X,
 } from 'lucide-react-native';
 
-import { useAppPalette, hexToRgba, readableInk } from '../src/lib/theme';
+import { useAppPalette, hexToRgba } from '../src/lib/theme';
 import { Typography } from '../src/constants/typography';
 import { Spacing } from '../src/constants/spacing';
 import { useAuthStore } from '../src/store/auth.store';
@@ -69,10 +67,6 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 
 export default function KYCScreen() {
   const palette = useAppPalette();
-  const ink = readableInk(palette.primary);
-  const inkSoft = hexToRgba(ink, 0.7);
-  const inkFaint = hexToRgba(ink, 0.9);
-  const inkPill = hexToRgba(ink, 0.2);
   const modal = useAppModal();
   const user = useAuthStore((s) => s.user);
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -219,7 +213,7 @@ export default function KYCScreen() {
       ? 'Your Tier 2 limits and dedicated NGN account are now active.'
       : 'Your dedicated NGN account is being provisioned and will appear in a moment.';
     modal.show({
-      title: 'Verification Complete! 🎉',
+      title: 'Verification complete',
       description: `${label ? `Your identity has been verified via ${label}. ` : 'Your identity has been verified. '}${accountPart}`,
       type: 'success',
       primaryText: 'View Account',
@@ -444,7 +438,7 @@ export default function KYCScreen() {
         await refetchProfile();
         const ninProvider = res.data?.provider === 'SUMSUB' ? 'Sumsub' : res.data?.provider === 'DOJAH' ? 'Dojah' : null;
         modal.alert(
-          'NIN Verified! 🚀',
+          'NIN verified',
           ninProvider
             ? `Your NIN was verified via ${ninProvider}. Your account has been upgraded to Tier 2 with a ₦5,000,000 daily transfer limit!`
             : 'Your account has been upgraded to Tier 2 with a ₦5,000,000 daily transfer limit!',
@@ -485,7 +479,7 @@ export default function KYCScreen() {
           >
             <ArrowLeft size={20} color={palette.text} />
           </Pressable>
-          <Text style={[styles.headerTitle, { color: palette.text }]}>KYC Verification</Text>
+          <Text style={[styles.headerTitle, { color: palette.text }]}>Identity Verification</Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -504,7 +498,7 @@ export default function KYCScreen() {
             <View style={[styles.tierDot, { backgroundColor: tierColor }]} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.tierBadgeLabel, { color: palette.textSecondary }]}>Current Tier</Text>
-              <Text style={[styles.tierBadgeValue, { color: palette.text }]}>{tierLabel} — {tierLimit} daily limit</Text>
+              <Text style={[styles.tierBadgeValue, { color: palette.text }]}>{tierLabel} · {tierLimit} daily limit</Text>
             </View>
             <View style={[styles.tierBadgePill, { backgroundColor: hexToRgba(tierColor, 0.16), borderColor: tierColor }]}>
               <Text style={[styles.tierBadgePillText, { color: tierColor }]}>{tierLabel}</Text>
@@ -657,7 +651,7 @@ export default function KYCScreen() {
           >
             <ArrowLeft size={20} color={palette.text} />
           </Pressable>
-          <Text style={[styles.headerTitle, { color: palette.text }]}>Verification Pending</Text>
+          <Text style={[styles.headerTitle, { color: palette.text }]}>Identity Verification</Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -674,7 +668,8 @@ export default function KYCScreen() {
 
             <Text style={[styles.verifiedTitle, { color: palette.text }]}>Verification in Progress</Text>
             <Text style={[styles.verifiedSub, { color: palette.textSecondary }]}>
-              Our partner is validating your BVN and bank account details. Your dedicated NUBAN will be assigned automatically once complete.
+              Your verification is still in progress. Your dedicated NUBAN will be assigned automatically once the
+              provider returns a result.
             </Text>
 
             <Pressable
@@ -739,45 +734,45 @@ export default function KYCScreen() {
           >
             <ArrowLeft size={20} color={palette.text} />
           </Pressable>
-          <Text style={[styles.headerTitle, { color: palette.text }]}>Confirming Result</Text>
+          <Text style={[styles.headerTitle, { color: palette.text }]}>Identity Verification</Text>
           <View style={styles.headerSpacer} />
         </View>
 
-        <View style={{ flex: 1, justifyContent: 'center' }}>
-          <View style={[styles.verifiedCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <Animated.View
-              style={[
-                styles.pendingBadgeWrap,
-                {
-                  backgroundColor: hexToRgba(palette.primary, 0.12),
-                  borderColor: palette.primary,
-                  transform: [
-                    { rotate: rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) },
-                  ],
-                },
-              ]}
-            >
-              <RefreshCw size={40} color={palette.primary} />
-            </Animated.View>
+        <View style={styles.stateCenter}>
+          <Animated.View
+            style={[
+              styles.stateIcon,
+              {
+                backgroundColor: hexToRgba(palette.primary, 0.08),
+                borderColor: hexToRgba(palette.primary, 0.24),
+                transform: [
+                  { rotate: rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) },
+                ],
+              },
+            ]}
+          >
+            <RefreshCw size={26} color={palette.primary} strokeWidth={2.2} />
+          </Animated.View>
 
-            <Text style={[styles.verifiedTitle, { color: palette.text }]}>
-              {checkTimedOut ? 'Still Processing' : 'Confirming your verification\u2026'}
-            </Text>
-            <Text style={[styles.verifiedSub, { color: palette.textSecondary }]}>
-              {statusHint ||
-                (checkTimedOut
-                  ? 'The provider has not returned a final decision yet. Check again — most results land within a minute.'
-                  : 'Checking securely with the verification provider. This only takes a few seconds.')}
-            </Text>
+          <Text style={[styles.stateTitle, { color: palette.text }]}>
+            {checkTimedOut ? 'Still processing' : 'Confirming your result'}
+          </Text>
+          <Text style={[styles.stateBody, { color: palette.textSecondary }]}>
+            {statusHint ||
+              (checkTimedOut
+                ? 'The provider has not returned a decision yet. Most results arrive within a minute.'
+                : 'Checking with the verification provider. This only takes a few seconds.')}
+          </Text>
 
+          <View style={styles.stateActions}>
             {checkTimedOut ? (
-              <View style={{ width: '100%', gap: 8 }}>
+              <>
                 <Pressable
                   onPress={() => void runPollingLoop(10, 2500)}
                   disabled={checking}
                   style={({ pressed }) => [
                     styles.primaryAction,
-                    { backgroundColor: checking ? palette.border : palette.primary },
+                    { width: '100%', backgroundColor: checking ? palette.border : palette.primary },
                     pressed && !checking ? { opacity: 0.9 } : null,
                   ]}
                 >
@@ -788,7 +783,7 @@ export default function KYCScreen() {
                   disabled={startingSession}
                   style={({ pressed }) => [
                     styles.secondaryAction,
-                    { backgroundColor: palette.bg, borderColor: palette.border },
+                    { width: '100%', backgroundColor: palette.card },
                     pressed && { opacity: 0.85 },
                   ]}
                 >
@@ -801,28 +796,20 @@ export default function KYCScreen() {
                     pollCancelRef.current = true;
                     setFlowPhase('intro');
                   }}
-                  style={({ pressed }) => [
-                    styles.secondaryAction,
-                    { backgroundColor: palette.bg, borderColor: palette.border },
-                    pressed && { opacity: 0.85 },
-                  ]}
+                  style={({ pressed }) => [styles.tertiaryAction, pressed && { opacity: 0.7 }]}
                 >
-                  <Text style={[styles.secondaryActionText, { color: palette.text }]}>Not Now</Text>
+                  <Text style={[styles.tertiaryActionText, { color: palette.textSecondary }]}>Not Now</Text>
                 </Pressable>
-              </View>
+              </>
             ) : (
               <Pressable
                 onPress={() => {
                   pollCancelRef.current = true;
                   setFlowPhase('intro');
                 }}
-                style={({ pressed }) => [
-                  styles.secondaryAction,
-                  { width: '100%', backgroundColor: palette.bg, borderColor: palette.border },
-                  pressed && { opacity: 0.85 },
-                ]}
+                style={({ pressed }) => [styles.tertiaryAction, pressed && { opacity: 0.7 }]}
               >
-                <Text style={[styles.secondaryActionText, { color: palette.text }]}>Cancel</Text>
+                <Text style={[styles.tertiaryActionText, { color: palette.textSecondary }]}>Cancel</Text>
               </Pressable>
             )}
           </View>
@@ -865,77 +852,49 @@ export default function KYCScreen() {
         </View>
       )}
 
-      {/* Hero Banner */}
+      {/* Headline + steps: one decision, plain facts, no boxes */}
       <EnterSection index={0}>
-        <View style={[styles.hero, { backgroundColor: palette.primary }]}>
-          <View style={styles.heroTop}>
-            <View>
-              <Text style={[styles.heroLabel, { color: inkSoft }]}>IDENTITY CHECK</Text>
-              <Text style={[styles.heroValue, { color: ink }]}>One secure step</Text>
-            </View>
-            <View style={[styles.heroIcon, { backgroundColor: hexToRgba(ink, 0.18) }]}>
-              <ShieldCheck size={24} color={ink} />
-            </View>
-          </View>
-          <Text style={[styles.heroBody, { color: inkFaint }]}>
-            Verify yourself inside a secure screen hosted by our verification partner. Once approved, your dedicated NGN
-            account and higher daily limits activate automatically.
+        <View style={styles.introBlock}>
+          <Text style={[styles.introTitle, { color: palette.text }]}>Verify your identity</Text>
+          <Text style={[styles.introSub, { color: palette.textSecondary }]}>
+            One quick check unlocks a ₦5,000,000 daily limit and your dedicated NGN account.
           </Text>
+
+          <View style={styles.steps}>
+            {[
+              { num: '1', title: 'Check your BVN or NIN', body: 'Matched against the national identity database.' },
+              { num: '2', title: 'Take a quick selfie', body: 'Confirms the identity is really you.' },
+              {
+                num: '3',
+                title: 'Get your result',
+                body: 'Usually done in about 2 minutes. Your NGN account activates next.',
+              },
+            ].map((step, index) => (
+              <View
+                key={step.num}
+                style={[
+                  styles.stepRow,
+                  index > 0 && styles.stepDivider,
+                  index > 0 && { borderTopColor: palette.border },
+                ]}
+              >
+                <Text style={[styles.stepNum, { color: palette.primary }]}>{step.num}</Text>
+                <View style={styles.stepCopy}>
+                  <Text style={[styles.stepTitle, { color: palette.text }]}>{step.title}</Text>
+                  <Text style={[styles.stepBody, { color: palette.textSecondary }]}>{step.body}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
         </View>
       </EnterSection>
 
-      {/* What to expect + consent + start */}
+      {/* Consent + start */}
       <EnterSection index={1}>
-        <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.stepPill, { backgroundColor: hexToRgba(palette.primary, 0.12), borderColor: palette.primary }]}>
-              <Camera size={16} color={palette.primary} />
-            </View>
-            <View style={styles.sectionCopy}>
-              <Text style={[styles.sectionTitle, { color: palette.text }]}>How it works</Text>
-              <Text style={[styles.sectionSubtitle, { color: palette.textSecondary }]}>
-                You will continue in a secure screen managed by the verification provider (Dojah or Sumsub).
-              </Text>
-            </View>
-          </View>
-
-          {[
-            {
-              Icon: CreditCard,
-              title: 'BVN or NIN database check',
-              body: 'Your identity is matched against the national registry — no paperwork, no branch visit.',
-            },
-            {
-              Icon: Camera,
-              title: 'Selfie & liveness check',
-              body: 'A quick face scan confirms you are really you.',
-            },
-            {
-              Icon: Zap,
-              title: 'Done in about 2 minutes',
-              body: 'Most decisions are instant, and your dedicated NGN account activates right after.',
-            },
-          ].map(({ Icon, title, body }) => (
-            <View key={title} style={styles.expectRow}>
-              <View
-                style={[
-                  styles.expectIcon,
-                  { backgroundColor: hexToRgba(palette.primary, 0.12), borderColor: hexToRgba(palette.primary, 0.3) },
-                ]}
-              >
-                <Icon size={18} color={palette.primary} />
-              </View>
-              <View style={styles.expectCopy}>
-                <Text style={[styles.expectTitle, { color: palette.text }]}>{title}</Text>
-                <Text style={[styles.expectBody, { color: palette.textSecondary }]}>{body}</Text>
-              </View>
-            </View>
-          ))}
-
-          {/* Consent — compact inline row */}
+        <View style={styles.actionsBlock}>
           <Pressable
             onPress={() => setConsent((c) => !c)}
-            style={[styles.consentRow, { backgroundColor: consent ? hexToRgba(palette.primary, 0.07) : palette.bg }]}
+            style={[styles.consentRow, { backgroundColor: consent ? hexToRgba(palette.primary, 0.07) : palette.card }]}
           >
             <View
               style={[
@@ -971,8 +930,8 @@ export default function KYCScreen() {
             </Text>
           </Pressable>
 
-          <Text style={[styles.smallPrint, { color: palette.textSecondary }]}>
-            You can retry anytime if a check does not pass.
+          <Text style={[styles.trustLine, { color: palette.textSecondary }]}>
+            Verification runs in a secure screen hosted by our provider. You can retry anytime.
           </Text>
         </View>
       </EnterSection>
@@ -1086,7 +1045,7 @@ export default function KYCScreen() {
           <View style={[styles.webviewFooter, { backgroundColor: palette.card, borderTopColor: palette.border }]}>
             <Text style={[styles.webviewFooterHint, { color: palette.textSecondary }]}>
               {sessionProvider === 'SUMSUB'
-                ? 'Your result is delivered automatically when you finish — or tap below.'
+                ? 'Your result is delivered automatically when you finish, or tap below.'
                 : 'Finished the flow above? Tap below so we can confirm your result.'}
             </Text>
             <Pressable
@@ -1119,8 +1078,8 @@ function KycSkeleton({ palette }: { palette: any }) {
           <AnimatedSkeleton width={160} height={24} borderRadius={12} />
           <View style={styles.headerSpacer} />
         </View>
-        <AnimatedSkeleton width="100%" height={160} borderRadius={24} />
-        <AnimatedSkeleton width="100%" height={320} borderRadius={24} />
+        <AnimatedSkeleton width="100%" height={140} borderRadius={24} />
+        <AnimatedSkeleton width="100%" height={240} borderRadius={24} />
       </View>
     </View>
   );
@@ -1133,46 +1092,30 @@ const styles = StyleSheet.create({
   headerTitle: { ...Typography.title1 },
   backButton: { width: 40, height: 40, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerSpacer: { width: 42 },
-  hero: { borderRadius: 24, padding: Spacing.lg, gap: 12 },
-  heroTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  heroLabel: { fontSize: Typography.xs, fontFamily: Typography.currencySub.fontFamily, letterSpacing: 1 },
-  heroValue: { fontSize: Typography.lg, fontFamily: Typography.currencySub.fontFamily, marginTop: 2 },
-  heroIcon: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  heroBody: { fontSize: Typography.sm, lineHeight: 20 },
-  card: { borderRadius: 24, borderWidth: 1, padding: Spacing.lg, gap: 14 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  stepPill: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  sectionCopy: { flex: 1, gap: 3 },
-  sectionTitle: { fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily },
-  sectionSubtitle: { fontSize: Typography.xs, lineHeight: 17 },
-  nameRow: { flexDirection: 'row', gap: 10 },
-  nameField: { flex: 1 },
+  introBlock: { gap: 10 },
+  introTitle: { ...Typography.title1, letterSpacing: -0.5 },
+  introSub: { fontSize: Typography.md, lineHeight: 22 },
+  steps: { marginTop: 8 },
+  stepRow: { flexDirection: 'row', gap: 14, alignItems: 'flex-start', paddingVertical: 13 },
+  stepDivider: { borderTopWidth: StyleSheet.hairlineWidth },
+  stepNum: { width: 22, fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily },
+  stepCopy: { flex: 1, gap: 3 },
+  stepTitle: { fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily },
+  stepBody: { fontSize: Typography.xs, lineHeight: 17 },
+  actionsBlock: { gap: 12 },
+  trustLine: { fontSize: 11, lineHeight: 15, textAlign: 'center', paddingHorizontal: 8 },
   input: { height: 52, borderRadius: 14, borderWidth: 1, paddingHorizontal: 16, fontSize: Typography.md },
-  summaryMini: { borderRadius: 18, borderWidth: 1, padding: Spacing.md, gap: 4 },
-  summaryMiniLabel: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: Typography.currencySub.fontFamily },
-  summaryMiniValue: { fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily },
-  summaryMiniMeta: { fontSize: Typography.xs },
-  bankButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 16, paddingHorizontal: 16, minHeight: 60, gap: 10 },
-  bankButtonCopy: { flex: 1, gap: 2 },
-  bankButtonValue: { fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily },
-  consentRow: { borderRadius: 14, paddingVertical: 11, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  consentRow: { borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   consentCopy: { flex: 1, gap: 2 },
   consentTitle: { fontSize: Typography.xs, fontFamily: Typography.currencySub.fontFamily },
   consentBody: { fontSize: 11, lineHeight: 15 },
-  stepActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  stepActionFlex: { flex: 1 },
   primaryAction: { minHeight: 54, borderRadius: 16, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
   primaryActionText: { color: '#FFF', fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily, textAlign: 'center' },
   secondaryAction: { minHeight: 52, borderRadius: 16, borderWidth: 1, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
   secondaryActionText: { fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily, textAlign: 'center' },
-  secondary: { minHeight: 54, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
-  secondaryText: { fontSize: Typography.md, fontFamily: Typography.currencySub.fontFamily },
-  reviewCard: { borderRadius: 18, borderWidth: 1, padding: Spacing.md, gap: 4 },
-  reviewGroupLabel: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: Typography.currencySub.fontFamily, marginBottom: 4 },
-  reviewRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: Spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
-  reviewLabel: { fontSize: Typography.sm },
-  reviewValue: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily, textAlign: 'right', flex: 1 },
+  tertiaryAction: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  tertiaryActionText: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
   verifiedCard: { borderRadius: 28, borderWidth: 1, padding: Spacing.xl, gap: Spacing.lg, alignItems: 'center', width: '100%' },
   verifiedBadgeGlow: { width: 96, height: 96, borderRadius: 48, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   pendingBadgeWrap: { width: 88, height: 88, borderRadius: 44, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
@@ -1206,12 +1149,11 @@ const styles = StyleSheet.create({
   errorCard: { width: '100%', borderRadius: 18, borderWidth: 1, padding: Spacing.md, flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   errorTitle: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
   errorSub: { fontSize: Typography.xs, lineHeight: 16, marginTop: 2 },
-  expectRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  expectIcon: { width: 38, height: 38, borderRadius: 13, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  expectCopy: { flex: 1, gap: 2 },
-  expectTitle: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
-  expectBody: { fontSize: Typography.xs, lineHeight: 16 },
-  smallPrint: { fontSize: 11, lineHeight: 15, textAlign: 'center' },
+  stateCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
+  stateIcon: { width: 76, height: 76, borderRadius: 38, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  stateTitle: { fontSize: 20, lineHeight: 26, fontFamily: Typography.currencySub.fontFamily, textAlign: 'center' },
+  stateBody: { fontSize: Typography.sm, lineHeight: 21, textAlign: 'center', maxWidth: 300 },
+  stateActions: { width: '100%', gap: 8, marginTop: 8 },
   webviewRoot: { flex: 1 },
   webviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: Spacing.md, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   webviewTitle: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
