@@ -13,6 +13,7 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts",
+    "build:runtime": "tsup src/index.ts --format cjs,esm --dts",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
     "lint": "tsc --noEmit"
   },

@@ -479,7 +479,7 @@ export default function KYCScreen() {
           >
             <ArrowLeft size={20} color={palette.text} />
           </Pressable>
-          <Text style={[styles.headerTitle, { color: palette.text }]}>Identity Verification</Text>
+          <Text style={[styles.headerTitle, { color: palette.text }]}>Verification</Text>
           <View style={styles.headerSpacer} />
         </View>
 
