@@ -62,6 +62,9 @@ export async function createBachsVirtualAccount(params: {
   email: string;
   firstName?: string;
   lastName?: string;
+  bvn?: string;
+  dob?: string;
+  phone?: string;
 }): Promise<BachsVirtualAccount> {
   if (!isBachsConfigured()) {
     throw new Error('[Bachs API] BACHS_SECRET_KEY is not configured');
@@ -84,7 +87,7 @@ export async function createBachsVirtualAccount(params: {
         country: 'NG',
         entity_type: 'individual',
         configuration: {
-          recipient: {
+          merchant: {
             capabilities: {
               virtual_accounts: { requested: true }
             }
@@ -100,6 +103,26 @@ export async function createBachsVirtualAccount(params: {
     if (!accountId) throw new Error('Bachs account creation returned no account id');
   } catch (err) {
     throw bachsError(err, 'Failed to create connected account');
+  }
+
+  if (params.bvn) {
+    try {
+      await bachs.post(
+        `/v1/accounts/${accountId}/persons`,
+        {
+          first_name: firstName,
+          last_name: lastName,
+          dob: params.dob,
+          phone: params.phone,
+          email: params.email,
+          id_number: params.bvn,
+          relationship: { representative: true }
+        },
+        { headers: authHeaders() }
+      );
+    } catch (err) {
+      throw bachsError(err, 'Failed to add Bachs account representative');
+    }
   }
 
   // 2. Fixed NGN virtual account for that connected account
@@ -130,6 +153,35 @@ export async function createBachsVirtualAccount(params: {
       status: data.status || 'active'
     };
   } catch (err) {
-    throw bachsError(err, 'Failed to create virtual account');
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    try {
+      const vaRes = await bachs.post(
+        '/v1/virtual-accounts',
+        { currency: 'NGN' },
+        { headers: authHeaders(accountId) }
+      );
+      const data = vaRes.data as {
+        id?: string;
+        account_number?: string;
+        account_name?: string | null;
+        bank_name?: string | null;
+        bank_code?: string | null;
+        status?: string;
+      };
+      if (!data?.account_number) {
+        throw new Error('Bachs virtual account creation returned no account number');
+      }
+      return {
+        accountNumber: data.account_number,
+        accountName: data.account_name || params.fullName,
+        bankName: data.bank_name || 'Bachs Bank',
+        bankCode: data.bank_code || '000',
+        provider: 'BACHS',
+        bachsAccountId: accountId,
+        status: data.status || 'active'
+      };
+    } catch (err2) {
+      throw bachsError(err2, 'Failed to create virtual account');
+    }
   }
 }

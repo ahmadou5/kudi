@@ -353,7 +353,10 @@ async function provisionVirtualAccount(params: {
         fullName: params.fullName,
         email: customerEmail,
         firstName: params.firstName,
-        lastName: params.lastName
+        lastName: params.lastName,
+        bvn: params.checkType === 'BVN' && params.idNumber ? params.idNumber : undefined,
+        dob: params.dob,
+        phone: params.phone
       });
       return {
         accountNumber: bachsAcc.accountNumber,
