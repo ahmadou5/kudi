@@ -1,5 +1,5 @@
+import 'dotenv/config';
 import Fastify from 'fastify';
-import dotenv from 'dotenv';
 import { CustodyManager } from '@kudi/chains';
 import { PaymentProviderRegistry } from '@kudi/payment-providers';
 import { PrivyClient } from '@kudi/provider-privy';
@@ -64,8 +64,6 @@ import { ReferralController } from './modules/referral/referral.controller';
 import { referralRoutes } from './modules/referral/referral.routes';
 
 import { Server as SocketIOServer, Socket } from 'socket.io';
-
-dotenv.config();
 
 // Initialize Sentry error monitoring & performance profiling
 initSentry(apiConfig);
@@ -282,12 +280,15 @@ async function main() {
   });
 
   const port = apiConfig.PORT;
-  await server.listen({ port, host: '0.0.0.0' });
 
+  // Register before listen() — Fastify rejects addHook() once the instance
+  // is already listening (FST_ERR_INSTANCE_ALREADY_LISTENING).
   payoutReconciler.start();
   server.addHook('onClose', async () => {
     payoutReconciler.stop();
   });
+
+  await server.listen({ port, host: '0.0.0.0' });
 
   rateService.onRateUpdate((rateState) => {
     io.emit('rate:updated', rateState);
