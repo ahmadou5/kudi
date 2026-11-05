@@ -42,7 +42,7 @@ export {
   MAX_DEPOSIT_USDC,
   SWEEP_RETRY_POLICY,
   computeSweepRetryDelay,
-  UNBACKED_SWEEP_STATUSES,
+  UNBACKED_CASHOUT_STATUSES,
   computeUnbackedExposure,
   resolveSweepAmount,
   resolveGasPaymentMode,

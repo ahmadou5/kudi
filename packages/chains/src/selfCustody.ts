@@ -106,12 +106,10 @@ export function computeSweepRetryDelay(attemptCount: number): Date {
   return new Date(Date.now() + delayMin * 60_000);
 }
 
-/** Deposit sweep statuses that represent credited-but-unbacked liability. */
-export const UNBACKED_SWEEP_STATUSES: readonly string[] = [
-  'SWEEP_PENDING',
-  'SWEEP_PROCESSING',
-  'SWEEP_FAILED',
-  'SWEEP_BLOCKED'
+/** Deposit cash-out statuses that represent credited-but-unbacked liability. */
+export const UNBACKED_CASHOUT_STATUSES: readonly string[] = [
+  'PENDING',
+  'FAILED'
 ];
 
 /**
@@ -120,14 +118,14 @@ export const UNBACKED_SWEEP_STATUSES: readonly string[] = [
  * without restructuring the reconciliation pipeline.
  */
 export function computeUnbackedExposure(
-  deposits: Array<{ sweepStatus?: string | null; amountUSDC?: number | string | null }>
+  deposits: Array<{ cashOutStatus?: string | null; amountUSDC?: number | string | null }>
 ): { totalUSDC: number; byStatus: Record<string, number> } {
   const byStatus: Record<string, number> = {};
   let totalUSDC = 0;
   for (const d of deposits) {
-    const status = d.sweepStatus ?? 'UNKNOWN';
+    const status = d.cashOutStatus ?? 'UNKNOWN';
     const amount = Number(d.amountUSDC ?? 0);
-    if (!UNBACKED_SWEEP_STATUSES.includes(status)) continue;
+    if (!UNBACKED_CASHOUT_STATUSES.includes(status)) continue;
     if (!Number.isFinite(amount) || amount <= 0) continue;
     byStatus[status] = (byStatus[status] ?? 0) + amount;
     totalUSDC += amount;

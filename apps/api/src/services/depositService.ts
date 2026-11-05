@@ -78,7 +78,14 @@ export class DepositService {
     rawAmount: unknown;
     signature: string;
     blockNumber?: number | null;
-    sweepStatus: string;
+    cashOutType?: string | null;
+    cashOutStatus: string;
+    cashOutTxHash?: string | null;
+    payoutTxId?: string | null;
+    payoutProvider?: string | null;
+    payoutBankCode?: string | null;
+    payoutAccount?: string | null;
+    payoutAmountNGN?: number | null;
     privyWalletId?: string | null;
   }): Promise<{ credited: boolean; newBalance: number; amount: number }> {
     const amount = parseDepositAmount(params.rawAmount);
@@ -153,7 +160,7 @@ export class DepositService {
       `;
 
       await tx.$executeRaw`
-        INSERT INTO "Deposit" (id, "userId", "walletAddress", chain, "tokenSymbol", "amountUSDC", signature, "blockNumber", "creditStatus", "sweepStatus", "privyWalletId", "sweepAttemptCount", "nextSweepAttemptAt", "creditedAt", "createdAt", "updatedAt")
+        INSERT INTO "Deposit" (id, "userId", "walletAddress", chain, "tokenSymbol", "amountUSDC", signature, "blockNumber", "creditStatus", "cashOutType", "cashOutStatus", "cashOutTxHash", "payoutTxId", "payoutProvider", "payoutBankCode", "payoutAccount", "payoutAmountNGN", "privyWalletId", "creditedAt", "createdAt", "updatedAt")
         VALUES (
           gen_random_uuid(),
           ${params.userId},
@@ -164,9 +171,15 @@ export class DepositService {
           ${params.signature},
           ${params.blockNumber ?? null},
           'CREDITED',
-          ${params.sweepStatus},
+          ${params.cashOutType ?? null},
+          ${params.cashOutStatus},
+          ${params.cashOutTxHash ?? null},
+          ${params.payoutTxId ?? null},
+          ${params.payoutProvider ?? null},
+          ${params.payoutBankCode ?? null},
+          ${params.payoutAccount ?? null},
+          ${params.payoutAmountNGN ?? null},
           ${params.privyWalletId ?? null},
-          0,
           NOW(),
           NOW(),
           NOW(),
@@ -271,7 +284,8 @@ export class DepositService {
               rawAmount: ev.amountUSDC,
               signature: ev.signature,
               blockNumber: ev.slot ?? null,
-              sweepStatus: !privyWalletId ? 'SWEEP_UNSUPPORTED' : 'SWEEP_PENDING',
+              cashOutType: !privyWalletId ? null : 'CRYPTO',
+              cashOutStatus: !privyWalletId ? 'SWEEP_UNSUPPORTED' : 'PENDING',
               privyWalletId: privyWalletId ?? null
             });
             if (!credited) continue;
@@ -338,7 +352,8 @@ export class DepositService {
               rawAmount: ev.amountToken,
               signature: ev.txHash,
               blockNumber: ev.blockNumber ?? null,
-              sweepStatus: !monadPrivyWalletId ? 'SWEEP_UNSUPPORTED' : 'SWEEP_PENDING',
+              cashOutType: !monadPrivyWalletId ? null : 'CRYPTO',
+              cashOutStatus: !monadPrivyWalletId ? 'SWEEP_UNSUPPORTED' : 'PENDING',
               privyWalletId: monadPrivyWalletId ?? null
             });
             if (!credited) continue;

@@ -61,7 +61,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   }
   if (moduleName === 'crypto') {
     return {
-      filePath: path.resolve(projectRoot, 'lib/crypto-shim.js'),
+      filePath: path.resolve(projectRoot, 'src/lib/crypto-shim.js'),
       type: 'sourceFile',
     };
   }

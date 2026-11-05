@@ -12,16 +12,13 @@ interface ReconciliationMetrics {
   totalLiabilityUSDC: number;
   totalAvailableUSDC: number;
   totalReservedUSDC: number;
-  pendingSweepUSDC: number;
-  processingSweepUSDC: number;
-  sweptUSDC: number;
-  sweepFailedUSDC: number;
-  floatExposureUSDC: number;
-  unsupportedSweepUSDC: number;
+  pendingCashOutUSDC: number;
+  confirmedCashOutUSDC: number;
+  failedCashOutUSDC: number;
+  unbackedExposureUSDC: number;
   pendingWithdrawalUSDC: number;
   processingWithdrawalUSDC: number;
   broadcastWithdrawalUSDC: number;
-  unbackedExposureUSDC: number;
 }
 
 const UNBACKED_STATUSES = ['SWEEP_PENDING', 'SWEEP_PROCESSING', 'SWEEP_FAILED', 'FLOAT_EXPOSURE', 'SWEEP_UNSUPPORTED'];
@@ -75,18 +72,20 @@ export async function recordReconciliationSnapshot(): Promise<ReconciliationMetr
     // Unbacked exposure = deposits credited but not yet swept to treasury
     const unbackedExposureUSDC = pendingSweepUSDC + processingSweepUSDC + sweepFailedUSDC + floatExposureUSDC + unsupportedSweepUSDC;
 
+    const pendingCashOutUSDC = pendingSweepUSDC;
+    const confirmedCashOutUSDC = sweptUSDC;
+    const failedCashOutUSDC = sweepFailedUSDC;
+
     await prisma.$executeRaw`
       INSERT INTO "ReconciliationSnapshot" (
         id,
         "totalLiabilityUSDC",
         "totalAvailableUSDC",
         "totalReservedUSDC",
-        "pendingSweepUSDC",
-        "processingSweepUSDC",
-        "sweptUSDC",
-        "sweepFailedUSDC",
-        "floatExposureUSDC",
-        "unsupportedSweepUSDC",
+        "pendingCashOutUSDC",
+        "confirmedCashOutUSDC",
+        "failedCashOutUSDC",
+        "unbackedExposureUSDC",
         "pendingWithdrawalUSDC",
         "processingWithdrawalUSDC",
         "broadcastWithdrawalUSDC",
@@ -97,12 +96,10 @@ export async function recordReconciliationSnapshot(): Promise<ReconciliationMetr
         ${totalLiabilityUSDC},
         ${totalAvailableUSDC},
         ${totalReservedUSDC},
-        ${pendingSweepUSDC},
-        ${processingSweepUSDC},
-        ${sweptUSDC},
-        ${sweepFailedUSDC},
-        ${floatExposureUSDC},
-        ${unsupportedSweepUSDC},
+        ${pendingCashOutUSDC},
+        ${confirmedCashOutUSDC},
+        ${failedCashOutUSDC},
+        ${unbackedExposureUSDC},
         ${pendingWithdrawalUSDC},
         ${processingWithdrawalUSDC},
         ${broadcastWithdrawalUSDC},
@@ -138,16 +135,13 @@ export async function recordReconciliationSnapshot(): Promise<ReconciliationMetr
       totalLiabilityUSDC,
       totalAvailableUSDC,
       totalReservedUSDC,
-      pendingSweepUSDC,
-      processingSweepUSDC,
-      sweptUSDC,
-      sweepFailedUSDC,
-      floatExposureUSDC,
-      unsupportedSweepUSDC,
+      pendingCashOutUSDC,
+      confirmedCashOutUSDC,
+      failedCashOutUSDC,
+      unbackedExposureUSDC,
       pendingWithdrawalUSDC,
       processingWithdrawalUSDC,
-      broadcastWithdrawalUSDC,
-      unbackedExposureUSDC
+      broadcastWithdrawalUSDC
     };
   } catch (err: any) {
     console.error('[Reconciliation] Snapshot failed:', err?.message || err);

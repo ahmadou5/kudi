@@ -1,41 +1,22 @@
 import { KudiSDK } from '@kudi/sdk';
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
+
+const PRODUCTION_API_URL = 'https://kudi-api-production.up.railway.app';
 
 function getApiBaseUrl(): string {
-  let envUrl = process.env.EXPO_PUBLIC_API_URL;
+  const envUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
   if (envUrl) {
-    envUrl = envUrl.trim();
-    if (envUrl.startsWith('hhttps://')) {
-      envUrl = envUrl.replace('hhttps://', 'https://');
-    }
-    return envUrl;
+    const normalized = envUrl.startsWith('hhttps://')
+      ? envUrl.replace('hhttps://', 'https://')
+      : envUrl;
+    return normalized.replace(/\/+$/, '');
   }
-
-  // In Expo Go or development, extract the host machine IP address
-  const hostUri =
-    Constants.expoConfig?.hostUri ||
-    (Constants as any).manifest?.debuggerHost ||
-    (Constants as any).manifest2?.extra?.expoGo?.debuggerHost;
-
-  if (hostUri) {
-    const hostIp = hostUri.split(':')[0];
-    if (hostIp && hostIp !== 'localhost' && hostIp !== '127.0.0.1') {
-      return `http://${hostIp}:4000`;
-    }
-  }
-
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:4000';
-  }
-
-  return 'http://localhost:4000';
+  return PRODUCTION_API_URL;
 }
 
 export const API_BASE_URL = getApiBaseUrl();
-console.log('[Kudi SDK] Target API_BASE_URL:', API_BASE_URL);
+console.log('[Kudi SDK] Target API_BASE_URL:', PRODUCTION_API_URL);
 
 // Export single shared SDK instance across the app
 export const sdk = new KudiSDK({
-  baseUrl: API_BASE_URL
+  baseUrl: PRODUCTION_API_URL
 });

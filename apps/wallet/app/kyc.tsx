@@ -12,12 +12,12 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { WebView } from 'react-native-webview';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   AlertCircle,
   BadgeInfo,
   ArrowLeft,
   Check,
-  CheckCircle2,
   Copy,
   RefreshCw,
   ShieldCheck,
@@ -68,6 +68,7 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 export default function KYCScreen() {
   const palette = useAppPalette();
   const modal = useAppModal();
+  const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const accessToken = useAuthStore((s) => s.accessToken);
   const { data: profileData, isLoading: profileLoading, refetch: refetchProfile } = useUserProfile();
@@ -641,7 +642,7 @@ export default function KYCScreen() {
     return (
       <ScrollView
         style={[styles.screen, { backgroundColor: palette.bg }]}
-        contentContainerStyle={{ flexGrow: 1, padding: Spacing.lg, paddingBottom: Spacing.xxl }}
+        contentContainerStyle={{ flexGrow: 1, padding: Spacing.md, paddingBottom: Spacing.xxl }}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerRow}>
@@ -721,7 +722,7 @@ export default function KYCScreen() {
       <View
         style={[
           styles.screen,
-          { backgroundColor: palette.bg, paddingHorizontal: Spacing.lg, paddingTop: 48, paddingBottom: 40 },
+          { backgroundColor: palette.bg, paddingHorizontal: Spacing.md, paddingTop: 38, paddingBottom: 40 },
         ]}
       >
         <View style={styles.headerRow}>
@@ -947,7 +948,7 @@ export default function KYCScreen() {
         onRequestClose={closeWebviewToPolling}
       >
         <View style={[styles.webviewRoot, { backgroundColor: palette.bg }]}>
-          <View style={[styles.webviewHeader, { backgroundColor: palette.card, borderBottomColor: palette.border }]}>
+          <View style={[styles.webviewHeader, { backgroundColor: palette.card, borderBottomColor: palette.border, paddingTop: insets.top + 12 }]}>
             <Pressable
               onPress={closeWebviewToPolling}
               style={[styles.closeIconButton, { backgroundColor: palette.bg, borderColor: palette.border }]}
@@ -990,7 +991,7 @@ export default function KYCScreen() {
                   setWebviewError(`The verification page returned an error (${e.nativeEvent.statusCode}).`)
                 }
                 onMessage={handleWebviewMessage}
-                style={{ backgroundColor: palette.bg }}
+                style={{ flex: 1, backgroundColor: palette.bg }}
               />
             ) : null}
 
@@ -1041,28 +1042,6 @@ export default function KYCScreen() {
               </View>
             ) : null}
           </View>
-
-          <View style={[styles.webviewFooter, { backgroundColor: palette.card, borderTopColor: palette.border }]}>
-            <Text style={[styles.webviewFooterHint, { color: palette.textSecondary }]}>
-              {sessionProvider === 'SUMSUB'
-                ? 'Your result is delivered automatically when you finish, or tap below.'
-                : 'Finished the flow above? Tap below so we can confirm your result.'}
-            </Text>
-            <Pressable
-              onPress={closeWebviewToPolling}
-              disabled={checking}
-              style={({ pressed }) => [
-                styles.primaryAction,
-                { backgroundColor: checking ? palette.border : palette.primary },
-                pressed && !checking ? { opacity: 0.9 } : null,
-              ]}
-            >
-              <CheckCircle2 size={18} color="#FFF" />
-              <Text style={styles.primaryActionText}>
-                {checking ? 'Confirming\u2026' : 'I\u2019ve completed verification'}
-              </Text>
-            </Pressable>
-          </View>
         </View>
       </Modal>
     </ScrollView>
@@ -1087,7 +1066,7 @@ function KycSkeleton({ palette }: { palette: any }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { paddingHorizontal: Spacing.lg, paddingTop: 48, gap: Spacing.lg, paddingBottom: 60 },
+  content: { paddingHorizontal: Spacing.md, paddingTop: 38, gap: Spacing.lg, paddingBottom: 60 },
   headerRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 14 },
   headerTitle: { ...Typography.title1 },
   backButton: { width: 40, height: 40, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
@@ -1155,11 +1134,9 @@ const styles = StyleSheet.create({
   stateBody: { fontSize: Typography.sm, lineHeight: 21, textAlign: 'center', maxWidth: 300 },
   stateActions: { width: '100%', gap: 8, marginTop: 8 },
   webviewRoot: { flex: 1 },
-  webviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: Spacing.md, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  webviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: Spacing.md, paddingTop: 12, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   webviewTitle: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
   webviewSubtitle: { fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase', marginTop: 1 },
-  webviewFooter: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, gap: 10, borderTopWidth: StyleSheet.hairlineWidth },
-  webviewFooterHint: { fontSize: Typography.xs, lineHeight: 16, textAlign: 'center' },
   webviewOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: Spacing.xl, zIndex: 2 },
   webviewOverlayText: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily, textAlign: 'center' },
   webviewOverlaySub: { fontSize: Typography.xs, lineHeight: 16, textAlign: 'center' },
