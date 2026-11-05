@@ -44,7 +44,7 @@ export class KudiSDK {
   private authHandlers: KudiAuthHandlers = {};
   private refreshInFlight: Promise<boolean> | null = null;
 
-  constructor(config: KudiClientConfig = { baseUrl: 'https://kudiapi-production.up.railway.app' }) {
+  constructor(config: KudiClientConfig = { baseUrl: 'https://kudi-api-production.up.railway.app' }) {
     let cleanUrl = (config?.baseUrl || '').trim().replace(/\/$/, '');
     if (cleanUrl.startsWith('hhttps://')) {
       cleanUrl = cleanUrl.replace('hhttps://', 'https://');

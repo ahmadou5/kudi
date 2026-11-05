@@ -65,10 +65,9 @@ export class AdminController {
 
   private async generateSweepAlerts(): Promise<void> {
     const exhaustedRows: any[] = await prisma.$queryRaw`
-      SELECT signature, "amountUSDC", chain, "sweepStatus", "sweepError", "sweepAttemptCount"
+      SELECT signature, "amountUSDC", chain, "cashOutStatus", "createdAt"
       FROM "Deposit"
-      WHERE "sweepStatus" IN ('SWEEP_FAILED', 'SWEEP_BLOCKED')
-        AND "sweepAttemptCount" >= 4
+      WHERE "cashOutStatus" IN ('FAILED', 'BLOCKED')
       ORDER BY "updatedAt" DESC
       LIMIT 50
     `;
@@ -78,26 +77,25 @@ export class AdminController {
         type: 'SWEEP_EXHAUSTED',
         severity: 'HIGH',
         title: 'Deposit sweep retry exhausted',
-        body: `${row.chain} deposit ${row.signature} is ${row.sweepStatus} after ${row.sweepAttemptCount} attempts`,
+        body: `${row.chain} deposit ${row.signature} is ${row.cashOutStatus}`,
         reference: row.signature,
         metadata: {
           amountUSDC: Number(row.amountUSDC || 0),
           chain: row.chain,
-          sweepStatus: row.sweepStatus,
-          sweepError: row.sweepError
+          sweepStatus: row.cashOutStatus
         }
       });
     }
 
     const driftRows: any[] = await prisma.$queryRaw`
-      SELECT "totalLiabilityUSDC", "pendingSweepUSDC", "sweepFailedUSDC", "floatExposureUSDC", "unsupportedSweepUSDC", "createdAt"
+      SELECT "totalLiabilityUSDC", "pendingCashOutUSDC", "failedCashOutUSDC", "unbackedExposureUSDC", "createdAt"
       FROM "ReconciliationSnapshot"
       ORDER BY "createdAt" DESC
       LIMIT 1
     `;
     const latest = driftRows[0];
     if (latest) {
-      const exposed = Number(latest.pendingSweepUSDC || 0) + Number(latest.sweepFailedUSDC || 0) + Number(latest.floatExposureUSDC || 0) + Number(latest.unsupportedSweepUSDC || 0);
+      const exposed = Number(latest.unbackedExposureUSDC || 0);
       if (exposed > 0) {
         await this.upsertOperatorAlert({
           type: 'TREASURY_EXPOSURE',
@@ -734,32 +732,32 @@ export class AdminController {
   public getSweepHealth = async (request: FastifyRequest, reply: FastifyReply) => {
     const summaryRows: any[] = await prisma.$queryRaw`
       SELECT
-        COALESCE(SUM(CASE WHEN "sweepStatus" = 'SWEEP_PENDING' THEN "amountUSDC" ELSE 0 END), 0) AS "pendingUSDC",
-        COALESCE(SUM(CASE WHEN "sweepStatus" = 'SWEEP_PROCESSING' THEN "amountUSDC" ELSE 0 END), 0) AS "processingUSDC",
-        COALESCE(SUM(CASE WHEN "sweepStatus" = 'SWEPT' THEN "amountUSDC" ELSE 0 END), 0) AS "sweptUSDC",
-        COALESCE(SUM(CASE WHEN "sweepStatus" = 'SWEEP_FAILED' THEN "amountUSDC" ELSE 0 END), 0) AS "failedUSDC",
-        COALESCE(SUM(CASE WHEN "sweepStatus" = 'SWEEP_BLOCKED' THEN "amountUSDC" ELSE 0 END), 0) AS "blockedUSDC",
-        COALESCE(SUM(CASE WHEN "sweepStatus" = 'FLOAT_EXPOSURE' THEN "amountUSDC" ELSE 0 END), 0) AS "floatExposureUSDC",
-        COALESCE(SUM(CASE WHEN "sweepStatus" = 'SWEEP_UNSUPPORTED' THEN "amountUSDC" ELSE 0 END), 0) AS "unsupportedUSDC",
+        COALESCE(SUM(CASE WHEN "cashOutStatus" = 'PENDING' THEN "amountUSDC" ELSE 0 END), 0) AS "pendingUSDC",
+        COALESCE(SUM(CASE WHEN "cashOutStatus" = 'PENDING' THEN "amountUSDC" ELSE 0 END), 0) AS "processingUSDC",
+        COALESCE(SUM(CASE WHEN "cashOutStatus" = 'CONFIRMED' THEN "amountUSDC" ELSE 0 END), 0) AS "sweptUSDC",
+        COALESCE(SUM(CASE WHEN "cashOutStatus" = 'FAILED' THEN "amountUSDC" ELSE 0 END), 0) AS "failedUSDC",
+        COALESCE(SUM(CASE WHEN "cashOutStatus" = 'FAILED' THEN "amountUSDC" ELSE 0 END), 0) AS "blockedUSDC",
+        0::NUMERIC AS "floatExposureUSDC",
+        0::NUMERIC AS "unsupportedUSDC",
         COUNT(*)::int AS "totalDeposits",
-        COALESCE(SUM(CASE WHEN "sweepStatus" IN ('SWEEP_FAILED', 'SWEEP_BLOCKED') AND "sweepAttemptCount" >= 4 THEN 1 ELSE 0 END), 0)::int AS "exhaustedCount"
+        0::int AS "exhaustedCount"
       FROM "Deposit"
     `;
 
     const exhaustedRows: any[] = await prisma.$queryRaw`
       SELECT
-        id, "userId", chain, "tokenSymbol", "amountUSDC", signature, "sweepStatus", "sweepError",
-        "sweepAttemptCount", "nextSweepAttemptAt", "createdAt"
+        id, "userId", chain, "tokenSymbol", "amountUSDC", signature, "cashOutStatus", "cashOutTxHash",
+        "cashOutType", "payoutTxId", "payoutProvider", "payoutBankCode", "payoutAccount", "payoutAmountNGN",
+        "createdAt"
       FROM "Deposit"
-      WHERE "sweepStatus" IN ('SWEEP_FAILED', 'SWEEP_BLOCKED')
-        AND "sweepAttemptCount" >= 4
+      WHERE "cashOutStatus" IN ('FAILED', 'BLOCKED')
       ORDER BY "updatedAt" DESC
       LIMIT 50
     `;
 
     const accessibilityRows: any[] = await prisma.$queryRaw`
       SELECT
-        d."sweepStatus",
+        d."cashOutStatus",
         d.chain,
         CASE
           WHEN w."privyWalletId" IS NULL THEN 'NO_PRIVY_WALLET_ID'
@@ -770,16 +768,15 @@ export class AdminController {
         COALESCE(SUM(d."amountUSDC"), 0) AS "amountUSDC"
       FROM "Deposit" d
       LEFT JOIN "Wallet" w ON w.address = d."walletAddress"
-      WHERE d."sweepStatus" <> 'SWEPT'
-      GROUP BY d."sweepStatus", d.chain, "accessMode"
-      ORDER BY d."sweepStatus", d.chain, "accessMode"
+      WHERE d."cashOutStatus" IS NOT NULL
+      GROUP BY d."cashOutStatus", d.chain, "accessMode"
+      ORDER BY d."cashOutStatus", d.chain, "accessMode"
     `;
 
     const staleProcessingRows: any[] = await prisma.$queryRaw`
-      SELECT id, "userId", chain, "tokenSymbol", "amountUSDC", signature, "sweepAttemptCount", "updatedAt", "createdAt"
+      SELECT id, "userId", chain, "tokenSymbol", "amountUSDC", signature, "cashOutStatus", "updatedAt", "createdAt"
       FROM "Deposit"
-      WHERE "sweepStatus" = 'SWEEP_PROCESSING'
-        AND "sweptAt" IS NULL
+      WHERE "cashOutStatus" = 'PENDING'
         AND "updatedAt" < NOW() - INTERVAL '10 minutes'
       ORDER BY "updatedAt" ASC
       LIMIT 50
@@ -840,14 +837,11 @@ export class AdminController {
 
     const rows: Array<{ signature: string }> = await prisma.$queryRaw`
       UPDATE "Deposit"
-      SET "sweepStatus" = 'SWEEP_PENDING',
-          "sweepAttemptCount" = 0,
-          "nextSweepAttemptAt" = NOW(),
-          "sweepError" = NULL,
+      SET "cashOutStatus" = 'PENDING',
           "updatedAt" = NOW()
       WHERE signature = ${signature}
-        AND "sweepStatus" IN ('SWEEP_FAILED', 'SWEEP_BLOCKED')
-        AND "sweptAt" IS NULL
+        AND "cashOutStatus" IN ('FAILED', 'BLOCKED')
+        AND "cashOutStatus" IS NOT NULL
       RETURNING signature
     `;
 
@@ -877,14 +871,12 @@ export class AdminController {
 
     const rows: Array<{ signature: string; sweepStatus: string }> = await prisma.$queryRaw`
       UPDATE "Deposit"
-      SET "sweepStatus" = 'SWEEP_PENDING',
-          "nextSweepAttemptAt" = NOW(),
-          "sweepError" = NULL,
+      SET "cashOutStatus" = 'PENDING',
           "updatedAt" = NOW()
       WHERE signature = ${signature}
-        AND "sweptAt" IS NULL
-        AND "sweepStatus" <> 'SWEPT'
-      RETURNING signature, "sweepStatus"
+        AND "cashOutStatus" IS NOT NULL
+        AND "cashOutStatus" <> 'CONFIRMED'
+      RETURNING signature, "cashOutStatus"
     `;
 
     if (rows.length === 0) {
@@ -995,7 +987,7 @@ export class AdminController {
     const [userStats, balanceStats, depositStats, recentDeposits, recentTransactions] = await Promise.all([
       prisma.$queryRawUnsafe<any[]>("SELECT COUNT(*)::int AS total, COALESCE(SUM(CASE WHEN \"kycTier\" = 'TIER_1' THEN 1 ELSE 0 END), 0)::int AS tier1, COALESCE(SUM(CASE WHEN \"kycTier\" = 'TIER_2' THEN 1 ELSE 0 END), 0)::int AS tier2, COALESCE(SUM(CASE WHEN \"kycStatus\" = 'VERIFIED' THEN 1 ELSE 0 END), 0)::int AS verified FROM \"User\""),
       prisma.$queryRawUnsafe<any[]>("SELECT COALESCE(SUM(\"availableUSDC\"), 0) AS \"availableUSDC\", COUNT(*)::int AS wallets FROM \"BalanceAccount\""),
-      prisma.$queryRawUnsafe<any[]>("SELECT COALESCE(SUM(\"amountUSDC\"), 0) AS \"depositUSDC\", COUNT(*)::int AS count, COALESCE(SUM(CASE WHEN \"sweepStatus\" = 'SWEPT' THEN COALESCE(\"sweptAmountUSDC\", \"amountUSDC\") ELSE 0 END), 0) AS \"sweptUSDC\", COALESCE(SUM(CASE WHEN \"sweepStatus\" <> 'SWEPT' THEN \"amountUSDC\" ELSE 0 END), 0) AS \"unsweptUSDC\" FROM \"Deposit\" WHERE \"createdAt\" >= NOW() - INTERVAL '24 hours'"),
+      prisma.$queryRawUnsafe<any[]>("SELECT COALESCE(SUM(\"amountUSDC\"), 0) AS \"depositUSDC\", COUNT(*)::int AS count, COALESCE(SUM(CASE WHEN \"cashOutStatus\" = 'CONFIRMED' THEN \"amountUSDC\" ELSE 0 END), 0) AS \"sweptUSDC\", COALESCE(SUM(CASE WHEN \"cashOutStatus\" IS NULL OR \"cashOutStatus\" = 'PENDING' THEN \"amountUSDC\" ELSE 0 END), 0) AS \"unsweptUSDC\" FROM \"Deposit\" WHERE \"createdAt\" >= NOW() - INTERVAL '24 hours'"),
       prisma.$queryRawUnsafe<any[]>("SELECT d.id, d.\"userId\", COALESCE(u.\"fullName\", u.email, u.\"phoneNumber\", d.\"userId\") AS \"userName\", d.chain, d.\"tokenSymbol\", d.\"amountUSDC\", d.signature, d.\"blockNumber\", d.\"creditStatus\", d.\"sweepStatus\", d.\"sweepTxHash\", d.\"sweepError\", d.\"sweepAttemptCount\", d.\"nextSweepAttemptAt\", d.\"sweptAt\", d.\"createdAt\" FROM \"Deposit\" d LEFT JOIN \"User\" u ON u.id = d.\"userId\" ORDER BY d.\"createdAt\" DESC LIMIT 10"),
       prisma.$queryRawUnsafe<any[]>("SELECT le.id, le.\"referenceId\", le.\"userId\", COALESCE(u.\"fullName\", u.email, u.\"phoneNumber\", le.\"userId\") AS \"userName\", u.email AS \"userEmail\", le.type, le.\"amountUSDC\", le.\"createdAt\", d.\"sweepStatus\", d.\"sweepTxHash\", d.\"sweepError\", d.\"sweepAttemptCount\" FROM \"LedgerEntry\" le LEFT JOIN \"User\" u ON u.id = le.\"userId\" LEFT JOIN \"Deposit\" d ON d.signature = le.\"referenceId\" ORDER BY le.\"createdAt\" DESC LIMIT 10")
     ]);

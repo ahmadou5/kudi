@@ -146,21 +146,21 @@ export function TransactionResultModal({
   const tone =
     type === 'success'
       ? {
-          soft: hexToRgba(palette.success, 0.12),
-          ring: hexToRgba(palette.success, 0.2),
-          accent: palette.success
-        }
+        soft: hexToRgba(palette.success, 0.12),
+        ring: hexToRgba(palette.success, 0.2),
+        accent: palette.success
+      }
       : type === 'failed'
         ? {
-            soft: hexToRgba(palette.error, 0.12),
-            ring: hexToRgba(palette.error, 0.2),
-            accent: palette.error
-          }
+          soft: hexToRgba(palette.error, 0.12),
+          ring: hexToRgba(palette.error, 0.2),
+          accent: palette.error
+        }
         : {
-            soft: hexToRgba(palette.warning, 0.12),
-            ring: hexToRgba(palette.warning, 0.2),
-            accent: palette.warning
-          };
+          soft: hexToRgba(palette.warning, 0.12),
+          ring: hexToRgba(palette.warning, 0.2),
+          accent: palette.warning
+        };
 
   const detailRows: Array<{ label: string; value: string }> = [];
   if (amount) detailRows.push({ label: 'Amount', value: amount });
@@ -174,12 +174,7 @@ export function TransactionResultModal({
         <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
           <View style={styles.topBarSide} />
           <View style={styles.brandRow}>
-            <Image
-              source={require('../../assets/logos/usdc.png')}
-              style={styles.brandLogo}
-              resizeMode="contain"
-            />
-            <Text style={[styles.brandText, { color: palette.text }]}>Kudi</Text>
+
           </View>
           <View style={styles.topBarSide}>
             <Pressable
@@ -236,7 +231,7 @@ export function TransactionResultModal({
                 glowColor={hexToRgba(tone.accent, isDark ? 0.1 : 0.07)}
                 isDarkOverride={isDark}
               />
-              <TransactionTrack type={type} active={visible} />
+              <TransactionTrack type={type} title="Status" active={visible} />
             </View>
           </Animated.View>
 

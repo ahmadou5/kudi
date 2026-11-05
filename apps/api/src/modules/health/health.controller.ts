@@ -4,7 +4,7 @@ import { PaymentProviderRegistry } from '@kudi/payment-providers';
 import { apiConfig } from '@kudi/config';
 import { prisma } from '../../lib/prisma';
 import { MaintenanceService } from '../../services/maintenanceService';
-import { computeUnbackedExposure, UNBACKED_SWEEP_STATUSES } from '@kudi/chains';
+import { computeUnbackedExposure, UNBACKED_CASHOUT_STATUSES } from '@kudi/chains';
 
 export class HealthController {
   constructor(
@@ -66,23 +66,23 @@ export class HealthController {
 
   public getSweepHealth = async (_request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const rows: Array<{ sweepStatus: string; amountUSDC: number | string | null }> = await prisma.$queryRaw`
-        SELECT "sweepStatus", "amountUSDC"
+      const rows: Array<{ cashOutStatus: string; amountUSDC: number | string | null }> = await prisma.$queryRaw`
+        SELECT "cashOutStatus", "amountUSDC"
         FROM "Deposit"
-        WHERE "sweepStatus" = ANY(${UNBACKED_SWEEP_STATUSES})
+        WHERE "cashOutStatus" = ANY(${UNBACKED_CASHOUT_STATUSES})
       `;
 
       const { totalUSDC, byStatus } = computeUnbackedExposure(rows);
 
-      const statusCounts: Array<{ sweepStatus: string; count: string }> = await prisma.$queryRaw`
-        SELECT "sweepStatus", COUNT(*)::int AS count
+      const statusCounts: Array<{ cashOutStatus: string; count: string }> = await prisma.$queryRaw`
+        SELECT "cashOutStatus", COUNT(*)::int AS count
         FROM "Deposit"
-        GROUP BY "sweepStatus"
+        GROUP BY "cashOutStatus"
       `;
 
       const counts: Record<string, number> = {};
       for (const r of statusCounts) {
-        counts[r.sweepStatus] = Number(r.count);
+        counts[r.cashOutStatus] = Number(r.count);
       }
 
       const latestSnapshot: Array<{ unbackedExposureUSDC: number; createdAt: Date }> = await prisma.$queryRaw`
@@ -98,13 +98,13 @@ export class HealthController {
         success: true,
         data: {
           sweepQueue: {
-            pending: counts['SWEEP_PENDING'] ?? 0,
-            processing: counts['SWEEP_PROCESSING'] ?? 0,
-            failed: counts['SWEEP_FAILED'] ?? 0,
-            blocked: counts['SWEEP_BLOCKED'] ?? 0,
-            swept: counts['SWEPT'] ?? 0,
-            floatExposure: counts['FLOAT_EXPOSURE'] ?? 0,
-            unsupported: counts['SWEEP_UNSUPPORTED'] ?? 0
+            pending: counts['PENDING'] ?? 0,
+            processing: counts['PENDING'] ?? 0,
+            failed: counts['FAILED'] ?? 0,
+            blocked: counts['FAILED'] ?? 0,
+            swept: counts['CONFIRMED'] ?? 0,
+            floatExposure: 0,
+            unsupported: 0
           },
           unbackedExposureUSDC: totalUSDC,
           unbackedByStatus: byStatus,
@@ -122,4 +122,3 @@ export class HealthController {
     }
   };
 }
-
