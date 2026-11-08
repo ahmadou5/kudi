@@ -29,6 +29,7 @@ import Animated, {
 import { useAppPalette, hexToRgba } from '../src/lib/theme';
 import { Typography } from '../src/constants/typography';
 import { ChainLogo } from '../src/components/ui/ChainLogo';
+import { BankLogo } from '../src/components/wallet/BankPickerModal';
 import { CardBackgroundPattern } from '../src/components/ui/CardBackgroundPattern';
 import { TransactionTrack } from '../src/components/ui/TransactionTrack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -51,6 +52,10 @@ type TransactionDetailsParams = {
     ref?: string;
     id?: string;
     txHash?: string;
+    direction?: string;
+    provider?: string;
+    bankName?: string;
+    bankCode?: string;
 };
 
 export default function TransactionDetailsScreen() {
@@ -131,6 +136,11 @@ export default function TransactionDetailsScreen() {
     const isDeposit = params.isDeposit === 'true' || amount.startsWith('+');
     const chain = params.chain || '';
     const tokenSymbol = params.tokenSymbol || (amount.includes('AUSD') ? 'AUSD' : 'USDC');
+    const direction = (params.direction as 'deposit' | 'send' | 'payout') || (isDeposit ? 'deposit' : 'send');
+    const isPayout = direction === 'payout';
+    const provider = params.provider || '';
+    const bankName = params.bankName || '';
+    const bankCode = params.bankCode || '';
     const txHash = params.txHash || (params.ref && (params.ref.startsWith('0x') || params.ref.length > 25) ? params.ref : '');
     const ref = txHash || params.ref || params.id || 'REF_UNKNOWN';
 
@@ -141,10 +151,14 @@ export default function TransactionDetailsScreen() {
     let tokenLogo = require('../assets/logos/usdc.png');
     if (isMonad) {
         tokenLogo = require('../assets/logos/ausd.png');
-    } else if (title.toLowerCase().includes('gtbank') || subtitle.toLowerCase().includes('gtbank')) {
-        tokenLogo = require('../assets/logos/gtbank.png');
-    } else if (title.toLowerCase().includes('zenith') || subtitle.toLowerCase().includes('zenith')) {
-        tokenLogo = require('../assets/logos/zenith.png');
+    } else if (!isPayout) {
+        if (title.toLowerCase().includes('gtbank') || subtitle.toLowerCase().includes('gtbank')) {
+            tokenLogo = require('../assets/logos/gtbank.png');
+        } else if (title.toLowerCase().includes('zenith') || subtitle.toLowerCase().includes('zenith')) {
+            tokenLogo = require('../assets/logos/zenith.png');
+        } else if (tokenSymbol === 'AUSD') {
+            tokenLogo = require('../assets/logos/ausd.png');
+        }
     }
 
     // Explorer link construction
@@ -219,14 +233,20 @@ export default function TransactionDetailsScreen() {
                         />
                         {/* Dual Token + Chain Badge Avatar */}
                         <View style={styles.avatarWrapper}>
-                            <View style={[styles.tokenLogoCircle, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: palette.border }]}>
-                                <Image source={tokenLogo} style={styles.tokenLogoImg} resizeMode="contain" />
-                            </View>
+                            {isPayout ? (
+                                <BankLogo name={bankName || 'Bank'} bankCode={bankCode || undefined} size={44} />
+                            ) : (
+                                <>
+                                    <View style={[styles.tokenLogoCircle, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: palette.border }]}>
+                                        <Image source={tokenLogo} style={styles.tokenLogoImg} resizeMode="contain" />
+                                    </View>
 
-                            {(isMonad || isSolana) && (
-                                <View style={[styles.chainBadgeCircle, { backgroundColor: palette.card, borderColor: palette.card }]}>
-                                    <ChainLogo chain={isMonad ? 'monad' : 'solana'} size={20} />
-                                </View>
+                                    {(isMonad || isSolana) && (
+                                        <View style={[styles.chainBadgeCircle, { backgroundColor: palette.card, borderColor: palette.card }]}>
+                                            <ChainLogo chain={isMonad ? 'monad' : 'solana'} size={20} />
+                                        </View>
+                                    )}
+                                </>
                             )}
                         </View>
 
@@ -261,7 +281,7 @@ export default function TransactionDetailsScreen() {
 
                 {/* TRANSACTION STATUS TRACKER LINE - Only displayed for spend / outgoing transactions */}
                 <EnterSection index={1}>
-                    {!isDeposit && (
+                    {direction !== 'deposit' && (
                         <View style={[styles.trackerCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
                             <CardBackgroundPattern
                                 glowColor={hexToRgba(statusColor, isDark ? 0.1 : 0.07)}
@@ -310,7 +330,7 @@ export default function TransactionDetailsScreen() {
                             <View style={styles.rowRightGroup}>
                                 {(isMonad || isSolana) && <ChainLogo chain={isMonad ? 'monad' : 'solana'} size={16} />}
                                 <Text style={[Typography.bodyBold, { color: palette.text }]} numberOfLines={1}>
-                                    {isMonad ? 'Monad Testnet' : isSolana ? 'Solana Devnet' : 'Bank Payout (NGN)'}
+                                    {isMonad ? 'Monad Testnet' : isSolana ? 'Solana Devnet' : direction === 'payout' ? (bankName || `Bank Transfer (${tokenSymbol})`) : 'Bank Transfer'}
                                 </Text>
                             </View>
                         </View>

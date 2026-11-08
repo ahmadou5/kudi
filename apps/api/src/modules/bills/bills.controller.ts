@@ -5,7 +5,7 @@ import { errorResponse, successResponse } from '../../utils/response';
 import { generateReference } from '../../utils/hash';
 import { getAuthenticatedUser } from '../../utils/authGuards';
 import { KYCTier } from '@kudi/types';
-import { buildDailyLimitCheck, formatDailyLimitMessage, parseDailyLimitError } from '../../utils/dailyLimits';
+import { buildDailyLimitCheck, buildSingleLimitCheck, formatDailyLimitMessage, formatSingleLimitMessage, parseDailyLimitError } from '../../utils/dailyLimits';
 
 export class BillsController {
   constructor(
@@ -33,6 +33,14 @@ export class BillsController {
     const user = this.ledgerService.getUser(userId);
     const tier = user?.kycTier || KYCTier.UNVERIFIED;
     const dailyLimit = { ...buildDailyLimitCheck(tier, amountUSDC, currentRate), sourceType: 'BILL_PAYMENT' };
+    const singleLimitCheck = buildSingleLimitCheck(tier, dailyLimit.amountNGN);
+    if (singleLimitCheck.singleLimitNGN <= 0 || singleLimitCheck.amountNGN > singleLimitCheck.singleLimitNGN) {
+      return reply.status(403).send(errorResponse(
+        'SINGLE_LIMIT_EXCEEDED',
+        formatSingleLimitMessage(singleLimitCheck.amountNGN, singleLimitCheck.singleLimitNGN, tier),
+        403
+      ));
+    }
     const reference = generateReference('BILL');
 
     try {

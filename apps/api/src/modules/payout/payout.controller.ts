@@ -8,7 +8,7 @@ import { RateService } from '../../services/rateService';
 import { errorResponse, successResponse } from '../../utils/response';
 import { verifyPin, generateReference } from '../../utils/hash';
 import { getAuthenticatedUser } from '../../utils/authGuards';
-import { buildDailyLimitCheck, formatDailyLimitMessage, parseDailyLimitError } from '../../utils/dailyLimits';
+import { buildDailyLimitCheck, buildSingleLimitCheck, formatDailyLimitMessage, formatSingleLimitMessage, parseDailyLimitError } from '../../utils/dailyLimits';
 import { SolanaListener, SelfCustodyProvider, resolveGasPaymentMode } from '@kudi/chains';
 import { prisma } from '@kudi/database';
 import { apiConfig } from '@kudi/config';
@@ -59,6 +59,15 @@ export class PayoutController {
     const tier = user?.kycTier || KYCTier.UNVERIFIED;
     const dailyLimit = { ...buildDailyLimitCheck(tier, amountUSDC, currentRate), sourceType: 'BANK_PAYOUT' };
     const amountNGN = dailyLimit.amountNGN;
+
+    const singleLimitCheck = buildSingleLimitCheck(tier, amountNGN);
+    if (singleLimitCheck.singleLimitNGN <= 0 || singleLimitCheck.amountNGN > singleLimitCheck.singleLimitNGN) {
+      return reply.status(403).send(errorResponse(
+        'SINGLE_LIMIT_EXCEEDED',
+        formatSingleLimitMessage(singleLimitCheck.amountNGN, singleLimitCheck.singleLimitNGN, tier),
+        403
+      ));
+    }
 
     const reference = generateReference('KUDI_SPEND');
 
@@ -217,6 +226,14 @@ export class PayoutController {
     const transferRate = this.rateService.getCurrentRate();
     const transferTier = sender?.kycTier || KYCTier.UNVERIFIED;
     const transferDailyLimit = { ...buildDailyLimitCheck(transferTier, amountUSDC, transferRate), sourceType: 'INTER_APP_TRANSFER' };
+    const transferSingleLimitCheck = buildSingleLimitCheck(transferTier, transferDailyLimit.amountNGN);
+    if (transferSingleLimitCheck.singleLimitNGN <= 0 || transferSingleLimitCheck.amountNGN > transferSingleLimitCheck.singleLimitNGN) {
+      return reply.status(403).send(errorResponse(
+        'SINGLE_LIMIT_EXCEEDED',
+        formatSingleLimitMessage(transferSingleLimitCheck.amountNGN, transferSingleLimitCheck.singleLimitNGN, transferTier),
+        403
+      ));
+    }
     const reference = generateReference('KUDI_TRANSFER');
     let newSenderBalance: number;
     try {
@@ -286,13 +303,17 @@ export class PayoutController {
 
   public spendOnChain = async (request: FastifyRequest, reply: FastifyReply) => {
     const authUser = getAuthenticatedUser(request);
-    const { pin, amountUSDC, toAddress, chain } = request.body as {
+    const { pin, amountUSDC, toAddress, chain, feeUSDC: requestedFeeUSDC } = request.body as {
       userId?: string;
       pin?: string;
       amountUSDC: number | string;
       toAddress: string;
       chain: 'solana' | 'monad';
+      feeUSDC?: number;
     };
+    const feeUSDC = typeof requestedFeeUSDC === 'number' && Number.isFinite(requestedFeeUSDC) && requestedFeeUSDC > 0
+      ? requestedFeeUSDC
+      : apiConfig.USDC_FEE ?? 0.01;
 
     const numAmountUSDC = typeof amountUSDC === 'number' ? amountUSDC : parseFloat(String(amountUSDC || 0)) || 0;
 
@@ -332,7 +353,6 @@ export class PayoutController {
     // 6. Create withdrawal record + optimistic debit.
     // Crypto/onchain sends are exempt from KYC daily limits — only NGN/fiat rails are capped.
     const reference = generateReference('KUDI_ONCHAIN');
-    const feeUSDC = apiConfig.USDC_FEE ?? 0.01;
     let withdrawal;
     try {
       withdrawal = await this.ledgerService.createWithdrawal({

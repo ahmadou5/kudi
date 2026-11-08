@@ -41,10 +41,9 @@ const CHAINS: Record<Chain, { label: string; short: string; network: string; tok
 
 /**
  * Network fee charged on top of the amount, in USDC.
- * The reference design shows a fee row; the API currently debits only the amount for
- * on-chain sends, so this stays 0 until the backend starts charging one.
+ * Mirrors the backend platform fee (USDC_FEE) applied on-chain for on-chain sends.
  */
-const ONCHAIN_FEE_USDC = 0;
+const ONCHAIN_FEE_USDC = 0.01;
 const MIN_SEND_USDC = 1;
 const MAX_AMOUNT_LENGTH = 9;
 const QUICK_AMOUNTS = [10, 50, 100];
@@ -398,7 +397,7 @@ export default function SendOnchainScreen() {
     const amountLabel = `$${numericAmount.toFixed(2)} ${token}`;
 
     try {
-      const res = await sendCrypto({ amountUSDC: numericAmount, toAddress: trimmedAddress, chain, pin });
+      const res = await sendCrypto({ amountUSDC: numericAmount, toAddress: trimmedAddress, chain, pin, feeUSDC: ONCHAIN_FEE_USDC });
       setSubmitting(false);
       setPinMode(false);
       setEnteredPin('');

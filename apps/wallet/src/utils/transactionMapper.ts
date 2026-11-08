@@ -52,13 +52,15 @@ export function mapApiTransactions(
     const isSolana =
       rawChain.includes('solana') || tx.currency === 'USDC' || (!isMonad && isDeposit);
 
-    const tokenSymbol = isMonad ? 'AUSD' : tx.currency || 'USDC';
+    const isBankPayout = direction === 'payout';
+    const tokenSymbol = isMonad ? 'AUSD' : isBankPayout ? 'NGN' : tx.currency || 'USDC';
     const chainName = isMonad ? 'monad' : isSolana ? 'solana' : '';
 
     const rawAmount =
       typeof tx.amount === 'number' ? tx.amount.toFixed(2) : String(tx.amount || '0.00');
     const amountNum = parseFloat(rawAmount) || 0;
     const amountNGN = amountNum * rateNGN;
+    const amountValue = isBankPayout ? amountNGN : amountNum;
 
     const timestampMs = tx.timestamp ? new Date(tx.timestamp).getTime() || 0 : 0;
 
@@ -80,11 +82,12 @@ export function mapApiTransactions(
           : isCryptoSend && tx.metadata?.toAddress
             ? `${String(tx.metadata.toAddress).slice(0, 6)}...${String(tx.metadata.toAddress).slice(-4)}`
             : `${tx.currency || 'NGN'} Transfer`),
-      amount: `${isDeposit ? '+' : '-'}$${amountNum.toFixed(2)} ${tokenSymbol}`,
-      secondaryAmount: `≈ ₦${amountNGN.toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      })} NGN`,
+      amount: isBankPayout
+        ? `${isDeposit ? '+' : '-'}₦${amountNGN.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : `${isDeposit ? '+' : '-'}$${amountNum.toFixed(2)} ${tokenSymbol}`,
+      secondaryAmount: isBankPayout
+        ? `Via ${String(tx.metadata?.subtitle || tx.metadata?.title || 'Bank Transfer').split('(')[0].trim() || 'Bank Transfer'}`
+        : `≈ ₦${amountNGN.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN`,
       status:
         tx.metadata?.status && ['SUCCESS', 'COMPLETED'].includes(String(tx.metadata.status).toUpperCase())
           ? 'CONFIRMED'
@@ -95,7 +98,7 @@ export function mapApiTransactions(
       tokenSymbol,
       metadata: tx.metadata,
       direction,
-      amountValue: amountNum,
+      amountValue,
       timestampMs
     };
   });

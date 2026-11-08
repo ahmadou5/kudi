@@ -86,7 +86,7 @@ export default function SpendingLimitsScreen() {
                 </Text>
               </View>
               <View style={[styles.activePill, { backgroundColor: hexToRgba(palette.success, 0.14) }]}>
-                <Text style={[Typography.footnote, { color: palette.success, fontWeight: '700' }]}>
+                <Text style={[Typography.currencySub, { color: palette.success, fontSize: 10 }]}>
                   ACTIVE
                 </Text>
               </View>
@@ -117,10 +117,10 @@ export default function SpendingLimitsScreen() {
             <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
             <View style={styles.tierDetailRow}>
-              <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.5) }]}>
+              <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.5), fontSize: 8 }]}>
                 Crypto / On-chain Sends
               </Text>
-              <Text style={[Typography.currencySub, { color: palette.success }]}>No daily limit</Text>
+              <Text style={[Typography.currencySub, { color: palette.success, fontSize: 10 }]}>No daily limit</Text>
             </View>
 
             {tier < 2 && (
@@ -172,12 +172,12 @@ export default function SpendingLimitsScreen() {
                         style={[styles.yourTierPill, { backgroundColor: hexToRgba(palette.success, 0.14) }]}
                       >
                         <Check size={12} color={palette.success} strokeWidth={2.5} />
-                        <Text style={[Typography.footnote, { color: palette.success, fontWeight: '700' }]}>
+                        <Text style={[Typography.currencySub, { color: palette.success, fontSize: 10 }]}>
                           Your Tier
                         </Text>
                       </View>
                     ) : (
-                      <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.4) }]}>
+                      <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.4), fontSize: 10 }]}>
                         Tier {t.level}
                       </Text>
                     )}
@@ -186,23 +186,23 @@ export default function SpendingLimitsScreen() {
                   <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
                   <View style={styles.tierDetailRow}>
-                    <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.5) }]}>
+                    <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.5), fontSize: 12 }]}>
                       NGN Daily Limit
                     </Text>
                     <Text style={[Typography.currencySub, { color: palette.text }]}>{t.dailyLimit}</Text>
                   </View>
                   <View style={styles.tierDetailRow}>
-                    <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.5) }]}>
+                    <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.5), fontSize: 12 }]}>
                       Per Tx Limit
                     </Text>
                     <Text style={[Typography.currencySub, { color: palette.text }]}>{t.singleLimit}</Text>
                   </View>
                   <View style={styles.tierDetailRow}>
-                    <Text style={[Typography.footnote, { color: hexToRgba(palette.text, 0.5) }]}>
+                    <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.5), fontSize: 12 }]}>
                       Requirements
                     </Text>
                     <Text
-                      style={[Typography.footnote, { color: hexToRgba(palette.text, 0.7), flexShrink: 1, textAlign: 'right' }]}
+                      style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.7), fontSize: 8, flexShrink: 1, textAlign: 'right' }]}
                     >
                       {t.requirements}
                     </Text>
@@ -219,8 +219,8 @@ export default function SpendingLimitsScreen() {
             <Info size={17} color={palette.textSecondary} strokeWidth={1.9} />
             <Text
               style={[
-                Typography.footnote,
-                { color: hexToRgba(palette.text, 0.55), flex: 1, lineHeight: 18 }
+                Typography.currencySub,
+                { color: hexToRgba(palette.text, 0.55), flex: 1, lineHeight: 13, fontSize: 10 }
               ]}
             >
               NGN spending limits apply to bank transfers, bills, and in-app

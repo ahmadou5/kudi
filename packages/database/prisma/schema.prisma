@@ -34,6 +34,7 @@ model User {
   expoPushToken   String?
   kycTier         KYCTier            @default(UNVERIFIED)
   kycStatus       KYCStatus          @default(NOT_STARTED)
+  kycMethod       String?
   pinHash         String?
   wallets         Wallet[]
   ledger          LedgerEntry[]

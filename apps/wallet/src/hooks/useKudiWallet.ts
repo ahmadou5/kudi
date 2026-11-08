@@ -192,13 +192,15 @@ export function useKudiWallet() {
     toAddress: string;
     chain: 'solana' | 'monad';
     pin: string;
+    feeUSDC?: number;
   }): Promise<CryptoSendResult> => {
     const res = await sdk.sendCrypto({
       userId,
       pin: params.pin,
       amountUSDC: params.amountUSDC,
       toAddress: params.toAddress,
-      chain: params.chain
+      chain: params.chain,
+      feeUSDC: params.feeUSDC
     });
 
     if (!res || !res.success || !res.data) {

@@ -255,7 +255,7 @@ export function sumsubWebSdkHtml(token: string, lang = 'en'): string {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; background: #0B0B0F; overflow: hidden; }
+  html, body { margin: 0; padding: 0; height: 100%; background: #0B0B0F; overflow-x: hidden; overflow-y: auto; }
   #sumsub-websdk-container { width: 100%; min-height: 100%; }
   #boot-error { display: none; color: #fff; font-family: -apple-system, sans-serif; padding: 24px; text-align: center; }
 </style>

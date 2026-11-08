@@ -81,8 +81,8 @@ export class KYCController {
         );
       }
 
-      const assignedTier = KYCTier.TIER_2;
-      this.ledgerService.updateUserKYC(userId, KYCStatus.VERIFIED, assignedTier);
+      const assignedTier = KYCTier.TIER_1;
+      this.ledgerService.updateUserKYC(userId, KYCStatus.VERIFIED, assignedTier, idType);
 
       if (verification.virtualAccount) {
         try {
@@ -324,7 +324,7 @@ export class KYCController {
         const verifiedName = result.name || user?.fullName || 'Kudi User';
         const parsedName = splitName(verifiedName);
 
-        this.ledgerService.updateUserKYC(userId, KYCStatus.VERIFIED, KYCTier.TIER_2);
+        this.ledgerService.updateUserKYC(userId, KYCStatus.VERIFIED, KYCTier.TIER_2, 'HOSTED');
 
         let virtualAccount: {
           accountNumber: string;

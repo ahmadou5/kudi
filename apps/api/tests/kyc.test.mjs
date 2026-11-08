@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+const TIER_1_DAILY_LIMIT_NGN = 100000;
+const TIER_1_SINGLE_LIMIT_NGN = 200000;
+const TIER_2_DAILY_LIMIT_NGN = 5000000;
+const TIER_2_SINGLE_LIMIT_NGN = 2000000;
+
 function validateBvn(bvn) {
   return /^\d{11}$/.test(String(bvn).trim());
 }
@@ -29,4 +34,16 @@ test('kyc: upgrades user to TIER_1 upon successful BVN verification', () => {
   assert.equal(res.success, true);
   assert.equal(res.status, 'VERIFIED');
   assert.equal(res.tier, 'TIER_1');
+});
+
+test('kyc: Tier 1 document verification unlocks the Tier 1 spending limits', () => {
+  const res = processKycVerification('22233344455', 'BVN');
+  assert.equal(res.tier, 'TIER_1');
+  assert.equal(TIER_1_DAILY_LIMIT_NGN, 100000);
+  assert.equal(TIER_1_SINGLE_LIMIT_NGN, 200000);
+});
+
+test('kyc: Tier 2 hosted verification unlocks the Tier 2 spending limits', () => {
+  assert.equal(TIER_2_DAILY_LIMIT_NGN, 5000000);
+  assert.equal(TIER_2_SINGLE_LIMIT_NGN, 2000000);
 });
