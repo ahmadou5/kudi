@@ -54,13 +54,21 @@ export default function HomeTab() {
     const isMonad = rawChain.includes('monad') || tx.currency === 'AUSD' || tx.metadata?.tokenSymbol === 'AUSD' || tx.metadata?.title?.includes('AUSD');
     const isSolana = rawChain.includes('solana') || tx.currency === 'USDC' || (!isMonad && isDeposit);
 
-    const tokenSymbol = isMonad ? 'AUSD' : (tx.currency || 'USDC');
+    const isCryptoSend =
+      !isDeposit &&
+      (tx.metadata?.type === 'CRYPTO_SEND_DEBIT' ||
+        tx.metadata?.type === 'SPEND_ONCHAIN' ||
+        String(tx.reference || '').startsWith('KUDI_ONCHAIN'));
+    const isBankPayout = !isDeposit && !isCryptoSend;
+    const tokenSymbol = isMonad ? 'AUSD' : isBankPayout ? 'NGN' : (tx.currency || 'USDC');
     const chainName = isMonad ? 'monad' : (isSolana ? 'solana' : '');
 
     const rawAmount = typeof tx.amount === 'number' ? tx.amount.toFixed(2) : String(tx.amount || '0.00');
     const amountNum = parseFloat(rawAmount) || 0;
     const amountNGN = amountNum * rateNGN;
-    const amountStr = `${isDeposit ? '+' : '-'}$${amountNum.toFixed(2)} ${tokenSymbol}`;
+    const amountStr = isBankPayout
+      ? `${isDeposit ? '+' : '-'}₦${amountNGN.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : `${isDeposit ? '+' : '-'}$${amountNum.toFixed(2)} ${tokenSymbol}`;
 
     const formattedDate = formatIntelligentTimestamp(tx.timestamp);
 
@@ -72,11 +80,15 @@ export default function HomeTab() {
       subtitle: tx.metadata?.subtitle || (isDeposit ? `${isMonad ? 'Monad Testnet' : 'Solana Network'}` : `${tx.currency || 'NGN'} Transfer`),
       date: formattedDate,
       amount: amountStr,
-      secondaryAmount: `≈ ₦${amountNGN.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      secondaryAmount: isBankPayout
+        ? `Via ${String(tx.metadata?.subtitle || tx.metadata?.title || 'Bank Transfer').split('(')[0].trim() || 'Bank Transfer'}`
+        : `≈ ₦${amountNGN.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       status: (tx.metadata?.status && ['SUCCESS', 'COMPLETED'].includes(tx.metadata.status.toUpperCase())) ? 'CONFIRMED' : (tx.metadata?.status || 'CONFIRMED'),
       isDeposit,
+      direction: isDeposit ? 'deposit' : isCryptoSend ? 'send' : 'payout',
       chain: chainName,
       tokenSymbol,
+      provider: isMonad ? 'ausd' : isBankPayout ? 'generic' : 'usdc',
       icon: isDeposit ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline',
       metadata: tx.metadata
     };

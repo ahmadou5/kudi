@@ -19,7 +19,7 @@ import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import QRCodeStyled from 'react-native-qrcode-styled';
 import { Rect } from 'react-native-svg';
-import { Copy, Check, ShieldCheck, Sparkles, Building2, Globe2, ArrowRight, X, QrCode, Share2, CheckCircle2, ChevronDown, ChevronUp, CopyIcon, LucideShare } from 'lucide-react-native';
+import { Copy, Check, ShieldCheck, Sparkles, Globe2, ArrowRight, X, QrCode, Share2, CheckCircle2, ChevronDown, ChevronUp, CopyIcon, LucideShare } from 'lucide-react-native';
 import { useAppPalette, isLight, hexToRgba, mixColors, cardHue } from '../lib/theme';
 import { Typography } from '../constants/typography';
 import { useVirtualAccounts, useProvisionVirtualAccount, VirtualAccount } from '../hooks/useVirtualAccounts';
@@ -552,67 +552,80 @@ export const BalanceCarousel: React.FC<BalanceCarouselProps> = ({
                   ({ngnAccount.bankName} • {ngnAccount.accountNumber})
                 </Text>
               </Text>
-
-              <View style={styles.actionRow}>
-                <TouchableOpacity
-                  onPress={() => openBankDepositSheet(ngnAccount, '🇳🇬', 'Instant Local Bank Transfer')}
-                  style={[styles.actionBtn, { backgroundColor: palette.text, borderColor: palette.border }]}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[Typography.bodyBold, { color: palette.bg }]}>
-                    Deposit NGN
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => router.push('/send/ngn')}
-                  style={[styles.actionBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[Typography.bodyBold, { color: palette.text }]}>
-                    Spend / Payout
-                  </Text>
-                </TouchableOpacity>
-              </View>
             </>
           ) : (
-            <View style={styles.kycPromptContainer}>
-              <View style={styles.kycPromptHeader}>
-                <Building2 size={24} color={palette.text} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[Typography.bodyBold, { color: palette.text }]}>
-                    Activate NGN Bank Account
-                  </Text>
-                  <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
-                    Zero-fee deposits & payouts in Naira via GTBank NUBAN
-                  </Text>
-                </View>
-              </View>
+            <>
+              <Text style={[Typography.currencyDisplay, styles.balanceValue, { color: palette.text }]}>
+                ₦<AnimatedAmount
+                  value={ngnEquivalent}
+                  format={formatNaira}
+                  color={palette.text}
+                  style={[Typography.currencyDisplay, styles.balanceValue]}
+                />{' '}
+                <Text style={[Typography.title2, { color: palette.textSecondary }]}>NGN</Text>
+              </Text>
 
-              <TouchableOpacity
-                onPress={handleGenerateAccount}
-                disabled={provisionAccount.isPending}
-                style={[
-                  styles.kycCtaBtn,
-                  { backgroundColor: palette.text, opacity: provisionAccount.isPending ? 0.7 : 1 }
-                ]}
-                activeOpacity={0.85}
-              >
-                {provisionAccount.isPending ? (
-                  <ActivityIndicator size="small" color={palette.bg} />
-                ) : (
-                  <ShieldCheck size={18} color={palette.bg} />
-                )}
-                <Text style={[Typography.bodyBold, { color: palette.bg }]}>
-                  {kycTierNum >= 1
-                    ? provisionAccount.isPending
-                      ? 'Generating…'
-                      : 'Generate Account'
-                    : 'Complete Tier 1 KYC'}
+              <Text style={[Typography.bodyBold, styles.subBalance, { color: palette.success }]}>
+                ≈ $<AnimatedAmount
+                  value={numericBalance}
+                  format={formatUsd}
+                  color={palette.success}
+                  style={[Typography.bodyBold]}
+                />{' '}
+                USDC{' '}
+                <Text style={[Typography.footnote, { color: palette.textSecondary }]}>
+                  NGN account pending activation
                 </Text>
-                {!provisionAccount.isPending && <ArrowRight size={16} color={palette.bg} />}
-              </TouchableOpacity>
-            </View>
+              </Text>
+            </>
+          )}
+
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              onPress={() => openBankDepositSheet(ngnAccount, '🇳🇬', 'Instant Local Bank Transfer')}
+              style={[styles.actionBtn, { backgroundColor: palette.text, borderColor: palette.border }]}
+              activeOpacity={0.8}
+            >
+              <Text style={[Typography.bodyBold, { color: palette.bg }]}>
+                Deposit NGN
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => router.push('/send/ngn')}
+              style={[styles.actionBtn, { backgroundColor: palette.card, borderColor: palette.border }]}
+              activeOpacity={0.8}
+            >
+              <Text style={[Typography.bodyBold, { color: palette.text }]}>
+                Spend / Payout
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {ngnAccount ? null : (
+            <TouchableOpacity
+              onPress={handleGenerateAccount}
+              disabled={provisionAccount.isPending}
+              style={[
+                styles.kycCtaBtn,
+                { backgroundColor: palette.text, opacity: provisionAccount.isPending ? 0.7 : 1 }
+              ]}
+              activeOpacity={0.85}
+            >
+              {provisionAccount.isPending ? (
+                <ActivityIndicator size="small" color={palette.bg} />
+              ) : (
+                <ShieldCheck size={18} color={palette.bg} />
+              )}
+              <Text style={[Typography.bodyBold, { color: palette.bg }]}>
+                {kycTierNum >= 1
+                  ? provisionAccount.isPending
+                    ? 'Generating…'
+                    : 'Generate Account'
+                  : 'Complete Tier 1 KYC'}
+              </Text>
+              {!provisionAccount.isPending && <ArrowRight size={16} color={palette.bg} />}
+            </TouchableOpacity>
           )}
         </View>
 

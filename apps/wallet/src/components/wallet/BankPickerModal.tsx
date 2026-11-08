@@ -2,7 +2,6 @@ import React, { useMemo, useState, useEffect } from 'react';
 import {
   FlatList,
   Image,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -13,6 +12,7 @@ import { Search, CheckCircle2 } from 'lucide-react-native';
 import { useAppPalette } from '../../lib/theme';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
+import { GorhomBottomSheet } from '../ui/GorhomBottomSheet';
 
 export type BankItem = {
   name: string;
@@ -201,116 +201,117 @@ export function BankPickerModal({
   }, [visible]);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={[styles.modalCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <View style={styles.modalHeader}>
-            <View>
-              <Text style={[styles.modalTitle, { color: palette.text }]}>Choose a bank</Text>
-              <Text style={[styles.modalSubtitle, { color: palette.textSecondary }]}>
-                {banks.length} banks available
-              </Text>
-            </View>
-            <Pressable onPress={onClose} style={[styles.modalClose, { backgroundColor: palette.bg }]}>
-              <Text style={[styles.modalCloseText, { color: palette.text }]}>Close</Text>
-            </Pressable>
-          </View>
+    <GorhomBottomSheet
+      visible={visible}
+      onClose={onClose}
+      snapPoints={['80%']}
+      scrollable
+      keyboardBehavior="fillParent"
+      keyboardBlurBehavior="restore"
 
-          {/* Functional search input */}
-          <View style={[styles.searchBox, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-            <Search size={16} color={palette.textSecondary} />
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search bank name or code…"
-              placeholderTextColor={palette.textSecondary}
-              style={[styles.searchInput, { color: palette.text }]}
-              autoCorrect={false}
-              returnKeyType="search"
-            />
-          </View>
+      contentContainerStyle={styles.bankListContent}
+    >
+      <View style={[styles.modalCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+        <View style={styles.modalHeader}>
+          <View>
+            <Text style={[styles.modalTitle, { color: palette.text }]}>Choose a bank</Text>
 
-          {banksLoading ? (
-            <View style={styles.bankLoading}>
-              <Text style={{ color: palette.textSecondary }}>Loading bank list…</Text>
-            </View>
-          ) : filteredBanks.length === 0 ? (
-            <View style={styles.bankLoading}>
-              <Text style={{ color: palette.textSecondary }}>
-                {search ? 'No banks matched your search.' : 'No banks available.'}
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={filteredBanks}
-              keyExtractor={(item) => item.code}
-              style={styles.bankList}
-              contentContainerStyle={styles.bankListContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              renderItem={({ item }) => {
-                const active = item.code === selectedBankCode;
-                return (
-                  <Pressable
-                    onPress={() => {
-                      onSelect(item);
-                      onClose();
-                    }}
-                    style={[
-                      styles.bankRow,
-                      {
-                        backgroundColor: active ? 'rgba(10,132,255,0.08)' : palette.bg,
-                        borderColor: active ? palette.primary : palette.border,
-                      },
-                    ]}
-                  >
-                    <BankLogo
-                      name={item.name}
-                      bankCode={item.code}
-                      slug={item.slug}
-                      size={40}
-                    />
-                    <View style={styles.bankRowCopy}>
-                      <Text
-                        style={[styles.bankRowName, { color: palette.text }]}
-                        numberOfLines={1}
-                      >
-                        {item.name}
-                      </Text>
-                      <Text style={[styles.bankRowCode, { color: palette.textSecondary }]}>
-                        {item.code}
-                      </Text>
-                    </View>
-                    {active ? (
-                      <View style={[styles.checkboxCheck, { backgroundColor: palette.primary }]}>
-                        <CheckCircle2 size={16} color="#fff" />
-                      </View>
-                    ) : (
-                      <View style={[styles.checkboxEmpty, { borderColor: palette.border }]} />
-                    )}
-                  </Pressable>
-                );
-              }}
-            />
-          )}
+          </View>
+          <Pressable onPress={onClose} style={[styles.modalClose, { backgroundColor: palette.bg }]}>
+            <Text style={[styles.modalCloseText, { color: palette.text }]}>Close</Text>
+          </Pressable>
         </View>
+
+        {/* Functional search input */}
+        <View style={[styles.searchBox, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+          <Search size={16} color={palette.textSecondary} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search bank name or code…"
+            placeholderTextColor={palette.textSecondary}
+            style={[styles.searchInput, { color: palette.text }]}
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+        </View>
+
+        {banksLoading ? (
+          <View style={styles.bankLoading}>
+            <Text style={{ color: palette.textSecondary }}>Loading bank list…</Text>
+          </View>
+        ) : filteredBanks.length === 0 ? (
+          <View style={styles.bankLoading}>
+            <Text style={{ color: palette.textSecondary }}>
+              {search ? 'No banks matched your search.' : 'No banks available.'}
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredBanks}
+            keyExtractor={(item) => item.code}
+            style={styles.bankList}
+            contentContainerStyle={styles.bankListContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item }) => {
+              const active = item.code === selectedBankCode;
+              return (
+                <Pressable
+                  onPress={() => {
+                    onSelect(item);
+                    onClose();
+                  }}
+                  style={[
+                    styles.bankRow,
+                    {
+                      backgroundColor: active ? 'rgba(10,132,255,0.08)' : palette.bg,
+                      borderColor: active ? palette.primary : palette.border,
+                    },
+                  ]}
+                >
+                  <BankLogo
+                    name={item.name}
+                    bankCode={item.code}
+                    slug={item.slug}
+                    size={40}
+                  />
+                  <View style={styles.bankRowCopy}>
+                    <Text
+                      style={[styles.bankRowName, { color: palette.text }]}
+                      numberOfLines={1}
+                    >
+                      {item.name}
+                    </Text>
+                    <Text style={[styles.bankRowCode, { color: palette.textSecondary }]}>
+                      {item.code}
+                    </Text>
+                  </View>
+                  {active ? (
+                    <View style={[styles.checkboxCheck, { backgroundColor: palette.primary }]}>
+                      <CheckCircle2 size={16} color="#fff" />
+                    </View>
+                  ) : (
+                    <View style={[styles.checkboxEmpty, { borderColor: palette.border }]} />
+                  )}
+                </Pressable>
+              );
+            }}
+          />
+        )}
       </View>
-    </Modal>
+
+    </GorhomBottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.50)', justifyContent: 'flex-end' },
   modalCard: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    paddingBottom: 40,
+
+
     gap: Spacing.md,
-    maxHeight: '82%',
+
   },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center' },
   modalTitle: { fontSize: Typography.lg, fontFamily: Typography.currencySub.fontFamily },
@@ -334,8 +335,8 @@ const styles = StyleSheet.create({
     fontFamily: Typography.currencySub.fontFamily,
   },
   bankLoading: { paddingVertical: Spacing.xl, alignItems: 'center', justifyContent: 'center' },
-  bankList: { flex: 1, minHeight: 160 },
-  bankListContent: { paddingBottom: Spacing.md },
+  bankList: { flex: 1, minHeight: 10000 },
+  bankListContent: { paddingBottom: Spacing.xs },
   bankRow: {
     flexDirection: 'row',
     alignItems: 'center',

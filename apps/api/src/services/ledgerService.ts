@@ -21,6 +21,7 @@ export interface UserRecord {
   expoPushToken?: string;
   kycStatus: KYCStatus;
   kycTier: KYCTier;
+  kycMethod?: string;
   wallets?: Array<{ chain: string; address: string; privyWalletId?: string; metadata?: Record<string, any> }>;
 }
 
@@ -302,7 +303,8 @@ export class LedgerService {
           pinHash: user.pinHash || undefined,
           expoPushToken: user.expoPushToken || undefined,
           kycStatus: user.kycStatus,
-          kycTier: user.kycTier
+          kycTier: user.kycTier,
+          kycMethod: user.kycMethod || undefined
         },
         create: {
           id: user.id,
@@ -318,7 +320,8 @@ export class LedgerService {
           pinHash: user.pinHash || undefined,
           expoPushToken: user.expoPushToken || undefined,
           kycStatus: user.kycStatus || 'NOT_STARTED',
-          kycTier: user.kycTier || 'UNVERIFIED'
+          kycTier: user.kycTier || 'UNVERIFIED',
+          kycMethod: user.kycMethod || undefined
         }
       });
       console.log(`[LedgerService] 🐘 User ${user.id} saved directly to Neon DB.`);
@@ -526,10 +529,11 @@ export class LedgerService {
     }
   }
 
-  public updateUserKYC(userId: string, status: KYCStatus, tier: KYCTier): void {
-    const user = this.users.get(userId) || { id: userId, kycStatus: status, kycTier: tier };
+  public updateUserKYC(userId: string, status: KYCStatus, tier: KYCTier, kycMethod?: string): void {
+    const user = this.users.get(userId) || { id: userId, kycStatus: status, kycTier: tier, kycMethod };
     user.kycStatus = status;
     user.kycTier = tier;
+    if (kycMethod) user.kycMethod = kycMethod;
     this.users.set(userId, user);
     void this.syncUserToDb(user);
   }

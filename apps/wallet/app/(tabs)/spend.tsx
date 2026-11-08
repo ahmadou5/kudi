@@ -13,6 +13,7 @@ import { ArrowLeft, Building2, Smartphone } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAppPalette, hexToRgba } from '../../src/lib/theme';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
+import { useBanks } from '../../src/hooks/useBanks';
 import { useSendAuth } from '../../src/hooks/useSendAuth';
 import { Typography } from '../../src/constants/typography';
 import { Spacing } from '../../src/constants/spacing';
@@ -309,6 +310,7 @@ export default function SpendTab() {
           toAddress: onchainAddress,
           chain: onchainChain,
           pin: enteredPin,
+          feeUSDC: 0.01,
         });
         setIsSubmitting(false);
         setPinModalOpen(false);

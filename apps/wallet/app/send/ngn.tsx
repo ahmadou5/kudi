@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   BackHandler,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -13,10 +14,12 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { ChevronDown, ChevronRight } from 'lucide-react-native';
+import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react-native';
+import { AmountKeypad } from '../../src/components/send/AmountKeypad';
 import { useAppPalette, hexToRgba, readableInk } from '../../src/lib/theme';
 import { Typography } from '../../src/constants/typography';
-import { NIGERIAN_BANKS, PHONE_NUMBER_BANK_CODES } from '../../src/constants/banks';
+import { PHONE_NUMBER_BANK_CODES } from '../../src/constants/banks';
+import { useBanks } from '../../src/hooks/useBanks';
 import { useKudiWallet } from '../../src/hooks/useKudiWallet';
 import { useRecipientsStore, BankRecipient } from '../../src/store/recipients.store';
 import { nairaInWords } from '../../src/utils/amountWords';
@@ -54,6 +57,7 @@ export default function SendNgnScreen() {
   const isDark = palette.scheme === 'dark';
   const { bioReady, authorize } = useSendAuth();
   const { balanceUSDC, rateNGN, resolveAccount, spendToBank } = useKudiWallet();
+  const { banks, loading: banksLoading } = useBanks();
 
   const recentBank = useRecipientsStore((s) => s.recentBank);
   const savedBank = useRecipientsStore((s) => s.savedBank);
@@ -92,7 +96,7 @@ export default function SendNgnScreen() {
     reference?: string;
   }>({ visible: false, type: 'success', title: '', message: '' });
 
-  const selectedBank = useMemo(() => NIGERIAN_BANKS.find((b) => b.code === bankCode) || null, [bankCode]);
+  const selectedBank = useMemo(() => banks.find((b) => b.code === bankCode) || banks[0] || null, [bankCode, banks]);
   const cleanAccount = accountNumber.replace(/\D/g, '');
   const accountComplete = cleanAccount.length === 10;
 
@@ -112,8 +116,8 @@ export default function SendNgnScreen() {
   const suggestedBanks = useMemo(() => {
     if (!accountComplete || selectedBank) return [];
     if (!/^[789]/.test(cleanAccount)) return [];
-    return NIGERIAN_BANKS.filter((b) => PHONE_NUMBER_BANK_CODES.includes(b.code));
-  }, [accountComplete, selectedBank, cleanAccount]);
+    return banks.filter((b) => PHONE_NUMBER_BANK_CODES.includes(b.code));
+  }, [accountComplete, selectedBank, cleanAccount, banks]);
 
   const prefilledKey = useRef<string | null>(null);
 
@@ -178,6 +182,30 @@ export default function SendNgnScreen() {
     const intFormatted = (int || '').replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     setAmountText(rest.length > 0 ? `${intFormatted || '0'}.${dec}` : intFormatted);
   };
+
+  const applyDigitToAmount = (text: string, d: string) => {
+    const cleaned = text.replace(/[^0-9.]/g, '');
+    const [int, ...rest] = cleaned.split('.');
+    const dec = rest.join('').slice(0, 2);
+    const intFormatted = (int || '').replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const next = dec.length > 0 ? `${intFormatted || '0'}.${dec}` : intFormatted;
+    return next === '' ? '' : next;
+  };
+
+  const applyDotToAmount = (text: string) => {
+    const cleaned = text.replace(/[^0-9.]/g, '');
+    if (cleaned.includes('.')) return text;
+    return text ? `${text}.` : '0.';
+  };
+
+  const handleKeypadDigit = (d: string) => setAmountText((prev) => applyDigitToAmount(prev, d));
+  const handleKeypadDot = () => setAmountText((prev) => applyDotToAmount(prev));
+  const handleKeypadBackspace = () => setAmountText((prev) => prev.slice(0, -1));
+
+  const amountDisplayText = useMemo(
+    () => fmtNgn(numericAmount),
+    [numericAmount]
+  );
 
   const handleOpenReview = () => {
     setSaveBeneficiary(false);
@@ -279,10 +307,45 @@ export default function SendNgnScreen() {
   const accountReady = accountComplete && !!selectedBank && !!accountName && !isResolving;
   const list = listTab === 'recent' ? recentBank : savedBank;
   const visibleList = showAll ? list : list.slice(0, RECENT_PREVIEW);
-
+  const isNotallowed = true;
   return (
     <View style={[styles.container, { backgroundColor: palette.bg }]}>
-      <SendHeader title={step === 'account' ? 'Bank Transfer' : 'Enter Amount'} onBack={handleBack} />
+      <SendHeader
+        title="Send NGN"
+        onBack={handleBack}
+        leading={
+          <Image source={require('../../assets/logos/ngnc.png')} style={{ width: 26, height: 26, borderRadius: 13 }} />
+        }
+      />
+
+      <View style={styles.progressRow}>
+        {[1, 2].map((seg) => {
+          const current = step === 'account' ? 1 : 2;
+          const active = seg <= current;
+          return (
+            <TouchableOpacity
+              key={seg}
+              style={styles.progressSeg}
+              disabled={seg === current}
+              onPress={() => {
+                const next = seg === 1 ? 'account' : 'amount';
+                if (seg < current) setStep(next);
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="progressbar"
+              accessibilityLabel={seg === 1 ? 'Recipient step' : 'Amount step'}
+              accessibilityValue={{ now: seg === current ? 1 : 0, min: 0, max: 1 }}
+            >
+              <View
+                style={[
+                  styles.progressSegBar,
+                  { backgroundColor: active ? palette.text : hexToRgba(palette.text, 0.12) },
+                ]}
+              />
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
       {step === 'account' ? (
         // ───────────── STEP 1 · ACCOUNT + BANK ─────────────
@@ -467,65 +530,40 @@ export default function SendNgnScreen() {
       ) : (
         // ───────────── STEP 2 · AMOUNT ─────────────
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView
-            style={styles.flex}
-            contentContainerStyle={styles.content}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
+          <View style={styles.content}>
             <EnterSection index={0}>
-              <Text style={[Typography.body, { color: palette.textSecondary, fontWeight: '500' }]}>Transfer to</Text>
-              <View
-                style={[
-                  styles.recipientCard,
-                  {
-                    backgroundColor: hexToRgba(palette.primary, 0.1),
-                    borderColor: isDark ? hexToRgba(palette.primary, 0.25) : hexToRgba(palette.primary, 0.22),
-                    borderBottomColor: palette.primary,
-                  },
-                ]}
-              >
-                {selectedBank ? <BankLogo name={selectedBank.name} bankCode={selectedBank.code} size={40} /> : null}
-                <Text style={[Typography.title3, { color: palette.text, flex: 1 }]} numberOfLines={2}>
-                  {selectedBank ? shortBankName(selectedBank.name) : ''}
-                  <Text style={[Typography.body, { color: palette.textSecondary }]}> ({accountName})</Text>
+              <View style={[styles.balancePill, { borderColor: palette.border, backgroundColor: inputBg }]}>
+                <Text style={[Typography.currencySub, { color: hexToRgba(palette.text, 0.5) }]}>Balance</Text>
+                <Text style={[Typography.currencySub, { fontFamily: Typography.currencySub.fontFamily, color: palette.text }]}>
+                  {fmtNgn(balanceNGN)}
                 </Text>
               </View>
             </EnterSection>
 
             <EnterSection index={1}>
-              <View style={styles.balanceRow}>
-                <View style={[styles.balancePill, { borderColor: palette.border, backgroundColor: inputBg }]}>
-                  <Text style={[Typography.footnote, { color: palette.text, fontWeight: '600' }]}>
-                    Current Balance: {fmtNgn(balanceNGN)}
-                  </Text>
-                </View>
+              <View style={styles.amountWrap}>
+                <Text style={styles.amountDisplay}>{amountDisplayText}</Text>
               </View>
             </EnterSection>
 
             <EnterSection index={2}>
-              <View
-                style={[
-                  styles.amountBox,
-                  {
-                    backgroundColor: inputBg,
-                    borderColor: amountError && numericAmount > 0 ? palette.error : palette.border,
-                  },
-                ]}
-              >
-                <Text style={[styles.currency, { color: palette.text }]}>₦</Text>
-                <TextInput
-                  value={amountText}
-                  onChangeText={handleAmountChange}
-                  placeholder="Enter amount"
-                  placeholderTextColor={placeholder}
-                  keyboardType="decimal-pad"
-                  style={[styles.amountInput, { color: palette.text }]}
-                />
+              <View style={styles.errorSlot} pointerEvents="none" accessibilityLiveRegion="polite">
+                {amountError && numericAmount > 0 ? (
+                  <View
+                    style={[
+                      styles.errorPill,
+                      {
+                        backgroundColor: hexToRgba(palette.error, 0.12),
+                        borderColor: hexToRgba(palette.error, 0.35),
+                      },
+                    ]}
+                  >
+                    <Text style={[Typography.currencySub, { color: palette.error, textAlign: 'center', fontSize: 10 }]}>
+                      {amountError}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
-              {amountError && numericAmount > 0 ? (
-                <Text style={[Typography.footnote, { color: palette.error }]}>{amountError}</Text>
-              ) : null}
             </EnterSection>
 
             <EnterSection index={3}>
@@ -546,21 +584,33 @@ export default function SendNgnScreen() {
             </EnterSection>
 
             <EnterSection index={4}>
-              <TextInput
-                value={note}
-                onChangeText={setNote}
-                placeholder="Note (Optional)"
-                placeholderTextColor={placeholder}
-                maxLength={60}
-                style={[
-                  styles.noteInput,
-                  { color: palette.text, backgroundColor: inputBg, borderColor: palette.border },
+              <SummaryCard
+                rows={[
+                  { label: 'Fee', value: fmtNgn(NGN_FEE) },
+                  { label: 'Total debit', value: fmtNgn(totalNGN), total: true },
                 ]}
               />
             </EnterSection>
-          </ScrollView>
+            {
+              isNotallowed ? null : <EnterSection index={5}>
+                <TextInput
+                  value={note}
+                  onChangeText={setNote}
+                  placeholder="Note (Optional)"
+                  placeholderTextColor={placeholder}
+                  maxLength={60}
+                  style={[
+                    styles.noteInput,
+                    { color: palette.text, backgroundColor: inputBg, borderColor: palette.border },
+                  ]}
+                />
+              </EnterSection>
+            }
+
+          </View>
 
           <View style={styles.footer}>
+            <AmountKeypad onDigit={handleKeypadDigit} onDot={handleKeypadDot} onBackspace={handleKeypadBackspace} />
             <TouchableOpacity
               disabled={!canContinueAmount}
               onPress={handleOpenReview}
@@ -578,9 +628,16 @@ export default function SendNgnScreen() {
       {/* ───────────── CONFIRM SHEET ───────────── */}
       <SendSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} locked={submitting}>
         <Text style={[styles.sheetAmount, { color: palette.text }]}>{fmtNgn(numericAmount)}</Text>
-        <Text style={[Typography.body, styles.sheetWords, { color: palette.textSecondary }]}>
+        <Text style={[Typography.currencySub, styles.sheetWords, { color: palette.textSecondary, fontFamily: Typography.currencySub.fontFamily }]}>
           {nairaInWords(numericAmount)}
         </Text>
+
+        <View style={styles.warning}>
+          <AlertTriangle size={20} color={palette.warning} />
+          <Text style={[Typography.body, { color: palette.text, flex: 1 }]}>
+            Ensure you confirm all transaction details. Bank transfers are irreversible
+          </Text>
+        </View>
 
         <SummaryCard
           rows={[
@@ -639,7 +696,8 @@ export default function SendNgnScreen() {
       <BankPickerModal
         visible={bankPickerOpen}
         onClose={() => setBankPickerOpen(false)}
-        banks={NIGERIAN_BANKS}
+        banks={banks}
+        banksLoading={banksLoading}
         selectedBankCode={bankCode || undefined}
         onSelect={(b) => setBankCode(b.code)}
       />
@@ -656,11 +714,11 @@ export default function SendNgnScreen() {
         onBiometricPress={
           bioReady
             ? () => {
-                void (async () => {
-                  const bioPin = await authorize('Confirm transfer');
-                  if (bioPin) await handleConfirmPin(bioPin);
-                })();
-              }
+              void (async () => {
+                const bioPin = await authorize('Confirm transfer');
+                if (bioPin) await handleConfirmPin(bioPin);
+              })();
+            }
             : undefined
         }
       />
@@ -687,13 +745,22 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { paddingHorizontal: 20, paddingBottom: 32, gap: 14 },
 
+  progressRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 20, paddingBottom: 10 },
+  progressSeg: { flex: 1, height: 12, justifyContent: 'center' },
+  progressSegBar: { height: 3, borderRadius: 2 },
+
+  amountWrap: { minHeight: 84, justifyContent: 'center', alignItems: 'center' },
+  amountDisplay: { fontSize: 40, fontWeight: '600', fontFamily: Typography.currencySub.fontFamily, textAlign: 'center' },
+  errorSlot: { alignSelf: 'stretch', height: 26, alignItems: 'center', justifyContent: 'center' },
+  errorPill: { paddingHorizontal: 10, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },
+
   formCard: { borderRadius: 20, borderWidth: 1, padding: 16, gap: 14 },
   input: {
     height: 58,
     borderRadius: 10,
     paddingHorizontal: 14,
     fontSize: 16,
-    fontFamily: Typography.family.sans,
+    fontFamily: Typography.currencySub.fontFamily,
   },
   bankSelect: {
     flexDirection: 'row',
@@ -723,6 +790,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  warning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+
   tabsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
   tabs: { flexDirection: 'row', gap: 10 },
   tab: { paddingHorizontal: 18, paddingVertical: 9, borderRadius: 8, borderWidth: 1 },
@@ -749,7 +826,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 3,
   },
   balanceRow: { alignItems: 'flex-end' },
-  balancePill: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18, borderWidth: 1 },
+  balancePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    borderRadius: 999,
+    maxWidth: 250,
+    alignSelf: 'center',
+    borderWidth: 1,
+  },
   amountBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -760,7 +847,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   currency: { fontSize: 22, fontWeight: '700' },
-  amountInput: { flex: 1, fontSize: 18, fontFamily: Typography.family.sans, height: '100%' },
+  amountInput: { flex: 1, fontSize: 18, fontFamily: Typography.currencySub.fontFamily, height: '100%' },
   chipsRow: { gap: 10, paddingRight: 20 },
   chip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8, borderWidth: 1 },
   noteInput: {
@@ -771,9 +858,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: Typography.family.sans,
   },
-  footer: { paddingHorizontal: 20, paddingBottom: 24, paddingTop: 8 },
+  footer: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: 20, paddingBottom: 24, paddingTop: 8, gap: 8 },
 
-  sheetAmount: { fontSize: 32, fontWeight: '800', textAlign: 'center', marginTop: 4 },
+  sheetAmount: { fontSize: 32, fontWeight: '600', textAlign: 'center', marginTop: 4, fontFamily: Typography.currencySub.fontFamily },
   sheetWords: { textAlign: 'center', marginTop: 4, marginBottom: 20 },
   bankValue: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sheetValue: { fontSize: 14, fontWeight: '600' },

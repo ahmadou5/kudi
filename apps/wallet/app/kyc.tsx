@@ -44,7 +44,7 @@ function splitFullName(fullName: string) {
   };
 }
 
-type KycFlowPhase = 'intro' | 'webview' | 'polling';
+type KycFlowPhase = 'intro' | 'webview' | 'polling' | 'quick';
 
 type SessionStatusResponse = {
   status: 'none' | 'pending' | 'approved' | 'rejected' | 'abandoned';
@@ -90,11 +90,11 @@ export default function KYCScreen() {
   const firstName = splitFullName(user?.fullName || '').firstName;
   const lastName = splitFullName(user?.fullName || '').lastName;
 
-  // NIN Upgrade modal state (typed NIN fast-path for already-verified users)
-  const [nin, setNin] = useState('');
-  const [ninSubmitting, setNinSubmitting] = useState(false);
   const [upgradeModalVisible, setUpgradeModalVisible] = useState(false);
   const [forceEdit, setForceEdit] = useState(false);
+  const [quickIdNumber, setQuickIdNumber] = useState('');
+  const [quickIdType, setQuickIdType] = useState<'BVN' | 'NIN'>('BVN');
+  const [quickSubmitting, setQuickSubmitting] = useState(false);
 
   // Loop guards
   const pollCancelRef = useRef(false);
@@ -324,6 +324,57 @@ export default function KYCScreen() {
     void runPollingLoop(8, 2000);
   };
 
+  const startQuickVerification = () => {
+    if (!consent) {
+      modal.alert('Consent required', 'Please tick the consent box to start verification.', 'warning');
+      return;
+    }
+    setFlowPhase('quick');
+  };
+
+  const handleQuickVerify = async () => {
+    if (!/^\d{11}$/.test(quickIdNumber.trim())) {
+      modal.alert('Invalid ID', 'Please enter a valid 11-digit BVN or NIN number.', 'warning');
+      return;
+    }
+
+    setQuickSubmitting(true);
+    try {
+      const parsed = user?.fullName ? splitFullName(user.fullName) : { firstName: '', lastName: '' };
+      const res = await sdk.verifyKYCID({
+        userId: user?.id || '',
+        idNumber: quickIdNumber.trim(),
+        idType: quickIdType,
+        firstName: firstName || parsed.firstName || 'User',
+        lastName: lastName || parsed.lastName,
+        dob: '',
+      });
+
+      setQuickSubmitting(false);
+      if (res && res.success) {
+        const tier = (res.data?.tier as string) || 'TIER_1';
+        syncUserKyc({ kycStatus: 'VERIFIED', kycTier: tier });
+        setFlowPhase('intro');
+        await refetchProfile();
+        const provider = res.data?.provider === 'SUMSUB' ? 'Sumsub' : res.data?.provider === 'DOJAH' ? 'Dojah' : null;
+        modal.show({
+          title: 'Verification complete',
+          description: `${provider ? `Your identity has been verified via ${provider}. ` : 'Your identity has been verified. '}Your Tier 1 limits and dedicated NGN account are now active.`,
+          type: 'success',
+          primaryText: 'View Account',
+          onPrimaryPress: () => {
+            modal.hide();
+          },
+        });
+      } else {
+        modal.alert('Verification Failed', res?.error?.message || 'Could not verify your identity. Please try again.', 'error');
+      }
+    } catch (err: any) {
+      setQuickSubmitting(false);
+      modal.alert('Error', err?.message || 'Failed to submit verification.', 'error');
+    }
+  };
+
   const handleWebviewMessage = (event: any) => {
     try {
       const msg = JSON.parse(event?.nativeEvent?.data ?? 'null');
@@ -413,47 +464,6 @@ export default function KYCScreen() {
     return () => rotateLoop.stop();
   }, [flowPhase, checking, rotateAnim]);
 
-  const handleNinUpgrade = async () => {
-    if (!/^\d{11}$/.test(nin.trim())) {
-      modal.alert('Invalid NIN', 'Please enter a valid 11-digit NIN number.', 'warning');
-      return;
-    }
-
-    setNinSubmitting(true);
-    try {
-      const parsed = user?.fullName ? splitFullName(user.fullName) : { firstName: '', lastName: '' };
-      const res = await sdk.verifyKYCID({
-        userId: user?.id || '',
-        idNumber: nin.trim(),
-        idType: 'NIN',
-        firstName: firstName || parsed.firstName || 'User',
-        lastName: lastName || parsed.lastName,
-        dob: '',
-      });
-
-      setNinSubmitting(false);
-      if (res && res.success) {
-        syncUserKyc({ kycStatus: 'VERIFIED', kycTier: res.data?.tier || 'TIER_2' });
-        setUpgradeModalVisible(false);
-        setNin('');
-        await refetchProfile();
-        const ninProvider = res.data?.provider === 'SUMSUB' ? 'Sumsub' : res.data?.provider === 'DOJAH' ? 'Dojah' : null;
-        modal.alert(
-          'NIN verified',
-          ninProvider
-            ? `Your NIN was verified via ${ninProvider}. Your account has been upgraded to Tier 2 with a ₦5,000,000 daily transfer limit!`
-            : 'Your account has been upgraded to Tier 2 with a ₦5,000,000 daily transfer limit!',
-          'success'
-        );
-      } else {
-        modal.alert('NIN Upgrade Failed', res?.error?.message || 'Could not verify NIN.', 'error');
-      }
-    } catch (err: any) {
-      setNinSubmitting(false);
-      modal.alert('Error', err?.message || 'Failed to submit NIN verification.', 'error');
-    }
-  };
-
   if (profileLoading) {
     return <KycSkeleton palette={palette} />;
   }
@@ -462,9 +472,9 @@ export default function KYCScreen() {
   if (kycComplete) {
     const virtualAcc = profileData?.virtualAccounts?.[0];
 
-    const isTier2 = kycTier === 'TIER_2' || kycComplete;
+    const isTier2 = kycTier === 'TIER_2';
     const tierLabel = isTier2 ? 'Tier 2' : 'Tier 1';
-    const tierLimit = isTier2 ? '₦5,000,000' : '₦50,000';
+    const tierLimit = isTier2 ? '₦5,000,000' : '₦100,000';
     const tierColor = isTier2 ? palette.success : palette.primary;
 
     return (
@@ -587,7 +597,7 @@ export default function KYCScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.upgradeTitle, { color: palette.text }]}>Upgrade to Tier 2</Text>
                     <Text style={[styles.upgradeSub, { color: palette.textSecondary }]}>
-                      Submit your 11-digit NIN to unlock a daily limit of ₦5,000,000.
+                      Complete hosted verification to unlock Tier 2 (₦5,000,000/day).
                     </Text>
                   </View>
                   <Pressable
@@ -598,34 +608,17 @@ export default function KYCScreen() {
                   </Pressable>
                 </View>
 
-                <View style={{ gap: 6 }}>
-                  <Text style={[Typography.caption, { color: palette.textSecondary }]}>National Identity Number (NIN)</Text>
-                  <TextInput
-                    value={nin}
-                    onChangeText={setNin}
-                    placeholder="Enter 11-digit NIN"
-                    placeholderTextColor={palette.textSecondary}
-                    keyboardType="number-pad"
-                    maxLength={11}
-                    style={[styles.input, { backgroundColor: palette.bg, color: palette.text, borderColor: palette.border }]}
-                  />
-                  <Text style={[Typography.caption, { color: palette.textSecondary }]}>Found on your National ID slip or dial *346#.</Text>
-                </View>
-
                 <Pressable
-                  onPress={handleNinUpgrade}
-                  disabled={ninSubmitting || nin.trim().length !== 11}
+                  onPress={() => void startVerification()}
+                  disabled={!consent || startingSession}
                   style={({ pressed }) => [
                     styles.primaryAction,
-                    {
-                      width: '100%',
-                      backgroundColor: nin.trim().length === 11 ? palette.primary : palette.border,
-                      marginTop: 6,
-                    },
-                    pressed && { opacity: 0.85 },
+                    { width: '100%', backgroundColor: consent && !startingSession ? palette.primary : palette.border, marginTop: 6 },
+                    pressed && consent && !startingSession ? { opacity: 0.9 } : null,
                   ]}
                 >
-                  <Text style={styles.primaryActionText}>{ninSubmitting ? 'Verifying NIN…' : 'Verify & Upgrade'}</Text>
+                  {startingSession ? <RefreshCw size={18} color="#FFF" /> : <ShieldCheck size={18} color="#FFF" />}
+                  <Text style={styles.primaryActionText}>{startingSession ? 'Opening secure screen…' : 'Upgrade via Hosted Verification'}</Text>
                 </Pressable>
               </View>
             </View>
@@ -821,6 +814,128 @@ export default function KYCScreen() {
     );
   }
 
+  // --- Quick BVN/NIN verification (Tier 1) ---
+  if (flowPhase === 'quick') {
+    return (
+      <ScrollView
+        style={[styles.screen, { backgroundColor: palette.bg }]}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.headerRow}>
+          <Pressable
+            style={[styles.backButton, { backgroundColor: palette.card, borderColor: palette.border }]}
+            onPress={() => { pollCancelRef.current = true; setFlowPhase('intro'); }}
+          >
+            <ArrowLeft size={20} color={palette.text} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: palette.text }]}>Verification</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+
+        {verificationRejected && (
+          <View style={[styles.errorCard, { backgroundColor: hexToRgba(palette.error, 0.12), borderColor: palette.error }]}>
+            <AlertCircle size={20} color={palette.error} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.errorTitle, { color: palette.text }]}>Verification Attempt Failed</Text>
+              <Text style={[styles.errorSub, { color: palette.text }]}>
+                Your previous attempt did not pass. Double-check your details in the secure screen and try again.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        <EnterSection index={0}>
+          <View style={styles.introBlock}>
+            <Text style={[styles.introTitle, { color: palette.text }]}>Quick verification</Text>
+            <Text style={[styles.introSub, { color: palette.textSecondary }]}>
+              One quick check unlocks a ₦100,000 daily limit and your dedicated NGN account.
+            </Text>
+
+            <KycSteps
+              palette={palette}
+              steps={[
+                { num: '1', title: 'Enter your BVN or NIN', body: 'Matched against the national identity database.' },
+                { num: '2', title: 'Verified instantly', body: 'No selfie required for Tier 1.' },
+                { num: '3', title: 'Get your result', body: 'Your NGN account activates next.' },
+              ]}
+            />
+          </View>
+        </EnterSection>
+
+        <EnterSection index={1}>
+          <View style={styles.actionsBlock}>
+            <Pressable
+              onPress={() => setConsent((c) => !c)}
+              style={[styles.consentRow, { backgroundColor: consent ? hexToRgba(palette.primary, 0.07) : palette.card }]}
+            >
+              <View
+                style={[
+                  styles.checkbox,
+                  {
+                    borderColor: consent ? palette.primary : palette.border,
+                    backgroundColor: consent ? palette.primary : 'transparent',
+                  },
+                ]}
+              >
+                {consent ? <Check size={13} color="#FFF" strokeWidth={3} /> : null}
+              </View>
+              <View style={styles.consentCopy}>
+                <Text style={[styles.consentTitle, { color: palette.text }]}>I consent to identity verification</Text>
+                <Text style={[styles.consentBody, { color: palette.textSecondary }]}>
+                  Share my BVN/NIN & selfie with the verification partner to verify me and issue my NGN account.
+                </Text>
+              </View>
+            </Pressable>
+
+            <Text style={[Typography.caption, { color: palette.textSecondary }]}>National Identity Number (BVN / NIN)</Text>
+            <TextInput
+              value={quickIdNumber}
+              onChangeText={setQuickIdNumber}
+              placeholder="Enter 11-digit BVN or NIN"
+              placeholderTextColor={palette.textSecondary}
+              keyboardType="number-pad"
+              maxLength={11}
+              style={[styles.input, { backgroundColor: palette.bg, color: palette.text, borderColor: palette.border }]}
+            />
+
+            <Pressable
+              onPress={() => void handleQuickVerify()}
+              disabled={!consent || quickSubmitting || !/^\d{11}$/.test(quickIdNumber.trim())}
+              style={({ pressed }) => [
+                styles.primaryAction,
+                {
+                  width: '100%',
+                  backgroundColor:
+                    consent && !quickSubmitting && /^\d{11}$/.test(quickIdNumber.trim()) ? palette.primary : palette.border,
+                  marginTop: 6,
+                },
+                pressed && consent && !quickSubmitting && /^\d{11}$/.test(quickIdNumber.trim()) ? { opacity: 0.9 } : null,
+              ]}
+            >
+              {quickSubmitting ? <RefreshCw size={18} color="#FFF" /> : <ShieldCheck size={18} color="#FFF" />}
+              <Text style={styles.primaryActionText}>{quickSubmitting ? 'Verifying…' : 'Verify & Continue'}</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => { pollCancelRef.current = true; setFlowPhase('intro'); }}
+              style={({ pressed }) => [
+                styles.secondaryAction,
+                { width: '100%', backgroundColor: palette.card, borderColor: palette.border },
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              <Text style={styles.secondaryActionText}>Back</Text>
+            </Pressable>
+          </View>
+        </EnterSection>
+
+        <AppModal config={modal.config} onClose={modal.hide} />
+      </ScrollView>
+    );
+  }
+
   // --- Intro / consent screen (opens the provider-hosted flow) ---
   return (
     <ScrollView
@@ -861,34 +976,16 @@ export default function KYCScreen() {
             One quick check unlocks a ₦5,000,000 daily limit and your dedicated NGN account.
           </Text>
 
-          <View style={styles.steps}>
-            {[
-              { num: '1', title: 'Check your BVN or NIN', body: 'Matched against the national identity database.' },
-              { num: '2', title: 'Take a quick selfie', body: 'Confirms the identity is really you.' },
-              {
-                num: '3',
-                title: 'Get your result',
-                body: 'Usually done in about 2 minutes. Your NGN account activates next.',
-              },
-            ].map((step, index) => (
-              <View
-                key={step.num}
-                style={[
-                  styles.stepRow,
-                  index > 0 && styles.stepDivider,
-                  index > 0 && { borderTopColor: palette.border },
-                ]}
-              >
-                <Text style={[styles.stepNum, { color: palette.primary }]}>{step.num}</Text>
-                <View style={styles.stepCopy}>
-                  <Text style={[styles.stepTitle, { color: palette.text }]}>{step.title}</Text>
-                  <Text style={[styles.stepBody, { color: palette.textSecondary }]}>{step.body}</Text>
-                </View>
-              </View>
-            ))}
+            <KycSteps
+              palette={palette}
+              steps={[
+                { num: '1', title: 'Check your BVN or NIN', body: 'Matched against the national identity database.' },
+                { num: '2', title: 'Take a quick selfie', body: 'Confirms the identity is really you.' },
+                { num: '3', title: 'Get your result', body: 'Usually done in about 2 minutes. Your NGN account activates next.' },
+              ]}
+            />
           </View>
-        </View>
-      </EnterSection>
+        </EnterSection>
 
       {/* Consent + start */}
       <EnterSection index={1}>
@@ -917,22 +1014,37 @@ export default function KYCScreen() {
           </Pressable>
 
           <Pressable
+            onPress={() => void startQuickVerification()}
+            disabled={!consent || quickSubmitting}
+            style={({ pressed }) => [
+              styles.primaryAction,
+              { backgroundColor: consent && !quickSubmitting ? palette.primary : palette.border },
+              pressed && consent && !quickSubmitting ? { opacity: 0.9 } : null,
+            ]}
+          >
+            {quickSubmitting ? <RefreshCw size={18} color="#FFF" /> : <ShieldCheck size={18} color="#FFF" />}
+            <Text style={styles.primaryActionText}>
+              {quickSubmitting ? 'Verifying\u2026' : 'Verify with BVN / NIN (Tier 1)'}
+            </Text>
+          </Pressable>
+
+          <Pressable
             onPress={() => void startVerification()}
             disabled={!consent || startingSession}
             style={({ pressed }) => [
-              styles.primaryAction,
-              { backgroundColor: consent && !startingSession ? palette.primary : palette.border },
-              pressed && consent && !startingSession ? { opacity: 0.9 } : null,
+              styles.secondaryAction,
+              { backgroundColor: palette.card, borderColor: palette.border },
+              pressed && consent && !startingSession ? { opacity: 0.85 } : null,
             ]}
           >
-            {startingSession ? <RefreshCw size={18} color="#FFF" /> : <ShieldCheck size={18} color="#FFF" />}
-            <Text style={styles.primaryActionText}>
-              {startingSession ? 'Opening secure screen\u2026' : 'Start Verification'}
+            {startingSession ? <RefreshCw size={18} color={palette.text} /> : <ShieldCheck size={18} color={palette.text} />}
+            <Text style={styles.secondaryActionText}>
+              {startingSession ? 'Opening secure screen\u2026' : 'Full Verification (Tier 2 — Hosted Selfie)'}
             </Text>
           </Pressable>
 
           <Text style={[styles.trustLine, { color: palette.textSecondary }]}>
-            Verification runs in a secure screen hosted by our provider. You can retry anytime.
+            Quick check uses your BVN/NIN against the national database. Full verification adds a selfie for Tier 2 limits.
           </Text>
         </View>
       </EnterSection>
@@ -948,7 +1060,7 @@ export default function KYCScreen() {
         onRequestClose={closeWebviewToPolling}
       >
         <View style={[styles.webviewRoot, { backgroundColor: palette.bg }]}>
-          <View style={[styles.webviewHeader, { backgroundColor: palette.card, borderBottomColor: palette.border, paddingTop: insets.top + 12 }]}>
+          <View style={[styles.webviewHeader, { backgroundColor: palette.card, borderBottomColor: palette.border, paddingTop: insets.top }]}>
             <Pressable
               onPress={closeWebviewToPolling}
               style={[styles.closeIconButton, { backgroundColor: palette.bg, borderColor: palette.border }]}
@@ -977,6 +1089,7 @@ export default function KYCScreen() {
                 originWhitelist={['*']}
                 javaScriptEnabled
                 domStorageEnabled
+                scrollEnabled
                 allowsInlineMediaPlayback
                 mediaPlaybackRequiresUserAction={false}
                 mediaCapturePermissionGrantType="grant"
@@ -991,7 +1104,7 @@ export default function KYCScreen() {
                   setWebviewError(`The verification page returned an error (${e.nativeEvent.statusCode}).`)
                 }
                 onMessage={handleWebviewMessage}
-                style={{ flex: 1, backgroundColor: palette.bg }}
+                style={{ flex: 1, backgroundColor: palette.bg, paddingBottom: insets.bottom }}
               />
             ) : null}
 
@@ -1045,6 +1158,29 @@ export default function KYCScreen() {
         </View>
       </Modal>
     </ScrollView>
+  );
+}
+
+function KycSteps({ steps, palette }: { steps: Array<{ num: string; title: string; body: string }>; palette: any }) {
+  return (
+    <View style={styles.steps}>
+      {steps.map((step, index) => (
+        <View
+          key={step.num}
+          style={[
+            styles.stepRow,
+            index > 0 && styles.stepDivider,
+            index > 0 && { borderTopColor: palette.border },
+          ]}
+        >
+          <Text style={[styles.stepNum, { color: palette.primary }]}>{step.num}</Text>
+          <View style={styles.stepCopy}>
+            <Text style={[styles.stepTitle, { color: palette.text }]}>{step.title}</Text>
+            <Text style={[styles.stepBody, { color: palette.textSecondary }]}>{step.body}</Text>
+          </View>
+        </View>
+      ))}
+    </View>
   );
 }
 

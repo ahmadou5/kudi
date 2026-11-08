@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 // Tier Limit & Provider Failover Simulation
 const KYC_TIER_LIMITS = {
   TIER_0: 0,
-  TIER_1: 50000,      // ₦50,000 per day
+  TIER_1: 100000,     // ₦100,000 per day
   TIER_2: 5000000     // ₦5,000,000 per day
 };
 
@@ -25,11 +25,11 @@ async function simulateFailoverPayout(request, mockProviders) {
 }
 
 test('payout-failover: enforces Tier 1 vs Tier 2 daily NGN spending limits', () => {
-  // Tier 1 user trying to spend ₦60,000 (exceeds ₦50k limit)
-  assert.equal(checkKycLimit('TIER_1', 0, 60000), false);
+  // Tier 1 user trying to spend ₦60,000 (within ₦100k limit)
+  assert.equal(checkKycLimit('TIER_1', 0, 60000), true);
 
-  // Tier 1 user spending ₦30,000 (within ₦50k limit)
-  assert.equal(checkKycLimit('TIER_1', 0, 30000), true);
+  // Tier 1 user spending ₦120,000 (exceeds ₦100k limit)
+  assert.equal(checkKycLimit('TIER_1', 0, 120000), false);
 
   // Tier 2 user spending ₦2,000,000 (within ₦5M limit)
   assert.equal(checkKycLimit('TIER_2', 1000000, 2000000), true);

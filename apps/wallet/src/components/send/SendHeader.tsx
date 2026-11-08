@@ -65,6 +65,7 @@ const styles = StyleSheet.create({
 
   },
   titleWrap: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

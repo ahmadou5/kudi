@@ -4,13 +4,15 @@ import { Zap, ArrowDownCircle, ArrowUpCircle, ArrowDown, ArrowUp, Clock, LucideI
 import { useAppPalette, hexToRgba, readableInk } from '../lib/theme';
 import { Typography } from '../constants/typography';
 import { ChainLogo } from './ui/ChainLogo';
+import { BankLogo } from './wallet/BankPickerModal';
 import { router } from 'expo-router';
 
-type BrandProvider = 'usdc' | 'ausd' | 'solana' | 'monad' | 'mtn' | 'airtel' | 'glo' | '9mobile' | 'electricity' | 'gtbank' | 'zenith' | 'paystack' | 'generic';
+type BrandProvider = 'usdc' | 'ausd' | 'solana' | 'monad' | 'mtn' | 'airtel' | 'glo' | '9mobile' | 'electricity' | 'gtbank' | 'zenith' | 'paystack' | 'ngn' | 'generic';
 
 const BRAND_LOGOS: Record<string, ImageSourcePropType> = {
   usdc: require('../../assets/logos/usdc.png'),
   ausd: require('../../assets/logos/ausd.png'),
+  ngn: require('../../assets/logos/ngnc.png'),
   solana: require('../../assets/logos/solana.png'),
   monad: require('../../assets/logos/monad.png'),
   mtn: require('../../assets/logos/mtn.png'),
@@ -37,6 +39,9 @@ export interface TransactionData {
   chain?: 'solana' | 'monad' | 'monad-testnet' | string;
   tokenSymbol?: 'USDC' | 'AUSD' | string;
   metadata?: Record<string, any>;
+  direction?: 'deposit' | 'send' | 'payout';
+  bankName?: string;
+  bankCode?: string;
 }
 
 interface TransactionCardProps {
@@ -56,6 +61,7 @@ function detectProvider(item: TransactionData): BrandProvider {
 
   if (text.includes('ausd') || text.includes('monad')) return 'ausd';
   if (text.includes('usdc') || text.includes('solana')) return 'usdc';
+  if (text.includes('ngn')) return 'ngn';
   if (text.includes('mtn')) return 'mtn';
   if (text.includes('airtel')) return 'airtel';
   if (text.includes('glo')) return 'glo';
@@ -101,6 +107,8 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
   const isDeposit = item.isDeposit ?? item.amount.startsWith('+');
   const provider = detectProvider(item);
   const detectedChain = detectChain(item);
+  const direction = item.direction ?? (isDeposit ? 'deposit' : detectedChain ? 'send' : 'payout');
+  const showChainBadge = detectedChain && direction !== 'payout';
 
   // Status Badge Colors
   const isSuccess = ['SUCCESS', 'COMPLETED', 'CONFIRMED', 'DONE'].includes(item.status.toUpperCase());
@@ -135,8 +143,12 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
           status: isSuccess ? 'CONFIRMED' : item.status,
           date: item.date,
           isDeposit: String(isDeposit),
+          direction: String(direction),
           chain: item.chain || detectedChain || '',
-          tokenSymbol: item.tokenSymbol || (provider === 'ausd' ? 'AUSD' : 'USDC')
+          tokenSymbol: item.tokenSymbol || (provider === 'ausd' ? 'AUSD' : 'USDC'),
+          provider: item.provider || provider,
+          bankName: String(item.metadata?.subtitle || item.metadata?.recipientAccountName || item.subtitle || ''),
+          bankCode: String(item.metadata?.recipientBankCode || item.metadata?.bankCode || '')
         }
       });
     }
@@ -147,20 +159,30 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
   };
 
   const renderBrandIcon = () => {
+    if (provider === 'electricity') {
+      return (
+        <View style={[styles.brandContainer, { backgroundColor: palette.warning }]}>
+          <Zap size={20} color={readableInk(palette.warning)} />
+        </View>
+      );
+    }
+
+    if (direction === 'payout') {
+      const bankName = String(item.metadata?.subtitle || item.metadata?.recipientAccountName || item.subtitle || 'Bank Transfer');
+      const bankCode = String(item.metadata?.recipientBankCode || item.metadata?.bankCode || '');
+      return (
+        <View style={[styles.brandContainer, { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1 }]}>
+          <BankLogo name={bankName} bankCode={bankCode || undefined} size={32} />
+        </View>
+      );
+    }
+
     const logoSource = BRAND_LOGOS[provider];
 
     if (logoSource) {
       return (
         <View style={[styles.brandContainer, { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1 }]}>
           <Image source={logoSource} style={styles.logoImage} resizeMode="contain" />
-        </View>
-      );
-    }
-
-    if (provider === 'electricity') {
-      return (
-        <View style={[styles.brandContainer, { backgroundColor: palette.warning }]}>
-          <Zap size={20} color={readableInk(palette.warning)} />
         </View>
       );
     }
@@ -208,7 +230,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
             <View style={styles.iconWrapper}>
               {renderBrandIcon()}
 
-              {detectedChain ? (
+              {showChainBadge ? (
                 <View style={[styles.chainBadgeOverlay, { backgroundColor: palette.bg, borderColor: palette.card }]}>
                   <ChainLogo chain={detectedChain} size={14} />
                 </View>
@@ -225,7 +247,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
 
             <View style={styles.titleStack}>
               <Text style={[Typography.bodyBold, { color: palette.text, fontSize: 14 }]} numberOfLines={1}>
-                {isDeposit ? 'Deposit' : 'Spend'}
+                {direction === 'deposit' ? 'Deposit' : direction === 'send' ? 'Spend' : 'Payout'}
               </Text>
               {!isExpanded && (
                 <Text
@@ -323,7 +345,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
           <View style={styles.iconWrapper}>
             {renderBrandIcon()}
 
-            {detectedChain ? (
+            {showChainBadge ? (
               <View style={[styles.chainBadgeOverlay, { backgroundColor: palette.bg, borderColor: palette.card }]}>
                 <ChainLogo chain={detectedChain} size={14} />
               </View>
