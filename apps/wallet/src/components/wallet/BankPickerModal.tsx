@@ -28,6 +28,8 @@ type BankPickerModalProps = {
   selectedBankCode?: string;
   banks: BankItem[];
   banksLoading?: boolean;
+  /** When true, renders BottomSheetScrollView inside GorhomBottomSheet. Default false. */
+  scrollable?: boolean;
 };
 
 const BANK_PALETTE = [
@@ -184,6 +186,7 @@ export function BankPickerModal({
   selectedBankCode,
   banks,
   banksLoading = false,
+  scrollable,
 }: BankPickerModalProps) {
   const palette = useAppPalette();
   const [search, setSearch] = useState('');
@@ -205,7 +208,7 @@ export function BankPickerModal({
       visible={visible}
       onClose={onClose}
       snapPoints={['80%']}
-      scrollable
+      scrollable={scrollable !== false}
       keyboardBehavior="fillParent"
       keyboardBlurBehavior="restore"
 
@@ -250,10 +253,10 @@ export function BankPickerModal({
           <FlatList
             data={filteredBanks}
             keyExtractor={(item) => item.code}
-            style={styles.bankList}
-            contentContainerStyle={styles.bankListContent}
-            keyboardShouldPersistTaps="handled"
+            horizontal
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            // Remove contentContainerStyle since GorhomBottomSheet already provides it
             renderItem={({ item }) => {
               const active = item.code === selectedBankCode;
               return (
@@ -270,22 +273,21 @@ export function BankPickerModal({
                     },
                   ]}
                 >
-                  <BankLogo
-                    name={item.name}
-                    bankCode={item.code}
-                    slug={item.slug}
-                    size={40}
-                  />
-                  <View style={styles.bankRowCopy}>
-                    <Text
-                      style={[styles.bankRowName, { color: palette.text }]}
-                      numberOfLines={1}
-                    >
-                      {item.name}
-                    </Text>
-                    <Text style={[styles.bankRowCode, { color: palette.textSecondary }]}>
-                      {item.code}
-                    </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <BankLogo
+                      name={item.name}
+                      bankCode={item.code}
+                      slug={item.slug}
+                      size={36}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.bankRowName, { color: palette.text }]} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <Text style={[styles.bankRowCode, { color: palette.textSecondary }]}>
+                        {item.code}
+                      </Text>
+                    </View>
                   </View>
                   {active ? (
                     <View style={[styles.checkboxCheck, { backgroundColor: palette.primary }]}>
@@ -308,10 +310,7 @@ export function BankPickerModal({
 const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.50)', justifyContent: 'flex-end' },
   modalCard: {
-
-
     gap: Spacing.md,
-
   },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center' },
   modalTitle: { fontSize: Typography.lg, fontFamily: Typography.currencySub.fontFamily },
@@ -335,19 +334,17 @@ const styles = StyleSheet.create({
     fontFamily: Typography.currencySub.fontFamily,
   },
   bankLoading: { paddingVertical: Spacing.xl, alignItems: 'center', justifyContent: 'center' },
-  bankList: { flex: 1, minHeight: 10000 },
+  bankList: { },
   bankListContent: { paddingBottom: Spacing.xs },
   bankRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    width: 100,
     borderRadius: 16,
     borderWidth: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-    gap: 12,
+    padding: 8,
+    marginHorizontal: 6,
+    marginBottom: 4,
   },
-  bankRowCopy: { flex: 1, gap: 2 },
+  bankRowCopy: { gap: 2 },
   bankRowName: { fontSize: Typography.sm, fontFamily: Typography.currencySub.fontFamily },
   bankRowCode: { fontSize: 11 },
   checkboxCheck: {

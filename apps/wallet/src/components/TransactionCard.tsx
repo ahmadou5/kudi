@@ -6,6 +6,7 @@ import { Typography } from '../constants/typography';
 import { ChainLogo } from './ui/ChainLogo';
 import { BankLogo } from './wallet/BankPickerModal';
 import { router } from 'expo-router';
+import { CardBackgroundPattern } from './ui/CardBackgroundPattern';
 
 type BrandProvider = 'usdc' | 'ausd' | 'solana' | 'monad' | 'mtn' | 'airtel' | 'glo' | '9mobile' | 'electricity' | 'gtbank' | 'zenith' | 'paystack' | 'ngn' | 'generic';
 
@@ -224,6 +225,10 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
           }
         ]}
       >
+        <CardBackgroundPattern
+          glowColor={hexToRgba(statusColor, isDark ? 0.1 : 0.07)}
+          isDarkOverride={isDark}
+        />
         <View style={styles.topRow}>
           {/* Main Token Logo + Chain Logo Corner Badge Overlay */}
           <View style={styles.leftGroup}>
@@ -339,8 +344,13 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onPress,
         }
       ]}
     >
+      <CardBackgroundPattern
+        glowColor={hexToRgba(statusColor, isDark ? 0.1 : 0.07)}
+        isDarkOverride={isDark}
+      />
       <View style={styles.topRow}>
         {/* Main Token Logo + Chain Logo Corner Badge Overlay */}
+
         <View style={styles.leftGroup}>
           <View style={styles.iconWrapper}>
             {renderBrandIcon()}
