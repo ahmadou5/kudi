@@ -30,6 +30,7 @@ import { useAppPalette, hexToRgba } from '../src/lib/theme';
 import { Typography } from '../src/constants/typography';
 import { ChainLogo } from '../src/components/ui/ChainLogo';
 import { BankLogo } from '../src/components/wallet/BankPickerModal';
+import { NIGERIAN_BANKS } from '../src/constants/banks';
 import { CardBackgroundPattern } from '../src/components/ui/CardBackgroundPattern';
 import { TransactionTrack } from '../src/components/ui/TransactionTrack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -141,6 +142,10 @@ export default function TransactionDetailsScreen() {
     const provider = params.provider || '';
     const bankName = params.bankName || '';
     const bankCode = params.bankCode || '';
+
+    // Find bank details from static NIGERIAN_BANKS list by bank code
+    const bankMatch = NIGERIAN_BANKS.find((bank) => bank.code === bankCode);
+    const bankSlug = bankMatch?.slug || undefined;
     const txHash = params.txHash || (params.ref && (params.ref.startsWith('0x') || params.ref.length > 25) ? params.ref : '');
     const ref = txHash || params.ref || params.id || 'REF_UNKNOWN';
 
@@ -234,7 +239,7 @@ export default function TransactionDetailsScreen() {
                         {/* Dual Token + Chain Badge Avatar */}
                         <View style={styles.avatarWrapper}>
                             {isPayout ? (
-                                <BankLogo name={bankName || 'Bank'} bankCode={bankCode || undefined} size={44} />
+                                <BankLogo name={bankName || 'Bank'} bankCode={bankCode || undefined} slug={bankSlug} size={44} />
                             ) : (
                                 <>
                                     <View style={[styles.tokenLogoCircle, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: palette.border }]}>
